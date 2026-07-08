@@ -3,19 +3,21 @@ using FluentAssertions;
 using UmbracoPrism.MockBusinessApp.Services.MoneyModeller;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Services.Calculations;
+// The maths under test is the declarative block in money-modeller.json; the scope is
+// built exactly as the engine builds it (definition input types + service inputs).
 
 namespace UmbracoPrism.Core.Tests.WorkflowEngine;
 
 /// <summary>
 /// Behavioural tests for the money-modeller maths as declared in the seed's
 /// calculations block — the single source of the projection logic. These evaluate the
-/// real money-modeller.json through MoneyModellerService (host glue: typed scope +
-/// member record) and assert scheme behaviour, not implementation.
+/// real money-modeller.json exactly as the engine does (CalculationScopeBuilder +
+/// CalculationEvaluator) and assert scheme behaviour, not implementation.
 /// </summary>
 public class MoneyModellerCalculationTests
 {
-    private readonly MoneyModellerService _service = new(new MemberRecordService());
-    private readonly Shared.Models.Workflow.Calculations.WorkflowCalculationSet _calculations = LoadSeedCalculations();
+    private readonly CalculationEvaluator _evaluator = new();
+    private readonly WorkflowDefinitionFile _definition = LoadSeedDefinition();
 
     private static MemberRecord ActiveWithDc => new()
     {
@@ -41,8 +43,25 @@ public class MoneyModellerCalculationTests
 
     private decimal Field(CalculationResult result, string name) => (decimal)result.Fields[name]!;
 
-    private CalculationResult Evaluate(MemberRecord member, Dictionary<string, object?> fieldValues) =>
-        _service.Evaluate(_calculations, member, fieldValues);
+    private CalculationResult Evaluate(MemberRecord member, Dictionary<string, object?> fieldValues)
+    {
+        var serviceInputs = new Dictionary<string, object?>
+        {
+            ["member"] = new Dictionary<string, object?>
+            {
+                ["name"] = member.Name,
+                ["active"] = member.Active,
+                ["age"] = (decimal)member.Age,
+                ["salary"] = member.Salary,
+                ["accruedPension"] = member.AccruedPension,
+                ["accruedLump"] = member.AccruedLump,
+                ["dcPot"] = member.DcPot
+            }
+        };
+
+        var scope = CalculationScopeBuilder.Build(_definition, fieldValues, serviceInputs);
+        return _evaluator.Evaluate(_definition.Calculations!, scope);
+    }
 
     [Fact]
     public void StandardBenefitsAtNormalPensionAge_ProjectAboveAccruedBenefits()
@@ -185,7 +204,7 @@ public class MoneyModellerCalculationTests
         Field(result, "realGrowth").Should().Be(-0.005m, "(3 - 3.5) / 100 with the default salary growth");
     }
 
-    private static Shared.Models.Workflow.Calculations.WorkflowCalculationSet LoadSeedCalculations()
+    private static WorkflowDefinitionFile LoadSeedDefinition()
     {
         var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (directory is not null)
@@ -204,8 +223,12 @@ public class MoneyModellerCalculationTests
                         AllowOutOfOrderMetadataProperties = true
                     })!;
 
-                return definition.Calculations
-                    ?? throw new InvalidOperationException("money-modeller.json has no calculations block.");
+                if (definition.Calculations is null)
+                {
+                    throw new InvalidOperationException("money-modeller.json has no calculations block.");
+                }
+
+                return definition;
             }
 
             directory = directory.Parent;

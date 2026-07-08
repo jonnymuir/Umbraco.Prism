@@ -40,6 +40,14 @@ public sealed record WorkflowCalculationField
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Source { get; init; }
+
+    /// <summary>
+    /// Optional display format applied wherever this field's value is shown
+    /// (stat-groups, summary-lists). Currently supported: "gbp" (£, no pence).
+    /// The raw value stays numeric inside expressions.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Format { get; init; }
 }
 
 /// <summary>

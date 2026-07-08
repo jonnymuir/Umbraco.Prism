@@ -22,6 +22,12 @@ public abstract record InputComponent : PrismComponent
 
     /// <summary>The value that makes this field visible when ConditionalOn is set.</summary>
     public string? VisibleWhen { get; init; }
+
+    /// <summary>
+    /// Default value used when the instance has no saved value for this field —
+    /// pre-populates the rendered control and seeds the calculation scope.
+    /// </summary>
+    public string? Default { get; init; }
 }
 
 /// <summary>

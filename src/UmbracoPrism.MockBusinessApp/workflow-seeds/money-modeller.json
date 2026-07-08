@@ -10,61 +10,152 @@
     "tables": {
       "pensionAgeFactor": {
         "interpolate": "linear",
-        "values": { "55": 0.56, "66": 1.0, "75": 1.27 }
+        "values": {
+          "55": 0.56,
+          "66": 1.0,
+          "75": 1.27
+        }
       },
       "lumpAgeFactor": {
         "interpolate": "linear",
-        "values": { "55": 0.725, "66": 1.0, "75": 1.0 }
+        "values": {
+          "55": 0.725,
+          "66": 1.0,
+          "75": 1.0
+        }
       }
     },
     "fields": {
-      "member": { "source": "service" },
-
-      "quoteMode": { "expr": "qPension > 0" },
-      "todaysMoney": { "expr": "moneyBasis <> 'Future money'" },
-      "npa": { "expr": "66" },
-      "statePensionAge": { "expr": "68" },
-      "minRetireAge": { "expr": "max(55, member.age + 1)" },
-      "maxRetireAge": { "expr": "75" },
-      "retireAgeEff": { "expr": "clamp(if(quoteMode, qAge, retireAge), minRetireAge, maxRetireAge)" },
-      "hasDc": { "expr": "if(quoteMode, qDC > 0, member.dcPot > 0 or (member.active and member.salary > 74208))" },
-
-      "years": { "expr": "max(0, retireAgeEff - member.age)" },
-      "realGrowth": { "expr": "(salaryGrowth - inflation) / 100" },
-      "realReturn": { "expr": "(invReturn - inflation) / 100" },
-      "cappedSalary": { "expr": "min(member.salary, 74208)" },
-      "futurePension": { "expr": "if(member.active and not quoteMode, years * (cappedSalary / 75) * pow(1 + max(realGrowth, -0.05), years / 2), 0)" },
-      "basePension": { "expr": "if(quoteMode, qPension, member.accruedPension + futurePension)" },
-      "baseLump": { "expr": "if(quoteMode, qLump, member.accruedLump + 3 * futurePension)" },
-      "annualDc": { "expr": "if(member.active and not quoteMode, max(0, member.salary - 74208) * 0.2, 0)" },
-      "growthFactor": { "expr": "pow(1 + realReturn, years)" },
-      "newDcSavings": { "expr": "if(abs(realReturn) > 0.0001, annualDc * ((growthFactor - 1) / realReturn), annualDc * years)" },
-      "pot": { "expr": "if(quoteMode, qDC, member.dcPot * growthFactor + newDcSavings)" },
-
-      "pensionFactor": { "expr": "if(quoteMode, 1, lookup(pensionAgeFactor, retireAgeEff))" },
-      "lumpFactor": { "expr": "if(quoteMode, 1, lookup(lumpAgeFactor, retireAgeEff))" },
-      "moneyFactor": { "expr": "if(todaysMoney, 1, pow(1 + inflation / 100, years))" },
-      "adjPension": { "expr": "basePension * pensionFactor * moneyFactor" },
-      "adjLump": { "expr": "baseLump * lumpFactor * moneyFactor" },
-      "adjPot": { "expr": "pot * moneyFactor" },
-
-      "totalValue": { "expr": "20 * adjPension + adjLump + adjPot" },
-      "maxTfc": { "expr": "0.25 * totalValue" },
-      "extraTfc": { "expr": "max(0, maxTfc - adjLump)" },
-      "tfcFromDc": { "expr": "min(adjPot, extraTfc)" },
-      "tfcShortfall": { "expr": "extraTfc - tfcFromDc" },
-
-      "pensionOut": { "expr": "if(benefitOption = 'Maximum tax-free cash', max(0, adjPension - tfcShortfall / 12), adjPension)" },
-      "cashOut": { "expr": "if(benefitOption = 'Maximum tax-free cash', maxTfc, if(benefitOption = 'Take DC pot as cash', adjLump + adjPot, adjLump))" },
-      "potOut": { "expr": "if(benefitOption = 'Maximum tax-free cash', adjPot - tfcFromDc, if(benefitOption = 'Take DC pot as cash', 0, adjPot))" },
-      "dcIncomeOut": { "expr": "potOut / 20" },
-      "statePension": { "expr": "11975 * moneyFactor" },
-      "cashLabel": { "expr": "if(benefitOption = 'Take DC pot as cash', 'One-off cash', 'Tax-free cash')" },
-
-      "resultPension": { "expr": "round(pensionOut)" },
-      "resultCash": { "expr": "round(cashOut)" },
-      "resultDcIncome": { "expr": "round(dcIncomeOut)" },
-      "resultTotal": { "expr": "round(pensionOut + dcIncomeOut + if(retireAgeEff >= statePensionAge, statePension, 0))" }
+      "member": {
+        "source": "service"
+      },
+      "quoteMode": {
+        "expr": "qPension > 0"
+      },
+      "todaysMoney": {
+        "expr": "moneyBasis <> 'Future money'"
+      },
+      "npa": {
+        "expr": "66"
+      },
+      "statePensionAge": {
+        "expr": "68"
+      },
+      "minRetireAge": {
+        "expr": "max(55, member.age + 1)"
+      },
+      "maxRetireAge": {
+        "expr": "75"
+      },
+      "retireAgeEff": {
+        "expr": "clamp(if(quoteMode, qAge, retireAge), minRetireAge, maxRetireAge)"
+      },
+      "hasDc": {
+        "expr": "if(quoteMode, qDC > 0, member.dcPot > 0 or (member.active and member.salary > 74208))"
+      },
+      "years": {
+        "expr": "max(0, retireAgeEff - member.age)"
+      },
+      "realGrowth": {
+        "expr": "(salaryGrowth - inflation) / 100"
+      },
+      "realReturn": {
+        "expr": "(invReturn - inflation) / 100"
+      },
+      "cappedSalary": {
+        "expr": "min(member.salary, 74208)"
+      },
+      "futurePension": {
+        "expr": "if(member.active and not quoteMode, years * (cappedSalary / 75) * pow(1 + max(realGrowth, -0.05), years / 2), 0)"
+      },
+      "basePension": {
+        "expr": "if(quoteMode, qPension, member.accruedPension + futurePension)"
+      },
+      "baseLump": {
+        "expr": "if(quoteMode, qLump, member.accruedLump + 3 * futurePension)"
+      },
+      "annualDc": {
+        "expr": "if(member.active and not quoteMode, max(0, member.salary - 74208) * 0.2, 0)"
+      },
+      "growthFactor": {
+        "expr": "pow(1 + realReturn, years)"
+      },
+      "newDcSavings": {
+        "expr": "if(abs(realReturn) > 0.0001, annualDc * ((growthFactor - 1) / realReturn), annualDc * years)"
+      },
+      "pot": {
+        "expr": "if(quoteMode, qDC, member.dcPot * growthFactor + newDcSavings)"
+      },
+      "pensionFactor": {
+        "expr": "if(quoteMode, 1, lookup(pensionAgeFactor, retireAgeEff))"
+      },
+      "lumpFactor": {
+        "expr": "if(quoteMode, 1, lookup(lumpAgeFactor, retireAgeEff))"
+      },
+      "moneyFactor": {
+        "expr": "if(todaysMoney, 1, pow(1 + inflation / 100, years))"
+      },
+      "adjPension": {
+        "expr": "basePension * pensionFactor * moneyFactor"
+      },
+      "adjLump": {
+        "expr": "baseLump * lumpFactor * moneyFactor"
+      },
+      "adjPot": {
+        "expr": "pot * moneyFactor"
+      },
+      "totalValue": {
+        "expr": "20 * adjPension + adjLump + adjPot"
+      },
+      "maxTfc": {
+        "expr": "0.25 * totalValue"
+      },
+      "extraTfc": {
+        "expr": "max(0, maxTfc - adjLump)"
+      },
+      "tfcFromDc": {
+        "expr": "min(adjPot, extraTfc)"
+      },
+      "tfcShortfall": {
+        "expr": "extraTfc - tfcFromDc"
+      },
+      "pensionOut": {
+        "expr": "if(benefitOption = 'Maximum tax-free cash', max(0, adjPension - tfcShortfall / 12), adjPension)"
+      },
+      "cashOut": {
+        "expr": "if(benefitOption = 'Maximum tax-free cash', maxTfc, if(benefitOption = 'Take DC pot as cash', adjLump + adjPot, adjLump))"
+      },
+      "potOut": {
+        "expr": "if(benefitOption = 'Maximum tax-free cash', adjPot - tfcFromDc, if(benefitOption = 'Take DC pot as cash', 0, adjPot))"
+      },
+      "dcIncomeOut": {
+        "expr": "potOut / 20"
+      },
+      "statePension": {
+        "expr": "11975 * moneyFactor"
+      },
+      "cashLabel": {
+        "expr": "if(benefitOption = 'Take DC pot as cash', 'One-off cash', 'Tax-free cash')"
+      },
+      "resultPension": {
+        "expr": "round(pensionOut)",
+        "format": "gbp"
+      },
+      "resultCash": {
+        "expr": "round(cashOut)",
+        "format": "gbp"
+      },
+      "resultDcIncome": {
+        "expr": "round(dcIncomeOut)",
+        "format": "gbp"
+      },
+      "resultTotal": {
+        "expr": "round(pensionOut + dcIncomeOut + if(retireAgeEff >= statePensionAge, statePension, 0))",
+        "format": "gbp"
+      },
+      "memberName": {
+        "expr": "member.name"
+      }
     },
     "series": {
       "incomeByAge": {
@@ -150,7 +241,8 @@
               "hint": "The yearly pension amount shown on your quote.",
               "prefix": "£",
               "min": 0,
-              "required": true
+              "required": true,
+              "default": "0"
             },
             {
               "type": "decimal",
@@ -159,7 +251,8 @@
               "hint": "The one-off lump sum shown on your quote.",
               "prefix": "£",
               "min": 0,
-              "required": true
+              "required": true,
+              "default": "0"
             },
             {
               "type": "decimal",
@@ -168,7 +261,8 @@
               "hint": "Leave blank if your quote has no defined contribution savings.",
               "prefix": "£",
               "min": 0,
-              "required": false
+              "required": false,
+              "default": "0"
             },
             {
               "type": "number",
@@ -176,7 +270,8 @@
               "label": "Retirement age on your quote",
               "min": 55,
               "max": 75,
-              "required": true
+              "required": true,
+              "default": "66"
             }
           ]
         }
@@ -203,73 +298,93 @@
           "content": "Adjust your retirement age, how you take your benefits, and the assumptions behind the figures. All amounts are estimates before tax."
         },
         {
-          "type": "interactive",
-          "element": "prism-money-modeller",
-          "dataKey": "moneyModel",
-          "children": [
-            {
-              "type": "slider",
-              "fieldKey": "retireAge",
-              "label": "When do you want to retire?",
-              "hint": "Your Normal Pension Age is 66. Retiring earlier reduces your pension because it's paid for longer.",
-              "min": 55,
-              "max": 75,
-              "step": 1,
-              "required": true
-            },
-            {
-              "type": "radio",
-              "fieldKey": "benefitOption",
-              "label": "How do you want to take your benefits?",
-              "hint": "You can change your mind any time before you retire.",
-              "options": [
-                "Standard benefits",
-                "Maximum tax-free cash",
-                "Take DC pot as cash"
-              ],
-              "required": true
-            },
-            {
-              "type": "slider",
-              "fieldKey": "inflation",
-              "label": "Inflation (CPI)",
-              "min": 0,
-              "max": 5,
-              "step": 0.5,
-              "suffix": "%",
-              "required": false
-            },
-            {
-              "type": "slider",
-              "fieldKey": "salaryGrowth",
-              "label": "Yearly salary growth",
-              "min": 0,
-              "max": 6,
-              "step": 0.5,
-              "suffix": "%",
-              "required": false
-            },
-            {
-              "type": "slider",
-              "fieldKey": "invReturn",
-              "label": "Investment return",
-              "min": 0,
-              "max": 8,
-              "step": 0.5,
-              "suffix": "%",
-              "required": false
-            },
-            {
-              "type": "radio",
-              "fieldKey": "moneyBasis",
-              "label": "Show amounts in",
-              "options": [
-                "Today's money",
-                "Future money"
-              ],
-              "required": false
-            }
-          ]
+          "type": "inset-text",
+          "showWhen": "quoteMode",
+          "content": "You're modelling with the figures from your retirement quote, so the retirement age and assumptions are fixed to match it."
+        },
+        {
+          "type": "slider",
+          "showWhen": "not quoteMode",
+          "fieldKey": "retireAge",
+          "label": "When do you want to retire?",
+          "hint": "Your Normal Pension Age is 66.",
+          "min": 55,
+          "max": 75,
+          "step": 1,
+          "default": "66",
+          "required": true
+        },
+        {
+          "type": "warning-text",
+          "showWhen": "not quoteMode and retireAge < npa",
+          "content": "Retiring before 66 reduces your DB pension, because it's paid for longer."
+        },
+        {
+          "type": "radio",
+          "fieldKey": "benefitOption",
+          "label": "How do you want to take your benefits?",
+          "hint": "You can change your mind any time before you retire.",
+          "options": [
+            "Standard benefits",
+            "Maximum tax-free cash",
+            "Take DC pot as cash"
+          ],
+          "default": "Standard benefits",
+          "required": true
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "content": "Assumptions",
+          "showWhen": "not quoteMode"
+        },
+        {
+          "type": "slider",
+          "showWhen": "not quoteMode",
+          "fieldKey": "inflation",
+          "label": "Inflation (CPI)",
+          "min": 0,
+          "max": 5,
+          "step": 0.5,
+          "suffix": "%",
+          "default": "2.5",
+          "required": false
+        },
+        {
+          "type": "slider",
+          "showWhen": "not quoteMode and member.active",
+          "fieldKey": "salaryGrowth",
+          "label": "Yearly salary growth",
+          "min": 0,
+          "max": 6,
+          "step": 0.5,
+          "suffix": "%",
+          "default": "3",
+          "required": false
+        },
+        {
+          "type": "slider",
+          "showWhen": "not quoteMode and hasDc",
+          "fieldKey": "invReturn",
+          "label": "Investment return",
+          "min": 0,
+          "max": 8,
+          "step": 0.5,
+          "suffix": "%",
+          "default": "5",
+          "required": false
+        },
+        {
+          "type": "radio",
+          "showWhen": "not quoteMode",
+          "fieldKey": "moneyBasis",
+          "label": "Show amounts in",
+          "options": [
+            "Today's money",
+            "Future money"
+          ],
+          "default": "Today's money",
+          "required": false
         },
         {
           "type": "stat-group",
@@ -296,6 +411,28 @@
               "fieldKey": "resultTotal",
               "qualifier": "a year at your chosen age, incl. State Pension from 68",
               "emphasis": true
+            }
+          ]
+        },
+        {
+          "type": "chart",
+          "title": "Your estimated yearly income by age",
+          "kind": "stacked-bar",
+          "series": "incomeByAge",
+          "x": "age",
+          "xLabelEvery": 5,
+          "bands": [
+            {
+              "key": "db",
+              "label": "DB pension"
+            },
+            {
+              "key": "dc",
+              "label": "DC drawdown"
+            },
+            {
+              "key": "sp",
+              "label": "State Pension"
             }
           ]
         },

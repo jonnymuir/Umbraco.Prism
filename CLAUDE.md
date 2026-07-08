@@ -124,34 +124,38 @@ The graph layout uses `data-prism-lane` on stage button elements (stages are abs
 - `planning-notification.json` — planning notification variant
 - `community-enquiry.json` — two-queue applicant/reviewer with approval loop
 - `information-request.json` — two-queue, SLA-driven review flow
-- `money-modeller.json` — interactive pension modeller: `interactive` island stage with recalculate self-loop, two-queue quote-request fan-out
+- `money-modeller.json` — fully declarative pension modeller: calculations block + live components (sliders, stat-group, chart, showWhen), recalculate self-loop, two-queue quote-request fan-out
 
-### Interactive islands (Money Modeller pattern)
-
-Highly interactive stages use the `interactive` component: its input children render as an
-ordinary (nonce-validated) form, and a named web component (e.g. `prism-money-modeller` in
-`src/UmbracoPrism.Client/src/money-modeller/`) upgrades them in place — hiding the plain
-controls, writing its state back into them, and live-updating sibling `stat-group` cards via
-`data-prism-stat-field`. Structured display data flows via the engine's `BuildRenderData`
-host hook (→ `StepContent.Data`, resolved into the component by `dataKey`).
-
-### Declarative calculations
+### Declarative calculations & live stages (Money Modeller pattern)
 
 Workflow definitions may carry a `calculations` block (tables + fields + series) — the
 single source of any business maths. It is a total expression language (arithmetic,
 comparisons, boolean logic, `if/min/max/clamp/abs/floor/round/pow/lookup`; no eval, no
 loops, no side effects) with decimal semantics, evaluated by two conformant runtimes:
 
-- C#: `UmbracoPrism.Shared/Services/Calculations` — authoritative; the host supplies
-  `source: "service"` inputs and re-evaluates on every render/advance.
+- C#: `UmbracoPrism.Shared/Services/Calculations` — authoritative. The generic engine
+  evaluates the block on every render (typed scope built by `CalculationScopeBuilder`
+  from the definition's own input components + defaults; hosts supply `source: "service"`
+  inputs via the `ResolveServiceInputs` engine hook).
 - TypeScript: `src/UmbracoPrism.Client/src/calculations/calculation-engine.ts` —
-  indicative; islands evaluate the same definitions live between POSTs.
+  indicative; the generic `prism-live-form` runtime re-evaluates the same definitions
+  between POSTs.
 
 The shared conformance suite is `UmbracoPrism.Shared/calculation-fixtures/calculation-golden.json`,
 executed by `CalculationGoldenTests` (C#) and `npm run test:calc` (TS). Change either
 evaluator only alongside those fixtures. Do NOT hand-write business maths in host services
-or islands — put it in the definition's `calculations` block (or declare a `service` field
-when it lives in an external system of record).
+or client components — put it in the definition's `calculations` block (or declare a
+`service` field when it lives in an external system of record).
+
+The UI is equally declarative: stages compose generic components only. Calculated fields
+bind by name (`stat-group` items, `summary-list` rows, `chart` components bound to a
+series); any component may declare `showWhen` (an expression) for live visibility; input
+components declare `default` values that seed both the form and the calculation scope;
+calculated fields may declare `format` ("gbp"). The server renders everything (works
+without JavaScript; the Recalculate self-loop re-renders authoritatively) and
+`prism-live-form` (`src/UmbracoPrism.Client/src/live-form/`) upgrades the page in place —
+it contains no domain knowledge and no layout. There are no bespoke per-workflow client
+components.
 
 ### Authentication
 

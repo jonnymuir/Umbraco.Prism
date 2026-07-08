@@ -16,7 +16,7 @@ namespace UmbracoPrism.MockBusinessApp.Services;
 public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
 {
     private readonly IWorkflowActionRegistry? _actionRegistry;
-    private readonly MoneyModellerService? _moneyModeller;
+    private readonly MemberRecordService? _memberRecords;
 
     public WorkflowResponseEnvelope AdvanceAsReviewer(string instanceId, string action)
     {
@@ -193,63 +193,46 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
         IWorkflowContentSanitizer sanitizer,
         IWorkflowDefinitionStore? definitionStore = null,
         IWorkflowActionRegistry? actionRegistry = null,
-        MoneyModellerService? moneyModeller = null)
+        MemberRecordService? memberRecords = null)
         : base(
             logger,
             definitionStore ?? new FilesystemWorkflowDefinitionStore(Path.Combine(env.ContentRootPath, "workflow-seeds")),
             sanitizer)
     {
         _actionRegistry = actionRegistry;
-        _moneyModeller = moneyModeller;
+        _memberRecords = memberRecords;
     }
 
     /// <summary>
-    /// Render hook for the money-modeller workflow. The maths lives entirely in the
-    /// definition's declarative <c>calculations</c> block; this hook supplies the one
-    /// declared service input (the member record), evaluates the block, and writes the
-    /// authoritative results back into the instance so stat-groups and downstream
-    /// summary-lists (e.g. the reviewer's quote-request view) render server figures.
-    /// Runs on every render, so the recalculate loop and the client island always
-    /// reconcile against the same definitions.
+    /// Supplies the money-modeller definition's single service-sourced calculation input:
+    /// the member record from the (mock) scheme administration system. All maths, display
+    /// formatting and visibility live in the definition's own calculations block and
+    /// components — this is the entire host-side involvement.
     /// </summary>
-    protected override System.Text.Json.Nodes.JsonObject? BuildRenderData(
+    protected override IReadOnlyDictionary<string, object?>? ResolveServiceInputs(
         WorkflowInstanceState instance,
         WorkflowDefinitionFile definition,
         StepDefinition state)
     {
-        if (_moneyModeller is null
-            || definition.Calculations is null
+        if (_memberRecords is null
             || !string.Equals(definition.DefinitionKey, "money-modeller", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
-        if (!string.Equals(state.StateKey, "model", StringComparison.Ordinal)
-            && !string.Equals(state.StateKey, "review-quote-request", StringComparison.Ordinal))
+        var member = _memberRecords.GetForUser(instance.UserId);
+        return new Dictionary<string, object?>(StringComparer.Ordinal)
         {
-            return null;
-        }
-
-        var member = _moneyModeller.GetMember(instance.UserId);
-        var scope = _moneyModeller.BuildScope(member, instance.FieldValues);
-        var result = _moneyModeller.Evaluate(definition.Calculations, member, instance.FieldValues);
-
-        instance.FieldValues["memberName"] = member.Name;
-        instance.FieldValues["retireAge"] = ((decimal)result.Fields["retireAgeEff"]!)
-            .ToString("0", System.Globalization.CultureInfo.InvariantCulture);
-        instance.FieldValues["benefitOption"] = scope["benefitOption"];
-        instance.FieldValues["inflation"] = scope["inflation"]?.ToString();
-        instance.FieldValues["salaryGrowth"] = scope["salaryGrowth"]?.ToString();
-        instance.FieldValues["invReturn"] = scope["invReturn"]?.ToString();
-        instance.FieldValues["moneyBasis"] = scope["moneyBasis"];
-        instance.FieldValues["resultPension"] = MoneyModellerService.FormatGbp((decimal)result.Fields["resultPension"]!);
-        instance.FieldValues["resultCash"] = MoneyModellerService.FormatGbp((decimal)result.Fields["resultCash"]!);
-        instance.FieldValues["resultDcIncome"] = MoneyModellerService.FormatGbp((decimal)result.Fields["resultDcIncome"]!);
-        instance.FieldValues["resultTotal"] = MoneyModellerService.FormatGbp((decimal)result.Fields["resultTotal"]!);
-
-        return new System.Text.Json.Nodes.JsonObject
-        {
-            ["moneyModel"] = _moneyModeller.BuildModelData(definition.Calculations, member, scope, result)
+            ["member"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["name"] = member.Name,
+                ["active"] = member.Active,
+                ["age"] = (decimal)member.Age,
+                ["salary"] = member.Salary,
+                ["accruedPension"] = member.AccruedPension,
+                ["accruedLump"] = member.AccruedLump,
+                ["dcPot"] = member.DcPot
+            }
         };
     }
 

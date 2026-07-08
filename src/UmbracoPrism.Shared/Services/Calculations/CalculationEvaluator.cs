@@ -29,6 +29,23 @@ public sealed class CalculationEvaluator
 {
     private const int MaxSeriesRows = 1000;
 
+    /// <summary>
+    /// Evaluates a single standalone expression (e.g. a component's showWhen) against a
+    /// scope that already contains inputs and calculated fields. Tables from
+    /// <paramref name="context"/> are available to lookup().
+    /// </summary>
+    public object? EvaluateExpression(
+        string expression,
+        IReadOnlyDictionary<string, object?> scope,
+        WorkflowCalculationSet? context = null)
+    {
+        return EvaluateNode(
+            CalculationExpressionParser.Parse(expression),
+            scope,
+            context ?? new WorkflowCalculationSet(),
+            $"expression '{expression}'");
+    }
+
     public CalculationResult Evaluate(
         WorkflowCalculationSet calculations,
         IReadOnlyDictionary<string, object?> inputs)

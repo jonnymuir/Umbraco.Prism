@@ -12,8 +12,9 @@ using UmbracoPrism.Shared.Services.Sanitization;
 namespace UmbracoPrism.Core.Tests.WorkflowEngine;
 
 /// <summary>
-/// Exercises the money-modeller vertical: BuildRenderData hook, slider/stat-group/interactive
-/// render payloads, and the recalculate self-loop through a Split gateway.
+/// Exercises the money-modeller vertical: generic calculation evaluation in the engine,
+/// slider/stat-group/chart render payloads, showWhen visibility, the embedded live model,
+/// and the recalculate self-loop through a Split gateway.
 /// </summary>
 public class MoneyModellerEngineTests
 {
@@ -21,7 +22,7 @@ public class MoneyModellerEngineTests
     private const string User = "demo@prism.local";
 
     [Fact]
-    public void ModelStage_RendersInteractivePayloadWithResolvedDataAndSliderFields()
+    public void ModelStage_RendersDeclarativeComponentsWithLiveModelAndChart()
     {
         using var harness = MoneyModellerHarness.Create();
 
@@ -29,32 +30,53 @@ public class MoneyModellerEngineTests
 
         envelope.ResponseState.Should().Be("render");
         envelope.Render.Should().NotBeNull();
-        envelope.Render!.Data.Should().NotBeNull("the host hook supplies the moneyModel data bag");
-        envelope.Render.Data!.ContainsKey("moneyModel").Should().BeTrue();
+        envelope.Render!.Data.Should().NotBeNull("the engine embeds the live calculation model");
 
-        var interactive = envelope.Render.Components.Should()
-            .ContainSingle(component => component.Type == "interactive").Subject;
-        interactive.Element.Should().Be("prism-money-modeller");
-        interactive.DataJson.Should().NotBeNullOrEmpty("the DataKey resolves against the render data bag");
+        var live = envelope.Render.Data!["live"]!;
+        live["calculations"]!["fields"]!["resultPension"]!["expr"]!.GetValue<string>()
+            .Should().Be("round(pensionOut)", "the client receives the same definitions the server evaluated");
+        live["service"]!["member"]!["name"]!.GetValue<string>().Should().Be("Dr Sarah Mitchell");
+        live["inputTypes"]!["retireAge"]!.GetValue<string>().Should().Be("number");
+        live["defaults"]!["retireAge"]!.GetValue<string>().Should().Be("66");
 
-        var model = JsonDocument.Parse(interactive.DataJson!);
-        model.RootElement.GetProperty("member").GetProperty("name").GetString()
-            .Should().Be("Dr Sarah Mitchell");
-        model.RootElement.GetProperty("results").GetProperty("resultPension").GetDecimal()
-            .Should().BeGreaterThan(0);
-        model.RootElement.GetProperty("calculations").GetProperty("fields").GetProperty("resultPension")
-            .GetProperty("expr").GetString()
-            .Should().Be("round(pensionOut)", "the island receives the same definitions the server evaluated");
-        model.RootElement.GetProperty("chart").GetArrayLength()
-            .Should().Be(25, "ages 66 to 90 inclusive");
-
-        var slider = interactive.Fields.Should()
-            .ContainSingle(field => field.FieldKey == "retireAge").Subject;
+        var slider = envelope.Render.Components
+            .SelectMany(component => component.Fields)
+            .Should().ContainSingle(field => field.FieldKey == "retireAge").Subject;
         slider.FieldType.Should().Be("slider");
         slider.Min.Should().Be(55);
         slider.Max.Should().Be(75);
         slider.Step.Should().Be(1);
-        slider.Value.Should().Be("66", "the engine pre-populates the slider from the enriched field values");
+        slider.Value.Should().Be("66", "the slider pre-populates from its declared default");
+
+        var chart = envelope.Render.Components.Should()
+            .ContainSingle(component => component.Type == "chart").Subject;
+        var chartModel = JsonDocument.Parse(chart.ChartJson!);
+        chartModel.RootElement.GetProperty("rows").GetArrayLength()
+            .Should().Be(25, "ages 66 to 90 inclusive");
+        chartModel.RootElement.GetProperty("bands").GetArrayLength().Should().Be(3);
+    }
+
+    [Fact]
+    public void ModelStage_EvaluatesShowWhenVisibilityServerSide()
+    {
+        using var harness = MoneyModellerHarness.Create();
+
+        var envelope = harness.Engine.GetCurrent("money-modeller", Tenant, User);
+
+        // Not in quote mode: the retirement-age slider is visible, the quote notice hidden.
+        var sliderComponent = envelope.Render!.Components
+            .Single(component => component.Fields.Any(field => field.FieldKey == "retireAge"));
+        sliderComponent.ShowWhen.Should().Be("not quoteMode");
+        sliderComponent.Hidden.Should().BeFalse();
+
+        var quoteNotice = envelope.Render.Components
+            .Single(component => component.ShowWhen == "quoteMode");
+        quoteNotice.Hidden.Should().BeTrue();
+
+        // At the default age of 66 the early-retirement warning is hidden.
+        envelope.Render.Components
+            .Single(component => component.ShowWhen == "not quoteMode and retireAge < npa")
+            .Hidden.Should().BeTrue();
     }
 
     [Fact]
@@ -169,7 +191,7 @@ public class MoneyModellerEngineTests
                 logger.Object,
                 mockEnvironment.Object,
                 sanitizer.Object,
-                moneyModeller: new MoneyModellerService(new MemberRecordService()));
+                memberRecords: new MemberRecordService());
             engine.ResetAll();
 
             return new MoneyModellerHarness(contentRootPath, engine);

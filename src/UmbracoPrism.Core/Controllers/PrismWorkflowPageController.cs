@@ -316,6 +316,7 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         vm.Problems = problems ?? Array.Empty<WorkflowProblem>();
         vm.FormValues = formValues ?? new Dictionary<string, string>();
         vm.PollAfterMs = envelope.PollAfterMs;
+        vm.LiveModelJson = render?.Data?["live"]?.ToJsonString();
 
         return vm;
     }

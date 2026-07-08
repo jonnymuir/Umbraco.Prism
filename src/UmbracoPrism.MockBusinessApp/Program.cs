@@ -48,7 +48,6 @@ builder.Services.AddBusinessAppWorkflowActions();
 // Downstream apps can use FilesystemWorkflowDefinitionStore or their own IWorkflowDefinitionStore.
 builder.Services.AddSingleton<IWorkflowDefinitionStore, ReferenceWorkflowDefinitionStore>();
 builder.Services.AddSingleton<UmbracoPrism.MockBusinessApp.Services.MoneyModeller.MemberRecordService>();
-builder.Services.AddSingleton<UmbracoPrism.MockBusinessApp.Services.MoneyModeller.MoneyModellerService>();
 builder.Services.AddSingleton<BusinessAppWorkflowEngine>();
 builder.Services.AddSingleton<IWorkflowRuntimeEngine>(sp => sp.GetRequiredService<BusinessAppWorkflowEngine>());
 builder.Services.AddHostedService<WorkflowTuiService>();

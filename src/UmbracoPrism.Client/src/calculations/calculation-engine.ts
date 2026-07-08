@@ -135,6 +135,8 @@ export interface CalculationTable {
 export interface CalculationField {
   expr?: string;
   source?: string;
+  /** Display format applied where the field's value is shown ("gbp"). */
+  format?: string;
 }
 
 export interface CalculationSeries {
@@ -174,6 +176,15 @@ interface Token {
 
 export function parseExpression(expression: string): unknown {
   return parse(expression);
+}
+
+/**
+ * Evaluates a single standalone expression (e.g. a component's showWhen) against a
+ * scope that already contains inputs and calculated fields. Tables from `set` are
+ * available to lookup(). Mirrors CalculationEvaluator.EvaluateExpression in C#.
+ */
+export function evaluateExpression(expression: string, scope: CalcScope, set?: CalculationSet): CalcValue {
+  return evaluateNode(parse(expression), scope, set ?? { fields: {} }, `expression '${expression}'`);
 }
 
 function parse(expression: string): Node_ {

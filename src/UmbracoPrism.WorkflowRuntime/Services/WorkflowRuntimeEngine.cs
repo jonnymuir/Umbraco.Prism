@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using UmbracoPrism.Shared.Models.Workflow.Calculations;
+using UmbracoPrism.Shared.Services.Calculations;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.Shared.Extensions;
@@ -473,6 +476,16 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         WorkflowDefinitionFile definition,
         StepDefinition state) => null;
 
+    /// <summary>
+    /// Host hook supplying typed values for the definition's <c>source: "service"</c>
+    /// calculation fields (e.g. a member record from a system of record). Values may be
+    /// scalars (decimal/bool/string) or nested string-keyed dictionaries for dotted access.
+    /// </summary>
+    protected virtual IReadOnlyDictionary<string, object?>? ResolveServiceInputs(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        StepDefinition state) => null;
+
     protected bool TryGetInstance(string instanceId, out WorkflowInstanceState instance) =>
         _instancesById.TryGetValue(instanceId, out instance!);
 
@@ -514,7 +527,14 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         }
 
         var renderData = BuildRenderData(instance, definition, state);
-        var components = BuildComponents(state.Components, instance.FieldValues, renderData);
+        var calc = EvaluateDefinitionCalculations(instance, definition, state);
+        if (calc is not null)
+        {
+            renderData ??= new JsonObject();
+            renderData["live"] = BuildLiveModel(definition, calc);
+        }
+
+        var components = BuildComponents(state.Components, instance.FieldValues, calc);
         var effectiveStepType = state.Components.InferStepType();
         var waitingComponent = state.Components.OfType<WaitingComponent>().FirstOrDefault();
 
@@ -970,20 +990,160 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         };
     }
 
+    /// <summary>Evaluated calculation state for one render pass.</summary>
+    protected sealed record CalculationRenderContext(
+        WorkflowCalculationSet Set,
+        IReadOnlyDictionary<string, object?> Scope,
+        CalculationResult Result,
+        IReadOnlyDictionary<string, object?> DisplayValues);
+
+    private readonly CalculationEvaluator _calculationEvaluator = new();
+
+    private CalculationRenderContext? EvaluateDefinitionCalculations(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        StepDefinition state)
+    {
+        if (definition.Calculations is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var serviceInputs = ResolveServiceInputs(instance, definition, state);
+            var scope = CalculationScopeBuilder.Build(definition, instance.FieldValues, serviceInputs);
+            var result = _calculationEvaluator.Evaluate(definition.Calculations, scope);
+
+            // Full scope (inputs + calculated fields) for showWhen evaluation.
+            var fullScope = new Dictionary<string, object?>(scope, StringComparer.Ordinal);
+            foreach (var (name, value) in result.Fields)
+            {
+                fullScope[name] = value;
+            }
+
+            // Display overlay: saved values, then calculated fields formatted per their
+            // declared format — this is what stat-groups and summary-lists resolve from.
+            var display = new Dictionary<string, object?>(instance.FieldValues, StringComparer.Ordinal);
+            foreach (var (name, value) in result.Fields)
+            {
+                var format = definition.Calculations.Fields.TryGetValue(name, out var field) ? field.Format : null;
+                display[name] = FormatCalculatedValue(value, format);
+            }
+
+            return new CalculationRenderContext(definition.Calculations, fullScope, result, display);
+        }
+        catch (CalculationException exception)
+        {
+            Logger.LogWarning(
+                exception,
+                "Calculation evaluation failed for workflow {Key}, state {State}; rendering without calculated values.",
+                definition.DefinitionKey,
+                state.StateKey);
+            return null;
+        }
+    }
+
+    private static string? FormatCalculatedValue(object? value, string? format) => value switch
+    {
+        null => null,
+        decimal d when string.Equals(format, "gbp", StringComparison.OrdinalIgnoreCase) =>
+            string.Create(
+                System.Globalization.CultureInfo.GetCultureInfo("en-GB"),
+                $"£{Math.Round(d, 0, MidpointRounding.AwayFromZero):N0}"),
+        decimal d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        bool b => b ? "true" : "false",
+        _ => value.ToString()
+    };
+
+    private JsonObject BuildLiveModel(WorkflowDefinitionFile definition, CalculationRenderContext calc)
+    {
+        var inputTypes = new JsonObject();
+        var defaults = new JsonObject();
+        foreach (var (fieldKey, (type, defaultValue)) in CalculationScopeBuilder.DescribeInputs(definition))
+        {
+            inputTypes[fieldKey] = type;
+            if (defaultValue is not null)
+            {
+                defaults[fieldKey] = defaultValue;
+            }
+        }
+
+        var serviceValues = new JsonObject();
+        foreach (var (name, field) in calc.Set.Fields)
+        {
+            if (string.Equals(field.Source, "service", StringComparison.OrdinalIgnoreCase)
+                && calc.Scope.TryGetValue(name, out var value))
+            {
+                serviceValues[name] = ScopeValueToJson(value);
+            }
+        }
+
+        return new JsonObject
+        {
+            ["calculations"] = JsonSerializer.SerializeToNode(calc.Set, LiveModelJsonOptions),
+            ["inputTypes"] = inputTypes,
+            ["defaults"] = defaults,
+            ["service"] = serviceValues
+        };
+    }
+
+    private static readonly JsonSerializerOptions LiveModelJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
+
+    private static JsonNode? ScopeValueToJson(object? value) => value switch
+    {
+        null => null,
+        decimal d => JsonValue.Create(d),
+        bool b => JsonValue.Create(b),
+        string text => JsonValue.Create(text),
+        IReadOnlyDictionary<string, object?> map => new JsonObject(
+            map.Select(pair => new KeyValuePair<string, JsonNode?>(pair.Key, ScopeValueToJson(pair.Value)))),
+        _ => JsonValue.Create(value.ToString())
+    };
+
+    private bool EvaluateShowWhen(string? showWhen, CalculationRenderContext? calc)
+    {
+        if (string.IsNullOrWhiteSpace(showWhen) || calc is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            return _calculationEvaluator.EvaluateExpression(showWhen, calc.Scope, calc.Set) is not false;
+        }
+        catch (CalculationException exception)
+        {
+            Logger.LogWarning(exception, "showWhen expression '{Expr}' failed; component stays visible.", showWhen);
+            return true;
+        }
+    }
+
     private PrismComponentRenderPayload[] BuildComponents(
         IReadOnlyList<PrismComponent> componentDefinitions,
         Dictionary<string, object?> savedValues,
-        System.Text.Json.Nodes.JsonObject? renderData = null)
+        CalculationRenderContext? calc = null)
     {
+        // Stat-groups and summary-lists resolve display values from the calculation
+        // overlay when one exists; plain input values come from the instance as before.
+        var displayValues = calc is null
+            ? savedValues
+            : new Dictionary<string, object?>(calc.DisplayValues, StringComparer.Ordinal);
+
         var result = new List<PrismComponentRenderPayload>();
 
         foreach (var component in componentDefinitions)
         {
+            var payloadsBefore = result.Count;
             switch (component)
             {
                 case FieldsetComponent fieldset:
                 {
-                    var fields = BuildFields(fieldset.Children, savedValues);
+                    var fields = BuildFields(fieldset.Children, displayValues);
                     if (fields.Length == 0)
                     {
                         Logger.LogWarning("Fieldset component contains no renderable fields");
@@ -1002,7 +1162,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
                 case SummaryListComponent summary:
                 {
-                    var fields = BuildFields(summary.Children, savedValues);
+                    var fields = BuildFields(summary.Children, displayValues);
                     if (fields.Length == 0)
                     {
                         Logger.LogWarning("Summary-list component contains no renderable fields");
@@ -1026,7 +1186,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                         {
                             Heading = section.Heading,
                             Summary = section.Summary,
-                            Fields = BuildFields(section.Children, savedValues)
+                            Fields = BuildFields(section.Children, displayValues)
                         })
                         .ToArray();
 
@@ -1132,7 +1292,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                         {
                             Label = item.Label,
                             FieldKey = item.FieldKey,
-                            Value = savedValues.TryGetValue(item.FieldKey, out var statValue)
+                            Value = displayValues.TryGetValue(item.FieldKey, out var statValue)
                                 ? statValue?.ToString()
                                 : null,
                             Qualifier = item.Qualifier,
@@ -1141,27 +1301,18 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                     });
                     break;
 
-                case InteractiveComponent interactive:
-                {
-                    var fields = BuildFields(interactive.Children, savedValues);
-                    var dataNode = interactive.DataKey is { Length: > 0 } dataKey
-                        ? renderData?[dataKey]
-                        : null;
-
+                case ChartComponent chart:
                     result.Add(new PrismComponentRenderPayload
                     {
-                        Type = "interactive",
-                        Element = interactive.Element,
-                        DataKey = interactive.DataKey,
-                        DataJson = dataNode?.ToJsonString(),
-                        Fields = fields
+                        Type = "chart",
+                        Heading = chart.Title,
+                        ChartJson = BuildChartJson(chart, calc)
                     });
                     break;
-                }
 
                 case InputComponent input:
                 {
-                    var fields = BuildFields(new[] { (PrismComponent)input }, savedValues);
+                    var fields = BuildFields(new[] { (PrismComponent)input }, displayValues);
                     result.Add(new PrismComponentRenderPayload
                     {
                         Type = "fieldset",
@@ -1170,9 +1321,57 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                     break;
                 }
             }
+
+            if (component.ShowWhen is { Length: > 0 } showWhen)
+            {
+                var visible = EvaluateShowWhen(showWhen, calc);
+                for (var i = payloadsBefore; i < result.Count; i++)
+                {
+                    result[i] = result[i] with { ShowWhen = showWhen, Hidden = !visible };
+                }
+            }
         }
 
         return result.ToArray();
+    }
+
+    private static string BuildChartJson(ChartComponent chart, CalculationRenderContext? calc)
+    {
+        var bands = new JsonArray();
+        foreach (var band in chart.Bands)
+        {
+            bands.Add(new JsonObject
+            {
+                ["key"] = band.Key,
+                ["label"] = band.Label,
+                ["color"] = band.Color
+            });
+        }
+
+        var rows = new JsonArray();
+        if (calc is not null && calc.Result.Series.TryGetValue(chart.Series, out var seriesRows))
+        {
+            foreach (var seriesRow in seriesRows)
+            {
+                var row = new JsonObject();
+                foreach (var (column, value) in seriesRow)
+                {
+                    row[column] = ScopeValueToJson(value);
+                }
+
+                rows.Add(row);
+            }
+        }
+
+        return new JsonObject
+        {
+            ["kind"] = chart.Kind,
+            ["x"] = chart.X,
+            ["xLabelEvery"] = chart.XLabelEvery,
+            ["series"] = chart.Series,
+            ["bands"] = bands,
+            ["rows"] = rows
+        }.ToJsonString();
     }
 
     private static FieldRenderPayload[] BuildFields(
@@ -1235,7 +1434,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 CheckboxesComponent checkboxes => checkboxes.Options,
                 _ => null
             },
-            Value = GetDisplayValue(input, fieldType, savedValues),
+            Value = GetDisplayValue(input, fieldType, savedValues) ?? input.Default,
             MinLength = input switch
             {
                 TextInputComponent text => text.MinLength,

@@ -138,13 +138,18 @@ public record PrismComponentRenderPayload
     /// <summary>Resolved statistic tiles for "stat-group" components.</summary>
     public IReadOnlyList<PrismStatItem>? Stats { get; init; }
 
-    // Interactive
-    /// <summary>Custom element tag name for "interactive" components (e.g. "prism-money-modeller").</summary>
-    public string? Element { get; init; }
-    /// <summary>Data bag key this interactive component's model is resolved from.</summary>
-    public string? DataKey { get; init; }
-    /// <summary>Resolved JSON model for "interactive" components, ready to embed alongside the element.</summary>
-    public string? DataJson { get; init; }
+    // Chart
+    /// <summary>Resolved chart model JSON for "chart" components: kind, x, bands, rows.</summary>
+    public string? ChartJson { get; init; }
+
+    // Live visibility
+    /// <summary>
+    /// The component's showWhen expression (when declared) — emitted as a data attribute
+    /// so the live-form runtime can re-evaluate visibility as inputs change.
+    /// </summary>
+    public string? ShowWhen { get; init; }
+    /// <summary>Server-evaluated result of ShowWhen: true renders the component hidden.</summary>
+    public bool Hidden { get; init; }
 
     // Waiting
     /// <summary>Expected wait time in seconds for "waiting" components.</summary>
