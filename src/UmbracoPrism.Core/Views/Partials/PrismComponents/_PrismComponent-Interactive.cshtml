@@ -1,0 +1,33 @@
+@model UmbracoPrism.Core.Models.Workflow.PrismComponentContext
+@{
+    // Element name must be a valid custom-element tag — reject anything else so the
+    // definition can never inject markup through this attribute.
+    var element = Model.Component.Element ?? string.Empty;
+    var validElement = System.Text.RegularExpressions.Regex.IsMatch(element, "^[a-z][a-z0-9]*(-[a-z0-9]+)+$");
+
+    // JSON is emitted inside a script block: escape "</" so definition/host data can
+    // never close the tag early.
+    var dataJson = (Model.Component.DataJson ?? "null").Replace("</", "<\\/");
+}
+
+@if (!validElement)
+{
+    <div class="workflow-alert workflow-alert--warn">
+        <p>Interactive component has an invalid element name.</p>
+    </div>
+}
+else
+{
+    <div class="prism-interactive" data-prism-interactive="@element">
+        <script type="module" src="/App_Plugins/UmbracoPrism/dist/@(element).js"></script>
+        @Html.Raw($"<{element}>")
+        <script type="application/json" data-prism-interactive-data>@Html.Raw(dataJson)</script>
+        <div data-prism-interactive-fallback>
+            @foreach (var field in Model.Component.Fields)
+            {
+                <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" />
+            }
+        </div>
+        @Html.Raw($"</{element}>")
+    </div>
+}

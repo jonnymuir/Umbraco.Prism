@@ -118,12 +118,24 @@ The graph layout uses `data-prism-lane` on stage button elements (stages are abs
 
 ### Seed files
 
-`src/UmbracoPrism.MockBusinessApp/workflow-seeds/` — four demo workflows:
+`src/UmbracoPrism.MockBusinessApp/workflow-seeds/` — demo workflows:
 - `payment-demo.json` — two-queue, Split+Join gateways, payment flow
 - `planning.json` — single-queue, linear applicant flow
 - `planning-notification.json` — planning notification variant
 - `community-enquiry.json` — two-queue applicant/reviewer with approval loop
 - `information-request.json` — two-queue, SLA-driven review flow
+- `money-modeller.json` — interactive pension modeller: `interactive` island stage with recalculate self-loop, two-queue quote-request fan-out
+
+### Interactive islands (Money Modeller pattern)
+
+Highly interactive stages use the `interactive` component: its input children render as an
+ordinary (nonce-validated) form, and a named web component (e.g. `prism-money-modeller` in
+`src/UmbracoPrism.Client/src/money-modeller/`) upgrades them in place — hiding the plain
+controls, writing its state back into them, and live-updating sibling `stat-group` cards via
+`data-prism-stat-field`. Structured display data flows via the engine's `BuildRenderData`
+host hook (→ `StepContent.Data`, resolved into the component by `dataKey`). Client figures
+are indicative only: the business app (`MoneyModellerService`) recomputes authoritative
+results on every render/advance and writes them into instance field values.
 
 ### Authentication
 

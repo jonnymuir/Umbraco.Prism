@@ -1,0 +1,439 @@
+{
+  "definitionKey": "money-modeller",
+  "displayName": "Money Modeller",
+  "version": 1,
+  "description": "Interactive pension benefit modeller: model retirement scenarios from your record or a formal quote, then hand a chosen scenario to the scheme administrators as a quote request.",
+  "schemaVersion": "1.0",
+  "initialState": "choose-start",
+  "instancePolicy": "single",
+  "queues": [
+    {
+      "key": "web-user",
+      "displayName": "Member",
+      "description": "Scheme member exploring retirement scenarios.",
+      "actor": "member"
+    },
+    {
+      "key": "business-user",
+      "displayName": "Scheme administrators",
+      "description": "Back-office queue handling formal quote requests.",
+      "actor": "reviewer"
+    }
+  ],
+  "states": [
+    {
+      "stateKey": "choose-start",
+      "displayName": "Model your money",
+      "stageType": "Question",
+      "actor": "member",
+      "queueKey": "web-user",
+      "components": [
+        {
+          "type": "body",
+          "content": "See what your benefits could be worth, explore your options for taking them, and model changes like retiring earlier. You can start from your current pension record, or from the figures on a retirement quote we've sent you."
+        },
+        {
+          "type": "inset-text",
+          "content": "Modelling uses your latest Annual Member Statement values and standard scheme assumptions, which you can change at any time."
+        }
+      ],
+      "routes": [
+        {
+          "id": "choose-start--start-modelling--to-model-from-record",
+          "target": "to-model-from-record",
+          "trigger": "start-modelling",
+          "label": "Model with my current record",
+          "style": "primary"
+        },
+        {
+          "id": "choose-start--use-quote--to-quote-entry",
+          "target": "to-quote-entry",
+          "trigger": "use-quote",
+          "label": "I have a retirement quote",
+          "style": "secondary"
+        }
+      ]
+    },
+    {
+      "stateKey": "enter-quote",
+      "displayName": "Enter your retirement quote",
+      "stageType": "Question",
+      "actor": "member",
+      "queueKey": "web-user",
+      "components": [
+        {
+          "type": "body",
+          "content": "Copy the figures from the quote we sent you. You'll find them on the first page, under 'Your benefits'."
+        },
+        {
+          "type": "fieldset",
+          "legend": "Your quote figures",
+          "legendSize": "m",
+          "children": [
+            {
+              "type": "decimal",
+              "fieldKey": "qPension",
+              "label": "Yearly pension on your quote",
+              "hint": "The yearly pension amount shown on your quote.",
+              "prefix": "£",
+              "min": 0,
+              "required": true
+            },
+            {
+              "type": "decimal",
+              "fieldKey": "qLump",
+              "label": "Lump sum on your quote",
+              "hint": "The one-off lump sum shown on your quote.",
+              "prefix": "£",
+              "min": 0,
+              "required": true
+            },
+            {
+              "type": "decimal",
+              "fieldKey": "qDC",
+              "label": "DC pot value on your quote",
+              "hint": "Leave blank if your quote has no defined contribution savings.",
+              "prefix": "£",
+              "min": 0,
+              "required": false
+            },
+            {
+              "type": "number",
+              "fieldKey": "qAge",
+              "label": "Retirement age on your quote",
+              "min": 55,
+              "max": 75,
+              "required": true
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "enter-quote--use-quote-figures--to-model-from-quote",
+          "target": "to-model-from-quote",
+          "trigger": "use-quote-figures",
+          "label": "Use these figures",
+          "style": "primary"
+        }
+      ]
+    },
+    {
+      "stateKey": "model",
+      "displayName": "Your money, modelled",
+      "stageType": "Question",
+      "actor": "member",
+      "queueKey": "web-user",
+      "components": [
+        {
+          "type": "body",
+          "content": "Adjust your retirement age, how you take your benefits, and the assumptions behind the figures. All amounts are estimates before tax."
+        },
+        {
+          "type": "interactive",
+          "element": "prism-money-modeller",
+          "dataKey": "moneyModel",
+          "children": [
+            {
+              "type": "slider",
+              "fieldKey": "retireAge",
+              "label": "When do you want to retire?",
+              "hint": "Your Normal Pension Age is 66. Retiring earlier reduces your pension because it's paid for longer.",
+              "min": 55,
+              "max": 75,
+              "step": 1,
+              "required": true
+            },
+            {
+              "type": "radio",
+              "fieldKey": "benefitOption",
+              "label": "How do you want to take your benefits?",
+              "hint": "You can change your mind any time before you retire.",
+              "options": [
+                "Standard benefits",
+                "Maximum tax-free cash",
+                "Take DC pot as cash"
+              ],
+              "required": true
+            },
+            {
+              "type": "slider",
+              "fieldKey": "inflation",
+              "label": "Inflation (CPI)",
+              "min": 0,
+              "max": 5,
+              "step": 0.5,
+              "suffix": "%",
+              "required": false
+            },
+            {
+              "type": "slider",
+              "fieldKey": "salaryGrowth",
+              "label": "Yearly salary growth",
+              "min": 0,
+              "max": 6,
+              "step": 0.5,
+              "suffix": "%",
+              "required": false
+            },
+            {
+              "type": "slider",
+              "fieldKey": "invReturn",
+              "label": "Investment return",
+              "min": 0,
+              "max": 8,
+              "step": 0.5,
+              "suffix": "%",
+              "required": false
+            },
+            {
+              "type": "radio",
+              "fieldKey": "moneyBasis",
+              "label": "Show amounts in",
+              "options": [
+                "Today's money",
+                "Future money"
+              ],
+              "required": false
+            }
+          ]
+        },
+        {
+          "type": "stat-group",
+          "title": "Your estimated benefits",
+          "items": [
+            {
+              "label": "DB pension",
+              "fieldKey": "resultPension",
+              "qualifier": "a year, for life",
+              "emphasis": true
+            },
+            {
+              "label": "Cash",
+              "fieldKey": "resultCash",
+              "qualifier": "one-off payment"
+            },
+            {
+              "label": "DC income",
+              "fieldKey": "resultDcIncome",
+              "qualifier": "a year, over 20 years"
+            },
+            {
+              "label": "Total income",
+              "fieldKey": "resultTotal",
+              "qualifier": "a year at your chosen age, incl. State Pension from 68",
+              "emphasis": true
+            }
+          ]
+        },
+        {
+          "type": "inset-text",
+          "content": "Figures are estimates for illustration only, based on the assumptions shown, and aren't a promise of what you'll get. Before making decisions, request a formal quote or consider taking financial advice."
+        }
+      ],
+      "routes": [
+        {
+          "id": "model--recalculate--recalculate-loop",
+          "target": "recalculate-loop",
+          "trigger": "recalculate",
+          "label": "Recalculate",
+          "style": "secondary"
+        },
+        {
+          "id": "model--request-quote--fan-out-quote-request",
+          "target": "fan-out-quote-request",
+          "trigger": "request-quote",
+          "label": "Request a formal quote",
+          "style": "primary"
+        }
+      ]
+    },
+    {
+      "stateKey": "quote-requested",
+      "displayName": "Quote request sent",
+      "stageType": "Confirmation",
+      "actor": "member",
+      "queueKey": "web-user",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Your quote request has been sent"
+        },
+        {
+          "type": "body",
+          "content": "The scheme administrators will prepare a formal quote for your chosen scenario and send it to you. A formal quote gives you guaranteed figures you can rely on when deciding to retire."
+        }
+      ],
+      "routes": []
+    },
+    {
+      "stateKey": "review-quote-request",
+      "displayName": "Review quote request",
+      "description": "Back-office review of a member's modelled scenario before issuing a formal quote.",
+      "stageType": "Question",
+      "actor": "reviewer",
+      "queueKey": "business-user",
+      "roleGates": [
+        "reviewer"
+      ],
+      "components": [
+        {
+          "type": "body",
+          "content": "The member has requested a formal quote for the scenario below. Confirm the figures against the administration system before issuing."
+        },
+        {
+          "type": "summary-list",
+          "title": "Requested scenario",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "memberName",
+              "label": "Member"
+            },
+            {
+              "type": "text",
+              "fieldKey": "retireAge",
+              "label": "Retirement age"
+            },
+            {
+              "type": "text",
+              "fieldKey": "benefitOption",
+              "label": "Benefit option"
+            },
+            {
+              "type": "text",
+              "fieldKey": "resultPension",
+              "label": "Estimated DB pension (a year)"
+            },
+            {
+              "type": "text",
+              "fieldKey": "resultCash",
+              "label": "Estimated cash"
+            },
+            {
+              "type": "text",
+              "fieldKey": "resultTotal",
+              "label": "Estimated total yearly income"
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "review-quote-request--send-quote--close-request",
+          "target": "close-request",
+          "trigger": "send-quote",
+          "label": "Issue formal quote",
+          "style": "primary"
+        }
+      ]
+    },
+    {
+      "stateKey": "quote-sent",
+      "displayName": "Formal quote issued",
+      "stageType": "Confirmation",
+      "actor": "reviewer",
+      "queueKey": "business-user",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Formal quote issued"
+        },
+        {
+          "type": "body",
+          "content": "The formal quote has been generated and sent to the member."
+        }
+      ],
+      "routes": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "to-model-from-record",
+      "displayName": "Start from record",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "to-model-from-record--continue--model",
+          "target": "model",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "to-quote-entry",
+      "displayName": "Start from quote",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "to-quote-entry--continue--enter-quote",
+          "target": "enter-quote",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "to-model-from-quote",
+      "displayName": "Quote figures captured",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "to-model-from-quote--continue--model",
+          "target": "model",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "recalculate-loop",
+      "displayName": "Recalculate",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "recalculate-loop--continue--model",
+          "target": "model",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "fan-out-quote-request",
+      "displayName": "Send quote request",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "fan-out-quote-request--continue--quote-requested",
+          "target": "quote-requested",
+          "trigger": "continue"
+        },
+        {
+          "id": "fan-out-quote-request--continue--review-quote-request",
+          "target": "review-quote-request",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "close-request",
+      "displayName": "Close request",
+      "gatewayType": "Split",
+      "queueKey": "business-user",
+      "routes": [
+        {
+          "id": "close-request--continue--quote-sent",
+          "target": "quote-sent",
+          "trigger": "continue"
+        }
+      ]
+    }
+  ],
+  "tags": {
+    "demo": "money-modeller",
+    "pattern": "interactive-island"
+  }
+}

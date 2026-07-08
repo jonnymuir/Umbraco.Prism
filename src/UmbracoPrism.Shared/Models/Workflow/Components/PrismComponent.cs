@@ -29,4 +29,7 @@ namespace UmbracoPrism.Shared.Models.Workflow.Components;
 [JsonDerivedType(typeof(WaitingComponent), typeDiscriminator: "waiting")]
 [JsonDerivedType(typeof(SummaryListComponent), typeDiscriminator: "summary-list")]
 [JsonDerivedType(typeof(TaskListComponent), typeDiscriminator: "task-list")]
+[JsonDerivedType(typeof(SliderComponent), typeDiscriminator: "slider")]
+[JsonDerivedType(typeof(StatGroupComponent), typeDiscriminator: "stat-group")]
+[JsonDerivedType(typeof(InteractiveComponent), typeDiscriminator: "interactive")]
 public abstract record PrismComponent;

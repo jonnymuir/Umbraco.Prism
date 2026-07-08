@@ -1,0 +1,23 @@
+@model UmbracoPrism.Core.Models.Workflow.PrismComponentContext
+@{
+    var stats = Model.Component.Stats ?? Array.Empty<UmbracoPrism.Core.Models.Workflow.PrismStatItem>();
+}
+
+@if (!string.IsNullOrEmpty(Model.Component.Title))
+{
+    <h2 class="govuk-heading-m">@Model.Component.Title</h2>
+}
+
+<div class="prism-stat-group" data-prism-stat-group role="group" aria-label="@(Model.Component.Title ?? "Key figures")" aria-live="polite">
+    @foreach (var stat in stats)
+    {
+        <div class="prism-stat-card@(stat.Emphasis ? " prism-stat-card--emphasis" : "")" data-prism-stat="@stat.Label" data-prism-stat-field="@stat.FieldKey">
+            <div class="prism-stat-card__label">@stat.Label</div>
+            <div class="prism-stat-card__value">@(string.IsNullOrEmpty(stat.Value) ? "—" : stat.Value)</div>
+            @if (!string.IsNullOrEmpty(stat.Qualifier))
+            {
+                <div class="prism-stat-card__qualifier">@stat.Qualifier</div>
+            }
+        </div>
+    }
+</div>

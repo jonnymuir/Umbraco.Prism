@@ -172,6 +172,7 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
             case "number":
             case "currency":
             case "decimal":
+            case "slider":
                 if (!decimal.TryParse(raw, System.Globalization.NumberStyles.AllowDecimalPoint | System.Globalization.NumberStyles.AllowLeadingSign, 
                     System.Globalization.CultureInfo.InvariantCulture, out _))
                 {
@@ -285,7 +286,7 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
 
         // Min/Max for number/currency/decimal fields
         var fieldType = field.FieldType.ToLowerInvariant();
-        if ((fieldType == "number" || fieldType == "currency" || fieldType == "decimal") &&
+        if ((fieldType == "number" || fieldType == "currency" || fieldType == "decimal" || fieldType == "slider") &&
             decimal.TryParse(raw, System.Globalization.NumberStyles.AllowDecimalPoint | System.Globalization.NumberStyles.AllowLeadingSign,
                 System.Globalization.CultureInfo.InvariantCulture, out var numericValue))
         {

@@ -13,7 +13,8 @@ export default defineConfig({
         // Standalone frontend web component — no Umbraco dependencies,
         // safe to load in the public-facing test site shell
         'prism-mobile-nav': 'src/mobile/prism-mobile-nav.ts',
-  
+        // Money Modeller interaction island for the workflow "interactive" component
+        'prism-money-modeller': 'src/money-modeller/prism-money-modeller.ts',
       },
       output: {
         format: 'es',

@@ -81,6 +81,13 @@ public record StepContent
     /// Gets the available actions the user can take.
     /// </summary>
     public required IReadOnlyList<WorkflowAction> AvailableActions { get; init; }
+
+    /// <summary>
+    /// Host-supplied structured display data for this step (nullable).
+    /// Populated by the engine's render-data hook; keyed sections are resolved into
+    /// "interactive" components via their DataKey. Display data only — never instructions.
+    /// </summary>
+    public System.Text.Json.Nodes.JsonObject? Data { get; init; }
 }
 
 /// <summary>
@@ -127,6 +134,18 @@ public record PrismComponentRenderPayload
     /// <summary>Accordion sections for accordion components.</summary>
     public IReadOnlyList<PrismAccordionSectionPayload>? AccordionSections { get; init; }
 
+    // Stat group
+    /// <summary>Resolved statistic tiles for "stat-group" components.</summary>
+    public IReadOnlyList<PrismStatItem>? Stats { get; init; }
+
+    // Interactive
+    /// <summary>Custom element tag name for "interactive" components (e.g. "prism-money-modeller").</summary>
+    public string? Element { get; init; }
+    /// <summary>Data bag key this interactive component's model is resolved from.</summary>
+    public string? DataKey { get; init; }
+    /// <summary>Resolved JSON model for "interactive" components, ready to embed alongside the element.</summary>
+    public string? DataJson { get; init; }
+
     // Waiting
     /// <summary>Expected wait time in seconds for "waiting" components.</summary>
     public int? ExpectedWaitSeconds { get; init; }
@@ -147,6 +166,21 @@ public record PrismComponentRenderPayload
         "summary-list" => Title ?? "",
         _ => Heading ?? ""
     };
+}
+
+/// <summary>A resolved statistic tile within a rendered stat-group component.</summary>
+public record PrismStatItem
+{
+    /// <summary>Short label above the value (e.g. "DB pension").</summary>
+    public string Label { get; init; } = "";
+    /// <summary>Field key the value was resolved from — stable hook for client-side updates.</summary>
+    public string FieldKey { get; init; } = "";
+    /// <summary>Resolved display value (e.g. "£16,400").</summary>
+    public string? Value { get; init; }
+    /// <summary>Qualifier text below the value (e.g. "a year, for life").</summary>
+    public string? Qualifier { get; init; }
+    /// <summary>Whether to render this tile with visual emphasis.</summary>
+    public bool Emphasis { get; init; }
 }
 
 /// <summary>A section within a rendered task-list component.</summary>
@@ -272,6 +306,16 @@ public record FieldRenderPayload
     /// Gets the maximum value for number fields (nullable).
     /// </summary>
     public decimal? Max { get; init; }
+
+    /// <summary>
+    /// Gets the step between selectable values for slider fields (nullable).
+    /// </summary>
+    public decimal? Step { get; init; }
+
+    /// <summary>
+    /// Gets the unit suffix displayed after the value (e.g., "%").
+    /// </summary>
+    public string? Suffix { get; init; }
 
     /// <summary>
     /// The field key this field depends on for visibility. When set, this field is only

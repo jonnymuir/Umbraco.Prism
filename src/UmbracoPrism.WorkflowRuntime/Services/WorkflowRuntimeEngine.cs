@@ -460,6 +460,19 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         WorkflowDefinitionFile definition,
         string? action) => null;
 
+    /// <summary>
+    /// Host hook invoked before a state's components are rendered. Returns structured
+    /// display data for the step (surfaced as <see cref="StepContent.Data"/> and resolved
+    /// into "interactive" components via their DataKey), or null when the state needs none.
+    /// Implementations may enrich <paramref name="instance"/>.FieldValues (e.g. with freshly
+    /// computed results) before rendering; the shared FieldValues dictionary makes such
+    /// enrichment visible to the stored instance.
+    /// </summary>
+    protected virtual System.Text.Json.Nodes.JsonObject? BuildRenderData(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        StepDefinition state) => null;
+
     protected bool TryGetInstance(string instanceId, out WorkflowInstanceState instance) =>
         _instancesById.TryGetValue(instanceId, out instance!);
 
@@ -500,7 +513,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 "STATE_NOT_FOUND");
         }
 
-        var components = BuildComponents(state.Components, instance.FieldValues);
+        var renderData = BuildRenderData(instance, definition, state);
+        var components = BuildComponents(state.Components, instance.FieldValues, renderData);
         var effectiveStepType = state.Components.InferStepType();
         var waitingComponent = state.Components.OfType<WaitingComponent>().FirstOrDefault();
 
@@ -509,7 +523,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             StepType = effectiveStepType,
             StateDisplayName = state.DisplayName,
             Components = components,
-            AvailableActions = visibleItem.AvailableActions.ToArray()
+            AvailableActions = visibleItem.AvailableActions.ToArray(),
+            Data = renderData
         };
 
         var responseState = effectiveStepType switch
@@ -727,8 +742,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             .Select(transition => new WorkflowAction
             {
                 ActionKey = transition.Action,
-                Label = ActionLabel(transition.Action),
-                Style = ActionStyle(transition.Action)
+                Label = transition.Label ?? ActionLabel(transition.Action),
+                Style = transition.Style ?? ActionStyle(transition.Action)
             })
             .ToArray();
     }
@@ -779,6 +794,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                     FromState = sourceKey,
                     ToState = route.Target,
                     Action = route.Trigger,
+                    Label = route.Label,
+                    Style = route.Style,
                     RequiresRole = route.RequiresRole,
                     Conditions = route.Conditions,
                     Actions = route.Actions
@@ -797,6 +814,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                     FromState = gateway.Key,
                     ToState = route.Target,
                     Action = route.Trigger,
+                    Label = route.Label,
+                    Style = route.Style,
                     RequiresRole = route.RequiresRole,
                     Conditions = route.Conditions,
                     Actions = route.Actions
@@ -858,6 +877,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 FromState = sourceKey,
                 ToState = route.Target,
                 Action = route.Trigger,
+                Label = route.Label,
+                Style = route.Style,
                 RequiresRole = route.RequiresRole,
                 Conditions = route.Conditions,
                 Actions = route.Actions
@@ -951,7 +972,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     private PrismComponentRenderPayload[] BuildComponents(
         IReadOnlyList<PrismComponent> componentDefinitions,
-        Dictionary<string, object?> savedValues)
+        Dictionary<string, object?> savedValues,
+        System.Text.Json.Nodes.JsonObject? renderData = null)
     {
         var result = new List<PrismComponentRenderPayload>();
 
@@ -1101,6 +1123,42 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                     });
                     break;
 
+                case StatGroupComponent statGroup:
+                    result.Add(new PrismComponentRenderPayload
+                    {
+                        Type = "stat-group",
+                        Title = statGroup.Title,
+                        Stats = statGroup.Items.Select(item => new PrismStatItem
+                        {
+                            Label = item.Label,
+                            FieldKey = item.FieldKey,
+                            Value = savedValues.TryGetValue(item.FieldKey, out var statValue)
+                                ? statValue?.ToString()
+                                : null,
+                            Qualifier = item.Qualifier,
+                            Emphasis = item.Emphasis
+                        }).ToArray()
+                    });
+                    break;
+
+                case InteractiveComponent interactive:
+                {
+                    var fields = BuildFields(interactive.Children, savedValues);
+                    var dataNode = interactive.DataKey is { Length: > 0 } dataKey
+                        ? renderData?[dataKey]
+                        : null;
+
+                    result.Add(new PrismComponentRenderPayload
+                    {
+                        Type = "interactive",
+                        Element = interactive.Element,
+                        DataKey = interactive.DataKey,
+                        DataJson = dataNode?.ToJsonString(),
+                        Fields = fields
+                    });
+                    break;
+                }
+
                 case InputComponent input:
                 {
                     var fields = BuildFields(new[] { (PrismComponent)input }, savedValues);
@@ -1201,12 +1259,24 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             {
                 NumberInputComponent number => number.Min,
                 DecimalInputComponent decimalInput => decimalInput.Min,
+                SliderComponent slider => slider.Min,
                 _ => null
             },
             Max = input switch
             {
                 NumberInputComponent number => number.Max,
                 DecimalInputComponent decimalInput => decimalInput.Max,
+                SliderComponent slider => slider.Max,
+                _ => null
+            },
+            Step = input switch
+            {
+                SliderComponent slider => slider.Step,
+                _ => null
+            },
+            Suffix = input switch
+            {
+                SliderComponent slider => slider.Suffix,
                 _ => null
             },
             Prefix = input switch
@@ -1214,6 +1284,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 TextInputComponent text => text.Prefix,
                 NumberInputComponent number => number.Prefix,
                 DecimalInputComponent decimalInput => decimalInput.Prefix,
+                SliderComponent slider => slider.Prefix,
                 _ => null
             },
             ConditionalOn = input.ConditionalOn,
@@ -1234,6 +1305,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         TelComponent => "tel",
         TextareaComponent => "textarea",
         BooleanComponent => "boolean",
+        SliderComponent => "slider",
         _ => "text"
     };
 

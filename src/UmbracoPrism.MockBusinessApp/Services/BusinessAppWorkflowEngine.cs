@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Core.Models.Workflow;
+using UmbracoPrism.MockBusinessApp.Services.MoneyModeller;
 using UmbracoPrism.MockBusinessApp.Services.WorkflowActions;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Services.Sanitization;
@@ -15,6 +16,7 @@ namespace UmbracoPrism.MockBusinessApp.Services;
 public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
 {
     private readonly IWorkflowActionRegistry? _actionRegistry;
+    private readonly MoneyModellerService? _moneyModeller;
 
     public WorkflowResponseEnvelope AdvanceAsReviewer(string instanceId, string action)
     {
@@ -190,13 +192,62 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
         IWebHostEnvironment env,
         IWorkflowContentSanitizer sanitizer,
         IWorkflowDefinitionStore? definitionStore = null,
-        IWorkflowActionRegistry? actionRegistry = null)
+        IWorkflowActionRegistry? actionRegistry = null,
+        MoneyModellerService? moneyModeller = null)
         : base(
             logger,
             definitionStore ?? new FilesystemWorkflowDefinitionStore(Path.Combine(env.ContentRootPath, "workflow-seeds")),
             sanitizer)
     {
         _actionRegistry = actionRegistry;
+        _moneyModeller = moneyModeller;
+    }
+
+    /// <summary>
+    /// Supplies the money-modeller model stage with member data and authoritative
+    /// scenario results. Recomputes on every render so the recalculate loop and the
+    /// interactive island always agree with the server's figures. Result fields are
+    /// written back into the instance so stat-groups and downstream summary-lists
+    /// (e.g. the reviewer's quote-request view) read server-computed values.
+    /// </summary>
+    protected override System.Text.Json.Nodes.JsonObject? BuildRenderData(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        StepDefinition state)
+    {
+        if (_moneyModeller is null
+            || !string.Equals(definition.DefinitionKey, "money-modeller", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var member = _moneyModeller.GetMember(instance.UserId);
+
+        if (!string.Equals(state.StateKey, "model", StringComparison.Ordinal)
+            && !string.Equals(state.StateKey, "review-quote-request", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var inputs = _moneyModeller.ReadInputs(member, instance.FieldValues);
+        var result = _moneyModeller.Compute(member, inputs);
+
+        instance.FieldValues["memberName"] = member.Name;
+        instance.FieldValues["retireAge"] = inputs.RetireAge.ToString();
+        instance.FieldValues["benefitOption"] = inputs.BenefitOption;
+        instance.FieldValues["inflation"] = inputs.Inflation.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        instance.FieldValues["salaryGrowth"] = inputs.SalaryGrowth.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        instance.FieldValues["invReturn"] = inputs.InvReturn.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        instance.FieldValues["moneyBasis"] = inputs.TodaysMoney ? "Today's money" : "Future money";
+        instance.FieldValues["resultPension"] = MoneyModellerService.FormatGbp(result.Pension);
+        instance.FieldValues["resultCash"] = MoneyModellerService.FormatGbp(result.Cash);
+        instance.FieldValues["resultDcIncome"] = MoneyModellerService.FormatGbp(result.DcIncome);
+        instance.FieldValues["resultTotal"] = MoneyModellerService.FormatGbp(result.Total);
+
+        return new System.Text.Json.Nodes.JsonObject
+        {
+            ["moneyModel"] = _moneyModeller.BuildModelData(member, inputs, result)
+        };
     }
 
     protected override WorkflowResponseEnvelope? ValidateAdvance(

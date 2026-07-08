@@ -42,6 +42,11 @@ public static class PrismComponentExtensions
                         foreach (var child in children.Flatten())
                             yield return child;
                     break;
+
+                case InteractiveComponent interactive:
+                    foreach (var child in interactive.Children.Flatten())
+                        yield return child;
+                    break;
             }
         }
     }
