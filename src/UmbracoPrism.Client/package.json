@@ -19,7 +19,8 @@
     "test:playwright:workflow-graph-visual": "playwright test tests/workflow-editor/workflow-graph-visual.spec.ts --reporter=line",
     "test:playwright:localhost-auth": "node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite && playwright test -c playwright.localhost-auth.config.ts --reporter=line",
     "test:playwright:planning-smoke": "node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite && playwright test -c playwright.localhost-auth.config.ts --grep '01-planning-workflow-editor' --reporter=line --max-failures=1",
-    "test:playwright:ui": "playwright test --ui"
+    "test:playwright:ui": "playwright test --ui",
+    "test:graph-layout": "node scripts/run-graph-layout-tests.mjs"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
