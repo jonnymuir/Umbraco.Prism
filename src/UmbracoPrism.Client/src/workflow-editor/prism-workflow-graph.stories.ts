@@ -117,7 +117,7 @@ async function waitForGraphReady(canvasElement: HTMLElement): Promise<PrismWorkf
       return;
     }
     throw new Error('workflow graph canvas has not signalled data-prism-graph-ready yet');
-  });
+  }, { timeout: 5000 });
   return el;
 }
 

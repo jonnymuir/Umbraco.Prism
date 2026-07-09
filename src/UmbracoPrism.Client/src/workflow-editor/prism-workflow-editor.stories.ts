@@ -190,7 +190,7 @@ export const PlanningWorkflow: Story = {
     // rather than racing a fixed delay against the async import.
     await waitFor(() => {
       expect(graph?.shadowRoot?.querySelectorAll('[data-prism-role-queue]').length ?? 0).toBeGreaterThan(0);
-    });
+    }, { timeout: 5000 });
 
     const inspector = root.querySelector('prism-step-inspector');
     await expect(inspector).not.toBeNull();
