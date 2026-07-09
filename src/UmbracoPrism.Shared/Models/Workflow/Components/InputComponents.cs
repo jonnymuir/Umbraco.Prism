@@ -22,6 +22,12 @@ public abstract record InputComponent : PrismComponent
 
     /// <summary>The value that makes this field visible when ConditionalOn is set.</summary>
     public string? VisibleWhen { get; init; }
+
+    /// <summary>
+    /// Default value used when the instance has no saved value for this field —
+    /// pre-populates the rendered control and seeds the calculation scope.
+    /// </summary>
+    public string? Default { get; init; }
 }
 
 /// <summary>
@@ -153,4 +159,26 @@ public sealed record TextareaComponent : InputComponent
 /// </summary>
 public sealed record BooleanComponent : InputComponent
 {
+}
+
+/// <summary>
+/// Range slider input. Renders as a native range control with its current value
+/// displayed alongside; submits like a number field.
+/// </summary>
+public sealed record SliderComponent : InputComponent
+{
+    /// <summary>Minimum value.</summary>
+    public decimal? Min { get; init; }
+
+    /// <summary>Maximum value.</summary>
+    public decimal? Max { get; init; }
+
+    /// <summary>Step between selectable values (e.g. 0.5).</summary>
+    public decimal? Step { get; init; }
+
+    /// <summary>Currency/unit prefix displayed before the value (e.g., "£").</summary>
+    public string? Prefix { get; init; }
+
+    /// <summary>Unit suffix displayed after the value (e.g., "%").</summary>
+    public string? Suffix { get; init; }
 }

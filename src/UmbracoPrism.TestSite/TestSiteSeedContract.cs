@@ -35,6 +35,10 @@ public static class TestSiteSeedContract
     public const string InformationRequestPageUrl = "/request-information";
     public const string InformationRequestWorkflowKey = "information-request";
 
+    public const string MoneyModellerPageName = "Money Modeller";
+
+    public const string MoneyModellerWorkflowKey = "money-modeller";
+
     public const string WorkflowHubAlias = "workflowHub";
     public const string WorkflowHubName = "My Workflows";
     public const string WorkflowHubUrl = "/my-workflows";

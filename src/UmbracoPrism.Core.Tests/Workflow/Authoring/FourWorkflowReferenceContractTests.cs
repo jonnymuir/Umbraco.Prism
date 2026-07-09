@@ -16,7 +16,7 @@ using MockProgram = MockBusinessApp::Program;
 namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 
 /// <summary>
-/// Validates the four-workflow reference contract: exactly 4 demo workflows
+/// Validates the reference workflow contract: exactly 5 demo workflows
 /// seeded at runtime, in memory, and consistently available through the
 /// MockBusinessApp's <c>/mockapp/workflows/*</c> source endpoints, the admin
 /// screen, and the runtime catalog.
@@ -29,6 +29,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     [
         "community-enquiry",
         "information-request",
+        "money-modeller",
         "payment-demo",
         "planning"
     ];
@@ -47,12 +48,12 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         var workflows = await response.Content.ReadFromJsonAsync<List<MockAppWorkflowSummary>>();
 
         workflows.Should().NotBeNull();
-        workflows.Should().HaveCount(4,
-            because: "the reference contract specifies exactly 4 demo workflows");
+        workflows.Should().HaveCount(5,
+            because: "the reference contract specifies exactly 5 demo workflows");
 
         var actualKeys = workflows!.Select(w => w.WorkflowKey).OrderBy(k => k).ToList();
         actualKeys.Should().BeEquivalentTo(ExpectedWorkflowKeys.OrderBy(k => k),
-            because: "the source API should list exactly the 4 canonical workflows");
+            because: "the source API should list exactly the canonical workflows");
     }
 
     [Fact]
@@ -85,8 +86,8 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         var body = await response.Content.ReadAsStringAsync();
 
         var definitionCount = body.Split("definitionKey").Length - 1;
-        definitionCount.Should().Be(4,
-            because: "the runtime should have exactly 4 workflows published from authored sources");
+        definitionCount.Should().Be(5,
+            because: "the runtime should have exactly 5 workflows published from authored sources");
     }
 
     [Fact]
@@ -104,8 +105,8 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         }
 
         var cardCount = body.Split("data-workflow-key=").Length - 1;
-        cardCount.Should().Be(4,
-            because: "the admin screen should show exactly the 4 canonical workflows, no more");
+        cardCount.Should().Be(5,
+            because: "the admin screen should show exactly the canonical workflows, no more");
     }
 
     [Fact]
@@ -123,7 +124,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         }
 
         body.Should().NotContain("No editor definition yet",
-            because: "all 4 canonical workflows should have authored sources");
+            because: "all canonical workflows should have authored sources");
     }
 
     [Fact]
@@ -150,7 +151,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
             because: "the same workflow keys must appear in both source API and admin screen");
 
         sourceKeys.Should().BeEquivalentTo(ExpectedWorkflowKeys.OrderBy(k => k),
-            because: "both surfaces must show exactly the 4 canonical workflows");
+            because: "both surfaces must show exactly the canonical workflows");
     }
 
     [Fact]

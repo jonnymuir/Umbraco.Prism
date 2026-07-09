@@ -84,6 +84,14 @@ public record WorkflowDefinitionFile
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<WorkflowGatewayDefinition>? Gateways { get; init; }
 
+    /// <summary>
+    /// Declarative calculations for this workflow: tables, computed fields and series
+    /// evaluated by <c>CalculationEvaluator</c> against instance field values plus
+    /// host-supplied service inputs.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Calculations.WorkflowCalculationSet? Calculations { get; init; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<WorkflowHandoffDefinition>? Handoffs { get; init; }
 
@@ -158,6 +166,12 @@ public record WorkflowTransitionFile
     public string ToState { get; init; } = "";
 
     public string Action { get; init; } = "";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Label { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Style { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RequiresRole { get; init; }
@@ -288,6 +302,12 @@ public record WorkflowRouteDefinition
     public string Target { get; init; } = "";
 
     public string Trigger { get; init; } = "";
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Label { get; init; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Style { get; init; }
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? RequiresRole { get; init; }

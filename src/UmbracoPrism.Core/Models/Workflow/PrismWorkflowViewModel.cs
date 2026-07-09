@@ -90,6 +90,14 @@ public class PrismWorkflowViewModel : PublishedContentWrapped
     public IReadOnlyDictionary<string, string> FormValues { get; set; } = new Dictionary<string, string>();
 
     /// <summary>
+    /// Live calculation model JSON for this step (nullable). Present when the workflow
+    /// definition declares a calculations block: contains the calculation set, input
+    /// types/defaults and service-sourced values. Embedded on the page for the generic
+    /// prism-live-form runtime, which re-evaluates the definitions as inputs change.
+    /// </summary>
+    public string? LiveModelJson { get; set; }
+
+    /// <summary>
     /// Recommended polling interval in milliseconds for waiting step types.
     /// Only populated when <see cref="StepType"/> is <c>"waiting"</c>.
     /// Sourced from <see cref="WaitingConfig.PollIntervalMs"/> via the workflow response envelope.

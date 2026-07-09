@@ -1,0 +1,138 @@
+{
+  "description": "Conformance fixtures for the Prism calculation expression language. Every runtime implementing the grammar (C# CalculationEvaluator, future TypeScript client evaluator) must produce these exact results. Single-expression cases use 'expr'/'expect'; full cases use fields/series/expectFields/expectSeries. Numbers are asserted as invariant strings to avoid float drift in test harnesses.",
+  "cases": [
+    { "name": "integer arithmetic and precedence", "expr": "1 + 2 * 3", "expect": "7" },
+    { "name": "parentheses override precedence", "expr": "(1 + 2) * 3", "expect": "9" },
+    { "name": "decimal arithmetic is exact", "expr": "0.1 + 0.2", "expect": "0.3" },
+    { "name": "division", "expr": "7 / 2", "expect": "3.5" },
+    { "name": "unary minus", "expr": "-3 + 10", "expect": "7" },
+    { "name": "double unary minus", "expr": "--3", "expect": "3" },
+    { "name": "subtraction chains left-associative", "expr": "10 - 3 - 2", "expect": "5" },
+    { "name": "division by zero is an error", "expr": "1 / 0", "expectError": true },
+
+    { "name": "comparison less-than", "expr": "3 < 4", "expect": true },
+    { "name": "comparison greater-equal", "expr": "4 >= 4", "expect": true },
+    { "name": "numeric equality", "expr": "1.50 = 1.5", "expect": true },
+    { "name": "not-equal operator", "expr": "2 <> 3", "expect": true },
+    { "name": "string equality", "expr": "'Maximum tax-free cash' = 'Maximum tax-free cash'", "expect": true },
+    { "name": "string inequality", "expr": "'a' = 'b'", "expect": false },
+    { "name": "string never equals number", "expr": "'1' = 1", "expect": false },
+
+    { "name": "and or precedence: and binds tighter", "expr": "true or false and false", "expect": true },
+    { "name": "not", "expr": "not (1 > 2)", "expect": true },
+    { "name": "and short-circuits before type error", "expr": "false and (1 / 0 > 0)", "expect": false },
+    { "name": "or short-circuits before type error", "expr": "true or (1 / 0 > 0)", "expect": true },
+
+    { "name": "if selects by condition", "expr": "if(2 > 1, 'yes', 'no')", "expect": "yes" },
+    { "name": "string inputs never coerce to numbers", "inputs": { "quoteMode": true, "qPension": "18500", "accrued": "16400" }, "expr": "if(quoteMode, qPension, accrued) * 1", "expectError": true, "note": "hosts must supply typed values" },
+    { "name": "min of three", "expr": "min(5, 2, 8)", "expect": "2" },
+    { "name": "max of two", "expr": "max(5, 2)", "expect": "5" },
+    { "name": "clamp inside range", "expr": "clamp(60, 55, 75)", "expect": "60" },
+    { "name": "clamp below range", "expr": "clamp(40, 55, 75)", "expect": "55" },
+    { "name": "abs", "expr": "abs(-4.5)", "expect": "4.5" },
+    { "name": "floor", "expr": "floor(3.9)", "expect": "3" },
+    { "name": "round half away from zero", "expr": "round(2.5)", "expect": "3" },
+    { "name": "round negative half away from zero", "expr": "round(-2.5)", "expect": "-3" },
+    { "name": "round to places", "expr": "round(3.14159, 2)", "expect": "3.14" },
+    { "name": "pow integer exponent", "expr": "pow(2, 10)", "expect": "1024" },
+    { "name": "pow fractional result rounded", "expr": "round(pow(1.05, 19) * 10000)", "expect": "25270" },
+
+    { "name": "dotted path resolution", "inputs": { "member": { "age": 47, "active": true } }, "expr": "member.age + 1", "expect": "48" },
+    { "name": "boolean input through logic", "inputs": { "member": { "active": true }, "quoteMode": false }, "expr": "member.active and not quoteMode", "expect": true },
+    { "name": "unknown name is an error", "expr": "nosuchthing + 1", "expectError": true },
+    { "name": "unknown function is an error", "expr": "eval(1)", "expectError": true },
+    { "name": "unterminated string is an error", "expr": "'oops", "expectError": true },
+    { "name": "trailing tokens are an error", "expr": "1 + 2 3", "expectError": true },
+
+    {
+      "name": "fields chain in declaration order",
+      "inputs": { "retireAge": 58, "npa": 66 },
+      "fields": {
+        "yearsEarly": { "expr": "max(0, npa - retireAge)" },
+        "factor": { "expr": "max(0.4, 1 - 0.04 * yearsEarly)" },
+        "reduced": { "expr": "round(24734 * factor)" }
+      },
+      "expectFields": { "yearsEarly": "8", "factor": "0.68", "reduced": "16819" }
+    },
+    {
+      "name": "forward field reference is an error",
+      "fields": {
+        "a": { "expr": "b + 1" },
+        "b": { "expr": "1" }
+      },
+      "expectError": true
+    },
+    {
+      "name": "service field must be supplied by host",
+      "fields": { "member": { "source": "service" }, "double": { "expr": "member.age * 2" } },
+      "inputs": { "member": { "age": 21 } },
+      "expectFields": { "double": "42" }
+    },
+    {
+      "name": "missing service field is an error",
+      "fields": { "member": { "source": "service" } },
+      "expectError": true
+    },
+
+    {
+      "name": "table lookup exact key",
+      "tables": { "factor": { "values": { "55": 0.56, "66": 1.0, "75": 1.27 } } },
+      "fields": { "f": { "expr": "lookup(factor, 66)" } },
+      "expectFields": { "f": "1.0" }
+    },
+    {
+      "name": "table lookup linear interpolation",
+      "tables": { "factor": { "values": { "55": 0.56, "66": 1.0 } } },
+      "fields": { "f": { "expr": "round(lookup(factor, 60), 4)" } },
+      "expectFields": { "f": "0.76" }
+    },
+    {
+      "name": "table lookup clamps below and above",
+      "tables": { "factor": { "values": { "55": 0.56, "75": 1.27 } } },
+      "fields": { "low": { "expr": "lookup(factor, 40)" }, "high": { "expr": "lookup(factor, 90)" } },
+      "expectFields": { "low": "0.56", "high": "1.27" }
+    },
+    {
+      "name": "table step interpolation holds lower value",
+      "tables": { "band": { "interpolate": "step", "values": { "0": 10, "100": 20 } } },
+      "fields": { "f": { "expr": "lookup(band, 99)" } },
+      "expectFields": { "f": "10" }
+    },
+
+    {
+      "name": "series produces one row per integer step with loop variable in scope",
+      "inputs": { "start": 66, "pension": 12000 },
+      "fields": { "sp": { "expr": "11975" } },
+      "series": {
+        "income": {
+          "over": "age",
+          "from": "start",
+          "to": "start + 3",
+          "values": {
+            "db": "pension",
+            "state": "if(age >= 68, sp, 0)"
+          }
+        }
+      },
+      "expectSeries": {
+        "income": [
+          { "age": "66", "db": "12000", "state": "0" },
+          { "age": "67", "db": "12000", "state": "0" },
+          { "age": "68", "db": "12000", "state": "11975" },
+          { "age": "69", "db": "12000", "state": "11975" }
+        ]
+      }
+    },
+    {
+      "name": "empty series when to is below from",
+      "series": { "s": { "over": "i", "from": "5", "to": "4", "values": { "v": "i" } } },
+      "expectSeries": { "s": [] }
+    },
+    {
+      "name": "series loop variable collision is an error",
+      "inputs": { "age": 47 },
+      "series": { "s": { "over": "age", "from": "1", "to": "2", "values": { "v": "age" } } },
+      "expectError": true
+    }
+  ]
+}

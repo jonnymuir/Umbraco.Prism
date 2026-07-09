@@ -19,12 +19,24 @@ export interface AuthoredWorkflow {
   queues?: WorkflowQueueDefinition[];
   states: AuthoredStage[];
   gateways?: AuthoredGateway[];
+  calculations?: WorkflowCalculationsBlock;
   parameterSchemas?: AuthoredParameterSchema[];
   metadata?: WorkflowDefinitionMetadata;
   transitions?: AuthoredTransition[];
   stages?: AuthoredStage[];
   initialStageKey?: string;
   authorNote?: string;
+}
+
+/**
+ * The definition's declarative calculations block (tables + fields + series).
+ * The editor does not author this yet — it must round-trip it untouched; the
+ * authoritative schema lives in UmbracoPrism.Shared (WorkflowCalculationSet).
+ */
+export interface WorkflowCalculationsBlock {
+  tables?: Record<string, { interpolate?: string; values: Record<string, number> }>;
+  fields: Record<string, { expr?: string; source?: string; format?: string }>;
+  series?: Record<string, { over: string; from: string; to: string; values: Record<string, string> }>;
 }
 
 export interface WorkflowDefinitionMetadata {
@@ -386,6 +398,9 @@ export function hydrateWorkflowDefinition<T extends AuthoredWorkflow>(workflow: 
     queues: rawQueues,
     states: normalisedStates,
     gateways: normalisedGateways,
+    calculations: root.calculations && typeof root.calculations === 'object' && !Array.isArray(root.calculations)
+      ? root.calculations as WorkflowCalculationsBlock
+      : undefined,
     parameterSchemas: asArray<AuthoredParameterSchema>(root.parameterSchemas),
   } as AuthoredWorkflow;
 
@@ -536,6 +551,8 @@ function normaliseRoute(rawRoute: Record<string, unknown>, sourceKey: string): A
     id: firstString(rawRoute.id) ?? routeId(sourceKey, trigger, firstString(rawRoute.target, rawRoute.toState) ?? ''),
     target: firstString(rawRoute.target, rawRoute.toState) ?? '',
     trigger,
+    label: firstString(rawRoute.label),
+    style: firstString(rawRoute.style),
     condition: firstString(rawRoute.condition),
     requiresRole: firstString(rawRoute.requiresRole),
     actions: asArray<AuthoredAction>(rawRoute.actions),
@@ -764,6 +781,8 @@ export interface AuthoredRoute {
   id: string;
   target: string;
   trigger: string;
+  label?: string;
+  style?: string;
   condition?: string;
   requiresRole?: string;
   actions?: AuthoredAction[];

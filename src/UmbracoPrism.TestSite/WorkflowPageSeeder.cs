@@ -36,6 +36,7 @@ public class WorkflowPageSeeder(
             EnsurePlanningWorkflowPage();
             EnsurePaymentDemoPage();
             EnsureInformationRequestPage();
+            EnsureMoneyModellerPage();
             EnsureWorkflowHubPage();
         }
         catch (Exception ex)
@@ -134,6 +135,14 @@ public class WorkflowPageSeeder(
             TestSiteSeedContract.InformationRequestWorkflowKey,
             TestSiteSeedContract.InformationRequestPageName,
             "seeded information request page");
+    }
+
+    private void EnsureMoneyModellerPage()
+    {
+        EnsureWorkflowPageUnderHome(
+            TestSiteSeedContract.MoneyModellerWorkflowKey,
+            TestSiteSeedContract.MoneyModellerPageName,
+            "seeded money modeller page");
     }
 
     private void EnsureWorkflowPageUnderHome(string workflowKey, string pageName, string label)

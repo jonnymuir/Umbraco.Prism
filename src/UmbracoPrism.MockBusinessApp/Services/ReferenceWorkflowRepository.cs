@@ -5,7 +5,7 @@ using UmbracoPrism.Shared.Models.Workflow;
 namespace UmbracoPrism.MockBusinessApp.Services;
 
 /// <summary>
-/// Loads the four canonical reference workflows from the flattened workflow seed contract.
+/// Loads the canonical reference workflows from the flattened workflow seed contract.
 /// </summary>
 public static class ReferenceWorkflowRepository
 {
@@ -22,7 +22,8 @@ public static class ReferenceWorkflowRepository
         "planning",
         "community-enquiry",
         "information-request",
-        "payment-demo"
+        "payment-demo",
+        "money-modeller"
     ];
 
     public static IReadOnlyList<KeyValuePair<string, WorkflowDefinitionFile>> GetReferenceWorkflows()

@@ -20,6 +20,12 @@
                          nonce="@Model.Nonce" />
     }
 
+    @if (!string.IsNullOrEmpty(Model.LiveModelJson))
+    {
+        <script type="module" src="/App_Plugins/UmbracoPrism/dist/prism-live-form.js"></script>
+        <script type="application/json" data-prism-live-model>@Html.Raw(Model.LiveModelJson!.Replace("</", "<\\/"))</script>
+    }
+
     <div class="govuk-button-group">
         @foreach (var action in Model.AvailableActions)
         {

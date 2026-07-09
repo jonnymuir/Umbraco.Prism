@@ -46,6 +46,7 @@ public record PrismFieldContext
                                     : string.Empty;
     public string MinAttr       => Field.Min.HasValue ? $@" min=""{Field.Min.Value}""" : string.Empty;
     public string MaxAttr       => Field.Max.HasValue ? $@" max=""{Field.Max.Value}""" : string.Empty;
+    public string StepAttr      => Field.Step.HasValue ? $@" step=""{Field.Step.Value}""" : string.Empty;
 
     // -- Wrapper div (govuk-form-group + conditional) --
 

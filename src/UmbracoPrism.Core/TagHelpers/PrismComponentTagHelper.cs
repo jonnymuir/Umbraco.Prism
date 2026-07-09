@@ -121,6 +121,16 @@ public class PrismComponentTagHelper : TagHelper
         var content = await _htmlHelper.PartialAsync(partial, ctx);
 
         output.Content.SetHtmlContent(content);
+
+        // Live visibility: emit the showWhen expression for the client runtime and the
+        // server-evaluated hidden state, wrapping the rendered component.
+        if (!string.IsNullOrEmpty(Component.ShowWhen))
+        {
+            var expression = WebUtility.HtmlEncode(Component.ShowWhen);
+            var hidden = Component.Hidden ? " hidden" : string.Empty;
+            output.PreContent.SetHtmlContent($@"<div data-prism-show-when=""{expression}""{hidden}>");
+            output.PostContent.SetHtmlContent("</div>");
+        }
     }
 
     private async Task ProcessFieldAsync(TagHelperOutput output)

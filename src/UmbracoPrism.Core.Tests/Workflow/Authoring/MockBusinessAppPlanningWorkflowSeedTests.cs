@@ -15,7 +15,7 @@ namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 
 /// <summary>
 /// Validates that MockBusinessApp reference workflow seeds use the flattened
-/// workflow-definition contract and stay aligned with the four-workflow reference set.
+/// workflow-definition contract and stay aligned with the canonical reference set.
 /// </summary>
 public class MockBusinessAppPlanningWorkflowSeedTests
 {
@@ -29,17 +29,18 @@ public class MockBusinessAppPlanningWorkflowSeedTests
     [
         "community-enquiry",
         "information-request",
+        "money-modeller",
         "payment-demo",
         "planning"
     ];
 
     [Fact]
-    public void ReferenceWorkflowRepository_ContainsExactlyFourWorkflows()
+    public void ReferenceWorkflowRepository_ContainsExactlyTheCanonicalWorkflows()
     {
         var referenceWorkflows = MockReferenceWorkflowRepository.GetReferenceWorkflows();
 
-        referenceWorkflows.Should().HaveCount(4,
-            because: "the reference contract specifies exactly 4 demo workflows with authored sources");
+        referenceWorkflows.Should().HaveCount(5,
+            because: "the reference contract specifies exactly 5 demo workflows with authored sources");
 
         var workflowKeys = referenceWorkflows
             .Select(kvp => kvp.Key)
@@ -47,7 +48,7 @@ public class MockBusinessAppPlanningWorkflowSeedTests
             .ToList();
 
         workflowKeys.Should().BeEquivalentTo(ExpectedAuthoredWorkflows.OrderBy(k => k),
-            because: "the reference repository must contain exactly the 4 canonical workflows");
+            because: "the reference repository must contain exactly the canonical workflows");
     }
 
     [Fact]

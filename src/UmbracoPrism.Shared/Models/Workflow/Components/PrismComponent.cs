@@ -29,4 +29,16 @@ namespace UmbracoPrism.Shared.Models.Workflow.Components;
 [JsonDerivedType(typeof(WaitingComponent), typeDiscriminator: "waiting")]
 [JsonDerivedType(typeof(SummaryListComponent), typeDiscriminator: "summary-list")]
 [JsonDerivedType(typeof(TaskListComponent), typeDiscriminator: "task-list")]
-public abstract record PrismComponent;
+[JsonDerivedType(typeof(SliderComponent), typeDiscriminator: "slider")]
+[JsonDerivedType(typeof(StatGroupComponent), typeDiscriminator: "stat-group")]
+[JsonDerivedType(typeof(ChartComponent), typeDiscriminator: "chart")]
+public abstract record PrismComponent
+{
+    /// <summary>
+    /// Optional visibility expression evaluated against the workflow's calculation scope
+    /// (inputs, service inputs and calculated fields). When it evaluates to false the
+    /// component renders hidden; the live-form runtime re-evaluates it as inputs change.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ShowWhen { get; init; }
+}

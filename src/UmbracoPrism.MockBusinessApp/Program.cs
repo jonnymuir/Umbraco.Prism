@@ -47,6 +47,7 @@ builder.Services.AddBusinessAppWorkflowActions();
 // The reference app uses ReferenceWorkflowDefinitionStore to seed exactly 4 workflows at runtime.
 // Downstream apps can use FilesystemWorkflowDefinitionStore or their own IWorkflowDefinitionStore.
 builder.Services.AddSingleton<IWorkflowDefinitionStore, ReferenceWorkflowDefinitionStore>();
+builder.Services.AddSingleton<UmbracoPrism.MockBusinessApp.Services.MoneyModeller.MemberRecordService>();
 builder.Services.AddSingleton<BusinessAppWorkflowEngine>();
 builder.Services.AddSingleton<IWorkflowRuntimeEngine>(sp => sp.GetRequiredService<BusinessAppWorkflowEngine>());
 builder.Services.AddHostedService<WorkflowTuiService>();

@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Core.Models.Workflow;
+using UmbracoPrism.MockBusinessApp.Services.MoneyModeller;
 using UmbracoPrism.MockBusinessApp.Services.WorkflowActions;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Services.Sanitization;
@@ -15,6 +16,7 @@ namespace UmbracoPrism.MockBusinessApp.Services;
 public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
 {
     private readonly IWorkflowActionRegistry? _actionRegistry;
+    private readonly MemberRecordService? _memberRecords;
 
     public WorkflowResponseEnvelope AdvanceAsReviewer(string instanceId, string action)
     {
@@ -190,13 +192,48 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
         IWebHostEnvironment env,
         IWorkflowContentSanitizer sanitizer,
         IWorkflowDefinitionStore? definitionStore = null,
-        IWorkflowActionRegistry? actionRegistry = null)
+        IWorkflowActionRegistry? actionRegistry = null,
+        MemberRecordService? memberRecords = null)
         : base(
             logger,
             definitionStore ?? new FilesystemWorkflowDefinitionStore(Path.Combine(env.ContentRootPath, "workflow-seeds")),
             sanitizer)
     {
         _actionRegistry = actionRegistry;
+        _memberRecords = memberRecords;
+    }
+
+    /// <summary>
+    /// Supplies the money-modeller definition's single service-sourced calculation input:
+    /// the member record from the (mock) scheme administration system. All maths, display
+    /// formatting and visibility live in the definition's own calculations block and
+    /// components — this is the entire host-side involvement.
+    /// </summary>
+    protected override IReadOnlyDictionary<string, object?>? ResolveServiceInputs(
+        WorkflowInstanceState instance,
+        WorkflowDefinitionFile definition,
+        StepDefinition state)
+    {
+        if (_memberRecords is null
+            || !string.Equals(definition.DefinitionKey, "money-modeller", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var member = _memberRecords.GetForUser(instance.UserId);
+        return new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["member"] = new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["name"] = member.Name,
+                ["active"] = member.Active,
+                ["age"] = (decimal)member.Age,
+                ["salary"] = member.Salary,
+                ["accruedPension"] = member.AccruedPension,
+                ["accruedLump"] = member.AccruedLump,
+                ["dcPot"] = member.DcPot
+            }
+        };
     }
 
     protected override WorkflowResponseEnvelope? ValidateAdvance(

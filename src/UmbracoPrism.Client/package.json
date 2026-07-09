@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build && vite build --config vite.workflow-editor.config.ts",
+    "test:calc": "node scripts/run-calculation-golden.mjs",
+    "test:editor-roundtrip": "node scripts/run-editor-roundtrip.mjs",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",

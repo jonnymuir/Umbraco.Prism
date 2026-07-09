@@ -12,6 +12,7 @@ const TOP_LEVEL_KEY_ORDER: readonly string[] = [
   'instancePolicy',
   'description',
   'schemaVersion',
+  'calculations',
   'queues',
   'states',
   'gateways',
@@ -23,6 +24,8 @@ function serialisableRoute(route: AuthoredRoute): Record<string, unknown> {
     id: route.id,
     target: route.target,
     trigger: route.trigger,
+    label: route.label,
+    style: route.style,
     condition: route.condition,
     requiresRole: route.requiresRole,
     actions: route.actions,
@@ -77,6 +80,7 @@ function serialisableWorkflow(workflow: AuthoredWorkflow): Record<string, unknow
     queues: workflow.queues ?? [],
     states: workflow.states.map(serialisableState),
     gateways: (workflow.gateways ?? []).map(serialisableGateway),
+    calculations: workflow.calculations,
     parameterSchemas: workflow.parameterSchemas,
   };
 }
