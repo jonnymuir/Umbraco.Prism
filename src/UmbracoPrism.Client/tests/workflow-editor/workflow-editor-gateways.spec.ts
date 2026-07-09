@@ -15,6 +15,7 @@ test.describe('Workflow editor gateway representation', () => {
 
     const storyEl = page.locator('prism-workflow-graph');
     await expect(storyEl).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     const splitGateway = storyEl.locator('[data-prism-gateway-kind="Split"][data-prism-gateway="review-split"]');
     const joinGateway = storyEl.locator('[data-prism-gateway-kind="Join"][data-prism-gateway="decision-join"]');
@@ -33,6 +34,7 @@ test.describe('Workflow editor gateway representation', () => {
 
     const storyEl = page.locator('prism-workflow-graph');
     await expect(storyEl).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     // The Review split fans out into three branches; the Decision join is fed
     // by three incoming routes. Both source-Split and target-Join edges carry
@@ -86,6 +88,7 @@ test.describe('Workflow editor gateway representation', () => {
 
     const storyEl = page.locator('prism-workflow-graph');
     await expect(storyEl).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     await expect(storyEl.locator('[data-prism-gateway]')).toHaveCount(2);
     await expect(storyEl.locator('[data-prism-gateway-kind="Split"]')).toHaveCount(1);

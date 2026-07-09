@@ -3,11 +3,15 @@ import { customElement, property, state } from 'lit/decorators.js';
 import {
   type ActionCatalogEntry,
   type AuthoredAction,
+  type AuthoredGateway,
+  type AuthoredRoute,
   type AuthoredStage,
   type AuthoredWorkflow,
+  type WorkflowNodePosition,
   hydrateWorkflowDefinition,
   workflowGateways,
 } from './types.js';
+import { computeWorkflowGraphLayout, parseGraphNodeId } from './graph/workflow-graph-layout.js';
 import { projectWorkflowLocally } from './workflow-runtime-projection.js';
 import { WorkflowSaveError, normaliseWorkflowSaveError, type WorkflowSource } from './workflow-source.js';
 import type { WorkflowActionCatalog } from './workflow-action-catalog.js';
@@ -16,7 +20,7 @@ import type { WorkflowAuthorContext } from './workflow-author-context.js';
 import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 import { availableContexts, contextForTiming, timingForContext, updateActionSummary } from './workflow-action-editing.js';
 import { isTerminalStage, validateWorkflow, type WorkflowValidationIssue } from './workflow-validation.js';
-import { flattenRoutes } from './workflow-routes.js';
+import { flattenRoutes, newRouteId } from './workflow-routes.js';
 import { findWorkflowShortcut, matchesShortcut, WORKFLOW_SHORTCUT_GROUPS } from './workflow-shortcuts.js';
 import './prism-workflow-graph.js';
 import './prism-step-inspector.js';
@@ -56,6 +60,7 @@ type ActionSelection = {
 
 type ClipboardEntry =
   | { kind: 'stage'; stage: AuthoredStage; label: string }
+  | { kind: 'subgraph'; stages: AuthoredStage[]; gateways: AuthoredGateway[]; label: string }
   | { kind: 'action'; action: AuthoredAction; label: string; sourceTarget: 'stage' | 'transition' };
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -186,6 +191,9 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _historyAnnouncement = '';
   @state() private _actionSelection: ActionSelection = null;
   @state() private _clipboard: ClipboardEntry | null = null;
+
+  /** Prefixed node ids from the canvas's shift-marquee multi-selection. */
+  @state() private _graphMultiSelection: string[] = [];
   @state() private _saveState: SaveState = 'idle';
   @state() private _saveMessage: string | null = null;
   @state() private _saveError: WorkflowSaveError | null = null;
@@ -835,7 +843,9 @@ export class PrismWorkflowEditorElement extends LitElement {
   }
 
   private get _canCopy() {
-    return this._currentAction() !== null || this._currentSelection()?.kind === 'stage';
+    return this._currentAction() !== null
+      || this._currentSelection()?.kind === 'stage'
+      || this._graphMultiSelection.length >= 2;
   }
 
   private get _canPaste() {
@@ -843,9 +853,10 @@ export class PrismWorkflowEditorElement extends LitElement {
       return false;
     }
 
-    return this._clipboard.kind === 'stage'
-      ? true
-      : this._canPasteActionIntoSelection(this._clipboard.action);
+    if (this._clipboard.kind === 'stage' || this._clipboard.kind === 'subgraph') {
+      return true;
+    }
+    return this._canPasteActionIntoSelection(this._clipboard.action);
   }
 
   private _normalisePastedAction(action: AuthoredAction, target: 'stage' | 'transition'): AuthoredAction | null {
@@ -1260,7 +1271,33 @@ export class PrismWorkflowEditorElement extends LitElement {
       return true;
     }
 
-    if (!this._workflow || !this._selectedStageKey) {
+    if (!this._workflow) {
+      return false;
+    }
+
+    if (this._graphMultiSelection.length >= 2) {
+      const selectedKeys = this._graphMultiSelection.map(parseGraphNodeId);
+      const stages = this._workflow.states.filter(stage =>
+        selectedKeys.some(parsed => parsed.kind === 'stage' && parsed.key === stage.stateKey));
+      const gateways = workflowGateways(this._workflow).filter(gateway =>
+        selectedKeys.some(parsed => parsed.kind === 'gateway' && parsed.key === gateway.key));
+      if (stages.length + gateways.length >= 2) {
+        const label = [
+          stages.length > 0 ? `${stages.length} stage${stages.length === 1 ? '' : 's'}` : null,
+          gateways.length > 0 ? `${gateways.length} gateway${gateways.length === 1 ? '' : 's'}` : null,
+        ].filter(Boolean).join(' and ');
+        this._clipboard = {
+          kind: 'subgraph',
+          stages: stages.map(cloneStage),
+          gateways: gateways.map(gateway => JSON.parse(JSON.stringify(gateway)) as AuthoredGateway),
+          label,
+        };
+        this._showToast(`Copied ${label}.`);
+        return true;
+      }
+    }
+
+    if (!this._selectedStageKey) {
       return false;
     }
 
@@ -1278,9 +1315,90 @@ export class PrismWorkflowEditorElement extends LitElement {
     return true;
   }
 
+  /**
+   * Paste a copied subgraph: every stage and gateway gets a fresh unique key,
+   * routes between members of the copied set are remapped to the new keys
+   * (routes leaving the set keep their original targets), and the copies are
+   * positioned at a small offset from their sources.
+   */
+  private _pasteSubgraph(entry: Extract<ClipboardEntry, { kind: 'subgraph' }>): boolean {
+    if (!this._workflow) {
+      return false;
+    }
+    const workflow = this._workflow;
+
+    const usedKeys = new Set<string>([
+      ...workflow.states.map(stage => stage.stateKey),
+      ...workflowGateways(workflow).map(gateway => gateway.key),
+    ]);
+    const uniqueKey = (base: string) => {
+      let candidate = `${base}-copy`;
+      let suffix = 2;
+      while (usedKeys.has(candidate)) {
+        candidate = `${base}-copy-${suffix}`;
+        suffix += 1;
+      }
+      usedKeys.add(candidate);
+      return candidate;
+    };
+
+    const keyMap = new Map<string, string>();
+    entry.stages.forEach(stage => keyMap.set(stage.stateKey, uniqueKey(stage.stateKey)));
+    entry.gateways.forEach(gateway => keyMap.set(gateway.key, uniqueKey(gateway.key)));
+
+    const remapRoutes = (ownerNewKey: string, routes: AuthoredRoute[] | undefined): AuthoredRoute[] =>
+      (routes ?? []).map(route => {
+        const target = keyMap.get(route.target) ?? route.target;
+        return { ...route, target, id: newRouteId(ownerNewKey, route.trigger, target) };
+      });
+
+    const pastedStages: AuthoredStage[] = entry.stages.map(stage => {
+      const stateKey = keyMap.get(stage.stateKey)!;
+      return { ...cloneStage(stage), stateKey, routes: remapRoutes(stateKey, stage.routes) };
+    });
+    const pastedGateways: AuthoredGateway[] = entry.gateways.map(gateway => {
+      const key = keyMap.get(gateway.key)!;
+      const clone = JSON.parse(JSON.stringify(gateway)) as AuthoredGateway;
+      return { ...clone, key, routes: remapRoutes(key, gateway.routes) };
+    });
+
+    // Copies land offset from their source's current position.
+    const { layout } = computeWorkflowGraphLayout(workflow, this.availableQueues);
+    const layoutNodes: Record<string, WorkflowNodePosition> = { ...(workflow.layout?.nodes ?? {}) };
+    keyMap.forEach((newKey, oldKey) => {
+      const isStage = entry.stages.some(stage => stage.stateKey === oldKey);
+      const placement = layout.placements.get(`${isStage ? 'stage' : 'gateway'}:${oldKey}`);
+      if (placement) {
+        layoutNodes[`${isStage ? 'stage' : 'gateway'}:${newKey}`] = {
+          x: Math.round(placement.x + 48),
+          y: Math.round(placement.y + 48),
+        };
+      }
+    });
+
+    const next: AuthoredWorkflow = {
+      ...workflow,
+      states: [...workflow.states, ...pastedStages],
+      gateways: [...workflowGateways(workflow), ...pastedGateways],
+      layout: Object.keys(layoutNodes).length > 0 ? { nodes: layoutNodes } : workflow.layout,
+    };
+
+    const firstStageKey = pastedStages[0]?.stateKey ?? null;
+    this._commitWorkflowUpdate(
+      next,
+      firstStageKey ? { kind: 'stage', stageKey: firstStageKey } : this._currentSelection()
+    );
+    this._showToast(`Pasted ${entry.label}.`);
+    return true;
+  }
+
   private _pasteClipboard() {
     if (!this._workflow || !this._clipboard) {
       return false;
+    }
+
+    if (this._clipboard.kind === 'subgraph') {
+      return this._pasteSubgraph(this._clipboard);
     }
 
     if (this._clipboard.kind === 'stage') {
@@ -1994,6 +2112,9 @@ export class PrismWorkflowEditorElement extends LitElement {
                   @transition-selected="${this._handleTransitionSelected}"
                   @workflow-updated="${this._handleWorkflowUpdated}"
                   @inspector-requested="${this._handleInspectorRequested}"
+                  @graph-multi-selection="${(event: CustomEvent<{ nodeIds: string[] }>) => {
+                    this._graphMultiSelection = event.detail.nodeIds;
+                  }}"
                 ></prism-workflow-graph>
               </div>
 

@@ -49,7 +49,7 @@ async function measureGraph(page: Page): Promise<MeasuredGraph> {
       throw new Error('Graph shadow root not found');
     }
 
-    const scene = shadowRoot.querySelector<HTMLElement>('.graph-scene');
+    const scene = shadowRoot.querySelector<HTMLElement>('.react-flow__viewport');
     if (!scene) {
       throw new Error('Graph scene not found');
     }
@@ -176,6 +176,7 @@ test.describe('Workflow canvas slot-matrix layout proof', () => {
 
     const graphElement = page.locator('prism-workflow-graph');
     await expect(graphElement).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     const graph = await measureGraph(page);
     expect(graph.lanes.length).toBeGreaterThanOrEqual(2);
@@ -219,6 +220,7 @@ test.describe('Workflow canvas slot-matrix layout proof', () => {
 
     const graphElement = page.locator('prism-workflow-graph');
     await expect(graphElement).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     const graph = await measureGraph(page);
     const draft = findNode(graph, 'draft');
@@ -254,6 +256,7 @@ test.describe('Workflow canvas slot-matrix layout proof', () => {
 
     const graphElement = page.locator('prism-workflow-graph');
     await expect(graphElement).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     const graph = await measureGraph(page);
     const start = findNode(graph, 'start-request');
@@ -296,6 +299,7 @@ test.describe('Workflow canvas slot-matrix layout proof', () => {
 
     const graphElement = page.locator('prism-workflow-graph');
     await expect(graphElement).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     const graph = await measureGraph(page);
 
@@ -340,10 +344,12 @@ test.describe('Workflow canvas slot-matrix layout proof', () => {
 
     await page.goto(storyUrl('workflow-editor-workflow-graph--gateway-representation'));
     await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
     assertNoNodeOverlaps(await measureGraph(page), 'cross-lane canvas');
 
     await page.goto(storyUrl('workflow-editor-workflow-graph--same-lane-fan-out'));
     await expect(page.locator('prism-workflow-graph')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
     assertNoNodeOverlaps(await measureGraph(page), 'same-lane canvas');
   });
 
@@ -353,6 +359,7 @@ test.describe('Workflow canvas slot-matrix layout proof', () => {
 
     const graphElement = page.locator('prism-workflow-graph');
     await expect(graphElement).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     const graph = await measureGraph(page);
     for (const node of graph.nodes) {

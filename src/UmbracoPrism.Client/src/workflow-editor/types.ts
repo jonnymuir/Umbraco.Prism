@@ -21,11 +21,28 @@ export interface AuthoredWorkflow {
   gateways?: AuthoredGateway[];
   calculations?: WorkflowCalculationsBlock;
   parameterSchemas?: AuthoredParameterSchema[];
+  layout?: WorkflowLayoutBlock;
   metadata?: WorkflowDefinitionMetadata;
   transitions?: AuthoredTransition[];
   stages?: AuthoredStage[];
   initialStageKey?: string;
   authorNote?: string;
+}
+
+/**
+ * Editor canvas layout hints — manually arranged node positions keyed by
+ * prefixed node id (`stage:<stateKey>` / `gateway:<key>`). Owned by the
+ * editor; the workflow runtime never reads it. Nodes without an entry fall
+ * back to the derived auto-layout, and queue membership (queueKey) stays
+ * authoritative for which swim lane a node belongs to.
+ */
+export interface WorkflowLayoutBlock {
+  nodes?: Record<string, WorkflowNodePosition>;
+}
+
+export interface WorkflowNodePosition {
+  x: number;
+  y: number;
 }
 
 /**
@@ -402,6 +419,7 @@ export function hydrateWorkflowDefinition<T extends AuthoredWorkflow>(workflow: 
       ? root.calculations as WorkflowCalculationsBlock
       : undefined,
     parameterSchemas: asArray<AuthoredParameterSchema>(root.parameterSchemas),
+    layout: sanitiseLayoutBlock(root.layout),
   } as AuthoredWorkflow;
 
   const legacyMetadata: WorkflowDefinitionMetadata = {
@@ -420,6 +438,22 @@ export function hydrateWorkflowDefinition<T extends AuthoredWorkflow>(workflow: 
   defineCompatGetter(normalisedWorkflow, 'transitions', () => buildLegacyTransitions(normalisedWorkflow));
 
   return normalisedWorkflow as T;
+}
+
+function sanitiseLayoutBlock(value: unknown): WorkflowLayoutBlock | undefined {
+  const record = asRecord(value);
+  const nodes = asRecord(record.nodes);
+  const entries: Record<string, WorkflowNodePosition> = {};
+  for (const [key, raw] of Object.entries(nodes)) {
+    const position = asRecord(raw);
+    if (
+      typeof position.x === 'number' && Number.isFinite(position.x)
+      && typeof position.y === 'number' && Number.isFinite(position.y)
+    ) {
+      entries[key] = { x: position.x, y: position.y };
+    }
+  }
+  return Object.keys(entries).length > 0 ? { nodes: entries } : undefined;
 }
 
 function firstString(...values: unknown[]): string | undefined {

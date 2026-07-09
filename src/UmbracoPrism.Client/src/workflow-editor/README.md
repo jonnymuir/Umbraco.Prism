@@ -20,6 +20,14 @@ should not depend on it, and breaking changes there will not bump a contract.
 
 All three are registered as `customElements` when `workflow-editor.js` loads.
 
+`<prism-workflow-graph>` is a Lit wrapper around a lazily-loaded
+[React Flow](https://reactflow.dev) canvas (`graph/` module): the wrapper owns
+the element contract (properties, events, dialogs, context menu, announcer)
+while React Flow renders lanes, nodes, and edges inside the same shadow root
+and provides pan, wheel zoom, and fitView. Node positions are derived by the
+pure layout module `graph/workflow-graph-layout.ts` (queue swim lanes for X,
+Kahn longest-path ranking for Y — `npm run test:graph-layout` covers it).
+
 ---
 
 ### `<prism-workflow-editor>`
@@ -60,8 +68,9 @@ implementation detail.
   `@codemirror/{state,view,commands,language,lang-json,lint}`). Chosen for
   bundle size and clean shadow-DOM mounting over Monaco. Loaded **dynamically**
   on first activation of the Definition tab, so authors who stay on Canvas
-  never download it. Static bundle stays ~335 KB; CodeMirror adds ~351 KB
-  only on-demand.
+  never download it. Static bundle stays ~338 KB; CodeMirror adds ~371 KB and
+  the React Flow canvas chunk (react + react-dom + @xyflow/react) ~390 KB,
+  each only on-demand.
 * **Visual → Definition sync:** every visual edit (stage add/rename/move,
   gateway add/edit, route change, undo, redo) re-serializes the workflow in
   canonical form (top-level key order: `definitionKey`, `displayName`,
@@ -221,7 +230,7 @@ Build with `npm run build` from `src/UmbracoPrism.Client/`.
 ## Visual testing
 
 The canvas has a dedicated visual regression suite proving five reading-level
-concerns: lane fit, no-overlap, label fit (text doesn't crash), scroll
+concerns: lane fit, no-overlap, label fit (text doesn't crash), pan/fitView
 behaviour, and arrow legibility — plus an ergonomics suite covering the
 named author flows (add stage, selection survives a tab switch, keyboard
 reach). The full strategy lives in
@@ -245,12 +254,14 @@ remove or rename without updating the suite in the same commit.**
 | `data-prism-component="workflow-graph"` | Graph root marker. |
 | `data-prism-mode="graph"` | Workspace mode. |
 | `data-prism-read-only="true|false"` | Read-only viewer marker. |
-| `data-prism-lane-container=<laneKey>` | Lane bounding box for fit/overlap/arrow specs. |
-| `data-prism-role-lane=<laneKey>` | Synonym kept for backwards compat. |
-| `data-prism-lane-header=<laneKey>` | Sticky-header scroll spec. |
+| `data-prism-graph-ready="true"` | Set on the host element once the React Flow canvas has committed nodes/edges — test probes wait on this. |
+| `data-prism-queue-container=<queueKey>` | Lane bounding box for fit/overlap/arrow specs. |
+| `data-prism-role-queue=<queueKey>` | Synonym kept for backwards compat. |
+| `data-prism-queue-header=<queueKey>` | Lane header (pans with the canvas; not sticky). |
 | `data-prism-stage-card=<stageKey>` | Stage bounding box. |
 | `data-prism-stage=<stageKey>` | Stage click target + label container. |
 | `data-prism-gateway-node=<gatewayKey>` | Gateway bounding box. |
 | `data-prism-gateway=<gatewayKey>` | Gateway click target + label container. |
 | `data-prism-route-path=<key>` | SVG route path (endpoint assertion). |
 | `data-prism-route-from=<key>` / `data-prism-route-to=<key>` | Route endpoint mapping. |
+| `data-prism-auto-arrange` | Tidy layout HUD button — rewrites every node's position back to the automatic arrangement in one undoable commit. |

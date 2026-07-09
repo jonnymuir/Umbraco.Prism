@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components';
-import { expect, waitFor, within } from '@storybook/test';
+import { expect, waitFor } from '@storybook/test';
 import './prism-workflow-editor.js';
 import type { PrismWorkflowEditorElement } from './prism-workflow-editor.js';
 import { PLANNING_WORKFLOW, LEAVE_REQUEST_STARTER_WORKFLOW, cloneAuthoredWorkflow } from './fixtures/index.js';
@@ -172,7 +172,6 @@ type Story = StoryObj;
 export const PlanningWorkflow: Story = {
   name: 'Planning Workflow',
   play: async ({ canvasElement }) => {
-    await new Promise(r => setTimeout(r, 200));
     const el = canvasElement.querySelector('prism-workflow-editor') as PrismWorkflowEditorElement;
     await el.updateComplete;
 
@@ -186,7 +185,12 @@ export const PlanningWorkflow: Story = {
 
     const graph = root.querySelector('prism-workflow-graph');
     await expect(graph).not.toBeNull();
-    await expect(graph?.shadowRoot?.querySelectorAll('[data-prism-role-queue]').length ?? 0).toBeGreaterThan(0);
+
+    // The React Flow canvas mounts lazily; wait for it to signal readiness
+    // rather than racing a fixed delay against the async import.
+    await waitFor(() => {
+      expect(graph?.shadowRoot?.querySelectorAll('[data-prism-role-queue]').length ?? 0).toBeGreaterThan(0);
+    }, { timeout: 5000 });
 
     const inspector = root.querySelector('prism-step-inspector');
     await expect(inspector).not.toBeNull();
@@ -209,8 +213,16 @@ export const WithStageSelected: Story = {
     await expect(graph).not.toBeNull();
     await expect(inspector).not.toBeNull();
 
-    const graphCanvas = within(graph!.shadowRoot as unknown as HTMLElement);
-    const declarationStage = graphCanvas.getByRole('button', { name: 'Declaration, Applicant queue' }) as HTMLButtonElement;
+    // The React Flow canvas mounts lazily; wait for the stage button to land.
+    await waitFor(() => {
+      const stage = graph!.shadowRoot!.querySelector<HTMLButtonElement>(
+        'button[aria-label="Declaration, Applicant queue"]'
+      );
+      expect(stage).not.toBeNull();
+    });
+    const declarationStage = graph!.shadowRoot!.querySelector<HTMLButtonElement>(
+      'button[aria-label="Declaration, Applicant queue"]'
+    )!;
     declarationStage.click();
 
     await waitFor(() =>

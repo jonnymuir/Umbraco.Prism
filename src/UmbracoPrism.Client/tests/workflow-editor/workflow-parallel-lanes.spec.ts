@@ -25,6 +25,7 @@ test.describe('Workflow editor parallel lanes', () => {
 
     const graph = page.locator('prism-workflow-graph');
     await expect(graph).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     const lanes = graph.locator('[data-prism-role-queue]');
     const laneCount = await lanes.count();
@@ -40,6 +41,7 @@ test.describe('Workflow editor parallel lanes', () => {
 
     const graph = page.locator('prism-workflow-graph');
     await expect(graph).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     // Each lane column must contain at least one stage
     const laneCols = graph.locator('[data-prism-role-queue]');
@@ -73,6 +75,7 @@ test.describe('Workflow editor parallel lanes', () => {
 
     const graph = page.locator('prism-workflow-graph');
     await expect(graph).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     const splitGateway = graph.locator('[data-prism-gateway-kind="Split"]');
     await expect(splitGateway).toBeVisible();
@@ -91,6 +94,7 @@ test.describe('Workflow editor parallel lanes', () => {
 
     const graph = page.locator('prism-workflow-graph');
     await expect(graph).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     const joinGateway = graph.locator('[data-prism-gateway-kind="Join"]');
     await expect(joinGateway).toBeVisible();
@@ -110,6 +114,7 @@ test.describe('Workflow editor parallel lanes', () => {
 
     const graph = page.locator('prism-workflow-graph');
     await expect(graph).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     // Record lane column headings before selection
     const laneCols = graph.locator('[data-prism-role-queue]');
@@ -139,6 +144,7 @@ test.describe('Workflow editor parallel lanes', () => {
 
     const graph = page.locator('prism-workflow-graph');
     await expect(graph).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
     const stages = graph.locator('[data-prism-stage]');
     const gateways = graph.locator('[data-prism-gateway]');

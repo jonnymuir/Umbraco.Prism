@@ -134,7 +134,7 @@ test.describe('Workflow editor shell proof', () => {
         throw new Error('Graph shadow root not found');
       }
 
-      const scene = root.querySelector<HTMLElement>('.graph-scene');
+      const scene = root.querySelector<HTMLElement>('.react-flow__viewport');
       if (!scene) {
         throw new Error('Graph scene not found');
       }
@@ -233,37 +233,39 @@ test.describe('Workflow editor shell proof', () => {
     });
   });
 
-  test('graph-canvas is the scrollable region while shell chrome stays anchored', async ({ page }) => {
+  test('graph canvas pans its content while the window stays anchored', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 560 });
     await page.goto(storyUrl('workflow-editor-editor-host--simulation-branches'));
 
     await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
-    // BEHAVIORAL HOOK REQUEST FOR ISABELLE:
-    // - .graph-canvas should have overflow-y: auto (or scroll)
-    // - .graph-canvas should be the scrollable region containing the graph workspace
-    // - .graph-viewport should NOT scroll (it's the container, not the scrollable surface)
-    // - The surrounding shell (outline, inspector, toolbar) should stay anchored while canvas scrolls
-    const scrollState = await page.locator('prism-workflow-graph').evaluate(graphElement => {
-      const graph = graphElement as HTMLElement;
-      const shadowRoot = graph.shadowRoot;
-      const canvas = shadowRoot?.querySelector<HTMLElement>('.graph-canvas');
-      if (!canvas) {
-        return null;
-      }
-
-      const before = canvas.scrollTop;
-      canvas.scrollTop = 240;
-      return {
-        before,
-        after: canvas.scrollTop,
-        canvasOverflowY: getComputedStyle(canvas).overflowY,
-      };
+    const stageTops = () => page.locator('prism-workflow-graph').evaluate(graphElement => {
+      const shadowRoot = (graphElement as HTMLElement).shadowRoot!;
+      return Array.from(shadowRoot.querySelectorAll<HTMLElement>('[data-prism-stage-card]'))
+        .map(node => node.getBoundingClientRect().top);
+    });
+    const canvasBox = await page.locator('prism-workflow-graph').evaluate(graphElement => {
+      const rect = (graphElement as HTMLElement).shadowRoot!
+        .querySelector<HTMLElement>('.graph-canvas')!.getBoundingClientRect();
+      return { x: rect.left, y: rect.top, height: rect.height };
     });
 
-    expect(scrollState).not.toBeNull();
-    expect(scrollState?.after ?? 0).toBeGreaterThan(scrollState?.before ?? 0);
-    expect(scrollState?.canvasOverflowY === 'auto' || scrollState?.canvasOverflowY === 'scroll').toBeTruthy();
+    const before = await stageTops();
+    const viewportHeight = page.viewportSize()!.height;
+    const startX = canvasBox.x + 24;
+    // Drag from the midpoint of the canvas's on-screen band: the editor-host
+    // story is taller than the constrained viewport and the HUD can wrap,
+    // so neither the canvas centre nor a fixed offset is reliably visible.
+    const visibleBottom = Math.min(canvasBox.y + canvasBox.height, viewportHeight - 10);
+    const startY = (canvasBox.y + visibleBottom) / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX, startY - 200, { steps: 6 });
+    await page.mouse.up();
+    const after = await stageTops();
+
+    expect(before[0] - after[0], 'pane drag must pan the graph content').toBeGreaterThan(100);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   });
 

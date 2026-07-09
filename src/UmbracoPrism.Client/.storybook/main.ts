@@ -15,6 +15,10 @@ const config: StorybookConfig = {
     autodocs: 'tag'
   },
   viteFinal: async (config) => {
+    config.resolve ??= {};
+    config.resolve.dedupe = Array.from(
+      new Set([...(config.resolve.dedupe ?? []), 'react', 'react-dom'])
+    );
     config.optimizeDeps ??= {};
     config.optimizeDeps.include = Array.from(
       new Set([

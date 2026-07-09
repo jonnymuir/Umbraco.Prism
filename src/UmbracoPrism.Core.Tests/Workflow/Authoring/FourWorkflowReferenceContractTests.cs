@@ -166,6 +166,16 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
 
         stage["displayName"] = "Confirm payment received (saved)";
 
+        // The editor persists manual canvas positions in the layout block —
+        // they must survive the save → memory store → reload cycle.
+        payload["layout"] = new JsonObject
+        {
+            ["nodes"] = new JsonObject
+            {
+                ["stage:confirm-payment-received"] = new JsonObject { ["x"] = 620, ["y"] = 480 }
+            }
+        };
+
         try
         {
             using var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
@@ -177,6 +187,9 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
             reloaded.Should().NotBeNull();
             reloaded!.States.Single(state => state.StateKey == "confirm-payment-received")
                 .DisplayName.Should().Be("Confirm payment received (saved)");
+            reloaded.Layout.Should().NotBeNull();
+            reloaded.Layout!.Nodes.Should().ContainKey("stage:confirm-payment-received")
+                .WhoseValue.Should().BeEquivalentTo(new WorkflowNodePosition { X = 620, Y = 480 });
         }
         finally
         {
