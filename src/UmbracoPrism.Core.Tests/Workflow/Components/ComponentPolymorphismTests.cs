@@ -364,6 +364,15 @@ public class ComponentPolymorphismTests
             {
                 new() { FromState = "start", ToState = "check", Action = "continue" },
                 new() { FromState = "check", ToState = "complete", Action = "confirm" }
+            },
+            Layout = new WorkflowLayoutDefinition
+            {
+                Nodes = new Dictionary<string, WorkflowNodePosition>
+                {
+                    ["stage:start"] = new() { X = 312, Y = 168 },
+                    ["stage:check"] = new() { X = 312, Y = 472 },
+                    ["gateway:route-from-start"] = new() { X = 356, Y = 320 }
+                }
             }
         };
 
@@ -374,6 +383,8 @@ public class ComponentPolymorphismTests
         // Assert
         deserialized.Should().NotBeNull();
         deserialized.Should().BeEquivalentTo(definition);
+        deserialized!.Layout!.Nodes.Should().ContainKey("gateway:route-from-start")
+            .WhoseValue.Should().BeEquivalentTo(new WorkflowNodePosition { X = 356, Y = 320 });
         json.Should().Contain("\"type\": \"heading\"");
         json.Should().Contain("\"type\": \"body\"");
         json.Should().Contain("\"type\": \"fieldset\"");

@@ -98,6 +98,15 @@ public record WorkflowDefinitionFile
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyDictionary<string, string>? Tags { get; init; }
 
+    /// <summary>
+    /// Editor-owned canvas layout hints: manually arranged node positions
+    /// keyed by prefixed node id (<c>stage:&lt;stateKey&gt;</c> /
+    /// <c>gateway:&lt;key&gt;</c>). The runtime never reads this — it exists
+    /// so authored arrangements survive the save/load round-trip.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public WorkflowLayoutDefinition? Layout { get; init; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public WorkflowDefinitionMetadata? Metadata { get; init; }
 
@@ -431,4 +440,21 @@ public record WorkflowConditionDefinition
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Description { get; init; }
+}
+
+/// <summary>
+/// Editor canvas layout hints. Positions are whole flow pixels; queue
+/// membership stays authoritative on the states/gateways themselves.
+/// </summary>
+public record WorkflowLayoutDefinition
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyDictionary<string, WorkflowNodePosition>? Nodes { get; init; }
+}
+
+public record WorkflowNodePosition
+{
+    public double X { get; init; }
+
+    public double Y { get; init; }
 }
