@@ -53,6 +53,8 @@ export type GraphCallbacks = {
   nodesMoved(moves: GraphNodeMove[]): void;
   /** A connection handle was dragged from one node to another. */
   connectRequested(connection: { sourceId: string; targetId: string }): void;
+  /** The shift-marquee multi-selection changed (prefixed node ids; empty = none). */
+  multiSelectionChanged(nodeIds: string[]): void;
   laneFocused(lane: { label: string; description: string; stageCount: number }): void;
   zoomChanged(zoom: number): void;
   ready(): void;

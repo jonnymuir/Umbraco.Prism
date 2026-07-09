@@ -3,6 +3,7 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  SelectionMode,
   applyNodeChanges,
   useReactFlow,
   type EdgeTypes,
@@ -40,7 +41,14 @@ export function GraphApp({ bridge }: { bridge: GraphBridge }) {
 function useControlledNodes(model: GraphModel) {
   const [nodes, setNodes] = useState(model.nodes);
   useEffect(() => {
-    setNodes(model.nodes);
+    // Carry the RF-level multi-selection across reseeds so a host re-render
+    // doesn't dissolve an in-progress marquee selection.
+    setNodes(current => {
+      const selectedIds = new Set(current.filter(node => node.selected).map(node => node.id));
+      return selectedIds.size === 0
+        ? model.nodes
+        : model.nodes.map(node => selectedIds.has(node.id) ? { ...node, selected: true } : node);
+    });
   }, [model]);
   const onNodesChange = useCallback((changes: NodeChange<GraphFlowNode>[]) => {
     // Position changes keep in-flight drags smooth; select changes power the
@@ -143,6 +151,7 @@ function WorkflowGraphCanvas({ bridge, props }: { bridge: GraphBridge; props: Gr
       elementsSelectable={!props.readOnly}
       selectionKeyCode="Shift"
       multiSelectionKeyCode="Shift"
+      selectionMode={SelectionMode.Partial}
       panOnDrag
       zoomOnScroll
       zoomOnPinch
@@ -161,6 +170,8 @@ function WorkflowGraphCanvas({ bridge, props }: { bridge: GraphBridge; props: Gr
       }}
       onMove={(_event, viewport) => callbacks.zoomChanged(viewport.zoom)}
       onPaneClick={() => callbacks.paneClicked()}
+      onSelectionChange={({ nodes: selectedNodes }) =>
+        callbacks.multiSelectionChanged(selectedNodes.map(selected => selected.id))}
       onPaneContextMenu={event => {
         if (props.readOnly) {
           return;

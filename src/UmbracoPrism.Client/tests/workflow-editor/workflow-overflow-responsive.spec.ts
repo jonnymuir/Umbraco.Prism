@@ -80,10 +80,11 @@ test.describe('Workflow editor overflow and responsive behavioral proof', () => 
       // Drag from the canvas's left gutter (empty pane, no nodes) to pan up.
     const viewportHeight = page.viewportSize()!.height;
       const startX = canvasBox.x + 24;
-      // Clamp to the on-screen portion of the canvas: the editor-host story is
-      // taller than the constrained viewport, and mouse events outside the
-      // window are never delivered.
-      const startY = Math.min(canvasBox.y + canvasBox.height / 2, viewportHeight - 60);
+      // Drag from the midpoint of the canvas's on-screen band: the editor-host
+      // story is taller than the constrained viewport and the HUD can wrap,
+      // so neither the canvas centre nor a fixed offset is reliably visible.
+      const visibleBottom = Math.min(canvasBox.y + canvasBox.height, viewportHeight - 10);
+      const startY = (canvasBox.y + visibleBottom) / 2;
       await page.mouse.move(startX, startY);
       await page.mouse.down();
       await page.mouse.move(startX, startY - 220, { steps: 6 });

@@ -168,6 +168,7 @@ export class PrismWorkflowGraphElement extends LitElement {
   private _bridge: GraphBridge | null = null;
   private _bridgeHost: HTMLElement | null = null;
   private _bridgeLoading = false;
+  private _lastMultiSelection: string[] = [];
 
   connectedCallback() {
     super.connectedCallback();
@@ -226,18 +227,34 @@ export class PrismWorkflowGraphElement extends LitElement {
     this._syncGraphCanvas();
   }
 
+  private _lastSnapshot: GraphProps | null = null;
+
   private _graphSnapshot(): GraphProps {
-    return {
+    // Hosts may recreate array props on every render (e.g. mapping the
+    // simulation history inline). Reuse the previous reference when the
+    // contents are unchanged so the React canvas only re-renders — and
+    // re-seeds its local node state — on genuine changes.
+    const previous = this._lastSnapshot;
+    const stable = <T>(next: T[], prior: T[] | undefined): T[] =>
+      prior && prior.length === next.length && next.every((value, index) => value === prior[index])
+        ? prior
+        : next;
+    const snapshot: GraphProps = {
       workflow: this.workflow,
-      availableQueues: this.availableQueues,
+      availableQueues: stable(this.availableQueues, previous?.availableQueues),
       readOnly: this.readOnly,
       selectedStageKey: this._selectedStageKey,
       selectedGatewayKey: this._selectedGatewayKey,
       selectedTransitionIndex: this._selectedTransitionIndex,
       simulationCurrentStageKey: this.simulationCurrentStageKey,
-      simulationPathStageKeys: this.simulationPathStageKeys,
-      simulationPathTransitionIndices: this.simulationPathTransitionIndices,
+      simulationPathStageKeys: stable(this.simulationPathStageKeys, previous?.simulationPathStageKeys),
+      simulationPathTransitionIndices: stable(
+        this.simulationPathTransitionIndices,
+        previous?.simulationPathTransitionIndices
+      ),
     };
+    this._lastSnapshot = snapshot;
+    return snapshot;
   }
 
   private _graphCallbacks(): GraphCallbacks {
@@ -263,6 +280,23 @@ export class PrismWorkflowGraphElement extends LitElement {
       paneClicked: () => this._dismissContextMenu(false),
       nodesMoved: moves => this._handleNodesMoved(moves),
       connectRequested: connection => this._handleConnectRequested(connection),
+      multiSelectionChanged: nodeIds => {
+        // React Flow reports selection with a fresh array identity on every
+        // render — only forward genuine changes or the host re-render loops.
+        const unchanged = nodeIds.length === this._lastMultiSelection.length
+          && nodeIds.every((id, index) => id === this._lastMultiSelection[index]);
+        if (unchanged) {
+          return;
+        }
+        this._lastMultiSelection = nodeIds;
+        this.dispatchEvent(
+          new CustomEvent<{ nodeIds: string[] }>('graph-multi-selection', {
+            detail: { nodeIds },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      },
       laneFocused: lane => this._announce(
         `${lane.label} queue. ${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}. ${lane.description}.`
       ),
