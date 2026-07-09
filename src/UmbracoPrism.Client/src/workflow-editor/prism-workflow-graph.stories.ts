@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/web-components';
-import { expect } from '@storybook/test';
+import { expect, waitFor } from '@storybook/test';
 import './prism-workflow-graph.js';
 import type { PrismWorkflowGraphElement } from './prism-workflow-graph.js';
 import { STUB_WORKFLOW } from './types.js';
@@ -103,6 +103,24 @@ function makeElement(args: StoryArgs): PrismWorkflowGraphElement {
   return el;
 }
 
+/**
+ * React Flow mounts lazily (dynamic import) and signals completion via the
+ * `data-prism-graph-ready` attribute — poll for that instead of a fixed
+ * delay, which races the async mount under CI load.
+ */
+async function waitForGraphReady(canvasElement: HTMLElement): Promise<PrismWorkflowGraphElement> {
+  const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
+  await el.updateComplete;
+  await waitFor(() => {
+    const hasStages = (el.workflow?.states?.length ?? 0) > 0;
+    if (!hasStages || el.hasAttribute('data-prism-graph-ready')) {
+      return;
+    }
+    throw new Error('workflow graph canvas has not signalled data-prism-graph-ready yet');
+  });
+  return el;
+}
+
 function fillCreateStageDialog(root: ShadowRoot, name: string, key: string, lane: string, type: string) {
   const nameInput = root.querySelector<HTMLInputElement>('[data-prism-create-stage-title]')!;
   nameInput.value = name;
@@ -147,9 +165,7 @@ type Story = StoryObj<StoryArgs>;
 export const Empty: Story = {
   args: { workflow: null },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 100));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
 
     const container = el.shadowRoot?.querySelector('[data-prism-component="workflow-graph"]');
     await expect(container).not.toBeNull();
@@ -159,9 +175,7 @@ export const Empty: Story = {
 export const WorkspaceCanvas: Story = {
   args: { workflow: WORKSPACE_WORKFLOW },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 120));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(WORKSPACE_WORKFLOW.states.length);
@@ -172,9 +186,7 @@ export const WorkspaceCanvas: Story = {
 export const InteractiveWorkspace: Story = {
   args: { workflow: WORKSPACE_WORKFLOW },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 160));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
 
     const root = el.shadowRoot!;
     root.querySelector<HTMLButtonElement>('[data-prism-add-stage]')!.click();
@@ -217,9 +229,7 @@ export const InteractiveWorkspace: Story = {
 export const DeleteConfirmation: Story = {
   args: { workflow: WORKSPACE_WORKFLOW },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 140));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
 
     const root = el.shadowRoot!;
     const stage = root.querySelector<HTMLElement>('[data-prism-stage="reviewer-assessment"]')!;
@@ -255,9 +265,7 @@ export const GatewayRepresentation: Story = {
     return el;
   },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 140));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-gateway]').length).toBe(2);
@@ -275,9 +283,7 @@ export const PaymentDemoGraph: Story = {
     return el;
   },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 140));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-gateway]').length).toBe(2);
@@ -289,9 +295,7 @@ export const PaymentDemoGraph: Story = {
 export const SameLaneFanOut: Story = {
   args: { workflow: SAME_LANE_FAN_OUT_WORKFLOW },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 140));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-gateway-kind="Split"]').length).toBe(1);
@@ -321,9 +325,7 @@ export const GraphReadOnly: Story = {
     return container;
   },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 160));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
 
     const root = el.shadowRoot!;
     // Read-only viewer: published workflow loaded from attribute only.
@@ -419,9 +421,7 @@ export const LargeWorkflow: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 160));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(LARGE_WORKFLOW.states.length);
   },
@@ -435,9 +435,7 @@ export const PlanningMigrated: Story = {
   name: 'Planning — migrated format',
   args: { workflow: cloneAuthoredWorkflow(PLANNING_WORKFLOW_MIGRATED) },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 140));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(4);
@@ -450,9 +448,7 @@ export const CommunityEnquiry: Story = {
   name: 'Community Enquiry — migrated format',
   args: { workflow: cloneAuthoredWorkflow(COMMUNITY_ENQUIRY_WORKFLOW) },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 140));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(2);
@@ -470,9 +466,7 @@ export const InformationRequest: Story = {
     return el;
   },
   play: async ({ canvasElement }) => {
-    await new Promise(resolve => setTimeout(resolve, 140));
-    const el = canvasElement.querySelector('prism-workflow-graph') as PrismWorkflowGraphElement;
-    await el.updateComplete;
+    const el = await waitForGraphReady(canvasElement);
 
     const root = el.shadowRoot!;
     await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(3);
