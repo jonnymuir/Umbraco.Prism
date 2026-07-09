@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test';
 import {
-// TODO Slice E: re-cert after gateway-pill rendering + simulation reshape. See .squad/decisions/inbox/copilot-slice-d-close-out.md.
   CANONICAL_SCENARIOS,
   gotoCanonicalScenario,
   graphLocator,
@@ -8,144 +7,135 @@ import {
 } from './support/canvas-helpers';
 
 /**
- * Concern 3 from `docs/testing/workflow-editor-visual-tests.md`:
- * the canvas must scroll on the overflowing axis when content exceeds the
- * viewport. Lane headers are plain flow elements (sticky was reverted 2026-05-31).
- * When the workflow fits, scrollbars must not appear.
+ * Concern 3 from `docs/testing/workflow-editor-visual-tests.md`, restated for
+ * the React Flow canvas: content larger than the canvas is reached by
+ * panning and fitView instead of native scrollbars. Lane headers live in the
+ * viewport (ViewportPortal), so they pan with the content — the non-sticky
+ * contract from BUG-VR-1 carries over.
  */
 
 test.use({ viewport: { ...VISUAL_VIEWPORT } });
 
-type CanvasMetrics = {
-  scrollWidth: number;
-  clientWidth: number;
-  scrollHeight: number;
-  clientHeight: number;
-  overflowX: string;
-  overflowY: string;
-  hasVerticalOverflow: boolean;
-  hasHorizontalOverflow: boolean;
-};
-
-async function readCanvasMetrics(page: import('@playwright/test').Page): Promise<CanvasMetrics> {
+async function nodeScreenTops(page: import('@playwright/test').Page): Promise<number[]> {
   return graphLocator(page).evaluate((el) => {
-    const root = (el as HTMLElement).shadowRoot;
-    const canvas = root?.querySelector<HTMLElement>('.graph-canvas');
-    if (!canvas) throw new Error('.graph-canvas not found');
-    const cs = getComputedStyle(canvas);
-    return {
-      scrollWidth: canvas.scrollWidth,
-      clientWidth: canvas.clientWidth,
-      scrollHeight: canvas.scrollHeight,
-      clientHeight: canvas.clientHeight,
-      overflowX: cs.overflowX,
-      overflowY: cs.overflowY,
-      hasHorizontalOverflow: canvas.scrollWidth > canvas.clientWidth,
-      hasVerticalOverflow: canvas.scrollHeight > canvas.clientHeight,
-    };
+    const root = (el as HTMLElement).shadowRoot!;
+    return Array.from(root.querySelectorAll<HTMLElement>('[data-prism-stage-card]'))
+      .map(shell => shell.getBoundingClientRect().top);
   });
 }
 
-test.describe('Workflow canvas — scroll behaviour', () => {
-  test('LARGE_WORKFLOW: canvas reports both horizontal and vertical overflow', async ({ page }) => {
+async function canvasRect(page: import('@playwright/test').Page) {
+  return graphLocator(page).evaluate((el) => {
+    const root = (el as HTMLElement).shadowRoot!;
+    const rect = root.querySelector<HTMLElement>('.graph-canvas')!.getBoundingClientRect();
+    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+  });
+}
+
+async function panePan(page: import('@playwright/test').Page, dx: number, dy: number) {
+  const rect = await canvasRect(page);
+  const startX = (rect.left + rect.right) / 2;
+  const startY = (rect.top + rect.bottom) / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + dx, startY + dy, { steps: 6 });
+  await page.mouse.up();
+}
+
+test.describe('Workflow canvas — pan and fit behaviour', () => {
+  test('LARGE_WORKFLOW: content extends beyond the visible canvas at default zoom', async ({ page }) => {
     const scenario = CANONICAL_SCENARIOS.find((s) => s.id === 'LARGE_WORKFLOW')!;
     await gotoCanonicalScenario(page, scenario);
 
-    const metrics = await readCanvasMetrics(page);
-    // Both axes can produce scrollable overflow on a large synthetic workflow.
-    // We assert at least one axis genuinely overflows; on viewports where the
-    // synthetic workflow only overflows vertically, that is still a valid
-    // proof of the contract.
+    const rect = await canvasRect(page);
+    const boxes = await graphLocator(page).evaluate((el) => {
+      const root = (el as HTMLElement).shadowRoot!;
+      return Array.from(root.querySelectorAll<HTMLElement>('[data-prism-stage-card]'))
+        .map(shell => {
+          const box = shell.getBoundingClientRect();
+          return { top: box.top, bottom: box.bottom, left: box.left, right: box.right };
+        });
+    });
+    expect(boxes.length).toBeGreaterThan(0);
     expect(
-      metrics.hasHorizontalOverflow || metrics.hasVerticalOverflow,
-      `LARGE_WORKFLOW must overflow the canvas on at least one axis; metrics=${JSON.stringify(metrics)}`,
+      boxes.some(box => box.bottom > rect.bottom || box.right > rect.right
+        || box.top < rect.top || box.left < rect.left),
+      'a large workflow must have stages outside the visible canvas at default zoom',
     ).toBe(true);
-
-    // Both axes are allowed to scroll.
-    expect(['auto', 'scroll']).toContain(metrics.overflowX);
-    expect(['auto', 'scroll']).toContain(metrics.overflowY);
   });
 
-  test('LARGE_WORKFLOW: scripted scroll moves the canvas without affecting shell layout', async ({ page }) => {
+  test('LARGE_WORKFLOW: dragging the pane pans the content', async ({ page }) => {
     const scenario = CANONICAL_SCENARIOS.find((s) => s.id === 'LARGE_WORKFLOW')!;
     await gotoCanonicalScenario(page, scenario);
 
-    const before = await graphLocator(page).evaluate((el) => {
-      const root = (el as HTMLElement).shadowRoot!;
-      const canvas = root.querySelector<HTMLElement>('.graph-canvas')!;
-      const header = root.querySelector<HTMLElement>('[data-prism-queue-header]');
-      return {
-        scrollTop: canvas.scrollTop,
-        scrollLeft: canvas.scrollLeft,
-        headerTop: header?.getBoundingClientRect().top ?? null,
-      };
-    });
+    const before = await nodeScreenTops(page);
+    await panePan(page, 0, -250);
+    const after = await nodeScreenTops(page);
 
-    const after = await graphLocator(page).evaluate((el) => {
-      const root = (el as HTMLElement).shadowRoot!;
-      const canvas = root.querySelector<HTMLElement>('.graph-canvas')!;
-      canvas.scrollTo({ top: 200, left: 200, behavior: 'auto' });
-      const header = root.querySelector<HTMLElement>('[data-prism-queue-header]');
-      return {
-        scrollTop: canvas.scrollTop,
-        scrollLeft: canvas.scrollLeft,
-        headerTop: header?.getBoundingClientRect().top ?? null,
-      };
-    });
-
-    expect(after.scrollTop, 'vertical scroll position must update').toBeGreaterThan(before.scrollTop);
-    expect(after.scrollLeft, 'horizontal scroll position must update').toBeGreaterThan(before.scrollLeft);
-  });
-
-  // BUG-VR-1 sticky behaviour was reverted at Jonny's request (2026-05-31).
-  // Lane headers are now plain flow elements that scroll with the canvas.
-  // This test confirms the header is NOT sticky: after a 250 px vertical
-  // scroll its viewport top must decrease by roughly the scroll distance.
-  test('LARGE_WORKFLOW: lane header scrolls with the canvas (not sticky)', async ({ page }) => {
-    const scenario = CANONICAL_SCENARIOS.find((s) => s.id === 'LARGE_WORKFLOW')!;
-    await gotoCanonicalScenario(page, scenario);
-
-    const result = await graphLocator(page).evaluate((el) => {
-      const root = (el as HTMLElement).shadowRoot!;
-      const canvas = root.querySelector<HTMLElement>('.graph-canvas')!;
-      const header = root.querySelector<HTMLElement>('[data-prism-queue-header]');
-      if (!header) return null;
-      const before = header.getBoundingClientRect().top;
-      canvas.scrollTo({ top: 250, behavior: 'auto' });
-      const after = header.getBoundingClientRect().top;
-      return { before, after, position: getComputedStyle(header).position };
-    });
-
-    expect(result, 'at least one lane header must render').not.toBeNull();
-    if (!result) return;
-
-    // Header must scroll away with the canvas — not stick. We expect the
-    // viewport top to have decreased by the scroll amount (≥ 40 px is a
-    // safe threshold that rules out rounding noise while being much less
-    // than the 250 px we scrolled).
-    const moved = result.before - result.after;
-    expect(
-      result.position,
-      'lane-header must not have position:sticky',
-    ).not.toBe('sticky');
+    const moved = before[0] - after[0];
     expect(
       moved,
-      `Lane header should have scrolled up by ≥40px after a 250px scroll; actual=${moved.toFixed(0)}px`,
-    ).toBeGreaterThan(40);
+      `stages should move up by roughly the pan distance; actual=${moved.toFixed(0)}px`,
+    ).toBeGreaterThan(150);
   });
 
-  test.fixme('SINGLE_LANE_LINEAR: canvas does not produce meaningful horizontal overflow when workflow fits', async ({ page }) => {
+  test('LARGE_WORKFLOW: lane header pans with the canvas (not sticky)', async ({ page }) => {
+    const scenario = CANONICAL_SCENARIOS.find((s) => s.id === 'LARGE_WORKFLOW')!;
+    await gotoCanonicalScenario(page, scenario);
+
+    const headerTop = () => graphLocator(page).evaluate((el) => {
+      const header = (el as HTMLElement).shadowRoot!.querySelector<HTMLElement>('[data-prism-queue-header]');
+      if (!header) return null;
+      return { top: header.getBoundingClientRect().top, position: getComputedStyle(header).position };
+    });
+
+    const before = await headerTop();
+    expect(before, 'at least one lane header must render').not.toBeNull();
+    await panePan(page, 0, -250);
+    const after = await headerTop();
+    if (!before || !after) return;
+
+    expect(after.position, 'lane-header must not have position:sticky').not.toBe('sticky');
+    const moved = before.top - after.top;
+    expect(
+      moved,
+      `Lane header should have panned up by ≥150px after a 250px pane drag; actual=${moved.toFixed(0)}px`,
+    ).toBeGreaterThan(150);
+  });
+
+  test('LARGE_WORKFLOW: fit-to-screen brings the whole workflow into view', async ({ page }) => {
+    const scenario = CANONICAL_SCENARIOS.find((s) => s.id === 'LARGE_WORKFLOW')!;
+    await gotoCanonicalScenario(page, scenario);
+
+    await graphLocator(page).locator('[data-prism-fit-screen]').click();
+    // fitView animates over 200ms.
+    await page.waitForTimeout(500);
+
+    const rect = await canvasRect(page);
+    const tops = await nodeScreenTops(page);
+    expect(tops.length).toBeGreaterThan(0);
+    expect(
+      tops.every(top => top >= rect.top - 1 && top <= rect.bottom + 1),
+      'after fit-to-screen every stage top must be inside the canvas',
+    ).toBe(true);
+  });
+
+  // Carried over as fixme from the scroll-era suite: the canonical scenario
+  // renders wider than the 1440px viewport, so "fits" has never held here.
+  test.fixme('SINGLE_LANE_LINEAR: a fitting workflow renders fully inside the canvas at default zoom', async ({ page }) => {
     const scenario = CANONICAL_SCENARIOS.find((s) => s.id === 'SINGLE_LANE_LINEAR')!;
     await gotoCanonicalScenario(page, scenario);
 
-    const metrics = await readCanvasMetrics(page);
-    // Sub-pixel rounding can produce 1–2 px of nominal overflow on
-    // browsers that hand back fractional clientWidth; that is not a
-    // user-visible scrollbar. Treat anything under 16 px as "fits".
-    const meaningfulOverflow = metrics.scrollWidth - metrics.clientWidth;
+    const rect = await canvasRect(page);
+    const lanesRight = await graphLocator(page).evaluate((el) => {
+      const root = (el as HTMLElement).shadowRoot!;
+      return Array.from(root.querySelectorAll<HTMLElement>('[data-prism-queue-container]'))
+        .map(lane => lane.getBoundingClientRect().right);
+    });
+    expect(lanesRight.length).toBeGreaterThan(0);
     expect(
-      meaningfulOverflow,
-      `single-lane linear workflow should fit horizontally at ${VISUAL_VIEWPORT.width}px; overflow=${meaningfulOverflow}px metrics=${JSON.stringify(metrics)}`,
-    ).toBeLessThan(16);
+      lanesRight.every(right => right <= rect.right + 16),
+      'a fitting workflow must not extend horizontally past the canvas',
+    ).toBe(true);
   });
 });

@@ -70,19 +70,15 @@ export async function gotoCanonicalScenario(
   await page.goto(storyUrl(scenario.storyId));
   const graph = graphLocator(page);
   await expect(graph).toBeVisible({ timeout: 10_000 });
-  await page.waitForLoadState('networkidle');
 
-  // Wait for at least one stage to be laid out — the scene measures its
-  // children after first render, so layout values are zero until then.
-  await graph.evaluate(async (el) => {
-    const g = el as HTMLElement & { updateComplete?: Promise<unknown> };
-    if (g.updateComplete) {
-      await g.updateComplete;
-    }
-    await new Promise<void>(resolve =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-    );
-  });
+  // The React Flow canvas loads lazily and sets data-prism-graph-ready on the
+  // host once nodes and edges are committed to the DOM. Empty workflows render
+  // the Lit empty state instead and never mount the canvas.
+  await expect(
+    page.locator(
+      'prism-workflow-graph[data-prism-graph-ready="true"], prism-workflow-graph [data-prism-empty-state]',
+    ).first(),
+  ).toBeAttached({ timeout: 15_000 });
 }
 
 export type LaneBox = {
@@ -128,15 +124,17 @@ export type GraphGeometry = {
 
 /**
  * Measure the rendered canvas: lanes, nodes (stages + gateways), and SVG
- * route endpoint coordinates. All coordinates are relative to the
- * `.graph-scene` element so they are stable across viewport scrolling.
+ * route endpoint coordinates. All coordinates are relative to the React Flow
+ * viewport (the transformed scene container) so they are stable across
+ * panning; the visual suite runs at the default zoom of 1, where viewport
+ * coordinates equal flow coordinates.
  */
 export async function measureGraph(page: Page): Promise<GraphGeometry> {
   return graphLocator(page).evaluate((graphElement) => {
     const root = (graphElement as HTMLElement).shadowRoot;
     if (!root) throw new Error('Graph shadow root not found');
-    const scene = root.querySelector<HTMLElement>('.graph-scene');
-    if (!scene) throw new Error('.graph-scene not found');
+    const scene = root.querySelector<HTMLElement>('.react-flow__viewport');
+    if (!scene) throw new Error('.react-flow__viewport not found');
     const sceneRect = scene.getBoundingClientRect();
     const rel = (rect: DOMRect) => ({
       left: rect.left - sceneRect.left,

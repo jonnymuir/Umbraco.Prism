@@ -49,7 +49,7 @@ async function measureGraph(page: Page): Promise<MeasuredGraph> {
       throw new Error('Graph shadow root not found');
     }
 
-    const scene = shadowRoot.querySelector<HTMLElement>('.graph-scene');
+    const scene = shadowRoot.querySelector<HTMLElement>('.react-flow__viewport');
     if (!scene) {
       throw new Error('Graph scene not found');
     }

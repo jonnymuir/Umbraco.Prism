@@ -25,75 +25,75 @@ async function waitForWorkflowLoad(page: Page, workflowKey: string): Promise<voi
 
 test.describe('Workflow editor overflow and responsive behavioral proof', () => {
   test.describe('Tall workflows (vertical overflow)', () => {
-    test('graph-canvas scrolls vertically when workflow lanes exceed viewport height', async ({ page }) => {
+    test('graph content extends beyond the canvas when workflow exceeds viewport height', async ({ page }) => {
       // Simulate a constrained viewport with tall workflow content
       await page.setViewportSize({ width: 1280, height: 480 });
       await page.goto(storyUrl('workflow-editor-editor-host--simulation-branches'));
 
       await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
-      // BEHAVIORAL HOOK REQUEST FOR ISABELLE:
-      // - .graph-canvas should have overflow: auto (both axes scrollable)
-      // - .graph-canvas scrollHeight should exceed clientHeight when content is tall
-      // - Vertical lanes stacked layout will increase scrollHeight
-      const scrollCapability = await page.locator('prism-workflow-graph').evaluate(graphElement => {
-        const graph = graphElement as HTMLElement;
-        const shadowRoot = graph.shadowRoot;
-        const canvas = shadowRoot?.querySelector<HTMLElement>('.graph-canvas');
-        if (!canvas) {
-          return null;
-        }
-
+      // The React Flow canvas pans instead of scrolling: tall content proves
+      // itself by extending past the canvas bounds at the default zoom.
+      const measurement = await page.locator('prism-workflow-graph').evaluate(graphElement => {
+        const shadowRoot = (graphElement as HTMLElement).shadowRoot!;
+        const canvas = shadowRoot.querySelector<HTMLElement>('.graph-canvas')!;
+        const canvasRect = canvas.getBoundingClientRect();
+        const stageBottoms = Array.from(shadowRoot.querySelectorAll<HTMLElement>('[data-prism-stage-card]'))
+          .map(node => node.getBoundingClientRect().bottom);
         return {
-          overflowY: getComputedStyle(canvas).overflowY,
-          overflow: getComputedStyle(canvas).overflow,
-          scrollHeight: canvas.scrollHeight,
-          clientHeight: canvas.clientHeight,
-          isScrollable: canvas.scrollHeight > canvas.clientHeight,
-          initialScrollTop: canvas.scrollTop,
+          canvasBottom: canvasRect.bottom,
+          maxStageBottom: Math.max(...stageBottoms),
+          stageCount: stageBottoms.length,
         };
       });
 
-      expect(scrollCapability).not.toBeNull();
-      expect(scrollCapability?.overflow === 'auto' || scrollCapability?.overflowY === 'auto' || scrollCapability?.overflowY === 'scroll').toBeTruthy();
-      expect(scrollCapability?.isScrollable).toBe(true);
-      expect(scrollCapability?.scrollHeight ?? 0).toBeGreaterThan(scrollCapability?.clientHeight ?? 0);
+      expect(measurement.stageCount).toBeGreaterThan(0);
+      expect(
+        measurement.maxStageBottom,
+        'tall workflow content must extend beyond the visible canvas',
+      ).toBeGreaterThan(measurement.canvasBottom);
     });
 
-    test('tall workflow scrolling moves graph-canvas content, not window body', async ({ page }) => {
+    test('tall workflow panning moves graph content, not window body', async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 560 });
       await page.goto(storyUrl('workflow-editor-editor-host--simulation-branches'));
 
       await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
       const initialWindowScrollY = await page.evaluate(() => window.scrollY);
       expect(initialWindowScrollY).toBe(0);
 
-      // Scroll the graph-canvas programmatically
-      const scrollResult = await page.locator('prism-workflow-graph').evaluate(graphElement => {
-        const graph = graphElement as HTMLElement;
-        const shadowRoot = graph.shadowRoot;
-        const canvas = shadowRoot?.querySelector<HTMLElement>('.graph-canvas');
-        if (!canvas) {
-          return null;
-        }
-
-        const before = canvas.scrollTop;
-        canvas.scrollTop = 280;
-        return {
-          before,
-          after: canvas.scrollTop,
-          didScroll: canvas.scrollTop > before,
-        };
+      const stageTops = () => page.locator('prism-workflow-graph').evaluate(graphElement => {
+        const shadowRoot = (graphElement as HTMLElement).shadowRoot!;
+        return Array.from(shadowRoot.querySelectorAll<HTMLElement>('[data-prism-stage-card]'))
+          .map(node => node.getBoundingClientRect().top);
+      });
+      const canvasBox = await page.locator('prism-workflow-graph').evaluate(graphElement => {
+        const rect = (graphElement as HTMLElement).shadowRoot!
+          .querySelector<HTMLElement>('.graph-canvas')!.getBoundingClientRect();
+        return { x: rect.left, y: rect.top, height: rect.height };
       });
 
-      expect(scrollResult).not.toBeNull();
-      expect(scrollResult?.after ?? 0).toBeGreaterThan(scrollResult?.before ?? 0);
-      expect(scrollResult?.didScroll).toBe(true);
+      const before = await stageTops();
+      // Drag from the canvas's left gutter (empty pane, no nodes) to pan up.
+    const viewportHeight = page.viewportSize()!.height;
+      const startX = canvasBox.x + 24;
+      // Clamp to the on-screen portion of the canvas: the editor-host story is
+      // taller than the constrained viewport, and mouse events outside the
+      // window are never delivered.
+      const startY = Math.min(canvasBox.y + canvasBox.height / 2, viewportHeight - 60);
+      await page.mouse.move(startX, startY);
+      await page.mouse.down();
+      await page.mouse.move(startX, startY - 220, { steps: 6 });
+      await page.mouse.up();
+      const after = await stageTops();
 
-      // Window body should remain at scroll position 0
-      const finalWindowScrollY = await page.evaluate(() => window.scrollY);
-      expect(finalWindowScrollY).toBe(0);
+      expect(before[0] - after[0], 'panning must move the graph content up').toBeGreaterThan(120);
+
+      // Window body must remain at scroll position 0.
+      expect(await page.evaluate(() => window.scrollY)).toBe(0);
     });
 
     test('keyboard navigation with tall workflows keeps focused elements visible', async ({ page }) => {
@@ -101,6 +101,7 @@ test.describe('Workflow editor overflow and responsive behavioral proof', () => 
       await page.goto(storyUrl('workflow-editor-editor-shell--reference-shell'));
 
       await waitForWorkflowLoad(page, 'planning');
+      await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
       // BEHAVIORAL HOOK REQUEST FOR ISABELLE:
       // - When tabbing through stages in a tall workflow, the focused stage should scroll into view
@@ -135,6 +136,7 @@ test.describe('Workflow editor overflow and responsive behavioral proof', () => 
       await page.goto(storyUrl('workflow-editor-editor-host--simulation-branches'));
 
       await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
       // BEHAVIORAL HOOK REQUEST FOR ISABELLE:
       // - .graph-canvas should have overflow: auto (both axes scrollable)
@@ -401,6 +403,7 @@ test.describe('Workflow editor overflow and responsive behavioral proof', () => 
       await page.goto(storyUrl('workflow-editor-editor-host--simulation-branches'));
 
       await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
       // Verify role lanes exist and are focusable
       const laneStructure = await page.locator('prism-workflow-graph').evaluate(graphElement => {
@@ -484,6 +487,7 @@ test.describe('Workflow editor overflow and responsive behavioral proof', () => 
       await page.goto(storyUrl('workflow-editor-editor-host--simulation-branches'));
 
       await expect(page.locator('prism-workflow-editor')).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator('prism-workflow-graph[data-prism-graph-ready="true"]')).toBeAttached({ timeout: 15_000 });
 
       // BEHAVIORAL HOOK REQUEST FOR ISABELLE:
       // - Transition paths should render within .graph-canvas's scroll container
