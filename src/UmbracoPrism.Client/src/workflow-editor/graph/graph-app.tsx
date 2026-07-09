@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
+  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   applyNodeChanges,
+  useReactFlow,
   type EdgeTypes,
   type NodeChange,
   type NodeTypes,
@@ -41,11 +43,13 @@ function useControlledNodes(model: GraphModel) {
     setNodes(model.nodes);
   }, [model]);
   const onNodesChange = useCallback((changes: NodeChange<GraphFlowNode>[]) => {
-    const positionChanges = changes.filter(change => change.type === 'position');
-    if (positionChanges.length === 0) {
+    // Position changes keep in-flight drags smooth; select changes power the
+    // shift-marquee multi-drag. Everything else is derived from the document.
+    const localChanges = changes.filter(change => change.type === 'position' || change.type === 'select');
+    if (localChanges.length === 0) {
       return;
     }
-    setNodes(current => applyNodeChanges(positionChanges, current) as GraphFlowNode[]);
+    setNodes(current => applyNodeChanges(localChanges, current) as GraphFlowNode[]);
   }, []);
   return { nodes, onNodesChange };
 }
@@ -54,7 +58,21 @@ function WorkflowGraphCanvas({ bridge, props }: { bridge: GraphBridge; props: Gr
   const callbacks = bridge.callbacks;
   const model = useMemo(() => buildGraphModel(props), [props]);
   const { nodes, onNodesChange } = useControlledNodes(model);
+  const { screenToFlowPosition } = useReactFlow();
   const readyFired = useRef(false);
+
+  // React Flow resolves drop targets with document.elementFromPoint, which
+  // cannot see into the shadow root — so connection drops are hit-tested
+  // against the node rects in flow coordinates instead.
+  const nodeIdAtScreenPoint = useCallback((clientX: number, clientY: number): string | null => {
+    const point = screenToFlowPosition({ x: clientX, y: clientY });
+    const hit = nodes.find(candidate =>
+      point.x >= candidate.position.x
+      && point.x <= candidate.position.x + (candidate.width ?? 0)
+      && point.y >= candidate.position.y
+      && point.y <= candidate.position.y + (candidate.height ?? 0));
+    return hit?.id ?? null;
+  }, [nodes, screenToFlowPosition]);
 
   const handleNodeDragStop = useCallback(
     (_event: unknown, node: GraphFlowNode, draggedNodes: GraphFlowNode[]) => {
@@ -91,10 +109,40 @@ function WorkflowGraphCanvas({ bridge, props }: { bridge: GraphBridge; props: Gr
       nodeDragThreshold={4}
       onNodesChange={onNodesChange}
       onNodeDragStop={handleNodeDragStop}
-      nodesConnectable={false}
+      nodesConnectable={!props.readOnly}
+      autoPanOnConnect={false}
+      isValidConnection={connection => connection.source !== connection.target}
+      onConnect={connection => {
+        if (connection.source && connection.target) {
+          callbacks.connectRequested({ sourceId: connection.source, targetId: connection.target });
+        }
+      }}
+      onConnectEnd={(event, connectionState) => {
+        // onConnect only fires for handle-precise drops; accept a drop
+        // anywhere on a node body as connecting to that node.
+        if (connectionState.isValid) {
+          return;
+        }
+        const sourceId = connectionState.fromNode?.id;
+        if (!sourceId) {
+          return;
+        }
+        let targetId = connectionState.toNode?.id ?? null;
+        if (!targetId) {
+          const pointer = 'changedTouches' in event ? event.changedTouches[0] : event;
+          targetId = nodeIdAtScreenPoint(pointer.clientX, pointer.clientY);
+        }
+        if (targetId && targetId !== sourceId) {
+          callbacks.connectRequested({ sourceId, targetId });
+        }
+      }}
       nodesFocusable={false}
       edgesFocusable={false}
-      elementsSelectable={false}
+      // RF-level selection exists purely for shift-marquee multi-drag; the
+      // semantic single selection lives on the inner buttons.
+      elementsSelectable={!props.readOnly}
+      selectionKeyCode="Shift"
+      multiSelectionKeyCode="Shift"
       panOnDrag
       zoomOnScroll
       zoomOnPinch
@@ -125,6 +173,14 @@ function WorkflowGraphCanvas({ bridge, props }: { bridge: GraphBridge; props: Gr
       }}
     >
       <LaneLayer lanes={model.lanes} height={model.bounds.height} />
+      <MiniMap
+        pannable
+        zoomable
+        ariaLabel="Workflow overview map"
+        className="graph-minimap"
+        nodeColor={node => (node.type === 'gateway' ? '#c4b5fd' : '#93c5fd')}
+        nodeStrokeColor="#475569"
+      />
     </ReactFlow>
   );
 }

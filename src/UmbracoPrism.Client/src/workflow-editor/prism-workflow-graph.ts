@@ -19,7 +19,13 @@ import {
 } from './workflow-stage-assignment.js';
 import { workflowGateways } from './types.js';
 import { gatewayQueueKey } from './workflow-gateway-representation.js';
-import { deleteRoute, flattenRoutes } from './workflow-routes.js';
+import {
+  addRoute,
+  buildRoute,
+  deleteRoute,
+  findOrCreateSplitGateway,
+  flattenRoutes,
+} from './workflow-routes.js';
 import type { GraphBridge } from './graph/graph-bridge.js';
 import type { GraphCallbacks, GraphNodeMove, GraphProps } from './graph/graph-callbacks.js';
 import { parseGraphNodeId } from './graph/workflow-graph-layout.js';
@@ -256,6 +262,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       },
       paneClicked: () => this._dismissContextMenu(false),
       nodesMoved: moves => this._handleNodesMoved(moves),
+      connectRequested: connection => this._handleConnectRequested(connection),
       laneFocused: lane => this._announce(
         `${lane.label} queue. ${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}. ${lane.description}.`
       ),
@@ -383,6 +390,71 @@ export class PrismWorkflowGraphElement extends LitElement {
     } else {
       this._announce(`${moves.length} nodes moved.`);
     }
+  }
+
+  /**
+   * Drag-to-connect. The gateway-routing invariant is preserved by
+   * construction: state→state connections are routed through the source's
+   * Split gateway (created on demand); state routes may target gateways
+   * directly; gateway routes may target anything.
+   */
+  private _handleConnectRequested(connection: { sourceId: string; targetId: string }) {
+    if (this.readOnly || !this.workflow) {
+      return;
+    }
+    const source = parseGraphNodeId(connection.sourceId);
+    const target = parseGraphNodeId(connection.targetId);
+    if (source.key === target.key) {
+      return;
+    }
+
+    let workflow = this.workflow;
+    let ownerKey = source.key;
+
+    if (source.kind === 'stage' && target.kind === 'stage') {
+      const ensured = findOrCreateSplitGateway(workflow, source.key);
+      workflow = ensured.workflow;
+      ownerKey = ensured.gatewayKey;
+    }
+
+    const route = buildRoute({ source: ownerKey, target: target.key, trigger: 'continue' });
+    if (flattenRoutes(workflow).some(view => view.routeId === route.id)) {
+      this._announce(
+        `A “continue” route from ${this._labelForStage(source.key)} to ${this._labelForStage(target.key)} already exists.`
+      );
+      return;
+    }
+
+    if (ownerKey === source.key && source.kind === 'stage') {
+      workflow = {
+        ...workflow,
+        states: workflow.states.map(stage =>
+          stage.stateKey === source.key
+            ? { ...stage, routes: [...(stage.routes ?? []), route] }
+            : stage
+        ),
+      };
+    } else {
+      workflow = addRoute(workflow, ownerKey, route);
+    }
+
+    const transitionIndex = flattenRoutes(workflow).findIndex(view => view.routeId === route.id);
+    const selection: GraphSelectionDetail | null = transitionIndex >= 0
+      ? { kind: 'transition', transitionIndex }
+      : null;
+    if (selection) {
+      this._selectedTransitionIndex = transitionIndex;
+      this._selectedStageKey = null;
+      this._selectedGatewayKey = null;
+    }
+    this._emitWorkflowUpdated(workflow, selection);
+    if (selection) {
+      this._emitSelectionChange(selection);
+      this._requestInspector(selection);
+    }
+    this._announce(
+      `Route added from ${this._labelForStage(source.key)} to ${this._labelForStage(target.key)}.`
+    );
   }
 
   private _tidyLayout() {

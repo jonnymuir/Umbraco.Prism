@@ -51,6 +51,8 @@ export type GraphCallbacks = {
   paneClicked(): void;
   /** One drag gesture ended — commit all moved nodes as a single undoable update. */
   nodesMoved(moves: GraphNodeMove[]): void;
+  /** A connection handle was dragged from one node to another. */
+  connectRequested(connection: { sourceId: string; targetId: string }): void;
   laneFocused(lane: { label: string; description: string; stageCount: number }): void;
   zoomChanged(zoom: number): void;
   ready(): void;

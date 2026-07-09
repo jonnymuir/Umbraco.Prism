@@ -90,16 +90,15 @@ export function buildGraphModel(props: GraphProps): GraphModel {
     const placement = layout.placements.get(topologyNode.id);
     const position = placement ? { x: placement.x, y: placement.y } : { x: 0, y: 0 };
     const rowRank = placement?.rowRank ?? 0;
-    // Draggability is governed by the ReactFlow-level nodesDraggable flag
-    // (driven by readOnly) rather than per node.
+    // Draggability, selectability (shift-marquee multi-drag), and
+    // connectability are governed by the ReactFlow-level flags driven by
+    // readOnly rather than per node.
     const common = {
       id: topologyNode.id,
       position,
       width: topologyNode.width,
       height: topologyNode.height,
-      selectable: false,
       focusable: false,
-      connectable: false,
     } as const;
 
     if (topologyNode.kind === 'stage') {
@@ -165,6 +164,7 @@ export function buildGraphModel(props: GraphProps): GraphModel {
       type: 'route',
       focusable: false,
       selectable: false,
+      animated: simulationPath,
       markerEnd: { type: MarkerType.ArrowClosed, color: EDGE_ARROW_COLOR },
       data: {
         edge: topologyEdge,

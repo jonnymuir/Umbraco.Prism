@@ -61,7 +61,7 @@ export function StageNode({ data }: NodeProps<StageFlowNode>) {
       data-prism-stage-card={stage.stateKey}
       data-prism-row-rank={String(rowRank)}
     >
-      <Handle type="target" position={Position.Top} id="in" isConnectable={false} className="graph-handle" />
+      <Handle type="target" position={Position.Top} id="in" isConnectable={!readOnly} className="graph-handle" />
       <button
         type="button"
         className={className}
@@ -79,7 +79,7 @@ export function StageNode({ data }: NodeProps<StageFlowNode>) {
         <span className="node-label">{stage.displayName}</span>
         <span className="node-meta">{stage.kind}</span>
       </button>
-      <Handle type="source" position={Position.Bottom} id="out" isConnectable={false} className="graph-handle" />
+      <Handle type="source" position={Position.Bottom} id="out" isConnectable={!readOnly} className="graph-handle" />
     </div>
   );
 }

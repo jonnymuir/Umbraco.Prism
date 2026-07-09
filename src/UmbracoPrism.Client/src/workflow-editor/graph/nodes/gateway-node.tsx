@@ -4,7 +4,7 @@ import type { GatewayFlowNode } from '../graph-model.js';
 
 export function GatewayNode({ data }: NodeProps<GatewayFlowNode>) {
   const callbacks = useGraphCallbacks();
-  const { node, rowRank, selected, routeCount, triggerLabel, conditionLabel } = data;
+  const { node, rowRank, selected, routeCount, triggerLabel, conditionLabel, readOnly } = data;
   const gateway = node.gateway;
   const isPill = node.pill;
   const shapeClass = isPill ? 'shape-pill' : 'shape-diamond';
@@ -36,7 +36,7 @@ export function GatewayNode({ data }: NodeProps<GatewayFlowNode>) {
       data-prism-gateway-shape={isPill ? 'pill' : 'diamond'}
       data-prism-row-rank={String(rowRank)}
     >
-      <Handle type="target" position={Position.Top} id="in" isConnectable={false} className="graph-handle" />
+      <Handle type="target" position={Position.Top} id="in" isConnectable={!readOnly} className="graph-handle" />
       <button
         type="button"
         className={className}
@@ -63,7 +63,7 @@ export function GatewayNode({ data }: NodeProps<GatewayFlowNode>) {
           )
           : <span className="node-label">{gateway.displayName}</span>}
       </button>
-      <Handle type="source" position={Position.Bottom} id="out" isConnectable={false} className="graph-handle" />
+      <Handle type="source" position={Position.Bottom} id="out" isConnectable={!readOnly} className="graph-handle" />
     </div>
   );
 }

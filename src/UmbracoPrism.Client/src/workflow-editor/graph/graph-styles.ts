@@ -41,8 +41,8 @@ const GRAPH_CANVAS_OVERRIDES = `
     height: 100%;
   }
 
-  /* Invisible connection anchors until drag-to-connect ships. */
-  .graph-handle,
+  /* Connection anchors: inert and invisible in read-only mode; hover-visible
+     grab targets when the canvas is editable. */
   .react-flow__handle.graph-handle {
     opacity: 0;
     width: 8px;
@@ -52,12 +52,56 @@ const GRAPH_CANVAS_OVERRIDES = `
     border: none;
     background: transparent;
     pointer-events: none;
+    transition: opacity 120ms ease;
+  }
+
+  .react-flow__handle.graph-handle.connectable {
+    pointer-events: all;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #1d4ed8;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
+  }
+
+  .react-flow__node:hover .react-flow__handle.graph-handle.connectable,
+  .react-flow__handle.graph-handle.connectable:hover,
+  .react-flow__handle.graph-handle.connectingfrom,
+  .react-flow__handle.graph-handle.connectingto,
+  .react-flow__handle.graph-handle.valid {
+    opacity: 1;
+  }
+
+  .react-flow__connectionline path {
+    stroke: #1d4ed8;
+    stroke-width: 2.25;
+    stroke-dasharray: 10 8;
   }
 
   /* Per-transition overlay paths ride on top of the base rail; only their
      selected/simulation/branch colouring should be visible interaction-wise. */
   .edge-path.transition-overlay {
     pointer-events: none;
+  }
+
+  /* Shift-marquee multi-select: RF-level selection is a multi-drag aid, shown
+     as a dashed outline distinct from the semantic (solid) single selection. */
+  .react-flow__node.selected .stage-node,
+  .react-flow__node.selected .gateway-node {
+    outline: 2px dashed #1d4ed8;
+    outline-offset: 3px;
+  }
+
+  .react-flow__selection {
+    background: rgba(29, 78, 216, 0.06);
+    border: 1px dashed #1d4ed8;
+  }
+
+  .graph-minimap {
+    border: 1px solid #dbe2ea;
+    border-radius: 8px;
+    overflow: hidden;
   }
 
   /* The default attribution grey fails WCAG contrast on the canvas gradient. */
