@@ -59,6 +59,15 @@ const GRAPH_CANVAS_OVERRIDES = `
   .edge-path.transition-overlay {
     pointer-events: none;
   }
+
+  /* The default attribution grey fails WCAG contrast on the canvas gradient. */
+  .react-flow__attribution {
+    background: rgba(255, 255, 255, 0.85);
+  }
+
+  .react-flow__attribution a {
+    color: #334155;
+  }
 `;
 
 let sheets: CSSStyleSheet[] | null = null;
