@@ -23,6 +23,15 @@ export type GraphContextMenuTarget =
   | { kind: 'stage'; stageKey: string }
   | { kind: 'transition'; transitionIndex: number };
 
+export type GraphNodeMove = {
+  /** Prefixed node id: `stage:<stateKey>` or `gateway:<key>`. */
+  nodeId: string;
+  x: number;
+  y: number;
+  /** Set when the drop landed in a different lane band — the node's queue should be reassigned. */
+  queueKey: string | null;
+};
+
 /**
  * Semantic callbacks from the React canvas back into the Lit wrapper. The
  * canvas interprets pointer/keyboard gestures; the wrapper owns selection
@@ -40,6 +49,8 @@ export type GraphCallbacks = {
     returnTarget?: HTMLElement
   ): void;
   paneClicked(): void;
+  /** One drag gesture ended — commit all moved nodes as a single undoable update. */
+  nodesMoved(moves: GraphNodeMove[]): void;
   laneFocused(lane: { label: string; description: string; stageCount: number }): void;
   zoomChanged(zoom: number): void;
   ready(): void;

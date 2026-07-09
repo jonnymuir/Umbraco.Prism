@@ -3,6 +3,7 @@ import type {
   AuthoredStage,
   AuthoredWorkflow,
   RouteView,
+  WorkflowLayoutBlock,
 } from '../types.js';
 import {
   deriveGatewayBindings,
@@ -612,10 +613,64 @@ export function computeDerivedLayout(topology: GraphTopology): WorkflowGraphLayo
   return { placements, lanes, bounds: { width, height } };
 }
 
+/**
+ * Derived layout with stored manual positions applied on top. Lane bands are
+ * elastic: they stretch to cover their members' final positions (a dragged
+ * node widens its lane rather than escaping it), and the canvas bounds grow
+ * with the content. Nodes without a stored position keep their derived slot.
+ */
+export function mergeLayout(
+  topology: GraphTopology,
+  layoutBlock?: WorkflowLayoutBlock | null
+): WorkflowGraphLayout {
+  const derived = computeDerivedLayout(topology);
+  const stored = layoutBlock?.nodes;
+  if (!stored || Object.keys(stored).length === 0) {
+    return derived;
+  }
+
+  const placements = new Map<string, NodePlacement>();
+  derived.placements.forEach((placement, id) => {
+    const override = stored[id];
+    placements.set(
+      id,
+      override ? { ...placement, x: override.x, y: override.y } : placement
+    );
+  });
+
+  const lanes = derived.lanes.map(lane => {
+    const members = [...placements.values()].filter(placement => placement.queueKey === lane.key);
+    if (members.length === 0) {
+      return lane;
+    }
+    const left = Math.min(lane.x, ...members.map(member => member.x - LANE_INSET));
+    const right = Math.max(
+      lane.x + lane.width,
+      ...members.map(member => member.x + member.width + LANE_INSET)
+    );
+    return { ...lane, x: left, width: right - left };
+  });
+
+  const contentBottom = Math.max(
+    derived.bounds.height - TOP_PADDING,
+    ...[...placements.values()].map(placement => placement.y + placement.height)
+  );
+  const contentRight = Math.max(
+    derived.bounds.width - SIDE_PADDING,
+    ...lanes.map(lane => lane.x + lane.width)
+  );
+
+  return {
+    placements,
+    lanes,
+    bounds: { width: contentRight + SIDE_PADDING, height: contentBottom + TOP_PADDING },
+  };
+}
+
 export function computeWorkflowGraphLayout(
   workflow: AuthoredWorkflow | null,
   availableQueues: WorkflowQueueDefinition[] = []
 ): { topology: GraphTopology; layout: WorkflowGraphLayout } {
   const topology = computeTopology(workflow, availableQueues);
-  return { topology, layout: computeDerivedLayout(topology) };
+  return { topology, layout: mergeLayout(topology, workflow?.layout) };
 }

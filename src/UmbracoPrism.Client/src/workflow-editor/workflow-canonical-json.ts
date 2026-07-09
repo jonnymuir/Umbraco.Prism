@@ -17,6 +17,7 @@ const TOP_LEVEL_KEY_ORDER: readonly string[] = [
   'states',
   'gateways',
   'parameterSchemas',
+  'layout',
 ];
 
 function serialisableRoute(route: AuthoredRoute): Record<string, unknown> {
@@ -82,7 +83,21 @@ function serialisableWorkflow(workflow: AuthoredWorkflow): Record<string, unknow
     gateways: (workflow.gateways ?? []).map(serialisableGateway),
     calculations: workflow.calculations,
     parameterSchemas: workflow.parameterSchemas,
+    layout: serialisableLayout(workflow.layout),
   };
+}
+
+function serialisableLayout(layout: AuthoredWorkflow['layout']): Record<string, unknown> | undefined {
+  const entries = Object.entries(layout?.nodes ?? {});
+  if (entries.length === 0) {
+    return undefined;
+  }
+  const nodes: Record<string, { x: number; y: number }> = {};
+  for (const [key, position] of entries) {
+    // Whole pixels only: drag jitter must never produce spurious dirty state.
+    nodes[key] = { x: Math.round(position.x), y: Math.round(position.y) };
+  }
+  return { nodes };
 }
 
 function orderTopLevel(value: Record<string, unknown>): Record<string, unknown> {

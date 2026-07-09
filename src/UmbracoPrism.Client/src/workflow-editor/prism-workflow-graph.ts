@@ -21,7 +21,9 @@ import { workflowGateways } from './types.js';
 import { gatewayQueueKey } from './workflow-gateway-representation.js';
 import { deleteRoute, flattenRoutes } from './workflow-routes.js';
 import type { GraphBridge } from './graph/graph-bridge.js';
-import type { GraphCallbacks, GraphProps } from './graph/graph-callbacks.js';
+import type { GraphCallbacks, GraphNodeMove, GraphProps } from './graph/graph-callbacks.js';
+import { parseGraphNodeId } from './graph/workflow-graph-layout.js';
+import { applyAutoArrange, pruneLayout, setNodePositions } from './graph/workflow-graph-layout-block.js';
 
 type SelectionKind = 'stage' | 'transition' | 'gateway';
 
@@ -253,6 +255,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         }
       },
       paneClicked: () => this._dismissContextMenu(false),
+      nodesMoved: moves => this._handleNodesMoved(moves),
       laneFocused: lane => this._announce(
         `${lane.label} queue. ${lane.stageCount} stage${lane.stageCount === 1 ? '' : 's'}. ${lane.description}.`
       ),
@@ -321,6 +324,75 @@ export class PrismWorkflowGraphElement extends LitElement {
     this._bridge = null;
     this._bridgeHost = null;
     this.removeAttribute('data-prism-graph-ready');
+  }
+
+  private _currentSelectionDetail(): GraphSelectionDetail | null {
+    if (this._selectedStageKey) {
+      return { kind: 'stage', stageKey: this._selectedStageKey };
+    }
+    if (this._selectedGatewayKey) {
+      return { kind: 'gateway', gatewayKey: this._selectedGatewayKey };
+    }
+    if (this._selectedTransitionIndex !== null) {
+      return { kind: 'transition', transitionIndex: this._selectedTransitionIndex };
+    }
+    return null;
+  }
+
+  private _handleNodesMoved(moves: GraphNodeMove[]) {
+    if (this.readOnly || !this.workflow || moves.length === 0) {
+      return;
+    }
+
+    let next = setNodePositions(
+      this.workflow,
+      Object.fromEntries(moves.map(move => [move.nodeId, { x: move.x, y: move.y }]))
+    );
+
+    const queueMoves = moves.filter(move => move.queueKey);
+    for (const move of queueMoves) {
+      const parsed = parseGraphNodeId(move.nodeId);
+      if (parsed.kind === 'stage') {
+        next = {
+          ...next,
+          states: next.states.map(stage =>
+            stage.stateKey === parsed.key ? applyQueueToStage(stage, move.queueKey!) : stage
+          ),
+        };
+      } else {
+        next = {
+          ...next,
+          gateways: workflowGateways(next).map(gateway =>
+            gateway.key === parsed.key
+              ? { ...gateway, queueKey: move.queueKey!, actor: move.queueKey! }
+              : gateway
+          ),
+        };
+      }
+    }
+
+    this._emitWorkflowUpdated(next, this._currentSelectionDetail());
+
+    if (queueMoves.length > 0) {
+      const first = queueMoves[0];
+      this._announce(
+        `${this._labelForStage(parseGraphNodeId(first.nodeId).key)} moved to the ${this._roleLabelForQueue(first.queueKey!)} queue.`
+      );
+    } else if (moves.length === 1) {
+      this._announce(`${this._labelForStage(parseGraphNodeId(moves[0].nodeId).key)} moved.`);
+    } else {
+      this._announce(`${moves.length} nodes moved.`);
+    }
+  }
+
+  private _tidyLayout() {
+    if (!this.workflow) {
+      return;
+    }
+    const next = applyAutoArrange(this.workflow, this.availableQueues);
+    this._emitWorkflowUpdated(next, this._currentSelectionDetail());
+    this._announce('Canvas tidied — nodes returned to the automatic layout.');
+    requestAnimationFrame(() => this._bridge?.fitView());
   }
 
   private _surfaceForStage(stage: AuthoredStage): StageSurface {
@@ -759,7 +831,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       routes: (stage.routes ?? []).filter(route => route.target !== stageKey),
     }));
 
-    const workflow: AuthoredWorkflow = {
+    const workflow: AuthoredWorkflow = pruneLayout({
       ...this.workflow,
       states: stagesWithRoutes,
       gateways,
@@ -767,7 +839,7 @@ export class PrismWorkflowGraphElement extends LitElement {
         this.workflow.initialState === stageKey
           ? stages[0]?.stateKey ?? ''
           : this.workflow.initialState,
-    };
+    });
 
     this._selectedStageKey = null;
     this._selectedTransitionIndex = null;
@@ -1289,6 +1361,14 @@ export class PrismWorkflowGraphElement extends LitElement {
                   @click=${(event: Event) => this._openCreateGatewayDialog(event.currentTarget as HTMLElement)}
                 >
                   Add gateway
+                </button>
+                <button
+                  type="button"
+                  class="hud-button"
+                  data-prism-auto-arrange
+                  @click=${() => this._tidyLayout()}
+                >
+                  Tidy layout
                 </button>
               </div>
             `}

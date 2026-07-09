@@ -4,13 +4,17 @@ import {
   GATEWAY_PILL_HEIGHT,
   GATEWAY_SIZE,
   LANE_HEADER_OFFSET,
+  LANE_INSET,
   TOP_PADDING,
+  computeTopology,
   computeWorkflowGraphLayout,
   laneForPosition,
+  mergeLayout,
   parseGraphNodeId,
   rowBandCenter,
   stageNodeId,
 } from './workflow-graph-layout.js';
+import { applyAutoArrange, pruneLayout, setNodePositions } from './workflow-graph-layout-block.js';
 
 type RawWorkflow = Record<string, unknown>;
 
@@ -225,6 +229,66 @@ export function run(fixtures: LayoutTestFixtures): number {
     check('money-modeller: all six states and six gateways are in the topology',
       topology.nodes.filter(node => node.kind === 'stage').length === 6
       && topology.nodes.filter(node => node.kind === 'gateway').length === 6);
+  }
+
+  // Persisted layout: stored positions override the derived slots, lanes
+  // stretch to cover dragged members, and helpers stay immutable.
+  {
+    const workflow = hydrate(fixtures.paymentDemo);
+    const topology = computeTopology(workflow, []);
+    const derived = mergeLayout(topology, undefined);
+    const firstStageId = stageNodeId(workflow.initialState);
+    const derivedPlacement = derived.placements.get(firstStageId)!;
+
+    const draggedX = derivedPlacement.x + 400;
+    const draggedY = derivedPlacement.y + 500;
+    const moved = setNodePositions(workflow, { [firstStageId]: { x: draggedX + 0.4, y: draggedY - 0.4 } });
+
+    check('layout-block: setNodePositions stores rounded coordinates immutably',
+      moved !== workflow
+      && workflow.layout === undefined
+      && moved.layout?.nodes?.[firstStageId]?.x === draggedX
+      && moved.layout?.nodes?.[firstStageId]?.y === draggedY);
+
+    const merged = mergeLayout(computeTopology(moved, []), moved.layout);
+    const mergedPlacement = merged.placements.get(firstStageId)!;
+    check('layout-block: mergeLayout applies the stored position',
+      mergedPlacement.x === draggedX && mergedPlacement.y === draggedY);
+
+    const lane = merged.lanes.find(candidate => candidate.key === mergedPlacement.queueKey)!;
+    check('layout-block: the lane stretches to keep the dragged node inside its band',
+      mergedPlacement.x >= lane.x + LANE_INSET - 0.001
+      && mergedPlacement.x + mergedPlacement.width <= lane.x + lane.width - LANE_INSET + 0.001);
+
+    check('layout-block: bounds grow with dragged content',
+      merged.bounds.height >= draggedY + mergedPlacement.height + TOP_PADDING
+      && merged.bounds.width >= lane.x + lane.width);
+
+    check('layout-block: untouched nodes keep their derived slots',
+      [...derived.placements.keys()]
+        .filter(id => id !== firstStageId)
+        .every(id => {
+          const before = derived.placements.get(id)!;
+          const after = merged.placements.get(id)!;
+          return before.x === after.x && before.y === after.y;
+        }));
+
+    const pruned = pruneLayout({
+      ...moved,
+      states: moved.states.filter(stage => stage.stateKey !== workflow.initialState),
+    });
+    check('layout-block: pruneLayout drops entries for deleted nodes',
+      pruned.layout === undefined);
+
+    const arranged = applyAutoArrange(moved, []);
+    const arrangedLayout = mergeLayout(computeTopology(arranged, []), arranged.layout);
+    check('layout-block: applyAutoArrange writes explicit derived positions for every node',
+      Object.keys(arranged.layout?.nodes ?? {}).length === topology.nodes.length
+      && [...arrangedLayout.placements.values()].every(placement => {
+        const stored = arranged.layout!.nodes![placement.id];
+        return stored && stored.x === Math.round(derived.placements.get(placement.id)!.x)
+          && stored.y === Math.round(derived.placements.get(placement.id)!.y);
+      }));
   }
 
   // Empty workflow: never throws, produces an empty single-lane-width canvas.
