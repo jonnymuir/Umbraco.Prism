@@ -264,3 +264,4 @@ remove or rename without updating the suite in the same commit.**
 | `data-prism-gateway=<gatewayKey>` | Gateway click target + label container. |
 | `data-prism-route-path=<key>` | SVG route path (endpoint assertion). |
 | `data-prism-route-from=<key>` / `data-prism-route-to=<key>` | Route endpoint mapping. |
+| `data-prism-auto-arrange` | Tidy layout HUD button — rewrites every node's position back to the automatic arrangement in one undoable commit. |

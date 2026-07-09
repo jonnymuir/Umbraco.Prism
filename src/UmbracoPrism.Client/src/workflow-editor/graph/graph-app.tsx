@@ -57,8 +57,10 @@ function WorkflowGraphCanvas({ bridge, props }: { bridge: GraphBridge; props: Gr
   const readyFired = useRef(false);
 
   const handleNodeDragStop = useCallback(
-    (_event: unknown, _node: GraphFlowNode, draggedNodes: GraphFlowNode[]) => {
-      const moves: GraphNodeMove[] = draggedNodes.map(dragged => {
+    (_event: unknown, node: GraphFlowNode, draggedNodes: GraphFlowNode[]) => {
+      // React Flow only fills the third argument for selection drags.
+      const dragged = draggedNodes.length > 0 ? draggedNodes : [node];
+      const moves: GraphNodeMove[] = dragged.map(dragged => {
         const width = dragged.width ?? 0;
         const currentQueue = dragged.data.node.queueKey;
         const lane = laneForPosition(model.lanes, dragged.position.x + width / 2);
