@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useMemo, useRef, useSyncExternalStore } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
-  useNodesInitialized,
   type EdgeTypes,
   type NodeTypes,
 } from '@xyflow/react';
@@ -31,15 +30,7 @@ export function GraphApp({ bridge }: { bridge: GraphBridge }) {
 function WorkflowGraphCanvas({ bridge, props }: { bridge: GraphBridge; props: GraphProps }) {
   const callbacks = bridge.callbacks;
   const model = useMemo(() => buildGraphModel(props), [props]);
-  const nodesInitialized = useNodesInitialized();
   const readyFired = useRef(false);
-
-  useEffect(() => {
-    if (!readyFired.current && nodesInitialized && model.nodes.length > 0) {
-      readyFired.current = true;
-      callbacks.ready();
-    }
-  }, [nodesInitialized, model.nodes.length, callbacks]);
 
   return (
     <ReactFlow
@@ -62,6 +53,14 @@ function WorkflowGraphCanvas({ bridge, props }: { bridge: GraphBridge; props: Gr
       onInit={instance => {
         bridge.setFlowInstance(instance);
         callbacks.zoomChanged(instance.getZoom());
+        // Readiness for test probes: nodes/edges are committed to the DOM two
+        // frames after the viewport initialises.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (!readyFired.current) {
+            readyFired.current = true;
+            callbacks.ready();
+          }
+        }));
       }}
       onMove={(_event, viewport) => callbacks.zoomChanged(viewport.zoom)}
       onPaneClick={() => callbacks.paneClicked()}

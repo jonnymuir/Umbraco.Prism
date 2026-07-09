@@ -20,6 +20,13 @@ const GRAPH_CANVAS_OVERRIDES = `
     font: inherit;
   }
 
+  /* React Flow disables pointer events on nodes it considers non-interactive
+     (not draggable/selectable at the RF level). Selection lives on our own
+     inner buttons, so force events back on. */
+  .graph-react-host .react-flow__node {
+    pointer-events: all !important;
+  }
+
   /* Node shells fill the React Flow node wrapper instead of positioning themselves. */
   .react-flow__node .stage-node-shell,
   .react-flow__node .gateway-node-shell {
