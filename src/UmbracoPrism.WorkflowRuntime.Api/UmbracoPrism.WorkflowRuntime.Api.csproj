@@ -4,17 +4,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <OutputType>Exe</OutputType>
-    <RootNamespace>UmbracoPrism.WorkflowRuntime.Cli</RootNamespace>
-    <PackAsTool>true</PackAsTool>
-    <ToolCommandName>prism-workflow</ToolCommandName>
-    <PackageId>UmbracoPrism.WorkflowRuntime.Cli</PackageId>
-    <Title>Umbraco Prism Workflow CLI</Title>
+    <IsPackable>true</IsPackable>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>UmbracoPrism.WorkflowRuntime.Api</PackageId>
+    <Title>Umbraco Prism Workflow Authoring API</Title>
     <Version>0.1.0</Version>
     <Authors>Jonny Muir</Authors>
     <Company>Umbraco Prism</Company>
-    <Description>Command-line front door for Umbraco Prism workflow authoring (list/validate/simulate) — same primitives as the MCP server, for CI and scripted use.</Description>
-    <PackageTags>Workflow;CLI;Umbraco-Prism</PackageTags>
+    <Description>ASP.NET Core minimal-API endpoint mapping that exposes Umbraco Prism workflow authoring (list/read/validate/save/simulate) as HTTP endpoints — a single MapPrismWorkflowAuthoringApi() call any host adds to its own pipeline, inheriting its own auth.</Description>
+    <PackageTags>Workflow;WebApi;Umbraco-Prism</PackageTags>
     <PackageProjectUrl>https://github.com/jonnymuir/Umbraco.Prism</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jonnymuir/Umbraco.Prism</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -23,7 +21,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Spectre.Console.Cli" Version="0.55.0" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

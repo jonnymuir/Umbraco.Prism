@@ -13,7 +13,7 @@
     <Version>0.1.0</Version>
     <Authors>Jonny Muir</Authors>
     <Company>Umbraco Prism</Company>
-    <Description>MCP server exposing Umbraco Prism workflow authoring (list/read/validate/save/simulate) as tools, so an AI agent can design and iterate on workflow definitions directly.</Description>
+    <Description>MCP server exposing Umbraco Prism workflow authoring (list/read/validate/save/simulate) as tools. A thin HTTP client wrapper around a running Prism-based app's MapPrismWorkflowAuthoringApi() endpoints — no local state, no file access, works against any conformant host.</Description>
     <PackageTags>Workflow;MCP;Model-Context-Protocol;Umbraco-Prism</PackageTags>
     <PackageProjectUrl>https://github.com/jonnymuir/Umbraco.Prism</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jonnymuir/Umbraco.Prism</RepositoryUrl>
@@ -25,10 +25,7 @@
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol" Version="1.4.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../UmbracoPrism.WorkflowRuntime/UmbracoPrism.WorkflowRuntime.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.7" />
   </ItemGroup>
 
   <ItemGroup>

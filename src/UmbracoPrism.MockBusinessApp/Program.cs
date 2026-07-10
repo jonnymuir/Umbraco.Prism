@@ -14,6 +14,7 @@ using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.WorkflowEditor.Extensions;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
+using UmbracoPrism.WorkflowRuntime.Api;
 using UmbracoPrism.WorkflowRuntime.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -36,6 +37,11 @@ builder.Services.AddSingleton<IWorkflowContentSanitizer, PassthroughSanitizer>()
 // flattened workflow-definition contract through `/mockapp/workflows/*`.
 builder.Services.AddSingleton<ReferenceWorkflowSourceStore>();
 builder.Services.AddSingleton<IWorkflowSourceStore, InMemoryRuntimePublishedWorkflowStore>();
+
+// AI/tooling authoring surface — same IWorkflowSourceStore as above, so a save here is
+// visible to the live engine immediately (InMemoryRuntimePublishedWorkflowStore.SaveAsync
+// calls engine.UpdateDefinition). See MapPrismWorkflowAuthoringApi() below.
+builder.Services.AddPrismWorkflowAuthoring();
 
 // Editor library — projector / patch / simulation / action catalog only.
 builder.Services.AddPrismWorkflowEditor();
@@ -140,6 +146,13 @@ var mockWorkflowJsonOptions = new JsonSerializerOptions
     WriteIndented = false,
     AllowOutOfOrderMetadataProperties = true,
 };
+
+// AI/tooling authoring API — list/read/validate/save/simulate workflow definitions against
+// the live IWorkflowSourceStore above. Intentionally NO auth here either, for the same
+// reference-app reason as the block below: real downstream apps chain their own
+// .RequireAuthorization() (or any other policy) onto the returned route group before
+// exposing this to anything beyond localhost.
+app.MapPrismWorkflowAuthoringApi();
 
 app.MapGet("/mockapp/workflows", (ReferenceWorkflowSourceStore store) =>
     Results.Json(store.List(), mockWorkflowJsonOptions));
