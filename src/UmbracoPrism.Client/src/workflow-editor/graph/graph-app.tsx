@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
+  Background,
+  BackgroundVariant,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
@@ -52,8 +54,16 @@ function useControlledNodes(model: GraphModel) {
   }, [model]);
   const onNodesChange = useCallback((changes: NodeChange<GraphFlowNode>[]) => {
     // Position changes keep in-flight drags smooth; select changes power the
-    // shift-marquee multi-drag. Everything else is derived from the document.
-    const localChanges = changes.filter(change => change.type === 'position' || change.type === 'select');
+    // shift-marquee multi-drag; dimensions changes record each node's
+    // ResizeObserver-measured size (`node.measured`), which React Flow
+    // requires to keep handle bounds valid — dropping these meant every
+    // drag reseeded a same-id-but-new-identity node with `measured`
+    // undefined, silently discarding its handle bounds and breaking
+    // connected edges part-way through a drag. Everything else is derived
+    // from the document.
+    const localChanges = changes.filter(change =>
+      change.type === 'position' || change.type === 'select' || change.type === 'dimensions'
+    );
     if (localChanges.length === 0) {
       return;
     }
@@ -183,6 +193,7 @@ function WorkflowGraphCanvas({ bridge, props }: { bridge: GraphBridge; props: Gr
         );
       }}
     >
+      <Background variant={BackgroundVariant.Dots} gap={20} size={1.4} color="#cbd5e1" />
       <LaneLayer lanes={model.lanes} height={model.bounds.height} />
       <MiniMap
         pannable

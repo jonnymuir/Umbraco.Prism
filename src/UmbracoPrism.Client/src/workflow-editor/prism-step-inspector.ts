@@ -1,4 +1,4 @@
-import { LitElement, css, html, nothing } from 'lit';
+import { LitElement, css, html, nothing, svg } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type {
   ActionCatalogEntry,
@@ -11,6 +11,15 @@ import type {
   EditorStageType,
 } from './types.js';
 import { workflowGateways } from './types.js';
+import { NODE_ICONS, defaultIconForGateway, defaultIconForStage, type NodeIconDef, type NodeIconName } from './graph/node-icons.js';
+
+function renderNodeIconSvg(icon: NodeIconDef) {
+  return svg`
+    <svg viewBox=${icon.viewBox} width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      ${icon.paths.map(d => svg`<path d=${d}></path>`)}
+    </svg>
+  `;
+}
 
 function describeComponent(component: AuthoredComponent): string {
   switch (component.type) {
@@ -396,6 +405,14 @@ export class PrismStepInspectorElement extends LitElement {
 
     this._replaceSelectedStage({ ...stage, displayName: nextTitle });
     this._announce(`${nextTitle} title updated.`);
+  }
+
+  private _updateStageIcon(stage: AuthoredStage, iconName: NodeIconName) {
+    if (stage.icon === iconName) {
+      return;
+    }
+    this._replaceSelectedStage({ ...stage, icon: iconName });
+    this._announce(`${stage.displayName} icon updated.`);
   }
 
   private _updateStageKey(event: Event) {
@@ -898,6 +915,14 @@ export class PrismStepInspectorElement extends LitElement {
     this._announce(`${nextName} gateway name updated.`);
   }
 
+  private _updateGatewayIcon(gateway: AuthoredGateway, iconName: NodeIconName) {
+    if (gateway.icon === iconName) {
+      return;
+    }
+    this._replaceSelectedGateway({ ...gateway, icon: iconName });
+    this._announce(`${gateway.displayName} icon updated.`);
+  }
+
   private _updateGatewayKey(event: Event) {
     const gateway = this._selectedGateway;
     if (!gateway || !this.workflow) return;
@@ -1082,6 +1107,12 @@ export class PrismStepInspectorElement extends LitElement {
               </datalist>
             </label>
           </div>
+
+          <div class="field-block field-block-full">
+            <span class="field-label">Icon</span>
+            ${this._renderIconPicker(gateway.icon ?? defaultIconForGateway(gateway), iconName => this._updateGatewayIcon(gateway, iconName))}
+          </div>
+
           <label class="field-block field-block-full">
             <span class="field-label">Description</span>
             <textarea
@@ -1209,6 +1240,28 @@ export class PrismStepInspectorElement extends LitElement {
     `;
   }
 
+  /** Small icon-glyph button row — the curated set is deliberately short (see graph/node-icons.ts) so a full grid/search UI isn't needed. */
+  private _renderIconPicker(selected: NodeIconName, onPick: (icon: NodeIconName) => void) {
+    return html`
+      <div class="icon-picker" role="radiogroup" aria-label="Icon">
+        ${(Object.keys(NODE_ICONS) as NodeIconName[]).map(name => html`
+          <button
+            type="button"
+            class="icon-picker-option ${name === selected ? 'icon-picker-option-selected' : ''}"
+            role="radio"
+            aria-checked=${name === selected}
+            aria-label=${name}
+            title=${name}
+            data-prism-icon-option=${name}
+            @click=${() => onPick(name)}
+          >
+            ${renderNodeIconSvg(NODE_ICONS[name])}
+          </button>
+        `)}
+      </div>
+    `;
+  }
+
   private _renderStage(stage: AuthoredStage) {
     const components = stage.components ?? [];
     const actions = stage.actions ?? [];
@@ -1326,6 +1379,11 @@ export class PrismStepInspectorElement extends LitElement {
                 `)}
               </select>
             </label>
+          </div>
+
+          <div class="field-block field-block-full">
+            <span class="field-label">Icon</span>
+            ${this._renderIconPicker(stage.icon ?? defaultIconForStage(stage), iconName => this._updateStageIcon(stage, iconName))}
           </div>
 
           <label class="field-block field-block-full">
@@ -1599,6 +1657,41 @@ export class PrismStepInspectorElement extends LitElement {
       color: #111827;
       font: inherit;
       box-sizing: border-box;
+    }
+
+    .icon-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.375rem;
+    }
+
+    .icon-picker-option {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #475569;
+      cursor: pointer;
+    }
+
+    .icon-picker-option:hover {
+      border-color: #94a3b8;
+      color: #1e293b;
+    }
+
+    .icon-picker-option-selected {
+      border-color: #1d4ed8;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    .icon-picker-option:focus-visible {
+      outline: 3px solid #1d4ed8;
+      outline-offset: 2px;
     }
 
     .field-textarea {

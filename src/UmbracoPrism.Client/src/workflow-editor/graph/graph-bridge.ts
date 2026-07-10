@@ -55,6 +55,11 @@ export class GraphBridge {
     void this.flow?.fitView({ padding: 0.1, duration: 200 });
   }
 
+  /** Pan/zoom so a single node (e.g. one just created) is visibly in frame. */
+  centerOnNode(nodeId: string) {
+    void this.flow?.fitView({ nodes: [{ id: nodeId }], padding: 0.6, duration: 260, maxZoom: 1 });
+  }
+
   zoomIn() {
     void this.flow?.zoomIn({ duration: 120 });
   }

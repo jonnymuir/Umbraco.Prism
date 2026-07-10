@@ -76,7 +76,7 @@ test.describe('Workflow graph workspace', () => {
 
     const firstLane = lanes.first();
     await expect(firstLane.locator('.lane-heading')).toBeVisible();
-    await expect(firstLane.locator('.lane-copy')).toBeVisible();
+    await expect(firstLane.locator('.lane-meta')).toBeVisible();
 
     await firstLane.focus();
     await expect(firstLane).toBeFocused();

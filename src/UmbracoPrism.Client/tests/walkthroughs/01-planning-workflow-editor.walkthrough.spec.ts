@@ -188,7 +188,7 @@ test.describe('Planning Workflow Editor walkthrough', () => {
     // ─── Vertical lanes orientation check ─────────────────────────────────────
     // Verify lanes are structurally semantic (focusable sections with headings)
     await expect(firstLane.locator('.lane-heading')).toBeVisible();
-    await expect(firstLane.locator('.lane-copy')).toBeVisible();
+    await expect(firstLane.locator('.lane-meta')).toBeVisible();
 
     await expect(graphCanvas.getByText('Declaration')).toBeVisible({ timeout: 10_000 });
 

@@ -32,9 +32,11 @@ import {
 export const NODE_WIDTH = 224;
 export const NODE_HEIGHT = 128;
 // Vertical pitch between successive row bands. Each band centres a node
-// (stage or gateway) and the pitch must clear NODE_HEIGHT so adjacent rows do
-// not collide.
-export const ROW_BAND_PITCH = 152;
+// (stage or gateway); the pitch must clear NODE_HEIGHT so adjacent rows do
+// not collide, and leave enough of a gap for the route's inline label chip
+// (CHIP_HEIGHT, in graph-model.ts) to sit comfortably between them rather
+// than crowding both node edges.
+export const ROW_BAND_PITCH = 184;
 export const TOP_PADDING = 64;
 export const SIDE_PADDING = 56;
 // Floor lane column width — lanes widen automatically when a row band needs
@@ -165,6 +167,15 @@ export type WorkflowGraphLayout = {
 
 export function isPillGateway(gateway: AuthoredGateway): boolean {
   return gateway.gatewayType === 'Split' && (gateway.routes ?? []).length === 1;
+}
+
+/**
+ * A genuine decision point: a Split with more than one route. A single-route
+ * Split is just plumbing (every stage route must target a gateway), not a
+ * choice — its edges should read as a plain sequential step, not a branch.
+ */
+function isDecisionSplit(node: GraphTopologyNode | undefined | null): boolean {
+  return node?.kind === 'gateway' && node.gateway.gatewayType === 'Split' && !isPillGateway(node.gateway);
 }
 
 export function gatewayNodeSize(gateway: AuthoredGateway): { width: number; height: number } {
@@ -346,54 +357,72 @@ export function computeTopology(
     addEdge(routedSourceId, targetStageId, index);
   });
 
-  // 2b. Remove backward edges from Join gateways so Kahn's stays a DAG. A
-  //     Join that routes back to an earlier stage closes a cycle: nothing in
-  //     the cycle could be ranked and the canvas would collapse to rank 0.
-  //     Detection is a reachability BFS per outgoing Join edge. Backward
-  //     edges stay in the emitted edge list (flagged) so they still render.
+  const byIntroductionOrder = (left: string, right: string) =>
+    (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0);
+
+  // 2b. Remove backward edges so Kahn's stays a DAG. Any route that closes a
+  //     cycle back to an earlier point in the graph — not just a Join
+  //     merging back (the common case), but equally a Split's "reject, go
+  //     back to an earlier stage" branch — leaves nothing in the cycle
+  //     rankable, and the whole cycle (often the whole graph, if nothing
+  //     else anchors it) collapses to rank 0: a linear-looking workflow
+  //     renders as one wide horizontal row instead of flowing down the
+  //     page.
+  //
+  //     Detection is a standard 3-colour DFS: a "back edge" is one that
+  //     lands on a node still on the current DFS path (an ancestor), which
+  //     is the graph-theoretic definition of the edge that actually closes
+  //     a cycle — as opposed to every other edge *inside* the cycle, which
+  //     also technically has a path back to its source but isn't the edge
+  //     doing the closing. (An earlier version of this checked "can the
+  //     target reach back to the source" for every edge, which is true for
+  //     every edge in a cycle, not just the back edge — it flagged whichever
+  //     edge got visited first, discarding a normal forward edge instead of
+  //     the actual loop-back.) DFS starts from natural entry points
+  //     (in-degree 0) in first-appearance order, then sweeps any nodes a
+  //     pure cycle with no entry point would otherwise leave unvisited.
+  //     Backward edges stay in the emitted edge list (flagged) so they
+  //     still render.
   const backwardEdgeKeys = new Set<string>();
-  const joinGatewayIds = gatewayNodes
-    .filter(node => node.gateway.gatewayType === 'Join')
-    .map(node => node.id);
-  for (const fromId of joinGatewayIds) {
+  const dfsState = new Map<string, 'visiting' | 'done'>();
+  const visitForBackEdges = (fromId: string) => {
+    dfsState.set(fromId, 'visiting');
     const neighbors = adjacency.get(fromId);
-    if (!neighbors) {
-      continue;
-    }
-    for (const toId of [...neighbors]) {
-      const visited = new Set<string>();
-      const searchQueue = [toId];
-      let createsCycle = false;
-      while (searchQueue.length > 0 && !createsCycle) {
-        const current = searchQueue.shift()!;
-        if (current === fromId) {
-          createsCycle = true;
-          break;
+    if (neighbors) {
+      [...neighbors].sort(byIntroductionOrder).forEach(toId => {
+        const state = dfsState.get(toId);
+        if (state === 'visiting') {
+          neighbors.delete(toId);
+          inDegree.set(toId, (inDegree.get(toId) ?? 1) - 1);
+          backwardEdgeKeys.add(`${fromId}->${toId}`);
+          return;
         }
-        if (visited.has(current)) {
-          continue;
+        if (state === undefined) {
+          visitForBackEdges(toId);
         }
-        visited.add(current);
-        adjacency.get(current)?.forEach(next => {
-          if (!visited.has(next)) {
-            searchQueue.push(next);
-          }
-        });
-      }
-      if (createsCycle) {
-        neighbors.delete(toId);
-        inDegree.set(toId, (inDegree.get(toId) ?? 1) - 1);
-        backwardEdgeKeys.add(`${fromId}->${toId}`);
-      }
+      });
     }
-  }
+    dfsState.set(fromId, 'done');
+  };
+  nodes
+    .map(node => node.id)
+    .filter(id => (inDegree.get(id) ?? 0) === 0)
+    .sort(byIntroductionOrder)
+    .forEach(id => {
+      if (!dfsState.has(id)) {
+        visitForBackEdges(id);
+      }
+    });
+  nodes.forEach(node => {
+    if (!dfsState.has(node.id)) {
+      visitForBackEdges(node.id);
+    }
+  });
 
   // 3. Row-rank via longest-path (Kahn's algorithm): rank(B) > rank(A) for
   //    every forward edge A→B regardless of lane.
   const ranks = new Map<string, number>(nodes.map(node => [node.id, 0]));
   const inDegreeCopy = new Map(inDegree);
-  const byIntroductionOrder = (left: string, right: string) =>
-    (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0);
 
   const queue = nodes
     .map(node => node.id)
@@ -433,7 +462,7 @@ export function computeTopology(
       toId,
       transitionIndices: [...(edgeTransitionIndices.get(key) ?? [])].sort((a, b) => a - b),
       backward,
-      branch: fromNode?.kind === 'gateway' && fromNode.gateway.gatewayType === 'Split',
+      branch: isDecisionSplit(fromNode),
       merge: toNode?.kind === 'gateway' && toNode.gateway.gatewayType === 'Join',
     });
   };
@@ -493,7 +522,7 @@ export function computeTopology(
       visualFromId: sourceGatewayId ?? sourceStageId,
       visualToId: targetGatewayId ?? targetStageId,
       edgeKey: routedIds.length >= 2 ? `${finalFrom}->${finalTo}` : null,
-      branch: sourceGatewayNode?.kind === 'gateway' && sourceGatewayNode.gateway.gatewayType === 'Split',
+      branch: isDecisionSplit(sourceGatewayNode),
       merge: targetGatewayNode?.kind === 'gateway' && targetGatewayNode.gateway.gatewayType === 'Join',
     };
   });

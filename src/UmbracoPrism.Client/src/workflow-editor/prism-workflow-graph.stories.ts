@@ -4,7 +4,7 @@ import './prism-workflow-graph.js';
 import type { PrismWorkflowGraphElement } from './prism-workflow-graph.js';
 import { STUB_WORKFLOW } from './types.js';
 import type { AuthoredWorkflow } from './types.js';
-import { LEAVE_REQUEST_STARTER_WORKFLOW, PAYMENT_DEMO_WORKFLOW, COMMUNITY_ENQUIRY_WORKFLOW, INFORMATION_REQUEST_WORKFLOW, PLANNING_WORKFLOW_MIGRATED, cloneAuthoredWorkflow } from './fixtures/index.js';
+import { LEAVE_REQUEST_STARTER_WORKFLOW, PAYMENT_DEMO_WORKFLOW, COMMUNITY_ENQUIRY_WORKFLOW, INFORMATION_REQUEST_WORKFLOW, MONEY_MODELLER_WORKFLOW, PLANNING_WORKFLOW_MIGRATED, cloneAuthoredWorkflow } from './fixtures/index.js';
 
 const WORKSPACE_WORKFLOW: AuthoredWorkflow = {
   ...STUB_WORKFLOW,
@@ -473,5 +473,67 @@ export const InformationRequest: Story = {
     await expect(root.querySelectorAll('[data-prism-role-queue]').length).toBeGreaterThanOrEqual(2);
     await expect(root.querySelector('[data-prism-gateway-kind="Split"]')).not.toBeNull();
     await expect(root.querySelector('[data-prism-gateway-kind="Join"]')).not.toBeNull();
+  },
+};
+
+/**
+ * Money Modeller — the most structurally complex real workflow this repo
+ * ships (calculations block, recalculate self-loop, cross-queue fan-out).
+ * Kept as a permanent story so canvas legibility regressions on real
+ * fan-out/loop-back shapes — chip overlap, header occlusion, gateway
+ * collisions — show up here rather than only on the simpler synthetic
+ * fixtures above.
+ */
+export const MoneyModeller: Story = {
+  name: 'Money Modeller — declarative calculations demo',
+  args: { workflow: cloneAuthoredWorkflow(MONEY_MODELLER_WORKFLOW) },
+  render: (args) => {
+    const el = makeElement(args);
+    el.style.cssText = 'display:block;height:1200px;';
+    return el;
+  },
+  play: async ({ canvasElement }) => {
+    const el = await waitForGraphReady(canvasElement);
+
+    const root = el.shadowRoot!;
+    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(6);
+    await expect(root.querySelectorAll('[data-prism-gateway]').length).toBe(6);
+    await expect(root.querySelectorAll('[data-prism-role-queue]').length).toBe(2);
+
+    // Transition chips shouldn't pile up on each other or on stage/gateway
+    // cards — the exact regression this fixture exists to catch. Some of
+    // this workflow's cross-queue routes naturally anchor in the lane gap
+    // (36px, narrower than the chip) between two obstacles on either side,
+    // so a little unavoidable edge-touching is tolerated. One pairing
+    // ("send-quote" against the "quote-sent" card) sits at ~50%: review-
+    // quote-request, close-request, and quote-sent all resolve to the same
+    // topology rank (money-modeller is the one fixture exempted from the
+    // "forward edges flow to a strictly higher rank" invariant in
+    // workflow-graph-layout.test.ts), so that chip's natural anchor sits
+    // inside quote-sent's card regardless of how well it's decluttered.
+    // That's a rank-assignment quirk, not a declutter regression — anything
+    // beyond this measured ceiling is.
+    const MAX_OVERLAP_FRACTION = 0.55;
+    const chipRects = Array.from(root.querySelectorAll<HTMLElement>('[data-prism-transition]'))
+      .map(chip => chip.getBoundingClientRect());
+    const nodeRects = Array.from(root.querySelectorAll<HTMLElement>('[data-prism-stage-card], [data-prism-gateway-node]'))
+      .map(node => node.getBoundingClientRect());
+    const overlapFraction = (a: DOMRect, b: DOMRect): number => {
+      const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+      const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+      if (ox <= 0 || oy <= 0) {
+        return 0;
+      }
+      return (ox * oy) / Math.min(a.width * a.height, b.width * b.height);
+    };
+
+    for (let i = 0; i < chipRects.length; i++) {
+      for (let j = i + 1; j < chipRects.length; j++) {
+        await expect(overlapFraction(chipRects[i], chipRects[j])).toBeLessThan(MAX_OVERLAP_FRACTION);
+      }
+      for (const nodeRect of nodeRects) {
+        await expect(overlapFraction(chipRects[i], nodeRect)).toBeLessThan(MAX_OVERLAP_FRACTION);
+      }
+    }
   },
 };

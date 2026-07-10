@@ -2,8 +2,6 @@ import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, type EdgeProps } from '
 import { useGraphCallbacks } from '../graph-callbacks.js';
 import type { RouteFlowEdge, TransitionChip } from '../graph-model.js';
 
-const CHIP_STACK_PITCH = 40;
-
 function chipClassName(chip: TransitionChip): string {
   return [
     'edge-chip',
@@ -31,7 +29,7 @@ export function RouteEdge({
   }
   const { edge, fromKey, toKey, simulationPath, chips, readOnly } = data;
 
-  const [path, labelX, labelY] = getSmoothStepPath({
+  const [path] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -120,32 +118,29 @@ export function RouteEdge({
         />
       ))}
       <EdgeLabelRenderer>
-        {chips.map((chip, chipSlot) => {
-          const offsetY = (chipSlot - (chips.length - 1) / 2) * CHIP_STACK_PITCH;
-          return (
-            <button
-              key={`chip-${chip.index}`}
-              type="button"
-              className={chipClassName(chip)}
-              style={{
-                position: 'absolute',
-                transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + offsetY}px)`,
-                pointerEvents: 'all',
-              }}
-              aria-label={chip.ariaLabel}
-              data-prism-transition={String(chip.index)}
-              data-prism-transition-from={chip.fromKey}
-              data-prism-transition-to={chip.toKey}
-              data-prism-transition-simulation-path={String(chip.simulationPath)}
-              onClick={() => callbacks.selectTransition(chip.index)}
-              onDoubleClick={() => callbacks.selectTransition(chip.index, { openInspector: true })}
-              onKeyDown={event => handleChipKeyDown(event, chip)}
-              onContextMenu={event => handleChipContextMenu(event, chip)}
-            >
-              {chip.label}
-            </button>
-          );
-        })}
+        {chips.map(chip => (
+          <button
+            key={`chip-${chip.index}`}
+            type="button"
+            className={chipClassName(chip)}
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${chip.x}px, ${chip.y}px)`,
+              pointerEvents: 'all',
+            }}
+            aria-label={chip.ariaLabel}
+            data-prism-transition={String(chip.index)}
+            data-prism-transition-from={chip.fromKey}
+            data-prism-transition-to={chip.toKey}
+            data-prism-transition-simulation-path={String(chip.simulationPath)}
+            onClick={() => callbacks.selectTransition(chip.index)}
+            onDoubleClick={() => callbacks.selectTransition(chip.index, { openInspector: true })}
+            onKeyDown={event => handleChipKeyDown(event, chip)}
+            onContextMenu={event => handleChipContextMenu(event, chip)}
+          >
+            {chip.label}
+          </button>
+        ))}
       </EdgeLabelRenderer>
     </>
   );

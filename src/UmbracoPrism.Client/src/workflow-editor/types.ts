@@ -101,6 +101,8 @@ export interface AuthoredStage {
   editorComment?: string;
   metadata?: WorkflowStateMetadata;
   stageKey?: string;
+  /** Curated icon-set key (see graph/node-icons.ts). Falls back to a kind-based default when unset. */
+  icon?: string;
 }
 
 export interface WorkflowStateMetadata {
@@ -140,6 +142,8 @@ export interface AuthoredGateway {
   queueName?: string;
   source?: string;
   waiting?: WaitingMetadata;
+  /** Curated icon-set key (see graph/node-icons.ts). Falls back to a kind-based default when unset. */
+  icon?: string;
 }
 
 export interface AuthoredTransition {
@@ -638,6 +642,7 @@ function normaliseStage(
     actions: asArray<AuthoredAction>(rawStage.actions ?? metadata.actions),
     roleGates: asStringArray(rawStage.roleGates ?? metadata.roleGates),
     editorComment: firstString(rawStage.editorComment, metadata.editorComment),
+    icon: firstString(rawStage.icon),
   });
 }
 
@@ -692,6 +697,7 @@ function normaliseGateway(
     waitingDeferMessage: firstString(rawGateway.waitingDeferMessage, asRecord(rawGateway.waiting).deferMessage, asRecord(rawGateway.waitingInfo).deferMessage),
     requiredIncomingQueues: asStringArray(rawGateway.requiredIncomingQueues)
       .map(queueKey => queueLookup.get(queueKey) ?? queueKey),
+    icon: firstString(rawGateway.icon),
   });
 }
 
@@ -1424,7 +1430,7 @@ export const STUB_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition(({
       displayName: 'Route to check answers',
       gatewayType: 'Split',
       source: 'applicant-details',
-      queueKey: 'applicant',
+      queueKey: 'public',
       roleGates: [],
       routes: [
         {
@@ -1448,7 +1454,7 @@ export const STUB_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition(({
       displayName: 'Route to reviewer assessment',
       gatewayType: 'Split',
       source: 'check-answers',
-      queueKey: 'applicant',
+      queueKey: 'public',
       roleGates: [],
       routes: [
         {
@@ -1464,7 +1470,7 @@ export const STUB_WORKFLOW: AuthoredWorkflow = hydrateWorkflowDefinition(({
       displayName: 'Route from reviewer assessment',
       gatewayType: 'Split',
       source: 'reviewer-assessment',
-      queueKey: 'applicant',
+      queueKey: 'reviewer',
       roleGates: [],
       routes: [
         {
