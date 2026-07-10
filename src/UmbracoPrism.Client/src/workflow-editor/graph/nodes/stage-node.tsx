@@ -1,12 +1,13 @@
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import type { NodeProps } from '@xyflow/react';
 import { useGraphCallbacks } from '../graph-callbacks.js';
 import type { StageFlowNode } from '../graph-model.js';
 import { iconForStage } from '../node-icons.js';
+import { HandleFan } from './handle-fan.js';
 import { NodeIcon } from './node-icon.js';
 
 export function StageNode({ data }: NodeProps<StageFlowNode>) {
   const callbacks = useGraphCallbacks();
-  const { node, rowRank, selected, simulationPath, simulationCurrent, readOnly } = data;
+  const { node, rowRank, sourceHandles, targetHandles, selected, simulationPath, simulationCurrent, readOnly } = data;
   const stage = node.stage;
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -63,9 +64,7 @@ export function StageNode({ data }: NodeProps<StageFlowNode>) {
       data-prism-stage-card={stage.stateKey}
       data-prism-row-rank={String(rowRank)}
     >
-      <Handle type="target" position={Position.Top} id="in" isConnectable={!readOnly} className="graph-handle" />
-      <Handle type="target" position={Position.Left} id="in-left" isConnectable={!readOnly} className="graph-handle" />
-      <Handle type="target" position={Position.Right} id="in-right" isConnectable={!readOnly} className="graph-handle" />
+      <HandleFan handles={targetHandles} type="target" readOnly={readOnly} />
       <button
         type="button"
         className={className}
@@ -86,9 +85,7 @@ export function StageNode({ data }: NodeProps<StageFlowNode>) {
         </span>
         <span className="node-label">{stage.displayName}</span>
       </button>
-      <Handle type="source" position={Position.Bottom} id="out" isConnectable={!readOnly} className="graph-handle" />
-      <Handle type="source" position={Position.Left} id="out-left" isConnectable={!readOnly} className="graph-handle" />
-      <Handle type="source" position={Position.Right} id="out-right" isConnectable={!readOnly} className="graph-handle" />
+      <HandleFan handles={sourceHandles} type="source" readOnly={readOnly} />
     </div>
   );
 }

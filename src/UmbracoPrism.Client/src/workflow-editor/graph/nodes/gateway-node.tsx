@@ -1,12 +1,15 @@
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import type { NodeProps } from '@xyflow/react';
 import { useGraphCallbacks } from '../graph-callbacks.js';
 import type { GatewayFlowNode } from '../graph-model.js';
 import { iconForGateway } from '../node-icons.js';
+import { HandleFan } from './handle-fan.js';
 import { NodeIcon } from './node-icon.js';
 
 export function GatewayNode({ data }: NodeProps<GatewayFlowNode>) {
   const callbacks = useGraphCallbacks();
-  const { node, rowRank, selected, routeCount, triggerLabel, conditionLabel, readOnly } = data;
+  const {
+    node, rowRank, sourceHandles, targetHandles, selected, routeCount, triggerLabel, conditionLabel, readOnly,
+  } = data;
   const gateway = node.gateway;
   const isPill = node.pill;
   const shapeClass = isPill ? 'shape-pill' : 'shape-diamond';
@@ -38,9 +41,7 @@ export function GatewayNode({ data }: NodeProps<GatewayFlowNode>) {
       data-prism-gateway-shape={isPill ? 'pill' : 'diamond'}
       data-prism-row-rank={String(rowRank)}
     >
-      <Handle type="target" position={Position.Top} id="in" isConnectable={!readOnly} className="graph-handle" />
-      <Handle type="target" position={Position.Left} id="in-left" isConnectable={!readOnly} className="graph-handle" />
-      <Handle type="target" position={Position.Right} id="in-right" isConnectable={!readOnly} className="graph-handle" />
+      <HandleFan handles={targetHandles} type="target" readOnly={readOnly} />
       <button
         type="button"
         className={className}
@@ -75,9 +76,7 @@ export function GatewayNode({ data }: NodeProps<GatewayFlowNode>) {
             </>
           )}
       </button>
-      <Handle type="source" position={Position.Bottom} id="out" isConnectable={!readOnly} className="graph-handle" />
-      <Handle type="source" position={Position.Left} id="out-left" isConnectable={!readOnly} className="graph-handle" />
-      <Handle type="source" position={Position.Right} id="out-right" isConnectable={!readOnly} className="graph-handle" />
+      <HandleFan handles={sourceHandles} type="source" readOnly={readOnly} />
     </div>
   );
 }
