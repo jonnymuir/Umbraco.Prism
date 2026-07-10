@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>UmbracoPrism.WorkflowRuntime.Mcp</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>prism-workflow-mcp</ToolCommandName>
+    <PackageId>UmbracoPrism.WorkflowRuntime.Mcp</PackageId>
+    <Title>Umbraco Prism Workflow Authoring MCP Server</Title>
+    <Version>0.1.0</Version>
+    <Authors>Jonny Muir</Authors>
+    <Company>Umbraco Prism</Company>
+    <Description>MCP server exposing Umbraco Prism workflow authoring (list/read/validate/save/simulate) as tools, so an AI agent can design and iterate on workflow definitions directly.</Description>
+    <PackageTags>Workflow;MCP;Model-Context-Protocol;Umbraco-Prism</PackageTags>
+    <PackageProjectUrl>https://github.com/jonnymuir/Umbraco.Prism</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jonnymuir/Umbraco.Prism</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageIcon>assets/logo-vertical-lockup.png</PackageIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" Version="1.4.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../UmbracoPrism.WorkflowRuntime/UmbracoPrism.WorkflowRuntime.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../assets/logo-vertical-lockup.png" Pack="true" PackagePath="assets/" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

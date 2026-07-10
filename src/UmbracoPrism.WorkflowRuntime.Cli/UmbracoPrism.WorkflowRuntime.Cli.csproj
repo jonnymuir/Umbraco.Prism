@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>UmbracoPrism.WorkflowRuntime.Cli</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>prism-workflow</ToolCommandName>
+    <PackageId>UmbracoPrism.WorkflowRuntime.Cli</PackageId>
+    <Title>Umbraco Prism Workflow CLI</Title>
+    <Version>0.1.0</Version>
+    <Authors>Jonny Muir</Authors>
+    <Company>Umbraco Prism</Company>
+    <Description>Command-line front door for Umbraco Prism workflow authoring (list/validate/simulate) — same primitives as the MCP server, for CI and scripted use.</Description>
+    <PackageTags>Workflow;CLI;Umbraco-Prism</PackageTags>
+    <PackageProjectUrl>https://github.com/jonnymuir/Umbraco.Prism</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jonnymuir/Umbraco.Prism</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageIcon>assets/logo-vertical-lockup.png</PackageIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console.Cli" Version="0.55.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../UmbracoPrism.WorkflowRuntime/UmbracoPrism.WorkflowRuntime.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../assets/logo-vertical-lockup.png" Pack="true" PackagePath="assets/" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>
