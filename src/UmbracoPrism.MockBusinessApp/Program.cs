@@ -35,7 +35,7 @@ builder.Services.AddSingleton<IWorkflowContentSanitizer, PassthroughSanitizer>()
 // The reference app keeps the four demo workflows in memory and exposes the same
 // flattened workflow-definition contract through `/mockapp/workflows/*`.
 builder.Services.AddSingleton<ReferenceWorkflowSourceStore>();
-builder.Services.AddSingleton<IPublishedWorkflowStore, InMemoryRuntimePublishedWorkflowStore>();
+builder.Services.AddSingleton<IWorkflowSourceStore, InMemoryRuntimePublishedWorkflowStore>();
 
 // Editor library — projector / patch / simulation / action catalog only.
 builder.Services.AddPrismWorkflowEditor();

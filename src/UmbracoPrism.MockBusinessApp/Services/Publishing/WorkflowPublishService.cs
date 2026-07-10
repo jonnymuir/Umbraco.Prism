@@ -1,5 +1,6 @@
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.WorkflowEditor.Authoring;
+using UmbracoPrism.WorkflowRuntime.Abstractions;
 
 namespace UmbracoPrism.MockBusinessApp.Services.Publishing;
 
@@ -8,7 +9,7 @@ namespace UmbracoPrism.MockBusinessApp.Services.Publishing;
 /// </summary>
 public sealed class WorkflowPublishService(
     IWorkflowProjector projector,
-    IPublishedWorkflowStore publishedWorkflowStore) : IWorkflowPublishService
+    IWorkflowSourceStore publishedWorkflowStore) : IWorkflowPublishService
 {
     public async Task<PublishPreviewResult> PreviewAsync(AuthoredWorkflow workflow, CancellationToken ct = default)
     {

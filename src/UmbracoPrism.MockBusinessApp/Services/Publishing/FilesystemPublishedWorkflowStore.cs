@@ -1,14 +1,15 @@
 using System.Text.Json;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.WorkflowEditor.Authoring;
+using UmbracoPrism.WorkflowRuntime.Abstractions;
 
 namespace UmbracoPrism.MockBusinessApp.Services.Publishing;
 
 /// <summary>
-/// File-backed implementation of <see cref="IPublishedWorkflowStore"/> that writes canonical
+/// File-backed implementation of <see cref="IWorkflowSourceStore"/> that writes canonical
 /// runtime workflow definition JSON to <c>workflow-seeds/</c>.
 /// </summary>
-public sealed class FilesystemPublishedWorkflowStore(string basePath) : IPublishedWorkflowStore
+public sealed class FilesystemPublishedWorkflowStore(string basePath) : IWorkflowSourceStore
 {
     private static readonly JsonSerializerOptions ReadOptions = new()
     {
@@ -48,5 +49,26 @@ public sealed class FilesystemPublishedWorkflowStore(string basePath) : IPublish
         await using var stream = File.Open(path, FileMode.Create, FileAccess.Write, FileShare.None);
         await JsonSerializer.SerializeAsync(stream, workflow, WorkflowProjector.CanonicalOptions, ct);
         return path;
+    }
+
+    public async Task<IReadOnlyList<WorkflowSourceSummary>> ListAsync(CancellationToken ct = default)
+    {
+        if (!Directory.Exists(basePath))
+            return Array.Empty<WorkflowSourceSummary>();
+
+        var summaries = new List<WorkflowSourceSummary>();
+        foreach (var path in Directory.EnumerateFiles(basePath, "*.json"))
+        {
+            await using var stream = File.OpenRead(path);
+            var workflow = await JsonSerializer.DeserializeAsync<WorkflowDefinitionFile>(stream, ReadOptions, ct);
+            if (workflow is not null)
+            {
+                summaries.Add(new WorkflowSourceSummary(workflow.DefinitionKey, workflow.DisplayName));
+            }
+        }
+
+        return summaries
+            .OrderBy(summary => summary.DefinitionKey, StringComparer.Ordinal)
+            .ToArray();
     }
 }

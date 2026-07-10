@@ -4,6 +4,20 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>UmbracoPrism.WorkflowRuntime</PackageId>
+    <Title>Umbraco Prism Workflow Runtime</Title>
+    <Version>0.1.0</Version>
+    <Authors>Jonny Muir</Authors>
+    <Company>Umbraco Prism</Company>
+    <Description>Umbraco/Umbraco.Cms-independent GDS-style workflow state-machine engine (queue routing, gateway evaluation, instance persistence) used by Umbraco Prism. Reusable by any .NET host building its own workflow-driven business app.</Description>
+    <PackageTags>Workflow;State-machine;GDS;Umbraco-Prism</PackageTags>
+    <PackageProjectUrl>https://github.com/jonnymuir/Umbraco.Prism</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jonnymuir/Umbraco.Prism</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageIcon>assets/logo-vertical-lockup.png</PackageIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +27,12 @@
 
   <ItemGroup>
     <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../assets/logo-vertical-lockup.png" Pack="true" PackagePath="assets/" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
   </ItemGroup>
 
 </Project>
