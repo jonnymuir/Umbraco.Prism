@@ -166,6 +166,10 @@ public record StepDefinition
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public WorkflowStateMetadata? Metadata { get; init; }
 
+    /// <summary>Curated icon-set key (see the client's graph/node-icons.ts). Falls back to a stage-kind default when unset.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Icon { get; init; }
+
 }
 
 public record WorkflowTransitionFile
@@ -302,6 +306,10 @@ public record WorkflowGatewayDefinition
     {
         init => Source = value;
     }
+
+    /// <summary>Curated icon-set key (see the client's graph/node-icons.ts). Falls back to a Split/Join default when unset.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Icon { get; init; }
 }
 
 public record WorkflowRouteDefinition

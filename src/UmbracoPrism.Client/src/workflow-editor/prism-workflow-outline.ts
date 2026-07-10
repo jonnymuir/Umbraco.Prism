@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { AuthoredGateway, RouteView, AuthoredWorkflow } from './types.js';
+import { workflowGateways } from './types.js';
 import { deriveGatewayBindings } from './workflow-gateway-representation.js';
 import { flattenRoutes } from './workflow-routes.js';
 import { stageQueueKey, stageQueueLabel, type WorkflowQueueDefinition } from './workflow-stage-assignment.js';
@@ -60,7 +61,7 @@ export class PrismWorkflowOutline extends LitElement {
 
   private _gatewayLabel(gatewayKey: string | undefined | null): string {
     if (!gatewayKey) return '';
-    return this.workflow?.metadata?.gateways?.find(g => g.key === gatewayKey)?.displayName ?? gatewayKey;
+    return workflowGateways(this.workflow).find(g => g.key === gatewayKey)?.displayName ?? gatewayKey;
   }
 
   private _stageOutboundTransitions(stageKey: string): { transition: RouteView; index: number }[] {
@@ -80,6 +81,22 @@ export class PrismWorkflowOutline extends LitElement {
 
     return deriveGatewayBindings(this.workflow)
       .filter(binding => binding.gateway.kind === 'Split' && binding.anchorStageKey === stageKey)
+      .map(binding => binding.gateway);
+  }
+
+  /**
+   * Join gateways merge routes from multiple upstream stages, so unlike a
+   * Split they have no single anchor stage to nest under — list them once
+   * per queue instead, or they'd be silently absent from the outline
+   * entirely (canvas users could tell a Join existed; outline users couldn't).
+   */
+  private _joinGatewaysForQueue(queueKey: string): AuthoredGateway[] {
+    if (!this.workflow) {
+      return [];
+    }
+
+    return deriveGatewayBindings(this.workflow)
+      .filter(binding => binding.gateway.kind === 'Join' && binding.queueKey === queueKey)
       .map(binding => binding.gateway);
   }
 
@@ -136,7 +153,7 @@ export class PrismWorkflowOutline extends LitElement {
                 <h2 class="outline-title">Outline</h2>
                 <p class="outline-subtitle">
                   ${stages.length} ${stages.length === 1 ? 'stage' : 'stages'}
-                  ${this.workflow.metadata?.gateways?.length ? html` · ${this.workflow.metadata?.gateways.length} gateways` : nothing}
+                  ${workflowGateways(this.workflow).length ? html` · ${workflowGateways(this.workflow).length} gateways` : nothing}
                 </p>
               </div>
             `
@@ -227,6 +244,39 @@ export class PrismWorkflowOutline extends LitElement {
             `;
                })}
              </ol>
+             ${(() => {
+               const joinGateways = this._joinGatewaysForQueue(group.key);
+               return joinGateways.length > 0
+                 ? html`
+                     <div class="outline-lane-header outline-join-header">
+                       <h4 class="outline-lane-title outline-join-title">Join points</h4>
+                       <p class="outline-lane-meta">Merges routes from multiple stages</p>
+                     </div>
+                     <ul class="outline-gateway-list outline-join-list">
+                       ${joinGateways.map(gateway => {
+                         const isGatewaySelected = this.selectedGatewayKey === gateway.key;
+                         return html`
+                           <li class="outline-gateway-item">
+                             <button
+                               type="button"
+                               class="outline-gateway-button ${isGatewaySelected ? 'outline-gateway-button-selected' : ''}"
+                               @click=${() => this._handleGatewayClick(gateway.key)}
+                               aria-current=${isGatewaySelected ? 'location' : nothing}
+                               data-prism-outline-gateway="${gateway.key}"
+                             >
+                               <span class="outline-gateway-shape" aria-hidden="true"></span>
+                               <span class="outline-gateway-copy">
+                                 <span class="outline-gateway-title">${gateway.displayName}</span>
+                                 <span class="outline-gateway-meta">${gateway.kind} gateway</span>
+                               </span>
+                             </button>
+                           </li>
+                         `;
+                       })}
+                     </ul>
+                   `
+                 : nothing;
+             })()}
             </section>
           `)}
         </div>

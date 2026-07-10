@@ -28,7 +28,7 @@ import {
 } from './workflow-routes.js';
 import type { GraphBridge } from './graph/graph-bridge.js';
 import type { GraphCallbacks, GraphNodeMove, GraphProps } from './graph/graph-callbacks.js';
-import { parseGraphNodeId } from './graph/workflow-graph-layout.js';
+import { gatewayNodeId, parseGraphNodeId, stageNodeId } from './graph/workflow-graph-layout.js';
 import { applyAutoArrange, pruneLayout, setNodePositions } from './graph/workflow-graph-layout-block.js';
 
 type SelectionKind = 'stage' | 'transition' | 'gateway';
@@ -82,8 +82,8 @@ type CreateGatewayDialogState = {
 };
 
 const TOP_PADDING = 64;
-const EDGE_LABEL_WIDTH = 132;
-const EDGE_LABEL_HEIGHT = 32;
+const EDGE_LABEL_WIDTH = 92;
+const EDGE_LABEL_HEIGHT = 22;
 
 /**
  * Workflow graph workspace for stage/transition authoring.
@@ -809,6 +809,10 @@ export class PrismWorkflowGraphElement extends LitElement {
     this._requestInspector({ kind: 'stage', stageKey: newStage.stateKey });
     this._announce(`${newStage.displayName} added to the workspace.`);
     this._closeCreateStageDialog();
+    // New stage starts with no routes, so nothing anchors it near existing
+    // content — pan/zoom to it so the author can see where it actually
+    // landed instead of hunting for it off-viewport.
+    requestAnimationFrame(() => this._bridge?.centerOnNode(stageNodeId(newStage.stateKey)));
   }
 
   private _openCreateGatewayDialog(returnTarget?: HTMLElement | null) {
@@ -816,7 +820,14 @@ export class PrismWorkflowGraphElement extends LitElement {
       return;
     }
     this._dialogReturnTarget = returnTarget ?? null;
-    const defaultQueue = workflowQueueOptions(this.workflow, this.availableQueues)[0] ?? 'public';
+    // Prefer a queue an existing stage already lives in — defaulting to
+    // availableQueues[0] can pick a host-supplied queue the workflow itself
+    // never uses, which silently creates a same-labelled duplicate lane
+    // (the new gateway's queue key looks identical to an existing one in
+    // the UI but isn't, since lanes group by key, not label).
+    const defaultQueue = stageQueueKey(this.workflow.states[0])
+      || workflowQueueOptions(this.workflow, this.availableQueues)[0]
+      || 'public';
     this._createGatewayDialog = {
       title: '',
       gatewayKey: '',
@@ -875,15 +886,15 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     const workflow: AuthoredWorkflow = {
       ...this.workflow,
-      metadata: {
-        ...(this.workflow.metadata ?? {}),
-        gateways: [...(this.workflow.metadata?.gateways ?? []), newGateway],
-      },
+      gateways: [...workflowGateways(this.workflow), newGateway],
     };
 
     this._emitWorkflowUpdated(workflow, { kind: 'gateway', gatewayKey: newGateway.key });
     this._announce(`${title} ${dialog.kind} gateway created.`);
     this._closeCreateGatewayDialog();
+    // Same as stage creation: an unconnected gateway has no anchor, so it
+    // can land anywhere in its queue's rank-0 row — bring it into view.
+    requestAnimationFrame(() => this._bridge?.centerOnNode(gatewayNodeId(newGateway.key)));
   }
 
   private _openDeleteStageDialog(stageKey: string, returnTarget?: HTMLElement | null) {
@@ -1495,7 +1506,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       <p class="graph-hint">
         ${this.readOnly
           ? 'Tab through queues and stages. Enter selects, and arrow keys move between stages.'
-          : 'Tab through queues, stages, routes, and gateways. Enter selects, E opens details, and Shift+F10 opens the menu.'}
+          : 'Tab through queues, stages, routes, and gateways. Enter selects, E opens details, and Shift+F10 opens the menu. Drag from a stage or gateway’s edge to connect it to another.'}
       </p>
 
       ${isEmpty
@@ -1653,7 +1664,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       min-height: 2.25rem;
       padding: 0.375rem 0.875rem;
       border: 1px solid #475569;
-      border-radius: 999px;
+      border-radius: 6px;
       background: #ffffff;
       color: #0f172a;
       cursor: pointer;
@@ -1799,10 +1810,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       box-sizing: border-box;
       top: ${TOP_PADDING}px;
       height: calc(100% - ${TOP_PADDING * 2}px);
-      border-radius: 18px;
-      border: 1px solid #dbe2ea;
       padding: 18px 20px;
-      background: rgba(255, 255, 255, 0.88);
     }
 
     .lane:focus-visible {
@@ -1810,20 +1818,38 @@ export class PrismWorkflowGraphElement extends LitElement {
       outline-offset: 3px;
     }
 
-    .lane-primary {
+    /* Purely decorative band drawn on a separate, sunk-behind layer — see
+       graph/lanes/lane-layer.tsx for why this is split from the .lane rule
+       above. */
+    .lane-band {
+      box-sizing: border-box;
+      border-radius: 18px;
+      border: 1px solid #dbe2ea;
+      background: rgba(255, 255, 255, 0.88);
+    }
+
+    .lane-band.lane-primary {
       box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.08);
     }
 
-    .lane-supporting {
+    .lane-band.lane-supporting {
       box-shadow: inset 0 0 0 1px rgba(71, 85, 105, 0.14);
       background: rgba(248, 250, 252, 0.96);
     }
 
+    /* The header sits in a layer above route lines (see lane-layer.tsx) so
+       it's never occluded, but a line can still run directly behind the
+       text — an opaque backdrop keeps the label reading as a clean plate
+       rather than a line threading through letter gaps. */
     .lane-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
+      background: rgba(255, 255, 255, 0.92);
+      border-radius: 6px;
+      padding: 2px 4px;
+      margin: -2px -4px 0;
     }
 
     .lane-heading {
@@ -1836,12 +1862,6 @@ export class PrismWorkflowGraphElement extends LitElement {
       font-size: 0.75rem;
       font-weight: 700;
       color: #334155;
-    }
-
-    .lane-copy {
-      margin-top: 0.125rem;
-      font-size: 0.75rem;
-      color: #475569;
     }
 
     .graph-edges {
@@ -1894,12 +1914,14 @@ export class PrismWorkflowGraphElement extends LitElement {
       justify-content: center;
       width: ${EDGE_LABEL_WIDTH}px;
       min-height: ${EDGE_LABEL_HEIGHT}px;
-      padding: 0.25rem 0.625rem;
-      border: 1px solid #cbd5e1;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.96);
-      color: #0f172a;
-      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      padding: 0.1rem 0.4rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      background: #ffffff;
+      color: #475569;
+      font-size: 0.6875rem;
+      font-weight: 500;
+      box-shadow: none;
       cursor: pointer;
     }
 
@@ -1947,28 +1969,41 @@ export class PrismWorkflowGraphElement extends LitElement {
       width: 100%;
       height: 100%;
       flex-direction: column;
+      align-items: center;
       justify-content: center;
       gap: 0.35rem;
       padding: 0.75rem;
       appearance: none;
       text-align: center;
-      border: 2px dashed #8b5cf6;
-      border-radius: 28px;
-      background: linear-gradient(180deg, #ffffff 0%, #f5f3ff 100%);
-      box-shadow: 0 10px 26px rgba(124, 58, 237, 0.12);
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #7c3aed;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
       cursor: pointer;
     }
 
+    .gateway-node .node-header {
+      justify-content: center;
+    }
+
+    .gateway-node .node-icon-chip {
+      background: rgba(124, 58, 237, 0.12);
+      color: #7c3aed;
+    }
+
     .gateway-node.kind-join {
-      border-color: #0f766e;
-      background: linear-gradient(180deg, #ffffff 0%, #ecfeff 100%);
-      box-shadow: 0 10px 26px rgba(15, 118, 110, 0.12);
+      border-left-color: #0f766e;
+    }
+
+    .gateway-node.kind-join .node-icon-chip {
+      background: rgba(15, 118, 110, 0.12);
+      color: #0f766e;
     }
 
     .gateway-node.selected {
-      border-style: solid;
       border-color: #1d4ed8;
-      box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.18), 0 12px 28px rgba(29, 78, 216, 0.16);
+      box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.35);
     }
 
     .gateway-node .surface-tag {
@@ -1977,8 +2012,8 @@ export class PrismWorkflowGraphElement extends LitElement {
 
     /* Single-route Split gateways render as a thin pill — low visual weight
        so straight-through routing reads as "stage → small pill → next stage"
-       instead of a heavy diamond. Multi-route Splits and all Joins keep the
-       full diamond shape rendered above. */
+       instead of a full card. Multi-route Splits and all Joins keep the
+       full card shape rendered above. */
     .gateway-node.shape-pill {
       flex-direction: row;
       gap: 0.35rem;
@@ -1989,7 +2024,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       border-width: 1px;
       border-radius: 999px;
       background: #f5f3ff;
-      box-shadow: 0 1px 3px rgba(124, 58, 237, 0.18);
+      box-shadow: 0 1px 2px rgba(124, 58, 237, 0.1);
       font-size: 0.75rem;
       font-weight: 600;
       color: #5b21b6;
@@ -2002,7 +2037,7 @@ export class PrismWorkflowGraphElement extends LitElement {
       font-weight: 700;
     }
     .gateway-node.shape-pill.selected {
-      box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.25), 0 1px 3px rgba(29, 78, 216, 0.2);
+      box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.3);
     }
 
     .stage-node {
@@ -2015,37 +2050,46 @@ export class PrismWorkflowGraphElement extends LitElement {
       padding: 0.875rem 1rem 1rem;
       appearance: none;
       text-align: left;
-      border: 2px solid #bfdbfe;
-      border-radius: 18px;
-      background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
-      box-shadow: 0 10px 30px rgba(37, 99, 235, 0.08);
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #2563eb;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
       cursor: pointer;
     }
 
+    .stage-node .node-icon-chip {
+      background: rgba(37, 99, 235, 0.1);
+      color: #2563eb;
+    }
+
     .stage-node.back-stage {
-      border-color: #cbd5e1;
-      background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      border-left-color: #64748b;
+    }
+
+    .stage-node.back-stage .node-icon-chip {
+      background: rgba(100, 116, 139, 0.14);
+      color: #475569;
     }
 
     .stage-node.selected {
       border-color: #1d4ed8;
-      box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.18), 0 14px 32px rgba(29, 78, 216, 0.16);
+      box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.35);
     }
 
     .stage-node.simulation-path {
       border-color: #00703c;
-      box-shadow: 0 0 0 3px rgba(0, 112, 60, 0.14), 0 14px 32px rgba(0, 112, 60, 0.12);
+      box-shadow: 0 0 0 2px rgba(0, 112, 60, 0.3);
     }
 
     .stage-node.simulation-current {
       border-color: #0b0c0c;
-      box-shadow: 0 0 0 4px rgba(255, 221, 0, 0.9), 0 0 0 7px rgba(11, 12, 12, 0.18);
+      box-shadow: 0 0 0 3px rgba(255, 221, 0, 0.9), 0 0 0 5px rgba(11, 12, 12, 0.18);
     }
 
     .stage-node.drag-target {
       border-color: #0f766e;
-      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.16);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.16);
     }
 
     .surface-tag {
@@ -2065,6 +2109,26 @@ export class PrismWorkflowGraphElement extends LitElement {
       color: #334155;
     }
 
+    .node-header {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .node-icon-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+    }
+
+    .node-icon-glyph {
+      display: block;
+    }
+
     .node-label {
       font-size: 1rem;
       font-weight: 700;
@@ -2074,8 +2138,11 @@ export class PrismWorkflowGraphElement extends LitElement {
     }
 
     .node-meta {
-      font-size: 0.8125rem;
-      color: #475569;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #64748b;
     }
 
     .node-action-summary {

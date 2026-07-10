@@ -30,6 +30,9 @@ async function sourceHandleCentre(page: Page, stageKey: string) {
 test.describe('Workflow canvas — drag-to-connect', () => {
   test('connecting a stage to a gateway adds a route and opens the inspector on it', async ({ page }) => {
     await gotoStory(page, GRAPH_STORY);
+    // The await-payment-confirmation drop target sits below the default fold
+    // once row spacing gives routes room to breathe; give the canvas room.
+    await page.setViewportSize({ width: 1440, height: 1100 });
 
     // Chips are per authored route; route paths are per node pair (and this
     // connection reuses an existing pair), so assert on chips.
@@ -61,8 +64,11 @@ test.describe('Workflow canvas — drag-to-connect', () => {
 
   test('connecting stage to stage routes through an auto-created Split gateway', async ({ page }) => {
     await gotoStory(page, GRAPH_STORY);
-    // The drop target renders below the default fold; give the canvas room.
-    await page.setViewportSize({ width: 1440, height: 1250 });
+    // payment-complete sits below the story host's fixed-height canvas — no
+    // viewport size brings it into view, only panning the canvas itself does.
+    await page.locator('prism-workflow-graph [data-prism-fit-screen]').click();
+    // fitView animates over 200ms.
+    await page.waitForTimeout(500);
 
     const handle = await sourceHandleCentre(page, 'confirm-payment-received');
     // payment-complete sits low in the canvas — drop on its visible top band.

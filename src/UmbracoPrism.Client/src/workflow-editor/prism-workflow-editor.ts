@@ -573,7 +573,17 @@ export class PrismWorkflowEditorElement extends LitElement {
       this._selectedTransitionIndex = null;
       return;
     }
-    this._selection = null;
+    // prism-step-inspector has no standalone "route" view — a transition is
+    // only ever shown nested inside the stage or gateway whose routes[]
+    // array actually owns it (mapRouteView sets fromGateway when the owner
+    // is a gateway; fromStage always holds the owner's key either way).
+    // Without also selecting that owner, the inspector falls through to its
+    // empty state and a newly-connected or outline-clicked route never
+    // becomes editable.
+    const route = transitions[transitionIndex];
+    this._selection = route.fromGateway
+      ? { kind: 'gateway', gatewayKey: route.fromGateway }
+      : { kind: 'stage', stageKey: route.fromStage };
     this._selectedTransitionIndex = transitionIndex;
     this._syncStagePreview();
   }
@@ -1071,7 +1081,18 @@ export class PrismWorkflowEditorElement extends LitElement {
     }>
   ) {
     const nextWorkflow = cloneWorkflow(e.detail.workflow);
-    const nextSelection = this._normaliseSelection(e.detail.selection);
+    const detailSelection = e.detail.selection;
+    // Transition selections (e.g. the route just created by drag-to-connect)
+    // aren't part of WorkflowSelection — they live in the separate
+    // _selectedTransitionIndex field alongside _applyTransitionHighlight.
+    // _normaliseSelection has no case for them, so route this before it
+    // drops the selection to null and leaves the properties panel empty.
+    if (detailSelection?.kind === 'transition' && typeof detailSelection.transitionIndex === 'number') {
+      this._commitWorkflowUpdate(nextWorkflow, null);
+      this._applyTransitionHighlight(detailSelection.transitionIndex, nextWorkflow);
+      return;
+    }
+    const nextSelection = this._normaliseSelection(detailSelection);
     this._commitWorkflowUpdate(nextWorkflow, nextSelection);
   }
 

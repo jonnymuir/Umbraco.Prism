@@ -47,6 +47,7 @@ function serialisableState(stage: AuthoredStage): Record<string, unknown> {
     actions: stage.actions,
     roleGates: stage.roleGates,
     editorComment: stage.editorComment,
+    icon: stage.icon,
   };
 }
 
@@ -66,6 +67,7 @@ function serialisableGateway(gateway: AuthoredGateway): Record<string, unknown> 
     waitingAllowDefer: gateway.waitingAllowDefer,
     waitingDeferMessage: gateway.waitingDeferMessage,
     requiredIncomingQueues: gateway.requiredIncomingQueues,
+    icon: gateway.icon,
   };
 }
 

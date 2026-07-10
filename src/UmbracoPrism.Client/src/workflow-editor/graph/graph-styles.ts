@@ -56,9 +56,13 @@ const GRAPH_CANVAS_OVERRIDES = `
   }
 
   .react-flow__handle.graph-handle.connectable {
+    /* Resting state stays subtly visible — a hairline dot, not fully hidden
+       — so authors can discover drag-to-connect without having to hover
+       every node first. Hover/focus/drag states below make it unmistakable. */
+    opacity: 0.55;
     pointer-events: all;
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: #1d4ed8;
     border: 2px solid #ffffff;
@@ -71,6 +75,8 @@ const GRAPH_CANVAS_OVERRIDES = `
   .react-flow__handle.graph-handle.connectingto,
   .react-flow__handle.graph-handle.valid {
     opacity: 1;
+    width: 12px;
+    height: 12px;
   }
 
   .react-flow__connectionline path {

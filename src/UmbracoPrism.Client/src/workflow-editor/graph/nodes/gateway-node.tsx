@@ -1,6 +1,8 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useGraphCallbacks } from '../graph-callbacks.js';
 import type { GatewayFlowNode } from '../graph-model.js';
+import { iconForGateway } from '../node-icons.js';
+import { NodeIcon } from './node-icon.js';
 
 export function GatewayNode({ data }: NodeProps<GatewayFlowNode>) {
   const callbacks = useGraphCallbacks();
@@ -37,6 +39,8 @@ export function GatewayNode({ data }: NodeProps<GatewayFlowNode>) {
       data-prism-row-rank={String(rowRank)}
     >
       <Handle type="target" position={Position.Top} id="in" isConnectable={!readOnly} className="graph-handle" />
+      <Handle type="target" position={Position.Left} id="in-left" isConnectable={!readOnly} className="graph-handle" />
+      <Handle type="target" position={Position.Right} id="in-right" isConnectable={!readOnly} className="graph-handle" />
       <button
         type="button"
         className={className}
@@ -61,9 +65,19 @@ export function GatewayNode({ data }: NodeProps<GatewayFlowNode>) {
                 : null}
             </>
           )
-          : <span className="node-label">{gateway.displayName}</span>}
+          : (
+            <>
+              <span className="node-header">
+                <span className="node-icon-chip"><NodeIcon icon={iconForGateway(gateway)} /></span>
+                <span className="node-meta">{gateway.gatewayType}</span>
+              </span>
+              <span className="node-label">{gateway.displayName}</span>
+            </>
+          )}
       </button>
       <Handle type="source" position={Position.Bottom} id="out" isConnectable={!readOnly} className="graph-handle" />
+      <Handle type="source" position={Position.Left} id="out-left" isConnectable={!readOnly} className="graph-handle" />
+      <Handle type="source" position={Position.Right} id="out-right" isConnectable={!readOnly} className="graph-handle" />
     </div>
   );
 }
