@@ -39,7 +39,7 @@ public interface IWorkflowSourceStore
 {
     Task<IReadOnlyList<WorkflowSourceSummary>> ListAsync(CancellationToken ct = default);
     Task<WorkflowDefinitionFile?> LoadAsync(string definitionKey, CancellationToken ct = default);
-    Task<string> SaveAsync(WorkflowDefinitionFile workflow, CancellationToken ct = default);
+    Task<WorkflowSaveResult> SaveAsync(WorkflowDefinitionFile workflow, int expectedVersion, CancellationToken ct = default);
 }
 ```
 
@@ -49,6 +49,28 @@ Two ready-made implementations already exist in `UmbracoPrism.WorkflowRuntime.St
 want a save to update your live runtime engine immediately (it calls
 `engine.UpdateDefinition(...)` inside `SaveAsync`). A real app would usually back this
 with a database.
+
+### `SaveAsync` must be an atomic compare-and-swap
+
+A human in the editor and an AI agent can both be working against the same workflow at
+once — without a real concurrency check, whichever one saves last silently overwrites the
+other with no warning. `SaveAsync` only writes if `expectedVersion` still matches what's
+currently persisted, and returns `WorkflowSaveResult(Saved, CurrentVersion, Location)` so
+the caller can tell success from a conflict. **This must be a single atomic operation, not
+a separate read-then-compare-then-write** — the reference implementations use an
+in-process lock (correct for a single-process app only); a real database-backed store
+should use the `WHERE` clause itself as the atomic compare:
+
+```sql
+UPDATE Workflows SET Definition = @json, Version = Version + 1
+WHERE DefinitionKey = @key AND Version = @expectedVersion
+```
+
+If `0` rows are affected, either the row doesn't exist yet or `Version` had already moved
+on — either way, that's a conflict, not a success. `WorkflowAuthoringService.SaveAsync`
+wraps this into `WorkflowSaveOutcome` (`Status`: `Saved`/`Invalid`/`Conflict`), which both
+the REST `PUT` (409 on conflict) and the MCP `save_workflow` tool already surface — you
+don't need to build this part yourself, just implement the store correctly.
 
 ### Wiring it up
 
