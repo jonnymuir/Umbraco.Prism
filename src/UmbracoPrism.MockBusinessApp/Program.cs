@@ -17,6 +17,7 @@ using UmbracoPrism.WorkflowRuntime.Abstractions;
 using UmbracoPrism.WorkflowRuntime.Api;
 using UmbracoPrism.WorkflowRuntime.Extensions;
 using UmbracoPrism.WorkflowRuntime.Mcp;
+using UmbracoPrism.WorkflowRuntime.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -176,7 +177,7 @@ app.MapGet("/mockapp/workflows/{key}", async (string key, IWorkflowSourceStore s
         : Results.Json(workflow, mockWorkflowJsonOptions);
 });
 
-app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, IWorkflowSourceStore store, ILogger<Program> logger) =>
+app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, IWorkflowSourceStore store, WorkflowAuthoringService authoringService, ILogger<Program> logger) =>
 {
     if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9_\-]+$"))
     {
@@ -186,7 +187,7 @@ app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, IWork
             title: "Invalid workflow key");
     }
 
-    var parseResult = await WorkflowSourceSaveRequestParser.ParseAsync(ctx, mockWorkflowJsonOptions, ctx.RequestAborted);
+    var parseResult = await WorkflowSourceSaveRequestParser.ParseAsync(ctx, mockWorkflowJsonOptions, authoringService, ctx.RequestAborted);
     if (parseResult.Problem is not null)
     {
         return WorkflowSourceSaveRequestParser.ToProblemResult(ctx, parseResult.Problem);
