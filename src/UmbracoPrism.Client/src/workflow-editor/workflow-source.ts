@@ -20,6 +20,15 @@ export interface WorkflowSaveErrorOptions {
   detailLines?: string[];
   traceId?: string | null;
   statusCode?: number;
+  /**
+   * True when the save failed because the workflow's `version` no longer matched what's
+   * currently persisted (HTTP 409) — someone else (a human in the editor, or an AI agent)
+   * saved a newer version. Distinct from a validation failure: reload and reapply the
+   * change rather than just fixing the payload and retrying.
+   */
+  isConflict?: boolean;
+  /** The version actually persisted now, when `isConflict` is true. */
+  currentVersion?: number | null;
 }
 
 type WorkflowSaveErrorLike = Partial<WorkflowSaveErrorOptions> & {
@@ -90,6 +99,8 @@ export class WorkflowSaveError extends Error {
   readonly detailLines: string[];
   readonly traceId: string | null;
   readonly statusCode?: number;
+  readonly isConflict: boolean;
+  readonly currentVersion: number | null;
 
   constructor(options: WorkflowSaveErrorOptions) {
     super(options.summary);
@@ -99,6 +110,8 @@ export class WorkflowSaveError extends Error {
     this.detailLines = options.detailLines ?? [];
     this.traceId = options.traceId ?? null;
     this.statusCode = options.statusCode;
+    this.isConflict = options.isConflict ?? false;
+    this.currentVersion = options.currentVersion ?? null;
   }
 
   get copyText(): string {
@@ -156,7 +169,16 @@ export interface WorkflowSource {
 
   /**
    * Persists the authored workflow back to the host. The host enforces save permissions.
-   * Hosts may throw `WorkflowSaveError` with a user-facing title/summary/detail payload.
+   * Hosts may throw `WorkflowSaveError` with a user-facing title/summary/detail payload
+   * (with `isConflict: true` when the workflow's `version` no longer matched — see
+   * `AuthoredWorkflow.version` and the host's optimistic-concurrency contract).
    */
   save(key: string, workflow: AuthoredWorkflow): Promise<void>;
+
+  /**
+   * Optional: returns the currently-persisted version of a workflow, for a client that wants
+   * to proactively detect staleness (e.g. poll while a workflow is open) rather than only
+   * finding out via a `save` conflict. Hosts that don't support versioning can omit this.
+   */
+  checkVersion?(key: string): Promise<number | null>;
 }

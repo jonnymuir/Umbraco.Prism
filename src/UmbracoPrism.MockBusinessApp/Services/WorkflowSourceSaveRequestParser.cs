@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.WorkflowRuntime.Services;
 
 namespace UmbracoPrism.MockBusinessApp.Services;
 
@@ -39,6 +40,7 @@ internal static class WorkflowSourceSaveRequestParser
     public static async Task<WorkflowSourceSaveParseResult> ParseAsync(
         HttpContext context,
         JsonSerializerOptions serializerOptions,
+        WorkflowAuthoringService authoringService,
         CancellationToken ct = default)
     {
         using var reader = new StreamReader(context.Request.Body);
@@ -99,16 +101,19 @@ internal static class WorkflowSourceSaveRequestParser
                     [new WorkflowSourceSaveError("request-body-empty", "Provide a workflow JSON document in the request body.", "$")]);
             }
 
-            var routingErrors = workflow.ValidateGatewayRouting();
-            if (routingErrors.Count > 0)
+            // Same toolkit validation the AI-authoring surface runs (ValidateGatewayRouting() +
+            // calculations smoke-check) — this endpoint's component-type whitelist above is the
+            // only check that's specific to this host's save path.
+            var outcome = authoringService.Validate(workflow);
+            if (!outcome.IsValid)
             {
                 return WorkflowSourceSaveParseResult.Fail(
                     400,
                     InvalidWorkflowPayloadTitle,
-                    "State routes must always target a gateway, never another state directly.",
-                    "workflow-gateway-routing-invalid",
-                    routingErrors.Take(MaxIssues)
-                        .Select(msg => new WorkflowSourceSaveError("state-route-targets-state", msg, "$.states[*].routes[*].target"))
+                    "The workflow definition failed validation.",
+                    "workflow-validation-invalid",
+                    outcome.Errors.Take(MaxIssues)
+                        .Select(msg => new WorkflowSourceSaveError("workflow-invalid", msg, "$"))
                         .ToArray());
             }
 

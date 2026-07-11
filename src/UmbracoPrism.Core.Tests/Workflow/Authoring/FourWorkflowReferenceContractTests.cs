@@ -51,7 +51,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         workflows.Should().HaveCount(5,
             because: "the reference contract specifies exactly 5 demo workflows");
 
-        var actualKeys = workflows!.Select(w => w.WorkflowKey).OrderBy(k => k).ToList();
+        var actualKeys = workflows!.Select(w => w.DefinitionKey).OrderBy(k => k).ToList();
         actualKeys.Should().BeEquivalentTo(ExpectedWorkflowKeys.OrderBy(k => k),
             because: "the source API should list exactly the canonical workflows");
     }
@@ -132,7 +132,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     {
         var sourceResponse = await _client.GetAsync("/mockapp/workflows");
         var workflows = await sourceResponse.Content.ReadFromJsonAsync<List<MockAppWorkflowSummary>>();
-        var sourceKeys = workflows!.Select(w => w.WorkflowKey).OrderBy(k => k).ToList();
+        var sourceKeys = workflows!.Select(w => w.DefinitionKey).OrderBy(k => k).ToList();
 
         var adminResponse = await _client.GetAsync("/admin/workflow");
         var adminBody = await adminResponse.Content.ReadAsStringAsync();
@@ -193,7 +193,14 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         }
         finally
         {
-            using var restore = new StringContent(existingJson, Encoding.UTF8, "application/json");
+            // The save above bumped the version, so replaying the pre-save payload verbatim would
+            // now (correctly) hit a 409 conflict. Restore the original content but with the
+            // version bumped to whatever's current, same as a real client re-reading before saving.
+            var currentVersion = await _client.GetFromJsonAsync<WorkflowDefinitionFile>("/mockapp/workflows/payment-demo");
+            var restorePayload = JsonNode.Parse(existingJson)!.AsObject();
+            restorePayload["version"] = currentVersion!.Version;
+
+            using var restore = new StringContent(restorePayload.ToJsonString(), Encoding.UTF8, "application/json");
             var restored = await _client.PutAsync("/mockapp/workflows/payment-demo", restore);
             restored.StatusCode.Should().Be(HttpStatusCode.NoContent);
         }
@@ -231,6 +238,41 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     }
 
     /// <summary>
+    /// Validation parity: the editor's save path (WorkflowSourceSaveRequestParser, via
+    /// this endpoint) and the AI toolkit's save path (WorkflowAuthoringService.Validate,
+    /// via /prism/workflow-authoring/*) must reject the exact same malformed definition —
+    /// a state route that targets another state directly instead of a gateway.
+    /// </summary>
+    [Fact]
+    public async Task SourceApi_SaveRejectsStateRouteThatBypassesAGateway_SameAsAiToolkit()
+    {
+        var existingJson = await _client.GetStringAsync("/mockapp/workflows/planning");
+        var payload = JsonNode.Parse(existingJson)!.AsObject();
+        var states = payload["states"]!.AsArray();
+        var declaration = states.Select(n => n!.AsObject())
+            .Single(n => n["stateKey"]!.GetValue<string>() == "declaration");
+        var route = declaration["routes"]!.AsArray()[0]!.AsObject();
+        route["target"] = "application-form"; // a state key, not a gateway key
+
+        using var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
+        var response = await _client.PutAsync("/mockapp/workflows/planning", content);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
+            because: "this is the exact WorkflowDefinitionFile.ValidateGatewayRouting() violation the AI toolkit's save_workflow/validate_workflow also reject");
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = problem.RootElement;
+
+        root.GetProperty("errorCode").GetString().Should().Be("workflow-validation-invalid");
+        var errors = root.GetProperty("errors");
+        errors.GetArrayLength().Should().BeGreaterThan(0);
+        errors[0].GetProperty("message").GetString().Should().Contain(
+            "Routes from states must always target a gateway",
+            because: "this is the same message ValidateGatewayRouting() produces for the AI-toolkit path");
+    }
+
+    /// <summary>
     /// Anonymous test factory for the MockBusinessApp. The Slice B
     /// <c>/mockapp/workflows/*</c> endpoints are deliberately unauthenticated
     /// in the reference app — real downstream apps add their own auth.
@@ -253,5 +295,5 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         }
     }
 
-    private sealed record MockAppWorkflowSummary(string WorkflowKey, string DefinitionKey, string DisplayName);
+    private sealed record MockAppWorkflowSummary(string DefinitionKey, string DisplayName);
 }
