@@ -37,14 +37,19 @@ export interface WorkflowSource {
 
   /** Persists the authored workflow back to the host. The host enforces save permissions. */
   save(key: string, workflow: AuthoredWorkflow): Promise<void>;
+
+  /** Optional: current persisted version, for proactive staleness polling. See below. */
+  checkVersion?(key: string): Promise<number | null>;
 }
 ```
 
-The interface has three methods:
+The interface has three required methods, plus one optional one:
 
 - **`list()`** — return a list of workflows. Each entry has a `workflowKey`, `definitionKey`, and `displayName`.
 - **`load(key)`** — load one workflow by key. Return an `AuthoredWorkflow` object.
-- **`save(key, workflow)`** — save the workflow. Your implementation enforces permissions. Reject the promise if the user cannot save.
+- **`save(key, workflow)`** — save the workflow. Your implementation enforces permissions. Reject the promise if the user cannot save. If your host also exposes this workflow to AI agents (see the
+  [AI-Ready Workflow Authoring guide](./ai-workflow-authoring.md)), a human and an agent can edit the same workflow at once — `save` should reject with a `WorkflowSaveError` whose `isConflict: true` when `workflow.version` no longer matches what's persisted, so the editor can show its built-in "changed elsewhere, reload" affordance instead of silently overwriting the other side's change.
+- **`checkVersion(key)`** *(optional)* — return the currently-persisted version. If you implement it, the editor polls every 15s while a workflow is open and toasts a heads-up (with its own Reload action) before the author even tries to save. Skip it and you just don't get proactive detection — `save`'s conflict handling still works either way.
 
 Your implementation can talk to memory, a file system, a database, a blob store, or any HTTP API you want. The editor does not care.
 

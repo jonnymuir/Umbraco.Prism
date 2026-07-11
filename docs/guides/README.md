@@ -5,6 +5,7 @@ Step-by-step guides for common workflows and customizations in Umbraco.Prism.
 ## Getting Started
 
 - **[Embedding the Workflow Editor](./embedding-the-workflow-editor.md)** — **Primary integrator recipe.** Build a business app on top of Prism. Implement `WorkflowSource`, wire the editor, extend the action catalog.
+- **[AI-Ready Workflow Authoring](./ai-workflow-authoring.md)** — Let an AI agent (Claude Code or any MCP client) list, read, validate, simulate, and save your workflows. Implement `IWorkflowSourceStore`, add `MapPrismWorkflowAuthoringApi()`/`MapPrismWorkflowAuthoringMcp()`.
 - **[Workflow Editor Composition](./workflow-editor-composition.md)** — Advanced patterns for custom hosts. Custom canonical JSON helpers, custom action catalogs, building your own host wrapper.
 - **[Umbraco Integration](./umbraco-integration.md)** — Embed Prism workflows in your Umbraco site. Member surface, business app, authentication, roles.
 - **[Setting Up a Prism Workflow](./workflow-setup.md)** — Create and configure a workflow in Umbraco.Prism, from definition to runtime.

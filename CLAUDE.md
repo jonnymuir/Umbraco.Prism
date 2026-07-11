@@ -15,6 +15,8 @@ Solo developer project. Work directly on `main` for simple fixes; use feature br
 | `UmbracoPrism.Core` | The publishable Umbraco package — controllers, middleware, auth, services, tag helpers, views |
 | `UmbracoPrism.Shared` | Shared models used by both Core and demo apps — `WorkflowDefinitionFile`, `WorkflowResponseEnvelope`, etc. |
 | `UmbracoPrism.WorkflowRuntime` | Workflow state-machine engine — queue routing, gateway evaluation, instance persistence |
+| `UmbracoPrism.WorkflowRuntime.Api` | REST toolkit (`MapPrismWorkflowAuthoringApi()`) exposing workflow authoring — list/read/validate/save/simulate — over HTTP for any host |
+| `UmbracoPrism.WorkflowRuntime.Mcp` | MCP-over-HTTP toolkit (`MapPrismWorkflowAuthoringMcp()`) — the same authoring surface as MCP tools for AI agents |
 | `UmbracoPrism.WorkflowEditor` | Razor Class Library hosting the compiled workflow editor web component as a static web asset |
 | `UmbracoPrism.Client` | TypeScript/Lit web components — workflow editor, backoffice extensions, mobile shell |
 | `UmbracoPrism.MockBusinessApp` | Demo business API — hosts `IWorkflowRuntimeEngine`, loads workflow seed files, serves `/mockapp/` endpoints |
@@ -156,6 +158,22 @@ without JavaScript; the Recalculate self-loop re-renders authoritatively) and
 `prism-live-form` (`src/UmbracoPrism.Client/src/live-form/`) upgrades the page in place —
 it contains no domain knowledge and no layout. There are no bespoke per-workflow client
 components.
+
+### AI-ready workflow authoring
+
+Workflow authoring is exposed to AI agents (Claude Code or any MCP client) the same way
+the editor is exposed to humans: as a toolkit a host app wires into its own pipeline, not
+as AI built into Prism itself. `WorkflowAuthoringService`/`IWorkflowSourceStore`
+(`UmbracoPrism.WorkflowRuntime`) are the reusable core; `UmbracoPrism.WorkflowRuntime.Api`
+(`MapPrismWorkflowAuthoringApi()`) and `UmbracoPrism.WorkflowRuntime.Mcp`
+(`MapPrismWorkflowAuthoringMcp()`) map the same list/read/validate/save/simulate
+operations as REST and MCP-over-HTTP respectively — both call the service in-process, so
+a save reaches a host's live engine immediately. `MockBusinessApp` is the reference
+implementation (`Program.cs`); see the
+[AI-Ready Workflow Authoring guide](docs/guides/ai-workflow-authoring.md) for the full
+integrator recipe. MCP hosting is HTTP-only by design — a stdio MCP server would be a
+separate spawned process with no access to a host's live state, and Aspire can't manage
+a stdio server as a background resource (nothing would drive its stdin).
 
 ### Authentication
 

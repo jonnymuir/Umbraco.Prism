@@ -28,6 +28,32 @@ type ProblemDetailsPayload = {
   };
 };
 
+// The shape UmbracoPrism.WorkflowRuntime.Services.WorkflowSaveOutcome serializes to — returned
+// by both /mockapp/workflows/{key} and /prism/workflow-authoring/workflows/{key} on a version
+// conflict (409). Not a ProblemDetails payload, so it's parsed separately.
+type WorkflowSaveOutcomePayload = {
+  status?: unknown;
+  errors?: unknown;
+  currentVersion?: unknown;
+  newVersion?: unknown;
+};
+
+function parseConflictOutcome(payload: WorkflowSaveOutcomePayload, workflowKey: string): WorkflowSaveError {
+  const currentVersion = typeof payload.currentVersion === 'number' ? payload.currentVersion : null;
+  const detailLines = readStructuredErrorLines(payload.errors);
+  const summary = sanitiseWorkflowSaveErrorText(detailLines[0])
+    ?? `“${workflowKey}” was changed elsewhere since you loaded it${currentVersion != null ? ` (now at version ${currentVersion})` : ''}.`;
+
+  return new WorkflowSaveError({
+    title: 'This workflow changed elsewhere',
+    summary,
+    detailLines: detailLines.filter(line => line !== summary),
+    statusCode: 409,
+    isConflict: true,
+    currentVersion,
+  });
+}
+
 function readStructuredErrorLines(value: unknown): string[] {
   if (Array.isArray(value)) {
     return sanitiseWorkflowSaveErrorLines(value.filter((entry): entry is string => typeof entry === 'string'));
@@ -92,6 +118,10 @@ async function buildSaveError(response: Response, workflowKey: string): Promise<
 
   if (contentType.includes('json') || payloadText.trim().startsWith('{')) {
     try {
+      if (response.status === 409) {
+        return parseConflictOutcome(JSON.parse(payloadText) as WorkflowSaveOutcomePayload, workflowKey);
+      }
+
       const payload = JSON.parse(payloadText) as ProblemDetailsPayload;
       return parseProblemDetails(payload, response.status, workflowKey);
     } catch {
@@ -155,5 +185,22 @@ export class MockBusinessAppWorkflowSource implements WorkflowSource {
     if (!response.ok) {
       throw await buildSaveError(response, workflowKey);
     }
+  }
+
+  /**
+   * Cheap poll target: reads just the version, not the full definition. Uses the
+   * definitionKey-keyed toolkit route rather than /mockapp/workflows/* — both read from the
+   * same underlying store, so either is correct, but this one exists specifically for this.
+   */
+  async checkVersion(workflowKey: string): Promise<number | null> {
+    const response = await fetch(
+      `${this.base}/prism/workflow-authoring/workflows/${encodeURIComponent(workflowKey)}/version`,
+      { headers: { Accept: 'application/json' }, credentials: 'same-origin' }
+    );
+    if (!response.ok) {
+      return null;
+    }
+    const payload = (await response.json()) as { version?: unknown };
+    return typeof payload.version === 'number' ? payload.version : null;
   }
 }
