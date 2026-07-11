@@ -337,11 +337,20 @@ export function computeTopology(
   transitions.forEach((transition, index) => {
     const sourceStageId = stageNodeId(transition.fromStage);
     const targetStageId = stageNodeId(transition.toStage);
-    const sourceGatewayKey = transition.fromGateway ?? splitGatewayKeyByAnchorStage.get(transition.fromStage) ?? null;
     // Routes that genuinely target a join gateway already carry an explicit
     // toGateway value set by flattenRoutes; falling back to a join anchor
     // lookup here would intercept direct routes to regular stages.
     const targetGatewayKey = transition.toGateway ?? null;
+    // Mirror image of the guard above: a route whose target is already a
+    // resolved gateway fully describes its own routing (stage → that
+    // gateway) and needs no source-side wrapping. Falling back to "whichever
+    // Split gateway is anchored to this stage" regardless would, on a stage
+    // with several routes to several distinct gateways, wire every route
+    // after the first through the first route's gateway instead of the
+    // stage itself — fabricating an edge between two unrelated gateways
+    // that never appears in the authored JSON.
+    const sourceGatewayKey = transition.fromGateway
+      ?? (targetGatewayKey ? null : splitGatewayKeyByAnchorStage.get(transition.fromStage) ?? null);
     const sourceGatewayId = sourceGatewayKey ? gatewayNodeId(sourceGatewayKey) : null;
     const targetGatewayId = targetGatewayKey ? gatewayNodeId(targetGatewayKey) : null;
 
@@ -478,7 +487,11 @@ export function computeTopology(
   // of the routed path stage → split gateway? → join gateway? → target).
   const transitionBindings: TransitionBinding[] = transitions.map((transition, index) => {
     const sourceStageId = stageNodeId(transition.fromStage);
-    const sourceGatewayKey = transition.fromGateway ?? splitGatewayKeyByAnchorStage.get(transition.fromStage) ?? null;
+    // See the matching guard in the adjacency-building loop above: a route
+    // that already resolves its own target gateway needs no source-side
+    // anchor fallback.
+    const sourceGatewayKey = transition.fromGateway
+      ?? (transition.toGateway ? null : splitGatewayKeyByAnchorStage.get(transition.fromStage) ?? null);
     const sourceGatewayId = sourceGatewayKey && nodeById.has(gatewayNodeId(sourceGatewayKey))
       ? gatewayNodeId(sourceGatewayKey)
       : null;
@@ -547,6 +560,7 @@ export function computeDerivedLayout(topology: GraphTopology): WorkflowGraphLayo
   const nodesByQueueRow = new Map<string, Map<number, GraphTopologyNode[]>>();
   const rankFor = (node: GraphTopologyNode) =>
     topology.ranks.get(node.id) ?? (node.kind === 'gateway' ? 1 : 0);
+  const allRanks = new Set<number>();
   topology.nodes.forEach(node => {
     let rows = nodesByQueueRow.get(node.queueKey);
     if (!rows) {
@@ -554,6 +568,7 @@ export function computeDerivedLayout(topology: GraphTopology): WorkflowGraphLayo
       nodesByQueueRow.set(node.queueKey, rows);
     }
     const rowRank = rankFor(node);
+    allRanks.add(rowRank);
     const rowItems = rows.get(rowRank) ?? [];
     rowItems.push(node);
     rows.set(rowRank, rowItems);
@@ -593,41 +608,85 @@ export function computeDerivedLayout(topology: GraphTopology): WorkflowGraphLayo
     currentLaneX += lane.width + LANE_GAP;
   });
 
-  // 6. Place nodes inside their queue × row band, slots centred and laid
-  //    left-to-right by node introduction order.
+  // 6. Place nodes rank-by-rank, globally ascending, queue by queue within
+  //    each rank — rather than centring every row independently in its lane.
+  //    A row's slot order and block position lean on where its predecessors
+  //    already landed (a one-pass barycenter sweep), so a fan-out's branches
+  //    hold a stable column all the way down to their merge instead of each
+  //    row re-centring on its own and flattening real branching into what
+  //    reads as a single straight line. Forward (non-backward) edges always
+  //    target a strictly higher rank, so every predecessor referenced here
+  //    has already been placed by the time its dependents are laid out.
   const nodeOrder = new Map(topology.nodes.map((node, index) => [node.id, index]));
-  const placements = new Map<string, NodePlacement>();
-  topology.queues.forEach(queue => {
-    const lane = laneByKey.get(queue.key);
-    const rows = nodesByQueueRow.get(queue.key);
-    if (!lane || !rows) {
+  const incomingByNode = new Map<string, string[]>();
+  topology.edges.forEach(edge => {
+    if (edge.backward) {
       return;
     }
-    [...rows.entries()]
-      .sort((left, right) => left[0] - right[0])
-      .forEach(([rowRank, items]) => {
-        const orderedItems = [...items].sort(
-          (left, right) => (nodeOrder.get(left.id) ?? 0) - (nodeOrder.get(right.id) ?? 0)
-        );
-        const contentWidth = orderedItems.reduce((sum, item) => sum + item.width, 0);
-        const totalWidth = contentWidth + Math.max(orderedItems.length - 1, 0) * SLOT_GAP;
-        let cursorX = lane.x + (lane.width - totalWidth) / 2;
-        const bandCenter = rowBandCenter(rowRank);
+    const incoming = incomingByNode.get(edge.toId) ?? [];
+    incoming.push(edge.fromId);
+    incomingByNode.set(edge.toId, incoming);
+  });
 
-        orderedItems.forEach(item => {
-          placements.set(item.id, {
-            id: item.id,
-            kind: item.kind,
-            x: cursorX,
-            y: bandCenter - item.height / 2,
-            width: item.width,
-            height: item.height,
-            queueKey: queue.key,
-            rowRank,
-          });
-          cursorX += item.width + SLOT_GAP;
+  const placements = new Map<string, NodePlacement>();
+  const preferredCenterX = (nodeId: string, lane: LaneGeometry): number => {
+    const predecessorCenters = (incomingByNode.get(nodeId) ?? [])
+      .map(id => placements.get(id))
+      .filter((placement): placement is NodePlacement => placement !== undefined)
+      .map(placement => placement.x + placement.width / 2);
+    if (predecessorCenters.length === 0) {
+      return lane.x + lane.width / 2;
+    }
+    return predecessorCenters.reduce((sum, x) => sum + x, 0) / predecessorCenters.length;
+  };
+
+  [...allRanks].sort((left, right) => left - right).forEach(rowRank => {
+    topology.queues.forEach(queue => {
+      const lane = laneByKey.get(queue.key);
+      const items = nodesByQueueRow.get(queue.key)?.get(rowRank);
+      if (!lane || !items || items.length === 0) {
+        return;
+      }
+
+      // Order left-to-right by where each item's predecessors already sit
+      // (its preferred column), falling back to introduction order for
+      // siblings tied on the same predecessor (e.g. two routes fanning out
+      // of the same gateway).
+      const entries = items
+        .map(item => ({ item, preferredCenter: preferredCenterX(item.id, lane) }))
+        .sort((left, right) =>
+          left.preferredCenter - right.preferredCenter
+          || (nodeOrder.get(left.item.id) ?? 0) - (nodeOrder.get(right.item.id) ?? 0));
+
+      const contentWidth = entries.reduce((sum, entry) => sum + entry.item.width, 0);
+      const totalWidth = contentWidth + Math.max(entries.length - 1, 0) * SLOT_GAP;
+      const blockCenter = entries.reduce((sum, entry) => sum + entry.preferredCenter, 0) / entries.length;
+
+      // The widest row in this lane already sizes the lane to
+      // LANE_INSET*2 + its own totalWidth, so every row's totalWidth fits
+      // within lane.width - LANE_INSET*2 — this clamp keeps the row's block
+      // as close to its preferred column as the lane allows, without ever
+      // spilling past the lane's inset edges.
+      const insetMin = lane.x + LANE_INSET;
+      const insetMax = lane.x + lane.width - LANE_INSET - totalWidth;
+      const startX = Math.min(Math.max(blockCenter - totalWidth / 2, insetMin), insetMax);
+
+      const bandCenter = rowBandCenter(rowRank);
+      let cursorX = startX;
+      entries.forEach(({ item }) => {
+        placements.set(item.id, {
+          id: item.id,
+          kind: item.kind,
+          x: cursorX,
+          y: bandCenter - item.height / 2,
+          width: item.width,
+          height: item.height,
+          queueKey: queue.key,
+          rowRank,
         });
+        cursorX += item.width + SLOT_GAP;
       });
+    });
   });
 
   const width = lanes.length === 0

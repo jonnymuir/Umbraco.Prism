@@ -21,9 +21,15 @@ const CHIP_WIDTH = 92;
 const CHIP_HEIGHT = 24;
 const CHIP_STACK_PITCH = 26;
 
+export type HandleSide = 'top' | 'bottom' | 'left' | 'right';
+export type HandleSlot = { id: string; side: HandleSide; offset: number };
+type EdgeHandles = { sourceHandle: string; targetHandle: string };
+
 export type StageNodeData = {
   node: StageTopologyNode;
   rowRank: number;
+  sourceHandles: HandleSlot[];
+  targetHandles: HandleSlot[];
   selected: boolean;
   simulationPath: boolean;
   simulationCurrent: boolean;
@@ -34,6 +40,8 @@ export type StageNodeData = {
 export type GatewayNodeData = {
   node: GatewayTopologyNode;
   rowRank: number;
+  sourceHandles: HandleSlot[];
+  targetHandles: HandleSlot[];
   selected: boolean;
   readOnly: boolean;
   routeCount: number;
@@ -91,50 +99,46 @@ function transitionDescriptor(workflow: AuthoredWorkflow | null, transition: Rou
   return `${labelForNodeKey(workflow, transition.fromStage)} to ${labelForNodeKey(workflow, transition.toStage)}`;
 }
 
-type EdgeHandles = { sourceHandle: string; targetHandle: string };
-
 /**
- * Nodes only expose a Top/Bottom pair by default, matching the usual
+ * Nodes route through the Top/Bottom side by default, matching the usual
  * top-to-bottom rank flow. Once a manual drag (or an unusual layout) puts a
  * connected node beside — rather than below — its neighbour, forcing the
  * edge through Top/Bottom produces a long detour through empty canvas
  * instead of a short direct line. When the relationship is predominantly
- * horizontal, route through the Left/Right pair instead. Backward
+ * horizontal, route through the Left/Right side instead. Backward
  * (loop-back) edges keep Top/Bottom — their looping visual is intentional,
  * not a routing failure.
  */
-function pickEdgeHandles(
+function pickEdgeSides(
   from: NodePlacement | undefined,
   to: NodePlacement | undefined,
   backward: boolean
-): EdgeHandles {
+): { sourceSide: HandleSide; targetSide: HandleSide } {
   if (!backward && from && to) {
     const dx = (to.x + to.width / 2) - (from.x + from.width / 2);
     const dy = (to.y + to.height / 2) - (from.y + from.height / 2);
     if (Math.abs(dx) > Math.abs(dy)) {
       return dx >= 0
-        ? { sourceHandle: 'out-right', targetHandle: 'in-left' }
-        : { sourceHandle: 'out-left', targetHandle: 'in-right' };
+        ? { sourceSide: 'right', targetSide: 'left' }
+        : { sourceSide: 'left', targetSide: 'right' };
     }
   }
-  return { sourceHandle: 'out', targetHandle: 'in' };
+  return { sourceSide: 'bottom', targetSide: 'top' };
 }
 
 type Point = { x: number; y: number };
 
-/** Where a given handle id actually sits on a placed node, in flow space. */
-function handlePoint(node: NodePlacement, handleId: string): Point {
-  switch (handleId) {
-    case 'out-left':
-    case 'in-left':
-      return { x: node.x, y: node.y + node.height / 2 };
-    case 'out-right':
-    case 'in-right':
-      return { x: node.x + node.width, y: node.y + node.height / 2 };
-    case 'in':
-      return { x: node.x + node.width / 2, y: node.y };
+/** Where a fractional offset along a given node side sits, in flow space. */
+function handlePoint(node: NodePlacement, side: HandleSide, offset: number): Point {
+  switch (side) {
+    case 'left':
+      return { x: node.x, y: node.y + node.height * offset };
+    case 'right':
+      return { x: node.x + node.width, y: node.y + node.height * offset };
+    case 'top':
+      return { x: node.x + node.width * offset, y: node.y };
     default:
-      return { x: node.x + node.width / 2, y: node.y + node.height };
+      return { x: node.x + node.width * offset, y: node.y + node.height };
   }
 }
 
@@ -142,15 +146,143 @@ function midpoint(a: Point, b: Point): Point {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
+type EdgeHandleAssignment = {
+  sourceHandle: string;
+  sourceSide: HandleSide;
+  sourceOffset: number;
+  targetHandle: string;
+  targetSide: HandleSide;
+  targetOffset: number;
+};
+
+type HandleAssignment = {
+  edgeHandles: Map<string, EdgeHandleAssignment>;
+  /** Every distinct source/target handle a node needs to render, keyed by node id. */
+  nodeHandles: Map<string, { source: HandleSlot[]; target: HandleSlot[] }>;
+};
+
+/**
+ * Every node exposed exactly one Top/Bottom/Left/Right anchor point, shared
+ * by every edge that happened to leave or arrive on that side. When a node
+ * genuinely fans out (or in) to several others on the same side, their edges
+ * all started from the identical pixel and stayed coincident until they
+ * neared their distinct targets — reading as one path, or a route "ghosting"
+ * through a sibling's chip, instead of the distinct branches the workflow
+ * JSON actually describes. This spreads same-side edges across evenly spaced
+ * slots along that side instead, ordered by where the edge's other endpoint
+ * sits so the fan reads left-to-right in a sane order. A lone edge on a side
+ * still lands at offset 0.5 — the original centred position — so ordinary
+ * linear flows are unaffected.
+ */
+function assignHandleSlots(
+  edges: { key: string; fromId: string; toId: string; sourceSide: HandleSide; targetSide: HandleSide }[],
+  placements: Map<string, NodePlacement>
+): HandleAssignment {
+  const otherEndpointCoordinate = (side: HandleSide, placement: NodePlacement | undefined): number => {
+    if (!placement) {
+      return 0;
+    }
+    return side === 'left' || side === 'right'
+      ? placement.y + placement.height / 2
+      : placement.x + placement.width / 2;
+  };
+
+  type GroupEntry = { edgeKey: string; sortKey: number };
+  type GroupMap = Map<string, Map<HandleSide, GroupEntry[]>>;
+  const pushEntry = (groups: GroupMap, nodeId: string, side: HandleSide, entry: GroupEntry) => {
+    const bySide = groups.get(nodeId) ?? new Map<HandleSide, GroupEntry[]>();
+    groups.set(nodeId, bySide);
+    const group = bySide.get(side) ?? [];
+    bySide.set(side, group);
+    group.push(entry);
+  };
+
+  const sourceGroups: GroupMap = new Map();
+  const targetGroups: GroupMap = new Map();
+  edges.forEach(edge => {
+    pushEntry(sourceGroups, edge.fromId, edge.sourceSide, {
+      edgeKey: edge.key,
+      sortKey: otherEndpointCoordinate(edge.sourceSide, placements.get(edge.toId)),
+    });
+    pushEntry(targetGroups, edge.toId, edge.targetSide, {
+      edgeKey: edge.key,
+      sortKey: otherEndpointCoordinate(edge.targetSide, placements.get(edge.fromId)),
+    });
+  });
+
+  const resolve = (groups: GroupMap, rolePrefix: string): Map<string, { id: string; offset: number }> => {
+    const slotByEdgeKey = new Map<string, { id: string; offset: number }>();
+    groups.forEach(bySide => {
+      bySide.forEach((group, side) => {
+        const ordered = [...group].sort((left, right) => left.sortKey - right.sortKey
+          || left.edgeKey.localeCompare(right.edgeKey));
+        ordered.forEach((entry, index) => {
+          slotByEdgeKey.set(entry.edgeKey, {
+            id: `${rolePrefix}-${side}-${index}`,
+            offset: (index + 1) / (ordered.length + 1),
+          });
+        });
+      });
+    });
+    return slotByEdgeKey;
+  };
+
+  const sourceSlotByEdgeKey = resolve(sourceGroups, 'src');
+  const targetSlotByEdgeKey = resolve(targetGroups, 'tgt');
+
+  const edgeHandles = new Map<string, EdgeHandleAssignment>();
+  const nodeHandles = new Map<string, { source: HandleSlot[]; target: HandleSlot[] }>();
+  const nodeEntry = (nodeId: string) => {
+    let entry = nodeHandles.get(nodeId);
+    if (!entry) {
+      entry = { source: [], target: [] };
+      nodeHandles.set(nodeId, entry);
+    }
+    return entry;
+  };
+
+  edges.forEach(edge => {
+    const sourceSlot = sourceSlotByEdgeKey.get(edge.key)!;
+    const targetSlot = targetSlotByEdgeKey.get(edge.key)!;
+    edgeHandles.set(edge.key, {
+      sourceHandle: sourceSlot.id,
+      sourceSide: edge.sourceSide,
+      sourceOffset: sourceSlot.offset,
+      targetHandle: targetSlot.id,
+      targetSide: edge.targetSide,
+      targetOffset: targetSlot.offset,
+    });
+    nodeEntry(edge.fromId).source.push({ id: sourceSlot.id, side: edge.sourceSide, offset: sourceSlot.offset });
+    nodeEntry(edge.toId).target.push({ id: targetSlot.id, side: edge.targetSide, offset: targetSlot.offset });
+  });
+
+  return { edgeHandles, nodeHandles };
+}
+
 export function buildGraphModel(props: GraphProps): GraphModel {
   const { topology, layout } = computeWorkflowGraphLayout(props.workflow, props.availableQueues);
   const simulationTransitionIndices = new Set(props.simulationPathTransitionIndices);
   const simulationStageKeys = new Set(props.simulationPathStageKeys);
 
+  // Handle assignment + a natural anchor point per edge, computed once up
+  // front so nodes (their rendered handles), edges, and chips (below) can
+  // all use it.
+  const edgesForSlotting = topology.edges.map(topologyEdge => {
+    const sides = pickEdgeSides(
+      layout.placements.get(topologyEdge.fromId),
+      layout.placements.get(topologyEdge.toId),
+      topologyEdge.backward
+    );
+    return { key: topologyEdge.key, fromId: topologyEdge.fromId, toId: topologyEdge.toId, ...sides };
+  });
+  const { edgeHandles, nodeHandles } = assignHandleSlots(edgesForSlotting, layout.placements);
+  const emptyHandles = { source: [] as HandleSlot[], target: [] as HandleSlot[] };
+
   const nodes: GraphFlowNode[] = topology.nodes.map(topologyNode => {
     const placement = layout.placements.get(topologyNode.id);
     const position = placement ? { x: placement.x, y: placement.y } : { x: 0, y: 0 };
     const rowRank = placement?.rowRank ?? 0;
+    const handles = nodeHandles.get(topologyNode.id) ?? emptyHandles;
     // Draggability, selectability (shift-marquee multi-drag), and
     // connectability are governed by the ReactFlow-level flags driven by
     // readOnly rather than per node.
@@ -169,6 +301,8 @@ export function buildGraphModel(props: GraphProps): GraphModel {
         data: {
           node: topologyNode,
           rowRank,
+          sourceHandles: handles.source,
+          targetHandles: handles.target,
           selected: props.selectedStageKey === topologyNode.stage.stateKey,
           simulationPath: simulationStageKeys.has(topologyNode.stage.stateKey),
           simulationCurrent: props.simulationCurrentStageKey === topologyNode.stage.stateKey,
@@ -186,6 +320,8 @@ export function buildGraphModel(props: GraphProps): GraphModel {
       data: {
         node: topologyNode,
         rowRank,
+        sourceHandles: handles.source,
+        targetHandles: handles.target,
         selected: props.selectedGatewayKey === topologyNode.gateway.key,
         readOnly: props.readOnly,
         routeCount: routes.length,
@@ -195,17 +331,22 @@ export function buildGraphModel(props: GraphProps): GraphModel {
     } satisfies GatewayFlowNode;
   });
 
-  // Handle assignment + a natural anchor point per edge, computed once up
-  // front so both the edges themselves and their chips (below) can use it.
   const routingByEdgeKey = new Map<string, EdgeHandles & { anchor: Point }>();
   topology.edges.forEach(topologyEdge => {
     const fromPlacement = layout.placements.get(topologyEdge.fromId);
     const toPlacement = layout.placements.get(topologyEdge.toId);
-    const handles = pickEdgeHandles(fromPlacement, toPlacement, topologyEdge.backward);
+    const handles = edgeHandles.get(topologyEdge.key)!;
     const anchor = fromPlacement && toPlacement
-      ? midpoint(handlePoint(fromPlacement, handles.sourceHandle), handlePoint(toPlacement, handles.targetHandle))
+      ? midpoint(
+        handlePoint(fromPlacement, handles.sourceSide, handles.sourceOffset),
+        handlePoint(toPlacement, handles.targetSide, handles.targetOffset)
+      )
       : { x: 0, y: 0 };
-    routingByEdgeKey.set(topologyEdge.key, { ...handles, anchor });
+    routingByEdgeKey.set(topologyEdge.key, {
+      sourceHandle: handles.sourceHandle,
+      targetHandle: handles.targetHandle,
+      anchor,
+    });
   });
 
   const chipsByEdgeKey = new Map<string, TransitionChip[]>();
