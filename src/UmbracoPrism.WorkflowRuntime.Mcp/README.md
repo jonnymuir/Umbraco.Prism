@@ -31,14 +31,18 @@ host app does to expose this surface.
 ## Connect it to Claude Code
 
 Start the app you want to author workflows against, find its URL (via the Aspire
-dashboard — under Aspire, `MockBusinessApp`'s custom URLs include a labeled
-"Workflow Authoring MCP" link), then:
+dashboard — `MockBusinessApp`'s row has a labeled **"Workflow Authoring MCP (HTTP)"**
+link), then:
 
 ```
-claude mcp add --transport http prism-workflow https://localhost:<port>/prism/workflow-authoring/mcp
+claude mcp add --transport http prism-workflow http://localhost:<port>/prism/workflow-authoring/mcp
 ```
 
-SSE is deprecated; this uses the modern Streamable HTTP transport.
+Use the **HTTP** URL, not HTTPS. There's also a plain "Workflow Authoring MCP" link on
+HTTPS in the dashboard, but most MCP HTTP clients — including Claude Code's — reject the
+local ASP.NET Core dev certificate with "unable to verify the first certificate" since
+it's self-signed. Plain HTTP is fine here: it never leaves localhost. SSE is deprecated;
+this uses the modern Streamable HTTP transport.
 
 ## Auth
 
