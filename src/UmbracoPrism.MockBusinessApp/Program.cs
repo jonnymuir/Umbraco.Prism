@@ -16,6 +16,7 @@ using UmbracoPrism.WorkflowEditor.Extensions;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
 using UmbracoPrism.WorkflowRuntime.Api;
 using UmbracoPrism.WorkflowRuntime.Extensions;
+using UmbracoPrism.WorkflowRuntime.Mcp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,8 +41,9 @@ builder.Services.AddSingleton<IWorkflowSourceStore, InMemoryRuntimePublishedWork
 
 // AI/tooling authoring surface — same IWorkflowSourceStore as above, so a save here is
 // visible to the live engine immediately (InMemoryRuntimePublishedWorkflowStore.SaveAsync
-// calls engine.UpdateDefinition). See MapPrismWorkflowAuthoringApi() below.
+// calls engine.UpdateDefinition). See MapPrismWorkflowAuthoringApi()/MapPrismWorkflowAuthoringMcp() below.
 builder.Services.AddPrismWorkflowAuthoring();
+builder.Services.AddPrismWorkflowAuthoringMcp();
 
 // Editor library — projector / patch / simulation / action catalog only.
 builder.Services.AddPrismWorkflowEditor();
@@ -151,8 +153,11 @@ var mockWorkflowJsonOptions = new JsonSerializerOptions
 // the live IWorkflowSourceStore above. Intentionally NO auth here either, for the same
 // reference-app reason as the block below: real downstream apps chain their own
 // .RequireAuthorization() (or any other policy) onto the returned route group before
-// exposing this to anything beyond localhost.
+// exposing this to anything beyond localhost. Same story for the MCP endpoint — an AI
+// agent (e.g. Claude Code via `claude mcp add --transport http`) calls the same
+// WorkflowAuthoringService in-process, so a save reaches the live engine immediately.
 app.MapPrismWorkflowAuthoringApi();
+app.MapPrismWorkflowAuthoringMcp();
 
 app.MapGet("/mockapp/workflows", (ReferenceWorkflowSourceStore store) =>
     Results.Json(store.List(), mockWorkflowJsonOptions));

@@ -1,57 +1,66 @@
 # UmbracoPrism.WorkflowRuntime.Mcp
 
-An MCP (Model Context Protocol) server that exposes Umbraco Prism workflow authoring —
-list, read, validate, save, simulate — as tools an AI agent can call directly. Built on
-the official [C# MCP SDK](https://github.com/modelcontextprotocol/csharp-sdk).
+Exposes Umbraco Prism workflow authoring — list, read, validate, save, simulate — as MCP
+(Model Context Protocol) tools over HTTP, so an AI agent can call them directly. Built on
+the official [C# MCP SDK](https://github.com/modelcontextprotocol/csharp-sdk)'s HTTP
+transport (`ModelContextProtocol.AspNetCore`).
 
-This is a thin, generic HTTP client wrapper — it holds no state and knows no domain
-types. It proxies every tool call to a **running app's own**
-`MapPrismWorkflowAuthoringApi()` endpoints
-(from [`UmbracoPrism.WorkflowRuntime.Api`](../UmbracoPrism.WorkflowRuntime.Api)). That's
-deliberate: an MCP server can't run *inside* the app process it's authoring against (it's
-spawned as its own process over stdio), but it needs the app's live context — its live
-engine, its live in-memory definitions — not a static copy of some files. Proxying to the
-app's own HTTP API gives it exactly that, and lets a save show up to the running engine
-immediately, with no restart.
+This is a library, not a standalone process. A host adds `MapPrismWorkflowAuthoringMcp()`
+to its own ASP.NET Core pipeline, alongside
+[`MapPrismWorkflowAuthoringApi()`](../UmbracoPrism.WorkflowRuntime.Api) — both hit the
+same live `WorkflowAuthoringService`/`IWorkflowSourceStore`, in-process. That matters: an
+MCP server can't run *inside* an externally-spawned stdio process and still see an app's
+live state, but hosted this way, a `save_workflow` call reaches the running engine
+immediately — no restart, no separate process to keep track of.
 
 [`UmbracoPrism.MockBusinessApp`](../UmbracoPrism.MockBusinessApp) is the reference
-implementation of the API side — it calls `MapPrismWorkflowAuthoringApi()` wired to its
-own live `IWorkflowSourceStore`, demonstrating exactly what a real host app does to expose
-this surface.
+implementation — it calls both `MapPrismWorkflowAuthoringApi()` and
+`MapPrismWorkflowAuthoringMcp()` against its own live store, demonstrating what a real
+host app does to expose this surface.
 
 ## Tools
 
 | Tool | Description |
 |---|---|
 | `list_workflows` | List every workflow definition in the store (key + display name). |
-| `read_workflow` | Read a workflow definition's full JSON by `definitionKey`. |
+| `read_workflow` | Read a workflow definition by `definitionKey`. |
 | `validate_workflow` | Check gateway routing and any `calculations` block, without saving. |
 | `save_workflow` | Validate and save. Invalid definitions are rejected, not saved. Visible to the live app immediately. |
-| `simulate_workflow` | Dry-run a scripted sequence of actions with zero persistence, and return the resulting state trace — the same shape the real runtime reports to a client. |
+| `simulate_workflow` | Dry-run a scripted sequence of actions with zero persistence, and return the resulting state trace. |
 
 ## Connect it to Claude Code
 
-Start the app you want to author workflows against (e.g. `MockBusinessApp`, or via
-Aspire), then:
+Start the app you want to author workflows against, find its URL (via the Aspire
+dashboard — under Aspire, `MockBusinessApp`'s custom URLs include a labeled
+"Workflow Authoring MCP" link), then:
 
 ```
-claude mcp add prism-workflow -- dotnet run --project src/UmbracoPrism.WorkflowRuntime.Mcp -- https://localhost:<port>
+claude mcp add --transport http prism-workflow https://localhost:<port>/prism/workflow-authoring/mcp
 ```
 
-The base URL is required — either as the first argument (shown above) or via
-`PRISM_WORKFLOW_API_BASE_URL`. There's no default; a real host's port isn't predictable,
-especially under Aspire.
+SSE is deprecated; this uses the modern Streamable HTTP transport.
 
 ## Auth
 
-If the target app's authoring endpoints require authentication (a real host should add
-its own — see `MapPrismWorkflowAuthoringApi()`'s docs), set `PRISM_WORKFLOW_API_TOKEN`
-and it's attached as an `Authorization: Bearer` header on every request. The reference
-app (`MockBusinessApp`) doesn't require this — its endpoints are intentionally
-unauthenticated, same as its existing editor endpoints.
+If the host's authoring endpoints require authentication (a real host should add its own
+— see `MapPrismWorkflowAuthoringMcp()`, whose return value chains `.RequireAuthorization()`
+the same way `MapPrismWorkflowAuthoringApi()`'s does), pass credentials at registration:
 
-## Other env vars
+```
+claude mcp add --transport http prism-workflow <url> --header "Authorization: Bearer <token>"
+```
 
-- `PRISM_WORKFLOW_API_PREFIX` — override the route prefix if the target host mapped
-  `MapPrismWorkflowAuthoringApi()` at something other than the default
-  `/prism/workflow-authoring`.
+The reference app (`MockBusinessApp`) doesn't require this — its endpoints are
+intentionally unauthenticated, same as its existing editor endpoints.
+
+## A note on tool selection
+
+If you're running Claude Code from within a checkout of the Prism repo itself (or any
+repo that happens to contain the same seed/source files the connected app was built
+from), the agent has ordinary file tools available alongside these MCP tools — nothing
+stops it from finding and editing a seed JSON file directly instead of calling
+`save_workflow`. Doing so has no effect on the running app (seed files are only read at
+process startup) and skips validation entirely. The tool descriptions call this out
+explicitly, but if you want a clean test of tool selection, run Claude Code from a
+directory with no copy of the host app's source in it — MCP tools remain reachable over
+HTTP regardless of working directory; there's just nothing else to find.

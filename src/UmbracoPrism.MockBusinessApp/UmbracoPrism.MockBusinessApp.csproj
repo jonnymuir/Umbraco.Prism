@@ -26,6 +26,7 @@
     <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
     <ProjectReference Include="../UmbracoPrism.WorkflowRuntime/UmbracoPrism.WorkflowRuntime.csproj" />
     <ProjectReference Include="../UmbracoPrism.WorkflowRuntime.Api/UmbracoPrism.WorkflowRuntime.Api.csproj" />
+    <ProjectReference Include="../UmbracoPrism.WorkflowRuntime.Mcp/UmbracoPrism.WorkflowRuntime.Mcp.csproj" />
     <ProjectReference Include="../UmbracoPrism.WorkflowEditor/UmbracoPrism.WorkflowEditor.csproj" />
   </ItemGroup>
 

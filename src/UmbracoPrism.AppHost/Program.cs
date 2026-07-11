@@ -119,6 +119,13 @@ var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusines
                 DisplayText = "Workflow Editor",
                 DisplayOrder = 2,
             });
+
+            ctx.Urls.Add(new ResourceUrlAnnotation
+            {
+                Url = $"{baseUrl}/prism/workflow-authoring/mcp",
+                DisplayText = "Workflow Authoring MCP",
+                DisplayOrder = 3,
+            });
         }
     });
 
