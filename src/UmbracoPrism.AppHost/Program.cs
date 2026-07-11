@@ -104,6 +104,15 @@ var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusines
             .Select(uri => $"{uri.Scheme}://{uri.Authority}")
             .FirstOrDefault();
 
+        // Plain HTTP, for pointing local MCP clients (e.g. `claude mcp add --transport http`)
+        // at without hitting the ASP.NET Core dev cert's "unable to verify the first
+        // certificate" trust error most HTTP clients hit against it.
+        var httpBaseUrl = ctx.Urls
+            .Where(u => u.Url?.StartsWith("http://", StringComparison.OrdinalIgnoreCase) == true)
+            .Select(u => new Uri(u.Url!))
+            .Select(uri => $"{uri.Scheme}://{uri.Authority}")
+            .FirstOrDefault();
+
         if (baseUrl != null)
         {
             ctx.Urls.Add(new ResourceUrlAnnotation
@@ -125,6 +134,19 @@ var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusines
                 Url = $"{baseUrl}/prism/workflow-authoring/mcp",
                 DisplayText = "Workflow Authoring MCP",
                 DisplayOrder = 3,
+            });
+        }
+
+        if (httpBaseUrl != null)
+        {
+            // This is the one to give `claude mcp add --transport http` — the HTTPS
+            // link above uses the local ASP.NET Core dev cert, which most MCP HTTP
+            // clients (including Claude Code's) won't trust.
+            ctx.Urls.Add(new ResourceUrlAnnotation
+            {
+                Url = $"{httpBaseUrl}/prism/workflow-authoring/mcp",
+                DisplayText = "Workflow Authoring MCP (HTTP)",
+                DisplayOrder = 4,
             });
         }
     });
