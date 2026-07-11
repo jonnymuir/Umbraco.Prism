@@ -34,14 +34,13 @@ builder.Services.AddHttpClient();
 // The real GDS allowlist sanitizer (WorkflowContentSanitizer) is wired up in TestSite via Core.
 builder.Services.AddSingleton<IWorkflowContentSanitizer, PassthroughSanitizer>();
 
-// The reference app keeps the four demo workflows in memory and exposes the same
-// flattened workflow-definition contract through `/mockapp/workflows/*`.
-builder.Services.AddSingleton<ReferenceWorkflowSourceStore>();
+// The reference app keeps the demo workflows in memory. `/mockapp/workflows/*` (the
+// editor's own save endpoint) and the AI/tooling authoring surface below share this same
+// IWorkflowSourceStore — they used to be two separate stores that both silently mutated
+// the live engine with no idea the other existed; unified so a save from either surface
+// is immediately visible to both (InMemoryRuntimePublishedWorkflowStore.SaveAsync calls
+// engine.UpdateDefinition). See MapPrismWorkflowAuthoringApi()/MapPrismWorkflowAuthoringMcp() below.
 builder.Services.AddSingleton<IWorkflowSourceStore, InMemoryRuntimePublishedWorkflowStore>();
-
-// AI/tooling authoring surface — same IWorkflowSourceStore as above, so a save here is
-// visible to the live engine immediately (InMemoryRuntimePublishedWorkflowStore.SaveAsync
-// calls engine.UpdateDefinition). See MapPrismWorkflowAuthoringApi()/MapPrismWorkflowAuthoringMcp() below.
 builder.Services.AddPrismWorkflowAuthoring();
 builder.Services.AddPrismWorkflowAuthoringMcp();
 
@@ -159,10 +158,10 @@ var mockWorkflowJsonOptions = new JsonSerializerOptions
 app.MapPrismWorkflowAuthoringApi();
 app.MapPrismWorkflowAuthoringMcp();
 
-app.MapGet("/mockapp/workflows", (ReferenceWorkflowSourceStore store) =>
-    Results.Json(store.List(), mockWorkflowJsonOptions));
+app.MapGet("/mockapp/workflows", async (IWorkflowSourceStore store, CancellationToken ct) =>
+    Results.Json(await store.ListAsync(ct), mockWorkflowJsonOptions));
 
-app.MapGet("/mockapp/workflows/{key}", (string key, ReferenceWorkflowSourceStore store) =>
+app.MapGet("/mockapp/workflows/{key}", async (string key, IWorkflowSourceStore store, CancellationToken ct) =>
 {
     if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9_\-]+$"))
     {
@@ -171,13 +170,13 @@ app.MapGet("/mockapp/workflows/{key}", (string key, ReferenceWorkflowSourceStore
             statusCode: StatusCodes.Status400BadRequest,
             title: "Invalid workflow key");
     }
-    var workflow = store.Load(key);
+    var workflow = await store.LoadAsync(key, ct);
     return workflow is null
         ? Results.NotFound()
         : Results.Json(workflow, mockWorkflowJsonOptions);
 });
 
-app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, ReferenceWorkflowSourceStore store, IWorkflowRuntimeEngine engine, ILogger<Program> logger) =>
+app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, IWorkflowSourceStore store, ILogger<Program> logger) =>
 {
     if (!System.Text.RegularExpressions.Regex.IsMatch(key, @"^[a-zA-Z0-9_\-]+$"))
     {
@@ -195,8 +194,17 @@ app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, Refer
 
     var workflow = parseResult.Workflow!;
 
-    store.Save(key, workflow);
-    engine.UpdateDefinition(key, workflow);
+    if (!string.Equals(workflow.DefinitionKey, key, StringComparison.Ordinal))
+    {
+        return Results.Problem(
+            detail: $"Route key '{key}' does not match body definitionKey '{workflow.DefinitionKey}'.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid workflow payload");
+    }
+
+    // InMemoryRuntimePublishedWorkflowStore.SaveAsync already calls engine.UpdateDefinition —
+    // no separate call needed here now that this shares the toolkit's IWorkflowSourceStore.
+    await store.SaveAsync(workflow, ctx.RequestAborted);
 
     return Results.NoContent();
 });
@@ -411,19 +419,17 @@ app.MapGet("/debug/auth", (IConfiguration config) =>
 
 // ── Admin UI (no auth — local dev only) ─────────────────────────────────────
 
-app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine, ReferenceWorkflowSourceStore workflowSourceStore) =>
+app.MapGet("/admin/workflow", async (BusinessAppWorkflowEngine engine, IWorkflowSourceStore workflowSourceStore) =>
 {
     var instances = engine.GetAllInstances().OrderBy(i => i.CreatedAt).ToList();
     var businessQueue = engine.GetQueueWorkItems(ReferenceWorkflowQueues.BusinessUserProfile()).Items;
     var defs = engine.GetAllDefinitions().ToList();
     var defsByKey = defs.ToDictionary(d => d.DefinitionKey, StringComparer.OrdinalIgnoreCase);
-    var sourceWorkflowEntries = workflowSourceStore.List();
-    var sourceWorkflowRouteKeysByDefinitionKey = sourceWorkflowEntries
-        .Where(entry => !string.IsNullOrWhiteSpace(entry.DefinitionKey))
-        .GroupBy(entry => entry.DefinitionKey, StringComparer.OrdinalIgnoreCase)
-        .ToDictionary(group => group.Key, group => group.First().WorkflowKey, StringComparer.OrdinalIgnoreCase);
-    var loadableSourceWorkflowKeys = sourceWorkflowEntries
-        .Select(entry => entry.WorkflowKey)
+    // WorkflowSourceSummary is keyed by definitionKey alone (no separate route/workflow key
+    // concept — confirmed identical for every reference seed), so this no longer needs the
+    // workflowKey-vs-definitionKey bridging the old ReferenceWorkflowSourceStore.WorkflowSummary required.
+    var sourceWorkflowDefinitionKeys = (await workflowSourceStore.ListAsync())
+        .Select(entry => entry.DefinitionKey)
         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     string Esc(string s) => System.Net.WebUtility.HtmlEncode(s);
@@ -494,11 +500,9 @@ app.MapGet("/admin/workflow", (BusinessAppWorkflowEngine engine, ReferenceWorkfl
         ? """<tr><td colspan="2" style="text-align:center;color:#888;padding:1.5rem">No definitions loaded</td></tr>"""
         : string.Join("\n", defs.Select(def =>
         {
-            var authoredWorkflowKey = sourceWorkflowRouteKeysByDefinitionKey.TryGetValue(def.DefinitionKey, out var resolvedWorkflowKey)
-                ? resolvedWorkflowKey
-                : loadableSourceWorkflowKeys.Contains(def.DefinitionKey)
-                    ? def.DefinitionKey
-                    : null;
+            var authoredWorkflowKey = sourceWorkflowDefinitionKeys.Contains(def.DefinitionKey)
+                ? def.DefinitionKey
+                : null;
             var editorShortcut = authoredWorkflowKey is not null
                 ? $"""<a class="btn btn-edit-workflow" href="/workflow-editor?workflow={Esc(authoredWorkflowKey!)}">↗ Edit workflow</a>"""
                 : """<span class="editor-unavailable" title="This workflow currently has no editor definition configured.">No editor definition yet</span>""";

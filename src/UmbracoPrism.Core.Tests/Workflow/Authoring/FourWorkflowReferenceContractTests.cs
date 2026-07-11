@@ -51,7 +51,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         workflows.Should().HaveCount(5,
             because: "the reference contract specifies exactly 5 demo workflows");
 
-        var actualKeys = workflows!.Select(w => w.WorkflowKey).OrderBy(k => k).ToList();
+        var actualKeys = workflows!.Select(w => w.DefinitionKey).OrderBy(k => k).ToList();
         actualKeys.Should().BeEquivalentTo(ExpectedWorkflowKeys.OrderBy(k => k),
             because: "the source API should list exactly the canonical workflows");
     }
@@ -132,7 +132,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     {
         var sourceResponse = await _client.GetAsync("/mockapp/workflows");
         var workflows = await sourceResponse.Content.ReadFromJsonAsync<List<MockAppWorkflowSummary>>();
-        var sourceKeys = workflows!.Select(w => w.WorkflowKey).OrderBy(k => k).ToList();
+        var sourceKeys = workflows!.Select(w => w.DefinitionKey).OrderBy(k => k).ToList();
 
         var adminResponse = await _client.GetAsync("/admin/workflow");
         var adminBody = await adminResponse.Content.ReadAsStringAsync();
@@ -253,5 +253,5 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         }
     }
 
-    private sealed record MockAppWorkflowSummary(string WorkflowKey, string DefinitionKey, string DisplayName);
+    private sealed record MockAppWorkflowSummary(string DefinitionKey, string DisplayName);
 }
