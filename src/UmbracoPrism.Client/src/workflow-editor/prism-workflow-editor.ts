@@ -183,8 +183,10 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _selection: WorkflowSelection = null;
   @state() private _selectedTransitionIndex: number | null = null;
   @state() private _toastMessage: string | null = null;
-  @state() private _toastAction: { label: string; onClick: () => void } | null = null;
   private _toastDismissTimer: number | null = null;
+  @state() private _workflowStale = false;
+  @state() private _staleCurrentVersion: number | null = null;
+  @state() private _staleBannerDismissed = false;
   @state() private _loading = false;
   @state() private _error: string | null = null;
   @state() private _actionCatalog: ActionCatalogEntry[] = [];
@@ -225,7 +227,6 @@ export class PrismWorkflowEditorElement extends LitElement {
   private _lastLoadedWorkflowKey: string | null = null;
   private _workflowLoadRequestId = 0;
   private _versionPollTimer: number | null = null;
-  private _versionStaleNotified = false;
 
   private get _selectedStageKey(): string | null {
     return this._selection?.kind === 'stage' ? this._selection.stageKey : null;
@@ -353,7 +354,9 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._definitionSchemaIssues = [];
     this._applySelection(null, this._workflow);
     this._announceHistory('Workflow loaded. Undo history is ready for your next edit.');
-    this._versionStaleNotified = false;
+    this._workflowStale = false;
+    this._staleCurrentVersion = null;
+    this._staleBannerDismissed = false;
     this._scheduleVersionPoll();
   }
 
@@ -625,13 +628,30 @@ export class PrismWorkflowEditorElement extends LitElement {
   private _scheduleVersionPoll() {
     this._clearVersionPollTimer();
 
-    if (typeof window === 'undefined' || !this.workflowSource?.checkVersion || !this._workflow) {
+    // No point polling once we already know it's stale — nothing more to learn until reload.
+    if (typeof window === 'undefined' || !this.workflowSource?.checkVersion || !this._workflow || this._workflowStale) {
       return;
     }
 
     this._versionPollTimer = window.setTimeout(() => {
       void this._pollWorkflowVersion();
     }, PrismWorkflowEditorElement.VERSION_POLL_INTERVAL_MS);
+  }
+
+  /**
+   * Single source of truth for "someone else saved a newer version" — set proactively by
+   * polling or reactively by a failed save's 409. Locks the editor read-only (see
+   * `_renderStaleWorkflowOverlay`) until `_handleReloadAfterConflict` runs: any further edit
+   * would just be heading toward another guaranteed conflict, so there's no honest "keep
+   * working" option. The overlay always carries its own Reload action regardless of whether
+   * the more detailed banner (`_renderStaleWorkflowBanner`) has been dismissed — dismissing
+   * that banner only hides the extra detail, it doesn't give back editing or lose Reload.
+   */
+  private _markWorkflowStale(currentVersion: number | null) {
+    this._workflowStale = true;
+    this._staleCurrentVersion = currentVersion;
+    this._staleBannerDismissed = false;
+    this._clearVersionPollTimer();
   }
 
   private async _pollWorkflowVersion() {
@@ -649,12 +669,8 @@ export class PrismWorkflowEditorElement extends LitElement {
         return;
       }
 
-      if (currentVersion !== null && currentVersion !== loadedVersion && !this._versionStaleNotified) {
-        this._versionStaleNotified = true;
-        this._showToast('This workflow was updated elsewhere.', {
-          label: 'Reload',
-          onClick: () => void this._handleReloadAfterConflict(),
-        });
+      if (currentVersion !== null && currentVersion !== loadedVersion && !this._workflowStale) {
+        this._markWorkflowStale(currentVersion);
       }
     } catch {
       // Best-effort — a transient poll failure shouldn't disrupt editing.
@@ -1536,24 +1552,21 @@ export class PrismWorkflowEditorElement extends LitElement {
     return true;
   }
 
-  private _showToast(message: string, action?: { label: string; onClick: () => void }) {
+  private _showToast(message: string) {
     if (this._toastDismissTimer !== null && typeof window !== 'undefined') {
       window.clearTimeout(this._toastDismissTimer);
     }
 
     this._toastMessage = message;
-    this._toastAction = action ?? null;
 
-    const dismissAfterMs = action ? 10_000 : 5_000; // give the user time to notice and click an action
     const dismiss = () => {
       this._toastMessage = null;
-      this._toastAction = null;
       this._toastDismissTimer = null;
     };
 
     this._toastDismissTimer = typeof window !== 'undefined'
-      ? window.setTimeout(dismiss, dismissAfterMs)
-      : (setTimeout(dismiss, dismissAfterMs) as unknown as number);
+      ? window.setTimeout(dismiss, 5000)
+      : (setTimeout(dismiss, 5000) as unknown as number);
   }
 
   private _focusInspectorForValidationIssue(issue: WorkflowValidationIssue) {
@@ -1671,11 +1684,24 @@ export class PrismWorkflowEditorElement extends LitElement {
       this._saveErrorCopyStatus = null;
       this._showToast(this._saveMessage);
     } catch (error) {
-      this._saveState = 'error';
-      this._saveError = normaliseWorkflowSaveError(
+      const normalised = normaliseWorkflowSaveError(
         error,
         'The editor couldn’t save your changes. Review the details below and try again.'
       );
+
+      if (normalised.isConflict) {
+        // Same treatment as a proactively-detected staleness — one consistent path (read-only
+        // overlay + banner) regardless of whether we found out via polling or via this failed save.
+        this._saveState = 'idle';
+        this._saveMessage = null;
+        this._saveError = null;
+        this._saveErrorCopyStatus = null;
+        this._markWorkflowStale(normalised.currentVersion);
+        return;
+      }
+
+      this._saveState = 'error';
+      this._saveError = normalised;
       this._saveMessage = this._saveError.summary;
       this._saveErrorCopyStatus = null;
     }
@@ -1686,8 +1712,14 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._saveMessage = null;
     this._saveError = null;
     this._saveErrorCopyStatus = null;
+    // Deliberately NOT clearing _workflowStale here — that must stay true (read-only
+    // overlay up, banner's Reload button available) until _loadWorkflow actually succeeds.
+    // _initialiseEditorState clears it on success. If the reload itself fails, we're
+    // correctly still stale/read-only rather than briefly unlocked with old content.
     await this._loadWorkflow();
-    this._showToast('Reloaded the latest version.');
+    if (!this._workflowStale) {
+      this._showToast('Reloaded the latest version.');
+    }
   }
 
   private async _copySaveErrorDetails() {
@@ -2045,8 +2077,11 @@ export class PrismWorkflowEditorElement extends LitElement {
         ${this._loading ? html`<div class="loading-banner" role="status">Loading workflow…</div>` : nothing}
         ${this._error ? html`<div class="error-banner" role="alert">${this._error}</div>` : nothing}
         ${this._renderSaveErrorSurface()}
+        ${this._renderStaleWorkflowBanner()}
 
         <!-- Tab-based navigation -->
+        <div class="editor-content-wrapper">
+        ${this._renderStaleWorkflowOverlay()}
         <prism-confidence-tabs
           class="editor-tabs"
           active-tab="${this._activeConfidenceTab}"
@@ -2281,6 +2316,7 @@ export class PrismWorkflowEditorElement extends LitElement {
           <div slot="definition">${this._renderDefinitionPanel()}</div>
           <prism-help-panel slot="help"></prism-help-panel>
         </prism-confidence-tabs>
+        </div>
 
         ${this._renderShortcutGuide()}
       </div>
@@ -2296,24 +2332,89 @@ export class PrismWorkflowEditorElement extends LitElement {
         aria-live="assertive"
         data-prism-toast
       >
-        <span class="toast-message">${this._toastMessage}</span>
-        ${this._toastAction
-          ? html`
-              <button
-                type="button"
-                class="toast-action-button"
-                data-prism-toast-action
-                @click=${() => {
-                  const action = this._toastAction;
-                  this._toastMessage = null;
-                  this._toastAction = null;
-                  action?.onClick();
-                }}
-              >
-                ${this._toastAction.label}
-              </button>
-            `
-          : nothing}
+        ${this._toastMessage}
+      </div>
+    `;
+  }
+
+  /**
+   * Detailed, dismissible notice at the top of the editor. Dismissing this only hides the
+   * detail — it does not clear `_workflowStale`, so the read-only overlay (which has its own,
+   * always-present Reload action) stays in effect. The only reason to dismiss without
+   * reloading is to look at your own in-progress changes first, per the read-only overlay
+   * leaving content visible rather than hiding it.
+   */
+  private _renderStaleWorkflowBanner() {
+    if (!this._workflowStale || this._staleBannerDismissed) {
+      return nothing;
+    }
+
+    return html`
+      <section
+        class="stale-workflow-banner"
+        aria-labelledby="workflow-stale-title"
+        tabindex="-1"
+        data-prism-stale-workflow-banner
+      >
+        <div class="stale-workflow-header">
+          <p class="stale-workflow-eyebrow">Changed elsewhere</p>
+          <h2 id="workflow-stale-title" class="stale-workflow-title">This workflow was updated elsewhere</h2>
+          <p class="stale-workflow-summary" role="alert">
+            Someone else — a person in the editor, or an AI agent — saved a newer version
+            ${this._staleCurrentVersion != null ? html`(now at version ${this._staleCurrentVersion})` : ''}
+            while you were editing. The editor is read-only until you reload; reloading
+            replaces your current view with the latest version, so copy anything you want to
+            keep first.
+          </p>
+        </div>
+        <div class="stale-workflow-actions">
+          <button
+            type="button"
+            class="toolbar-btn govuk-button"
+            data-prism-reload-after-conflict
+            @click=${this._handleReloadAfterConflict}
+          >
+            Reload latest version
+          </button>
+          <button
+            type="button"
+            class="toolbar-btn govuk-button govuk-button--secondary"
+            aria-label="Dismiss — I just want to look at my changes first"
+            data-prism-dismiss-stale-banner
+            @click=${() => { this._staleBannerDismissed = true; }}
+          >
+            Dismiss
+          </button>
+        </div>
+      </section>
+    `;
+  }
+
+  /**
+   * Blocks interaction with the canvas/inspector while `_workflowStale` — any edit made now
+   * would just be heading toward another conflict. Deliberately a translucent scrim, not an
+   * opaque one: the whole point of letting someone dismiss the detailed banner above is so
+   * they can still see their own in-progress content before reloading over it. Always carries
+   * its own Reload action so it's reachable regardless of whether that banner was dismissed.
+   */
+  private _renderStaleWorkflowOverlay() {
+    if (!this._workflowStale) {
+      return nothing;
+    }
+
+    return html`
+      <div class="stale-workflow-overlay" data-prism-stale-workflow-overlay>
+        <div class="stale-workflow-overlay-ribbon" role="status">
+          <span>Read-only — this workflow changed elsewhere.</span>
+          <button
+            type="button"
+            class="toolbar-btn govuk-button stale-workflow-overlay-reload"
+            data-prism-reload-after-conflict-overlay
+            @click=${this._handleReloadAfterConflict}
+          >
+            Reload latest version
+          </button>
+        </div>
       </div>
     `;
   }
@@ -2331,20 +2432,10 @@ export class PrismWorkflowEditorElement extends LitElement {
         data-prism-save-error
       >
         <div class="save-error-header">
-          <p class="save-error-eyebrow">${this._saveError.isConflict ? 'Changed elsewhere' : 'Save problem'}</p>
+          <p class="save-error-eyebrow">Save problem</p>
           <h2 id="workflow-save-error-title" class="save-error-title">${this._saveError.title}</h2>
           <p class="save-error-summary" role="alert">${this._saveError.summary}</p>
         </div>
-
-        ${this._saveError.isConflict
-          ? html`
-              <p class="save-error-conflict-hint">
-                Someone else saved a newer version while you were editing. Reloading replaces
-                your current view with the latest version — any unsaved changes in this session
-                will be lost, so copy anything you want to keep first.
-              </p>
-            `
-          : nothing}
 
         ${this._saveError.detailLines.length > 0
           ? html`
@@ -2369,18 +2460,6 @@ export class PrismWorkflowEditorElement extends LitElement {
         ></textarea>
 
         <div class="save-error-actions">
-          ${this._saveError.isConflict
-            ? html`
-                <button
-                  type="button"
-                  class="toolbar-btn govuk-button save-error-reload-button"
-                  data-prism-reload-after-conflict
-                  @click=${this._handleReloadAfterConflict}
-                >
-                  Reload latest version
-                </button>
-              `
-            : nothing}
           <button
             type="button"
             class="toolbar-btn govuk-button govuk-button--secondary save-error-copy-button"
@@ -2471,26 +2550,6 @@ export class PrismWorkflowEditorElement extends LitElement {
       border-radius: 4px;
       font-size: 1rem;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-
-    .toast-action-button {
-      flex-shrink: 0;
-      background: transparent;
-      color: #fff;
-      border: 1px solid #fff;
-      border-radius: 4px;
-      padding: 0.25rem 0.75rem;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .toast-action-button:hover,
-    .toast-action-button:focus-visible {
-      background: rgba(255, 255, 255, 0.15);
     }
 
     .save-error-surface {
@@ -2580,6 +2639,89 @@ export class PrismWorkflowEditorElement extends LitElement {
 
     .save-error-copy-button {
       justify-self: start;
+    }
+
+    /* ---- Stale workflow (version conflict) ---- */
+
+    .stale-workflow-banner {
+      margin: 1rem;
+      padding: 1rem 1.25rem 1.25rem;
+      border: 4px solid #f47738;
+      background: #fff7f0;
+      display: grid;
+      gap: 0.875rem;
+      box-shadow: 0 1px 4px rgba(11, 12, 12, 0.08);
+    }
+
+    .stale-workflow-banner:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: 0;
+    }
+
+    .stale-workflow-header {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .stale-workflow-eyebrow,
+    .stale-workflow-summary {
+      margin: 0;
+    }
+
+    .stale-workflow-eyebrow {
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+      letter-spacing: 0.03em;
+      color: #b35900;
+    }
+
+    .stale-workflow-title {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+
+    .stale-workflow-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .editor-content-wrapper {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stale-workflow-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 150;
+      background: rgba(255, 247, 240, 0.55);
+      cursor: not-allowed;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .stale-workflow-overlay-ribbon {
+      margin-top: 0.75rem;
+      background: #f47738;
+      color: #0b0c0c;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+      cursor: default;
+    }
+
+    .stale-workflow-overlay-reload {
+      flex-shrink: 0;
     }
 
     /* ---- Tabs ---- */
