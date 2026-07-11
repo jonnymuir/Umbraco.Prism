@@ -183,6 +183,8 @@ export class PrismWorkflowEditorElement extends LitElement {
   @state() private _selection: WorkflowSelection = null;
   @state() private _selectedTransitionIndex: number | null = null;
   @state() private _toastMessage: string | null = null;
+  @state() private _toastAction: { label: string; onClick: () => void } | null = null;
+  private _toastDismissTimer: number | null = null;
   @state() private _loading = false;
   @state() private _error: string | null = null;
   @state() private _actionCatalog: ActionCatalogEntry[] = [];
@@ -222,6 +224,8 @@ export class PrismWorkflowEditorElement extends LitElement {
   private _stagePreviewRequestId = 0;
   private _lastLoadedWorkflowKey: string | null = null;
   private _workflowLoadRequestId = 0;
+  private _versionPollTimer: number | null = null;
+  private _versionStaleNotified = false;
 
   private get _selectedStageKey(): string | null {
     return this._selection?.kind === 'stage' ? this._selection.stageKey : null;
@@ -278,6 +282,10 @@ export class PrismWorkflowEditorElement extends LitElement {
   disconnectedCallback() {
     this.removeEventListener('keydown', this._handleEditorKeydown, true);
     this._clearStagePreviewTimer();
+    this._clearVersionPollTimer();
+    if (this._toastDismissTimer !== null && typeof window !== 'undefined') {
+      window.clearTimeout(this._toastDismissTimer);
+    }
     super.disconnectedCallback();
   }
 
@@ -345,6 +353,8 @@ export class PrismWorkflowEditorElement extends LitElement {
     this._definitionSchemaIssues = [];
     this._applySelection(null, this._workflow);
     this._announceHistory('Workflow loaded. Undo history is ready for your next edit.');
+    this._versionStaleNotified = false;
+    this._scheduleVersionPoll();
   }
 
   private _reflectWorkflowLoadedState() {
@@ -593,6 +603,64 @@ export class PrismWorkflowEditorElement extends LitElement {
       window.clearTimeout(this._stagePreviewTimer);
     }
     this._stagePreviewTimer = null;
+  }
+
+  /**
+   * Proactive staleness check, not just reactive-on-save: while a workflow is open, poll
+   * every 15s for whether someone else (a human, or an AI agent) has saved a newer version.
+   * MVP — a `checkVersion(key) => { version }` scalar poll is cheap enough that it doesn't
+   * need push infrastructure; Server-Sent Events is the natural upgrade path if that ever
+   * stops being true. Only fires if the host's WorkflowSource implements `checkVersion` —
+   * hosts that don't wire up versioning simply don't get this (no error, no polling).
+   */
+  private static readonly VERSION_POLL_INTERVAL_MS = 15_000;
+
+  private _clearVersionPollTimer() {
+    if (this._versionPollTimer !== null && typeof window !== 'undefined') {
+      window.clearTimeout(this._versionPollTimer);
+    }
+    this._versionPollTimer = null;
+  }
+
+  private _scheduleVersionPoll() {
+    this._clearVersionPollTimer();
+
+    if (typeof window === 'undefined' || !this.workflowSource?.checkVersion || !this._workflow) {
+      return;
+    }
+
+    this._versionPollTimer = window.setTimeout(() => {
+      void this._pollWorkflowVersion();
+    }, PrismWorkflowEditorElement.VERSION_POLL_INTERVAL_MS);
+  }
+
+  private async _pollWorkflowVersion() {
+    if (!this.workflowSource?.checkVersion || !this._workflow) {
+      return;
+    }
+
+    const key = this.workflowKey;
+    const loadedVersion = this._workflow.version;
+
+    try {
+      const currentVersion = await this.workflowSource.checkVersion(key);
+      // The user may have navigated to a different workflow, or reloaded, while this was in flight.
+      if (key !== this.workflowKey || !this._workflow) {
+        return;
+      }
+
+      if (currentVersion !== null && currentVersion !== loadedVersion && !this._versionStaleNotified) {
+        this._versionStaleNotified = true;
+        this._showToast('This workflow was updated elsewhere.', {
+          label: 'Reload',
+          onClick: () => void this._handleReloadAfterConflict(),
+        });
+      }
+    } catch {
+      // Best-effort — a transient poll failure shouldn't disrupt editing.
+    } finally {
+      this._scheduleVersionPoll();
+    }
   }
 
   private _syncStagePreview() {
@@ -1468,11 +1536,24 @@ export class PrismWorkflowEditorElement extends LitElement {
     return true;
   }
 
-  private _showToast(message: string) {
+  private _showToast(message: string, action?: { label: string; onClick: () => void }) {
+    if (this._toastDismissTimer !== null && typeof window !== 'undefined') {
+      window.clearTimeout(this._toastDismissTimer);
+    }
+
     this._toastMessage = message;
-    setTimeout(() => {
+    this._toastAction = action ?? null;
+
+    const dismissAfterMs = action ? 10_000 : 5_000; // give the user time to notice and click an action
+    const dismiss = () => {
       this._toastMessage = null;
-    }, 5000);
+      this._toastAction = null;
+      this._toastDismissTimer = null;
+    };
+
+    this._toastDismissTimer = typeof window !== 'undefined'
+      ? window.setTimeout(dismiss, dismissAfterMs)
+      : (setTimeout(dismiss, dismissAfterMs) as unknown as number);
   }
 
   private _focusInspectorForValidationIssue(issue: WorkflowValidationIssue) {
@@ -1598,6 +1679,15 @@ export class PrismWorkflowEditorElement extends LitElement {
       this._saveMessage = this._saveError.summary;
       this._saveErrorCopyStatus = null;
     }
+  }
+
+  private async _handleReloadAfterConflict() {
+    this._saveState = 'idle';
+    this._saveMessage = null;
+    this._saveError = null;
+    this._saveErrorCopyStatus = null;
+    await this._loadWorkflow();
+    this._showToast('Reloaded the latest version.');
   }
 
   private async _copySaveErrorDetails() {
@@ -2206,7 +2296,24 @@ export class PrismWorkflowEditorElement extends LitElement {
         aria-live="assertive"
         data-prism-toast
       >
-        ${this._toastMessage}
+        <span class="toast-message">${this._toastMessage}</span>
+        ${this._toastAction
+          ? html`
+              <button
+                type="button"
+                class="toast-action-button"
+                data-prism-toast-action
+                @click=${() => {
+                  const action = this._toastAction;
+                  this._toastMessage = null;
+                  this._toastAction = null;
+                  action?.onClick();
+                }}
+              >
+                ${this._toastAction.label}
+              </button>
+            `
+          : nothing}
       </div>
     `;
   }
@@ -2224,10 +2331,20 @@ export class PrismWorkflowEditorElement extends LitElement {
         data-prism-save-error
       >
         <div class="save-error-header">
-          <p class="save-error-eyebrow">Save problem</p>
+          <p class="save-error-eyebrow">${this._saveError.isConflict ? 'Changed elsewhere' : 'Save problem'}</p>
           <h2 id="workflow-save-error-title" class="save-error-title">${this._saveError.title}</h2>
           <p class="save-error-summary" role="alert">${this._saveError.summary}</p>
         </div>
+
+        ${this._saveError.isConflict
+          ? html`
+              <p class="save-error-conflict-hint">
+                Someone else saved a newer version while you were editing. Reloading replaces
+                your current view with the latest version — any unsaved changes in this session
+                will be lost, so copy anything you want to keep first.
+              </p>
+            `
+          : nothing}
 
         ${this._saveError.detailLines.length > 0
           ? html`
@@ -2252,6 +2369,18 @@ export class PrismWorkflowEditorElement extends LitElement {
         ></textarea>
 
         <div class="save-error-actions">
+          ${this._saveError.isConflict
+            ? html`
+                <button
+                  type="button"
+                  class="toolbar-btn govuk-button save-error-reload-button"
+                  data-prism-reload-after-conflict
+                  @click=${this._handleReloadAfterConflict}
+                >
+                  Reload latest version
+                </button>
+              `
+            : nothing}
           <button
             type="button"
             class="toolbar-btn govuk-button govuk-button--secondary save-error-copy-button"
@@ -2342,6 +2471,26 @@ export class PrismWorkflowEditorElement extends LitElement {
       border-radius: 4px;
       font-size: 1rem;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .toast-action-button {
+      flex-shrink: 0;
+      background: transparent;
+      color: #fff;
+      border: 1px solid #fff;
+      border-radius: 4px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .toast-action-button:hover,
+    .toast-action-button:focus-visible {
+      background: rgba(255, 255, 255, 0.15);
     }
 
     .save-error-surface {

@@ -212,11 +212,9 @@ app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, IWork
     var saveResult = await store.SaveAsync(workflow, workflow.Version, ctx.RequestAborted);
     if (!saveResult.Saved)
     {
-        return Results.Conflict(new
-        {
-            currentVersion = saveResult.CurrentVersion,
-            message = $"Workflow has changed since it was loaded — current version is {saveResult.CurrentVersion}, which didn't match the expected version. Reload and reapply your change."
-        });
+        // Same WorkflowSaveOutcome shape the /prism/workflow-authoring/* PUT returns on
+        // conflict, so a client only needs one parser regardless of which endpoint it used.
+        return Results.Conflict(WorkflowSaveOutcome.Conflict(saveResult.CurrentVersion));
     }
 
     return Results.NoContent();
