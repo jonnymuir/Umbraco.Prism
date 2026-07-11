@@ -205,7 +205,19 @@ app.MapPut("/mockapp/workflows/{key}", async (string key, HttpContext ctx, IWork
 
     // InMemoryRuntimePublishedWorkflowStore.SaveAsync already calls engine.UpdateDefinition —
     // no separate call needed here now that this shares the toolkit's IWorkflowSourceStore.
-    await store.SaveAsync(workflow, ctx.RequestAborted);
+    // WorkflowSourceSaveRequestParser already validated above, so this calls the store
+    // directly rather than WorkflowAuthoringService.SaveAsync (which would just re-validate).
+    // workflow.Version — round-tripped by any client that loaded this workflow first — is the
+    // optimistic-concurrency expected version; see IWorkflowSourceStore.SaveAsync.
+    var saveResult = await store.SaveAsync(workflow, workflow.Version, ctx.RequestAborted);
+    if (!saveResult.Saved)
+    {
+        return Results.Conflict(new
+        {
+            currentVersion = saveResult.CurrentVersion,
+            message = $"Workflow has changed since it was loaded — current version is {saveResult.CurrentVersion}, which didn't match the expected version. Reload and reapply your change."
+        });
+    }
 
     return Results.NoContent();
 });

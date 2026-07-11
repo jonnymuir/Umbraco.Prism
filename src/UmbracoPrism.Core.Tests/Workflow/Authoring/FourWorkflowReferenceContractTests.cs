@@ -193,7 +193,14 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         }
         finally
         {
-            using var restore = new StringContent(existingJson, Encoding.UTF8, "application/json");
+            // The save above bumped the version, so replaying the pre-save payload verbatim would
+            // now (correctly) hit a 409 conflict. Restore the original content but with the
+            // version bumped to whatever's current, same as a real client re-reading before saving.
+            var currentVersion = await _client.GetFromJsonAsync<WorkflowDefinitionFile>("/mockapp/workflows/payment-demo");
+            var restorePayload = JsonNode.Parse(existingJson)!.AsObject();
+            restorePayload["version"] = currentVersion!.Version;
+
+            using var restore = new StringContent(restorePayload.ToJsonString(), Encoding.UTF8, "application/json");
             var restored = await _client.PutAsync("/mockapp/workflows/payment-demo", restore);
             restored.StatusCode.Should().Be(HttpStatusCode.NoContent);
         }

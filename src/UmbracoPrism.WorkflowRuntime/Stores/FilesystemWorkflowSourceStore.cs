@@ -14,6 +14,12 @@ namespace UmbracoPrism.WorkflowRuntime.Stores;
 /// </summary>
 public sealed class FilesystemWorkflowSourceStore(string basePath) : IWorkflowSourceStore
 {
+    // Serializes save's read-check-write so the version compare-and-swap is atomic within this
+    // process. Sufficient for a single-process reference app; a real multi-process file-backed
+    // store needs OS file locking, and a real database-backed store should use an atomic
+    // UPDATE ... WHERE Version = @expectedVersion instead of a lock at all.
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+
     private static readonly JsonSerializerOptions ReadOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -79,13 +85,31 @@ public sealed class FilesystemWorkflowSourceStore(string basePath) : IWorkflowSo
         return JsonSerializer.Deserialize<WorkflowDefinitionFile>(json, ReadOptions);
     }
 
-    public async Task<string> SaveAsync(WorkflowDefinitionFile workflow, CancellationToken ct = default)
+    public async Task<WorkflowSaveResult> SaveAsync(WorkflowDefinitionFile workflow, int expectedVersion, CancellationToken ct = default)
     {
-        Directory.CreateDirectory(basePath);
+        await _saveLock.WaitAsync(ct);
+        try
+        {
+            var current = await LoadAsync(workflow.DefinitionKey, ct);
+            var currentVersion = current?.Version ?? 0;
+            if (currentVersion != expectedVersion)
+            {
+                var existingPath = ResolveSafePath($"{workflow.DefinitionKey}.json");
+                return new WorkflowSaveResult(Saved: false, CurrentVersion: currentVersion, Location: existingPath);
+            }
 
-        var path = ResolveSafePath($"{workflow.DefinitionKey}.json");
-        await using var stream = File.Open(path, FileMode.Create, FileAccess.Write, FileShare.None);
-        await JsonSerializer.SerializeAsync(stream, workflow, WriteOptions, ct);
-        return path;
+            Directory.CreateDirectory(basePath);
+            var newVersion = expectedVersion + 1;
+            var toSave = workflow with { Version = newVersion };
+
+            var path = ResolveSafePath($"{workflow.DefinitionKey}.json");
+            await using var stream = File.Open(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            await JsonSerializer.SerializeAsync(stream, toSave, WriteOptions, ct);
+            return new WorkflowSaveResult(Saved: true, CurrentVersion: newVersion, Location: path);
+        }
+        finally
+        {
+            _saveLock.Release();
+        }
     }
 }

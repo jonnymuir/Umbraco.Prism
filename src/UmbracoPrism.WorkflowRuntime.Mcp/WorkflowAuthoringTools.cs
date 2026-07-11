@@ -59,14 +59,21 @@ public static class WorkflowAuthoringTools
     [Description(
         "Validate and save a workflow definition JSON to the connected host's live store — the " +
         "change is visible to the running app immediately, no restart. Invalid definitions " +
-        "are rejected and NOT saved — check { isValid, errors } in the response. This is the " +
-        "only way to persist a workflow change the running app will honor; editing seed/source " +
-        "files directly (e.g. workflow-seeds/*.json) has no effect on the live app.")]
-    public static Task<WorkflowValidationOutcome> SaveWorkflow(
+        "are rejected and NOT saved — check { status, errors } in the response (status: " +
+        "\"Saved\", \"Invalid\", or \"Conflict\"). A Conflict means the workflow's `version` " +
+        "field is stale — someone else (a human in the editor, or another agent) saved a newer " +
+        "version; re-read_workflow to get the current version and reapply your change on top of " +
+        "it before saving again. This is the only way to persist a workflow change the running " +
+        "app will honor; editing seed/source files directly (e.g. workflow-seeds/*.json) has no " +
+        "effect on the live app.")]
+    public static Task<WorkflowSaveOutcome> SaveWorkflow(
         WorkflowAuthoringService service,
-        [Description("The full WorkflowDefinitionFile JSON to save.")] string workflowJson,
-        CancellationToken ct) =>
-        service.SaveAsync(Deserialize(workflowJson), ct);
+        [Description("The full WorkflowDefinitionFile JSON to save, including the `version` you read it at.")] string workflowJson,
+        CancellationToken ct)
+    {
+        var workflow = Deserialize(workflowJson);
+        return service.SaveAsync(workflow, workflow.Version, ct);
+    }
 
     [McpServerTool(Name = "simulate_workflow")]
     [Description(

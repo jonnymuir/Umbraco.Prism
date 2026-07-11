@@ -28,16 +28,45 @@ public sealed class InMemoryRuntimePublishedWorkflowStoreTests : IDisposable
         var store = new InMemoryRuntimePublishedWorkflowStore(engine);
         var updated = BuildDefinition("planning", "Planning updated");
 
-        var location = await store.SaveAsync(updated);
+        var result = await store.SaveAsync(updated, expectedVersion: 1);
 
-        location.Should().Be("memory://published-workflows/planning");
+        result.Saved.Should().BeTrue();
+        result.CurrentVersion.Should().Be(2);
+        result.Location.Should().Be("memory://published-workflows/planning");
         engine.GetDefinition("planning")!.DisplayName.Should().Be("Planning updated");
+        engine.GetDefinition("planning")!.Version.Should().Be(2);
 
         var diskDefinition = JsonSerializer.Deserialize<WorkflowDefinitionFile>(
             await File.ReadAllTextAsync(GetSeedPath("planning")),
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         diskDefinition.Should().NotBeNull();
         diskDefinition!.DisplayName.Should().Be("Planning");
+    }
+
+    /// <summary>
+    /// This is the store both /mockapp/workflows/* (the editor) and /prism/workflow-authoring/*
+    /// (the AI toolkit) share. A stale expectedVersion — e.g. a human's editor session that loaded
+    /// the workflow before an AI's save landed — must be rejected, not silently overwrite.
+    /// </summary>
+    [Fact]
+    public async Task SaveAsync_StaleExpectedVersion_RejectsWithoutMutatingEngine()
+    {
+        var original = BuildDefinition("planning", "Planning");
+        await SeedDefinitionAsync(original);
+
+        var engine = CreateEngine();
+        var store = new InMemoryRuntimePublishedWorkflowStore(engine);
+
+        var aiSave = await store.SaveAsync(BuildDefinition("planning", "Saved by AI"), expectedVersion: 1);
+        aiSave.Saved.Should().BeTrue();
+
+        // The human's editor loaded "planning" before the AI's save (still thinks version is 1).
+        var humanSave = await store.SaveAsync(BuildDefinition("planning", "Saved by human"), expectedVersion: 1);
+
+        humanSave.Saved.Should().BeFalse();
+        humanSave.CurrentVersion.Should().Be(2);
+        engine.GetDefinition("planning")!.DisplayName.Should().Be("Saved by AI",
+            because: "the stale human save must not have clobbered the AI's live change");
     }
 
     public void Dispose()

@@ -10,17 +10,18 @@ namespace UmbracoPrism.Core.Tests.Workflow.Authoring;
 public class WorkflowAuthoringServiceTests
 {
     [Fact]
-    public async Task SaveAsync_ValidWorkflow_SavesAndReturnsValidOutcome()
+    public async Task SaveAsync_ValidNewWorkflow_SavesAndReturnsSavedOutcome()
     {
         var store = new InMemoryWorkflowSourceStore();
         var service = new WorkflowAuthoringService(store);
         var workflow = ProjectLinearWorkflow();
 
-        var outcome = await service.SaveAsync(workflow);
+        var outcome = await service.SaveAsync(workflow, expectedVersion: 0);
 
-        outcome.IsValid.Should().BeTrue();
-        outcome.Errors.Should().BeEmpty();
-        (await store.LoadAsync(workflow.DefinitionKey)).Should().NotBeNull();
+        outcome.Status.Should().Be(WorkflowSaveStatus.Saved);
+        outcome.IsSaved.Should().BeTrue();
+        outcome.NewVersion.Should().Be(1);
+        (await store.LoadAsync(workflow.DefinitionKey))!.Version.Should().Be(1);
     }
 
     [Fact]
@@ -30,11 +31,30 @@ public class WorkflowAuthoringServiceTests
         var service = new WorkflowAuthoringService(store);
         var workflow = ProjectDirectStateToStateWorkflow();
 
-        var outcome = await service.SaveAsync(workflow);
+        var outcome = await service.SaveAsync(workflow, expectedVersion: 0);
 
-        outcome.IsValid.Should().BeFalse();
+        outcome.Status.Should().Be(WorkflowSaveStatus.Invalid);
         outcome.Errors.Should().ContainSingle(e => e.Contains("must always target a gateway"));
         (await store.LoadAsync(workflow.DefinitionKey)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SaveAsync_StaleExpectedVersion_ReturnsConflictWithoutSaving()
+    {
+        var store = new InMemoryWorkflowSourceStore();
+        var service = new WorkflowAuthoringService(store);
+        var workflow = ProjectLinearWorkflow();
+
+        var first = await service.SaveAsync(workflow, expectedVersion: 0);
+        first.Status.Should().Be(WorkflowSaveStatus.Saved);
+
+        // Someone else already saved (version is now 1) — this caller still thinks it's 0.
+        var conflicted = await service.SaveAsync(workflow, expectedVersion: 0);
+
+        conflicted.Status.Should().Be(WorkflowSaveStatus.Conflict);
+        conflicted.CurrentVersion.Should().Be(1);
+        (await store.LoadAsync(workflow.DefinitionKey))!.Version.Should().Be(1,
+            because: "the conflicting save must not have overwritten the successful one");
     }
 
     [Fact]
@@ -148,10 +168,17 @@ public class WorkflowAuthoringServiceTests
         public Task<WorkflowDefinitionFile?> LoadAsync(string definitionKey, CancellationToken ct = default) =>
             Task.FromResult(_entries.TryGetValue(definitionKey, out var workflow) ? workflow : null);
 
-        public Task<string> SaveAsync(WorkflowDefinitionFile workflow, CancellationToken ct = default)
+        public Task<WorkflowSaveResult> SaveAsync(WorkflowDefinitionFile workflow, int expectedVersion, CancellationToken ct = default)
         {
-            _entries[workflow.DefinitionKey] = workflow;
-            return Task.FromResult($"memory://{workflow.DefinitionKey}");
+            var currentVersion = _entries.TryGetValue(workflow.DefinitionKey, out var existing) ? existing.Version : 0;
+            if (currentVersion != expectedVersion)
+            {
+                return Task.FromResult(new WorkflowSaveResult(Saved: false, CurrentVersion: currentVersion, Location: $"memory://{workflow.DefinitionKey}"));
+            }
+
+            var newVersion = expectedVersion + 1;
+            _entries[workflow.DefinitionKey] = workflow with { Version = newVersion };
+            return Task.FromResult(new WorkflowSaveResult(Saved: true, CurrentVersion: newVersion, Location: $"memory://{workflow.DefinitionKey}"));
         }
     }
 }

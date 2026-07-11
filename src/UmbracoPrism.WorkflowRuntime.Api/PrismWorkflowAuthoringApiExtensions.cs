@@ -36,6 +36,10 @@ public static class PrismWorkflowAuthoringApiExtensions
         group.MapPost("/workflows/validate", (WorkflowDefinitionFile workflow, WorkflowAuthoringService service) =>
             Results.Ok(service.Validate(workflow)));
 
+        // The body's own `version` (already round-tripped by any client that loaded the workflow
+        // first) IS the expected version for the optimistic-concurrency check — no separate field
+        // needed. The store ignores it as a *value to write*; it only compares against it, then
+        // authoritatively sets the new persisted version itself.
         group.MapPut("/workflows/{definitionKey}", async (
             string definitionKey,
             WorkflowDefinitionFile workflow,
@@ -49,12 +53,30 @@ public static class PrismWorkflowAuthoringApiExtensions
                     [$"Route key '{definitionKey}' does not match body definitionKey '{workflow.DefinitionKey}'."]));
             }
 
-            var outcome = await service.SaveAsync(workflow, ct);
-            return outcome.IsValid ? Results.Ok(outcome) : Results.BadRequest(outcome);
+            var outcome = await service.SaveAsync(workflow, workflow.Version, ct);
+            return outcome.Status switch
+            {
+                WorkflowSaveStatus.Saved => Results.Ok(outcome),
+                WorkflowSaveStatus.Conflict => Results.Conflict(outcome),
+                _ => Results.BadRequest(outcome)
+            };
         });
 
         group.MapPost("/workflows/simulate", (SimulateWorkflowRequest request, WorkflowAuthoringService service) =>
             Results.Ok(service.Simulate(request.Workflow, request.Steps)));
+
+        // Cheap enough to poll: a client that has a workflow open (e.g. the visual editor) can
+        // check every ~15s whether it's still current without re-fetching the full definition.
+        // A high-scale host may want a dedicated version-only store lookup instead of loading
+        // the whole definition just to read one field; not worth it for the reference store.
+        group.MapGet("/workflows/{definitionKey}/version", async (
+            string definitionKey,
+            WorkflowAuthoringService service,
+            CancellationToken ct) =>
+        {
+            var workflow = await service.ReadAsync(definitionKey, ct);
+            return workflow is null ? Results.NotFound() : Results.Ok(new { version = workflow.Version });
+        });
 
         return group;
     }

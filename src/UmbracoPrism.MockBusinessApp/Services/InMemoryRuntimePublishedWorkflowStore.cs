@@ -10,6 +10,7 @@ namespace UmbracoPrism.MockBusinessApp.Services;
 public sealed class InMemoryRuntimePublishedWorkflowStore(BusinessAppWorkflowEngine engine) : IWorkflowSourceStore
 {
     private readonly Dictionary<string, WorkflowDefinitionFile> _overrides = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _saveLock = new();
 
     public Task<WorkflowDefinitionFile?> LoadAsync(string definitionKey, CancellationToken ct = default)
     {
@@ -19,11 +20,36 @@ public sealed class InMemoryRuntimePublishedWorkflowStore(BusinessAppWorkflowEng
         return Task.FromResult(engine.GetDefinition(definitionKey));
     }
 
-    public Task<string> SaveAsync(WorkflowDefinitionFile workflow, CancellationToken ct = default)
+    public Task<WorkflowSaveResult> SaveAsync(WorkflowDefinitionFile workflow, int expectedVersion, CancellationToken ct = default)
     {
-        _overrides[workflow.DefinitionKey] = workflow;
-        engine.UpdateDefinition(workflow.DefinitionKey, workflow);
-        return Task.FromResult($"memory://published-workflows/{workflow.DefinitionKey}");
+        // Synchronous critical section (no I/O here — just dictionary + engine state), so a plain
+        // lock is enough; see FilesystemWorkflowSourceStore for the async equivalent.
+        lock (_saveLock)
+        {
+            var current = _overrides.TryGetValue(workflow.DefinitionKey, out var overridden)
+                ? overridden
+                : engine.GetDefinition(workflow.DefinitionKey);
+            var currentVersion = current?.Version ?? 0;
+
+            if (currentVersion != expectedVersion)
+            {
+                return Task.FromResult(new WorkflowSaveResult(
+                    Saved: false,
+                    CurrentVersion: currentVersion,
+                    Location: $"memory://published-workflows/{workflow.DefinitionKey}"));
+            }
+
+            var newVersion = expectedVersion + 1;
+            var toSave = workflow with { Version = newVersion };
+
+            _overrides[workflow.DefinitionKey] = toSave;
+            engine.UpdateDefinition(workflow.DefinitionKey, toSave);
+
+            return Task.FromResult(new WorkflowSaveResult(
+                Saved: true,
+                CurrentVersion: newVersion,
+                Location: $"memory://published-workflows/{workflow.DefinitionKey}"));
+        }
     }
 
     public Task<IReadOnlyList<WorkflowSourceSummary>> ListAsync(CancellationToken ct = default)
