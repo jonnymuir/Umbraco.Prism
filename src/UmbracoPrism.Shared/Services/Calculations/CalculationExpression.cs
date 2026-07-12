@@ -27,6 +27,9 @@ public sealed class CalculationException : Exception
 /// Identifier paths are dotted (member.age). Strings use single quotes. Numbers are
 /// invariant decimals. That is the entire language: no assignment, no loops, no
 /// indexing, no member calls — every expression terminates.
+///
+/// Prose reference (grammar, functions, tables/series, showWhen, worked example):
+/// docs/guides/calculation-language.md.
 /// </summary>
 public abstract record CalcNode
 {

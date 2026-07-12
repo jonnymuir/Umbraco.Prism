@@ -35,6 +35,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="../../docs/guides/calculation-language.md" LogicalName="UmbracoPrism.WorkflowRuntime.Mcp.docs.calculation-language.md" />
+    <EmbeddedResource Include="../../docs/guides/reference-workflow-contract.md" LogicalName="UmbracoPrism.WorkflowRuntime.Mcp.docs.reference-workflow-contract.md" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="../../assets/logo-vertical-lockup.png" Pack="true" PackagePath="assets/" />
     <None Include="../../LICENSE" Pack="true" PackagePath="/" />
     <None Include="README.md" Pack="true" PackagePath="/" />

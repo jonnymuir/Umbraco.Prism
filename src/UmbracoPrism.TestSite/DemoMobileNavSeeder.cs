@@ -36,6 +36,12 @@ public class DemoMobileNavSeeder(
     private static readonly Guid DashElementKey = new("a4b5c6d7-e8f9-4123-defa-234567890123");
     private static readonly Guid WorkflowsElementKey = new("b5c6d7e8-f9a0-4234-efab-456789012345");
 
+    // Web nav uses its own element keys — distinct Block List instances from the mobile items above,
+    // even though both point at the same mobileNavItem element type.
+    private static readonly Guid WebHomeElementKey = new("c6d7e8f9-a0b1-4345-fabc-567890123456");
+    private static readonly Guid WebGetInTouchElementKey = new("d7e8f9a0-b1c2-4456-abcd-678901234567");
+    private static readonly Guid WebWorkflowsElementKey = new("e8f9a0b1-c2d3-4567-bcde-789012345678");
+
     // Must match MobileNavSchemaSetup.MobileNavItemTypeKey.
     private static readonly Guid MobileNavItemTypeKey = new("a9f4b2c1-3d5e-6f70-8912-34abc5678def");
 
@@ -94,35 +100,58 @@ public class DemoMobileNavSeeder(
         var dashKey = EnsureIconMedia("Nav Icon - Dashboard", folderId, "dashboard.svg");
         var workflowsKey = EnsureIconMedia("Nav Icon - Workflows", folderId, "workflows.svg");
 
-        var existing = settings.GetValue<string>("mobileNavLinks");
-        if (!string.IsNullOrWhiteSpace(existing))
+        var needsMobileUpdate = NeedsBlockListSeed(
+            settings.GetValue<string>("mobileNavLinks"),
+            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.DashboardUrl, TestSiteSeedContract.WorkflowHubUrl);
+        var needsWebUpdate = settings.HasProperty("webNavLinks") && NeedsBlockListSeed(
+            settings.GetValue<string>("webNavLinks"),
+            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.WorkflowPageUrl, TestSiteSeedContract.WorkflowHubUrl);
+
+        if (!needsMobileUpdate && !needsWebUpdate)
         {
-            bool isV14BlockList = existing.Contains("\"Umbraco.BlockList\"", StringComparison.Ordinal)
-                               && !existing.Contains("\"contentUdi\":", StringComparison.Ordinal)
-                               && existing.Contains("\"expose\":", StringComparison.Ordinal);
-            bool hasHomeItem = existing.Contains(TestSiteSeedContract.HomePageUrl, StringComparison.Ordinal);
-            bool hasDashboardItem = existing.Contains(TestSiteSeedContract.DashboardUrl, StringComparison.Ordinal);
-            bool hasWorkflowsItem = existing.Contains(TestSiteSeedContract.WorkflowHubUrl, StringComparison.Ordinal);
-
-            if (isV14BlockList && hasHomeItem && hasDashboardItem && hasWorkflowsItem)
-            {
-                logger.LogDebug("DEMO SEEDER: mobileNavLinks already populated — skipping content seed.");
-                return Task.CompletedTask;
-            }
-
-            logger.LogInformation("DEMO SEEDER: Replacing mobileNavLinks to restore the seeded auth-flow contract.");
+            logger.LogDebug("DEMO SEEDER: mobileNavLinks and webNavLinks already populated — skipping content seed.");
+            return Task.CompletedTask;
         }
 
-        var blockListJson = BuildBlockListJson(homeKey, dashKey, workflowsKey);
+        if (needsMobileUpdate)
+        {
+            logger.LogInformation("DEMO SEEDER: Replacing mobileNavLinks to restore the seeded auth-flow contract.");
+            var mobileBlockListJson = BuildBlockListJson(homeKey, dashKey, workflowsKey);
+            settings.SetValue("mobileNavLinks", mobileBlockListJson);
+        }
 
-        settings.SetValue("mobileNavLinks", blockListJson);
+        if (needsWebUpdate)
+        {
+            logger.LogInformation("DEMO SEEDER: Seeding webNavLinks with Home, Get in Touch, and My Workflows items.");
+            var webBlockListJson = BuildWebNavBlockListJson();
+            settings.SetValue("webNavLinks", webBlockListJson);
+        }
+
         contentService.Save(settings, null, null!);
 #pragma warning disable CS0618
         contentService.Publish(settings, Array.Empty<string>(), Constants.Security.SuperUserId);
 #pragma warning restore CS0618
 
-        logger.LogInformation("DEMO SEEDER: Seeded mobile nav with Home, Dashboard, and My Workflows items.");
+        logger.LogInformation("DEMO SEEDER: Nav content seed complete.");
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// True if <paramref name="existingValue"/> isn't already a v14+ Block List (layout/expose
+    /// shape, not the legacy contentUdi format) containing all three expected link URLs.
+    /// </summary>
+    private static bool NeedsBlockListSeed(string? existingValue, params string[] expectedUrls)
+    {
+        if (string.IsNullOrWhiteSpace(existingValue))
+        {
+            return true;
+        }
+
+        var isV14BlockList = existingValue.Contains("\"Umbraco.BlockList\"", StringComparison.Ordinal)
+                           && !existingValue.Contains("\"contentUdi\":", StringComparison.Ordinal)
+                           && existingValue.Contains("\"expose\":", StringComparison.Ordinal);
+
+        return !isV14BlockList || expectedUrls.Any(url => !existingValue.Contains(url, StringComparison.Ordinal));
     }
 
     private IContent? EnsureSettingsNode()
@@ -299,6 +328,44 @@ public class DemoMobileNavSeeder(
             ["expose"] = new JsonArray(
                 new JsonObject { ["contentKey"] = homeKey,      ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = dashKey,      ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = workflowsKey, ["culture"] = null, ["segment"] = null }
+            )
+        };
+
+        return root.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+    }
+
+    /// <summary>
+    /// Builds the desktop nav's Block List JSON — same shape and element type as
+    /// <see cref="BuildBlockListJson"/>, but its own three items (Home, Get in Touch, My
+    /// Workflows — genuinely different content from the mobile bar's Home/Dashboard/Workflows)
+    /// and no icons, matching how the desktop header nav has always rendered as plain text links.
+    /// </summary>
+    private static string BuildWebNavBlockListJson()
+    {
+        var homeKey = WebHomeElementKey.ToString();
+        var getInTouchKey = WebGetInTouchElementKey.ToString();
+        var workflowsKey = WebWorkflowsElementKey.ToString();
+
+        var root = new JsonObject
+        {
+            ["layout"] = new JsonObject
+            {
+                ["Umbraco.BlockList"] = new JsonArray(
+                    new JsonObject { ["contentKey"] = homeKey },
+                    new JsonObject { ["contentKey"] = getInTouchKey },
+                    new JsonObject { ["contentKey"] = workflowsKey }
+                )
+            },
+            ["contentData"] = new JsonArray(
+                BuildBlockItem(homeKey, "Home", TestSiteSeedContract.HomePageUrl, mediaKey: null),
+                BuildBlockItem(getInTouchKey, "Get in Touch", TestSiteSeedContract.WorkflowPageUrl, mediaKey: null),
+                BuildBlockItem(workflowsKey, "My Workflows", TestSiteSeedContract.WorkflowHubUrl, mediaKey: null)
+            ),
+            ["settingsData"] = new JsonArray(),
+            ["expose"] = new JsonArray(
+                new JsonObject { ["contentKey"] = homeKey, ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = getInTouchKey, ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = workflowsKey, ["culture"] = null, ["segment"] = null }
             )
         };

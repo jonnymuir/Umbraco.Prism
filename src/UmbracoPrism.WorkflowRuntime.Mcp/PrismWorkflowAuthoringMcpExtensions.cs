@@ -11,14 +11,18 @@ namespace UmbracoPrism.WorkflowRuntime.Mcp;
 /// </summary>
 public static class PrismWorkflowAuthoringMcpExtensions
 {
-    /// <summary>Registers the MCP server and discovers <see cref="WorkflowAuthoringTools"/> from this assembly.</summary>
+    /// <summary>
+    /// Registers the MCP server and discovers <see cref="WorkflowAuthoringTools"/> and
+    /// <see cref="WorkflowAuthoringResources"/> from this assembly.
+    /// </summary>
     public static IServiceCollection AddPrismWorkflowAuthoringMcp(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddMcpServer()
             .WithHttpTransport()
-            .WithToolsFromAssembly();
+            .WithToolsFromAssembly()
+            .WithResourcesFromAssembly();
 
         return services;
     }

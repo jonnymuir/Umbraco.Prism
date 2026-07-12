@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Services.Calculations;
 using UmbracoPrism.WorkflowRuntime.Services;
 
 namespace UmbracoPrism.WorkflowRuntime.Api;
@@ -50,7 +51,10 @@ public static class PrismWorkflowAuthoringApiExtensions
             {
                 return Results.BadRequest(new WorkflowValidationOutcome(
                     false,
-                    [$"Route key '{definitionKey}' does not match body definitionKey '{workflow.DefinitionKey}'."]));
+                    [new WorkflowDiagnostic(
+                        "ROUTE_KEY_MISMATCH",
+                        "definitionKey",
+                        $"Route key '{definitionKey}' does not match body definitionKey '{workflow.DefinitionKey}'.")]));
             }
 
             var outcome = await service.SaveAsync(workflow, workflow.Version, ct);
@@ -63,7 +67,12 @@ public static class PrismWorkflowAuthoringApiExtensions
         });
 
         group.MapPost("/workflows/simulate", (SimulateWorkflowRequest request, WorkflowAuthoringService service) =>
-            Results.Ok(service.Simulate(request.Workflow, request.Steps)));
+        {
+            var mockServiceInputs = request.MockServiceInputs is { } element
+                ? (IReadOnlyDictionary<string, object?>)CalculationScopeJson.ToScopeValue(element)!
+                : null;
+            return Results.Ok(service.Simulate(request.Workflow, request.Steps, mockServiceInputs));
+        });
 
         // Cheap enough to poll: a client that has a workflow open (e.g. the visual editor) can
         // check every ~15s whether it's still current without re-fetching the full definition.

@@ -56,13 +56,19 @@ public class WorkflowDefinitionUpdateTests : IDisposable
     }
 
     [Fact]
-    public void UpdateDefinition_ReturnsFalse_ForUnknownKey()
+    public void UpdateDefinition_RegistersNewKey_NotLoadedAtStartup()
     {
-        var updated = BuildPaymentDemoSeed("Cardholder ID");
+        // A brand-new workflow key (one an agent or human just authored from scratch via
+        // save_workflow) must actually become servable — otherwise "a save reaches the live
+        // engine immediately" is false for exactly the scenario — authoring a new service —
+        // the toolkit exists for.
+        var authored = BuildPaymentDemoSeed("Cardholder ID") with { DefinitionKey = "brand-new-workflow" };
 
-        var result = _engine.UpdateDefinition("not-a-real-key", updated);
+        var result = _engine.UpdateDefinition("brand-new-workflow", authored);
 
-        result.Should().BeFalse("engine should reject updates for keys that were not loaded at startup");
+        result.Should().BeTrue("a new key must be registered, not silently rejected");
+        _engine.GetDefinition("brand-new-workflow").Should().NotBeNull(
+            "the newly-registered definition must be immediately servable");
     }
 
     [Fact]

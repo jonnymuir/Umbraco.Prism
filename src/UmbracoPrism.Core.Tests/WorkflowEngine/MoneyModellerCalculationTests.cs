@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentAssertions;
 using UmbracoPrism.MockBusinessApp.Services.MoneyModeller;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow.Calculations;
 using UmbracoPrism.Shared.Services.Calculations;
 // The maths under test is the declarative block in money-modeller.json; the scope is
 // built exactly as the engine builds it (definition input types + service inputs).
@@ -188,6 +189,42 @@ public class MoneyModellerCalculationTests
         ((decimal)rows.First(r => (decimal)r["age"]! == 68m)["sp"]!).Should().Be(11_975m);
         ((decimal)rows.First(r => (decimal)r["age"]! == 79m)["dc"]!).Should().BeGreaterThan(0, "drawdown runs to 79");
         ((decimal)rows.First(r => (decimal)r["age"]! == 80m)["dc"]!).Should().Be(0, "the 20-year drawdown ends at 80");
+    }
+
+    [Fact]
+    public void EvaluateCollectingErrors_OnARealSetWithADeliberatelyBrokenField_ReportsRatherThanThrows()
+    {
+        var serviceInputs = new Dictionary<string, object?>
+        {
+            ["member"] = new Dictionary<string, object?>
+            {
+                ["name"] = ActiveWithDc.Name,
+                ["active"] = ActiveWithDc.Active,
+                ["age"] = (decimal)ActiveWithDc.Age,
+                ["salary"] = ActiveWithDc.Salary,
+                ["accruedPension"] = ActiveWithDc.AccruedPension,
+                ["accruedLump"] = ActiveWithDc.AccruedLump,
+                ["dcPot"] = ActiveWithDc.DcPot
+            }
+        };
+        var scope = CalculationScopeBuilder.Build(_definition, new Dictionary<string, object?> { ["retireAge"] = "66" }, serviceInputs);
+
+        var broken = _definition.Calculations! with
+        {
+            Fields = new Dictionary<string, WorkflowCalculationField>(_definition.Calculations!.Fields)
+            {
+                ["basePension"] = new WorkflowCalculationField { Expr = "thisNameDoesNotExist + 1" }
+            }
+        };
+
+        var evaluation = _evaluator.EvaluateCollectingErrors(broken, scope);
+
+        evaluation.Diagnostics.Should().ContainSingle(d =>
+            d.Kind == CalculationDiagnosticKind.Field && d.Name == "basePension" && d.Message.Contains("Unknown name"));
+        evaluation.Result.Fields.Should().NotContainKey("basePension",
+            "a failed field is omitted from the result rather than the whole evaluation throwing");
+        evaluation.Result.Fields.Should().ContainKey("quoteMode",
+            "fields declared before the broken one should still evaluate");
     }
 
     [Fact]

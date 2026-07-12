@@ -1,3 +1,5 @@
+using UmbracoPrism.Shared.Services.Calculations;
+
 namespace UmbracoPrism.WorkflowRuntime.Models;
 
 /// <summary>
@@ -41,4 +43,12 @@ public record WorkflowInstanceState
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> JoinArrivals { get; init; }
         = new Dictionary<string, IReadOnlyList<string>>();
+
+    /// <summary>
+    /// The most recently computed calculation result for this instance's current state, if
+    /// its definition has a calculations block and it last evaluated cleanly. Not part of the
+    /// public runtime contract — internal bookkeeping so a composed caller (e.g. the
+    /// simulation runner) can read raw calculated values without duplicating evaluation.
+    /// </summary>
+    public CalculationResult? LastCalculationResult { get; init; }
 }

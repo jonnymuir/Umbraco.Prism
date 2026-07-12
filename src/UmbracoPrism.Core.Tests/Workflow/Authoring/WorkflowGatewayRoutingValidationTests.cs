@@ -77,7 +77,7 @@ public class WorkflowGatewayRoutingValidationTests
 
         var errors = workflow.ValidateGatewayRouting();
 
-        errors.Should().ContainSingle(e => e.Contains("State 'start'") && e.Contains("'end'"),
+        errors.Should().ContainSingle(d => d.Message.Contains("State 'start'") && d.Message.Contains("'end'"),
             "a direct state → state route must be flagged");
     }
 
@@ -211,8 +211,8 @@ public class WorkflowGatewayRoutingValidationTests
         var errors = workflow.ValidateGatewayRouting();
 
         errors.Should().HaveCount(2, "each direct state → state route is a separate violation");
-        errors.Should().Contain(e => e.Contains("'a'") && e.Contains("'b'"));
-        errors.Should().Contain(e => e.Contains("'b'") && e.Contains("'c'"));
+        errors.Should().Contain(d => d.Message.Contains("'a'") && d.Message.Contains("'b'"));
+        errors.Should().Contain(d => d.Message.Contains("'b'") && d.Message.Contains("'c'"));
     }
 
     [Fact]
@@ -233,5 +233,132 @@ public class WorkflowGatewayRoutingValidationTests
         var errors = workflow.ValidateGatewayRouting();
 
         errors.Should().BeEmpty("a workflow with no outgoing routes has no routing violations");
+    }
+
+    [Fact]
+    public void ValidateGatewayRouting_GatewayWithNoKey_ReturnsError()
+    {
+        // Reproduces a real agent-authored bug: a gateway saved with an empty key can never be
+        // resolved by any route, and would only surface at runtime as an opaque "access denied".
+        var workflow = new WorkflowDefinitionFile
+        {
+            DefinitionKey = "test",
+            DisplayName = "Test",
+            InitialState = "start",
+            States =
+            [
+                new StepDefinition
+                {
+                    StateKey = "start",
+                    DisplayName = "Start",
+                    Routes = [new WorkflowRouteDefinition { Id = "to-gw", Target = "gw", Trigger = "continue" }]
+                },
+                new StepDefinition { StateKey = "end", DisplayName = "End", Routes = [] }
+            ],
+            Gateways =
+            [
+                new WorkflowGatewayDefinition
+                {
+                    Key = "",
+                    DisplayName = "Unnamed gateway",
+                    GatewayType = "Split",
+                    Routes = [new WorkflowRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
+                }
+            ]
+        };
+
+        var errors = workflow.ValidateGatewayRouting();
+
+        errors.Should().Contain(d => d.Code == "GATEWAY_MISSING_KEY");
+    }
+
+    [Fact]
+    public void ValidateGatewayRouting_StateRouteTargetsNonExistentGateway_ReturnsError()
+    {
+        var workflow = new WorkflowDefinitionFile
+        {
+            DefinitionKey = "test",
+            DisplayName = "Test",
+            InitialState = "start",
+            States =
+            [
+                new StepDefinition
+                {
+                    StateKey = "start",
+                    DisplayName = "Start",
+                    Routes = [new WorkflowRouteDefinition { Id = "to-gw", Target = "no-such-gateway", Trigger = "continue" }]
+                }
+            ],
+            Gateways = []
+        };
+
+        var errors = workflow.ValidateGatewayRouting();
+
+        errors.Should().ContainSingle(d =>
+            d.Code == "ROUTE_TARGET_NOT_FOUND" && d.Message.Contains("'no-such-gateway'"));
+    }
+
+    [Fact]
+    public void ValidateGatewayRouting_GatewayRouteTargetsNonExistentState_ReturnsError()
+    {
+        var workflow = new WorkflowDefinitionFile
+        {
+            DefinitionKey = "test",
+            DisplayName = "Test",
+            InitialState = "start",
+            States =
+            [
+                new StepDefinition
+                {
+                    StateKey = "start",
+                    DisplayName = "Start",
+                    Routes = [new WorkflowRouteDefinition { Id = "to-gw", Target = "gw", Trigger = "continue" }]
+                }
+            ],
+            Gateways =
+            [
+                new WorkflowGatewayDefinition
+                {
+                    Key = "gw",
+                    DisplayName = "GW",
+                    GatewayType = "Split",
+                    Routes = [new WorkflowRouteDefinition { Id = "gw-to-nowhere", Target = "ghost", Trigger = "continue" }]
+                }
+            ]
+        };
+
+        var errors = workflow.ValidateGatewayRouting();
+
+        errors.Should().ContainSingle(d =>
+            d.Code == "ROUTE_TARGET_NOT_FOUND" && d.Message.Contains("'ghost'"));
+    }
+
+    [Fact]
+    public void ValidateGatewayRouting_StateRouteWithEmptyTarget_ReturnsWarningNotError()
+    {
+        // The visual editor's "add a route" affordance deliberately allows saving with a route
+        // not yet pointed anywhere (mid-edit) — this must stay a Warning, not an Error, or that
+        // legitimate flow would break. But it should still be visible to an author finishing up.
+        var workflow = new WorkflowDefinitionFile
+        {
+            DefinitionKey = "test",
+            DisplayName = "Test",
+            InitialState = "start",
+            States =
+            [
+                new StepDefinition
+                {
+                    StateKey = "start",
+                    DisplayName = "Start",
+                    Routes = [new WorkflowRouteDefinition { Id = "unwired", Target = "", Trigger = "" }]
+                }
+            ],
+            Gateways = []
+        };
+
+        var errors = workflow.ValidateGatewayRouting();
+
+        errors.Should().ContainSingle(d =>
+            d.Code == "ROUTE_TARGET_EMPTY" && d.Severity == WorkflowDiagnosticSeverity.Warning);
     }
 }

@@ -34,7 +34,7 @@ public class WorkflowAuthoringServiceTests
         var outcome = await service.SaveAsync(workflow, expectedVersion: 0);
 
         outcome.Status.Should().Be(WorkflowSaveStatus.Invalid);
-        outcome.Errors.Should().ContainSingle(e => e.Contains("must always target a gateway"));
+        outcome.Diagnostics.Should().ContainSingle(d => d.Message.Contains("must always target a gateway"));
         (await store.LoadAsync(workflow.DefinitionKey)).Should().BeNull();
     }
 
@@ -75,7 +75,7 @@ public class WorkflowAuthoringServiceTests
         var outcome = service.Validate(workflow);
 
         outcome.IsValid.Should().BeFalse();
-        outcome.Errors.Should().ContainSingle(e => e.Contains("Calculations block failed to evaluate"));
+        outcome.Diagnostics.Should().ContainSingle(d => d.Code == "CALC_FIELD_ERROR" && d.Message.Contains("Unknown name"));
     }
 
     private static WorkflowDefinitionFile ProjectLinearWorkflow()

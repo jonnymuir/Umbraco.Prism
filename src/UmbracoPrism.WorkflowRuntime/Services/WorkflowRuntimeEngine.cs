@@ -22,14 +22,17 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
     private readonly IWorkflowContentSanitizer _sanitizer;
     private readonly Dictionary<string, WorkflowDefinitionFile> _definitions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, WorkflowInstanceState> _instancesById = new();
+    private readonly Func<WorkflowInstanceState, WorkflowDefinitionFile, StepDefinition, IReadOnlyDictionary<string, object?>?>? _serviceInputsResolver;
 
     public WorkflowRuntimeEngine(
         ILogger logger,
         IWorkflowDefinitionStore definitionStore,
-        IWorkflowContentSanitizer sanitizer)
+        IWorkflowContentSanitizer sanitizer,
+        Func<WorkflowInstanceState, WorkflowDefinitionFile, StepDefinition, IReadOnlyDictionary<string, object?>?>? serviceInputsResolver = null)
     {
         Logger = logger;
         _sanitizer = sanitizer;
+        _serviceInputsResolver = serviceInputsResolver;
 
         foreach (var (lookupKey, definition) in definitionStore.LoadDefinitions(logger))
         {
@@ -424,15 +427,20 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
     public WorkflowDefinitionFile? GetDefinition(string key) =>
         _definitions.TryGetValue(key, out var definition) ? definition : null;
 
+    /// <summary>
+    /// Registers or updates a definition in the live engine — an upsert, not update-only. A brand
+    /// new key (one this engine has never seen, e.g. a workflow an agent or human just authored
+    /// from scratch via save_workflow) must actually become servable here, or the documented
+    /// promise that "a save reaches the live engine immediately" is false for exactly the scenario
+    /// — authoring a new service — the whole toolkit exists for. Always returns true.
+    /// </summary>
     public bool UpdateDefinition(string key, WorkflowDefinitionFile updated)
     {
-        if (!_definitions.ContainsKey(key))
-        {
-            return false;
-        }
-
+        var isNewKey = !_definitions.ContainsKey(key);
         _definitions[key] = updated;
-        Logger.LogInformation("Workflow definition updated in-memory: {Key}", key);
+        Logger.LogInformation(
+            isNewKey ? "Workflow definition registered in-memory: {Key}" : "Workflow definition updated in-memory: {Key}",
+            key);
         return true;
     }
 
@@ -480,17 +488,30 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
     /// Host hook supplying typed values for the definition's <c>source: "service"</c>
     /// calculation fields (e.g. a member record from a system of record). Values may be
     /// scalars (decimal/bool/string) or nested string-keyed dictionaries for dotted access.
+    /// A subclassing host overrides this method directly; a composed caller (e.g. the
+    /// simulation runner) supplies the constructor's <c>serviceInputsResolver</c> delegate
+    /// instead — this default implementation prefers that delegate when one was given.
     /// </summary>
     protected virtual IReadOnlyDictionary<string, object?>? ResolveServiceInputs(
         WorkflowInstanceState instance,
         WorkflowDefinitionFile definition,
-        StepDefinition state) => null;
+        StepDefinition state) => _serviceInputsResolver?.Invoke(instance, definition, state);
 
     protected bool TryGetInstance(string instanceId, out WorkflowInstanceState instance) =>
         _instancesById.TryGetValue(instanceId, out instance!);
 
     protected void SaveInstance(WorkflowInstanceState instance) =>
         _instancesById[instance.InstanceId] = instance;
+
+    /// <summary>
+    /// The most recently computed <see cref="CalculationResult"/> for an instance, if its
+    /// current state has a calculations block and it evaluated cleanly — <c>null</c> if the
+    /// instance doesn't exist, its state has no calculations block, or evaluation failed. A
+    /// composed caller (e.g. the simulation runner) uses this to read raw calculated values
+    /// without duplicating evaluation itself.
+    /// </summary>
+    public CalculationResult? GetLastCalculationResult(string instanceId) =>
+        TryGetInstance(instanceId, out var instance) ? instance.LastCalculationResult : null;
 
     protected WorkflowResponseEnvelope BuildEnvelope(
         WorkflowInstanceState instance,
@@ -1030,6 +1051,11 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 var format = definition.Calculations.Fields.TryGetValue(name, out var field) ? field.Format : null;
                 display[name] = FormatCalculatedValue(value, format);
             }
+
+            // Last computed result is kept on the instance so a composed caller (e.g. the
+            // simulation runner, which builds this engine rather than subclassing it) can
+            // read raw calculated values without duplicating evaluation itself.
+            SaveInstance(instance with { LastCalculationResult = result });
 
             return new CalculationRenderContext(definition.Calculations, fullScope, result, display);
         }

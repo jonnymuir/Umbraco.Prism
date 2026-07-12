@@ -30,7 +30,10 @@ Comprehensive guide to the CSS variable annotation system. Learn the `@property`
 Handle backend downtime at the edge. Custom error pages or Workers for branded maintenance pages. Separate responses for browser vs mobile app users.
 
 ### [Reference Workflow Contract](guides/reference-workflow-contract.md)
-Understand the four-workflow reference contract in the MockBusinessApp. Learn how workflows are defined, seeded at runtime, and where downstream apps integrate their own workflow repository.
+The `WorkflowDefinitionFile` JSON contract: states, routes, gateways, queues, components, and response states — the shape every workflow is authored in, by a human or an AI agent.
+
+### [The Prism Calculation Language](guides/calculation-language.md)
+Grammar, functions, tables/series, and `showWhen` for the declarative expression language behind workflow calculations.
 
 ---
 

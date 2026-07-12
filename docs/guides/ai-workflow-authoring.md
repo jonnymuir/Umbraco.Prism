@@ -108,6 +108,50 @@ If your endpoints require auth, pass it at registration:
 claude mcp add --transport http prism-workflow <url> --header "Authorization: Bearer <token>"
 ```
 
+## Reference material for the agent
+
+Two things worth pointing an agent at before it starts authoring, rather than
+letting it infer syntax from trial and error:
+
+- **[The Prism Calculation Language](./calculation-language.md)** — the grammar,
+  function reference, and worked example for the `calculations` block and
+  `showWhen` expressions. Also exposed as an MCP resource,
+  `workflow-docs://calculation-language`, so an agent connected only over MCP (no
+  repo checkout) can fetch it directly.
+- **[Reference Workflow Contract](./reference-workflow-contract.md)** — the full
+  `WorkflowDefinitionFile` shape: states, routes, gateways, queues, components,
+  response states. Also exposed as `workflow-docs://authoring-guide`.
+
+## The author loop
+
+The MCP/REST tools compose into one iteration loop, whether the caller is a human
+using them through a chat interface or an agent driving them directly:
+
+1. **`list_workflows`** → **`read_workflow`** to see what exists and its current
+   shape (and `version`, needed to save later).
+2. **Draft** a change against the real contract — reference the two docs above
+   rather than guessing syntax.
+3. **`validate_workflow`** on the draft *before* touching anything live — it
+   checks gateway routing and every calculation/`showWhen` expression, returning
+   structured diagnostics (`code`, `path`, `message`) an agent can act on directly
+   rather than a single opaque error.
+4. **`simulate_workflow`** to dry-run the draft through the real engine with no
+   persistence — confirms it actually behaves as intended (right stage shown at
+   the right time, right actions available) before it's saved. Returns the raw
+   calculated field/series values alongside the trace, so you can check the maths
+   directly instead of parsing rendered UI text. If the definition has a
+   `source: "service"` calculation field, pass `mockServiceInputsJson` to resolve
+   it — without one, those fields simply stay unresolved rather than erroring, the
+   same as against a host with no data for them.
+5. **`save_workflow`** with the `version` read in step 1. A concurrent edit
+   (human or another agent) surfaces as a conflict, not a silent overwrite —
+   reload and reapply.
+
+This mirrors the proposal-first pattern the visual editor already follows for
+human+AI co-authoring (draft → validate → simulate/preview → apply) — one shared
+validation engine, one shared source of truth, whichever surface is doing the
+editing.
+
 ### A note on tool selection
 
 If Claude Code is running from a checkout of your app's own source (or Prism's), it has

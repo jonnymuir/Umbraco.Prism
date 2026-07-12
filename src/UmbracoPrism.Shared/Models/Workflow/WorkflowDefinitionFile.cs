@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow.Components;
 
 namespace UmbracoPrism.Shared.Models.Workflow;
@@ -10,43 +11,216 @@ namespace UmbracoPrism.Shared.Models.Workflow;
 public record WorkflowDefinitionFile
 {
     /// <summary>
-    /// Validates that every state route targets a gateway, never another state directly.
+    /// Validates that every state route targets a gateway, never another state directly, that
+    /// every gateway has a non-empty <c>key</c> (a keyless gateway can never be a valid route
+    /// target — the engine resolves targets by key, so it would silently be unreachable), and
+    /// that every route's <c>target</c> actually resolves to an existing gateway (for routes
+    /// from a state) or state/gateway (for routes from a gateway) — a target that matches
+    /// nothing is a dangling reference the engine can't route, and would only surface at
+    /// runtime as an opaque "access denied" once a real user reached it.
     /// Gateway routes may target either states or gateways.
-    /// Returns one error message per violation; empty list means the workflow is valid.
+    /// Returns one diagnostic per violation; empty list means the workflow is valid.
     /// </summary>
-    public IReadOnlyList<string> ValidateGatewayRouting()
+    public IReadOnlyList<WorkflowDiagnostic> ValidateGatewayRouting()
     {
+        var stateKeys = States
+            .Where(s => !string.IsNullOrWhiteSpace(s.StateKey))
+            .Select(s => s.StateKey)
+            .ToHashSet(StringComparer.Ordinal);
         var gatewayKeys = (Gateways ?? [])
             .Where(g => !string.IsNullOrWhiteSpace(g.Key))
             .Select(g => g.Key)
             .ToHashSet(StringComparer.Ordinal);
 
-        var stateKeys = States
-            .Where(s => !string.IsNullOrWhiteSpace(s.StateKey))
-            .Select(s => s.StateKey)
-            .ToHashSet(StringComparer.Ordinal);
+        var diagnostics = new List<WorkflowDiagnostic>();
+        var gateways = Gateways ?? [];
 
-        var errors = new List<string>();
+        var gatewayIndex = 0;
+        foreach (var gateway in gateways)
+        {
+            if (string.IsNullOrWhiteSpace(gateway.Key))
+            {
+                diagnostics.Add(new WorkflowDiagnostic(
+                    "GATEWAY_MISSING_KEY",
+                    $"gateways[{gatewayIndex}].key",
+                    $"Gateway '{gateway.DisplayName}' has no key. The engine resolves route targets " +
+                    "by key, so a keyless gateway can never be reached — give it a unique key."));
+            }
+
+            gatewayIndex++;
+        }
 
         foreach (var state in States)
         {
+            var routeIndex = 0;
             foreach (var route in state.Routes ?? [])
             {
                 if (string.IsNullOrWhiteSpace(route.Target))
                 {
-                    continue;
+                    // Warning, not Error: the visual editor's "add a route" affordance deliberately
+                    // supports saving with a route not yet pointed anywhere, mid-edit. But an author
+                    // (human or agent) finishing a change should see this before considering the
+                    // job done — an empty target left in a "final" save is unreachable at runtime.
+                    diagnostics.Add(new WorkflowDiagnostic(
+                        "ROUTE_TARGET_EMPTY",
+                        $"states.{state.StateKey}.routes[{routeIndex}]",
+                        $"State '{state.StateKey}' route '{route.Id}' has no target — it doesn't go " +
+                        "anywhere yet. Fine mid-edit; if this workflow is meant to be complete, wire it " +
+                        "to a gateway before finishing.",
+                        WorkflowDiagnosticSeverity.Warning));
+                }
+                else if (stateKeys.Contains(route.Target))
+                {
+                    diagnostics.Add(new WorkflowDiagnostic(
+                        "GATEWAY_ROUTE_TARGETS_STATE",
+                        $"states.{state.StateKey}.routes[{routeIndex}]",
+                        $"State '{state.StateKey}' route '{route.Id}' targets state '{route.Target}' directly. " +
+                        "Routes from states must always target a gateway."));
+                }
+                else if (!gatewayKeys.Contains(route.Target))
+                {
+                    diagnostics.Add(new WorkflowDiagnostic(
+                        "ROUTE_TARGET_NOT_FOUND",
+                        $"states.{state.StateKey}.routes[{routeIndex}]",
+                        $"State '{state.StateKey}' route '{route.Id}' targets '{route.Target}', which is not " +
+                        "any gateway's key in this workflow. Routes from states must target an existing gateway."));
                 }
 
-                if (stateKeys.Contains(route.Target))
+                routeIndex++;
+            }
+        }
+
+        gatewayIndex = 0;
+        foreach (var gateway in gateways)
+        {
+            var routeIndex = 0;
+            foreach (var route in gateway.Routes ?? [])
+            {
+                if (string.IsNullOrWhiteSpace(route.Target))
                 {
-                    errors.Add(
-                        $"State '{state.StateKey}' route '{route.Id}' targets state '{route.Target}' directly. " +
-                        "Routes from states must always target a gateway.");
+                    diagnostics.Add(new WorkflowDiagnostic(
+                        "ROUTE_TARGET_EMPTY",
+                        $"gateways[{gatewayIndex}].routes[{routeIndex}]",
+                        $"Gateway '{gateway.Key}' route '{route.Id}' has no target — it doesn't go " +
+                        "anywhere yet. Fine mid-edit; if this workflow is meant to be complete, wire it " +
+                        "to a state or gateway before finishing.",
+                        WorkflowDiagnosticSeverity.Warning));
+                }
+                else if (!stateKeys.Contains(route.Target) && !gatewayKeys.Contains(route.Target))
+                {
+                    diagnostics.Add(new WorkflowDiagnostic(
+                        "ROUTE_TARGET_NOT_FOUND",
+                        $"gateways[{gatewayIndex}].routes[{routeIndex}]",
+                        $"Gateway '{gateway.Key}' route '{route.Id}' targets '{route.Target}', which is not " +
+                        "any state or gateway key in this workflow."));
+                }
+
+                routeIndex++;
+            }
+
+            gatewayIndex++;
+        }
+
+        return diagnostics;
+    }
+
+    /// <summary>
+    /// Validates that every <see cref="StatGroupComponent"/> item and <see cref="ChartComponent"/>
+    /// binds to a field or series that actually exists — either a calculated field/series, or (for
+    /// stat-group only) an input component's own <c>fieldKey</c> captured earlier in the workflow.
+    /// Catches the easy authoring mistake of adding a display component whose binding was never
+    /// wired to the <c>calculations</c> block (or the block itself was never added), which would
+    /// otherwise render silently blank with no error anywhere.
+    /// Returns one diagnostic per dangling binding; empty list means every binding resolves.
+    /// </summary>
+    public IReadOnlyList<WorkflowDiagnostic> ValidateDataDisplayBindings()
+    {
+        var calculatedFieldNames = Calculations?.Fields.Keys.ToHashSet(StringComparer.Ordinal)
+            ?? new HashSet<string>(StringComparer.Ordinal);
+        var calculatedSeriesNames = Calculations?.Series?.Keys.ToHashSet(StringComparer.Ordinal)
+            ?? new HashSet<string>(StringComparer.Ordinal);
+        var inputFieldKeys = States
+            .SelectMany(s => s.Components.FlattenWithPaths(""))
+            .Select(c => c.Component)
+            .OfType<InputComponent>()
+            .Select(c => c.FieldKey)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .ToHashSet(StringComparer.Ordinal);
+
+        var diagnostics = new List<WorkflowDiagnostic>();
+
+        foreach (var state in States)
+        {
+            foreach (var (component, path) in state.Components.FlattenWithPaths($"states.{state.StateKey}.components"))
+            {
+                switch (component)
+                {
+                    case StatGroupComponent statGroup:
+                        if (statGroup.Items.Count == 0)
+                        {
+                            diagnostics.Add(new WorkflowDiagnostic(
+                                "DATA_DISPLAY_NO_ITEMS",
+                                $"{path}.items",
+                                $"stat-group '{statGroup.Title}' has no items — it will render nothing. " +
+                                "Add at least one item bound to a captured input or calculations.fields entry."));
+                        }
+
+                        var itemIndex = 0;
+                        foreach (var item in statGroup.Items)
+                        {
+                            if (!string.IsNullOrWhiteSpace(item.FieldKey) &&
+                                !calculatedFieldNames.Contains(item.FieldKey) &&
+                                !inputFieldKeys.Contains(item.FieldKey))
+                            {
+                                diagnostics.Add(new WorkflowDiagnostic(
+                                    "DATA_DISPLAY_UNKNOWN_FIELD",
+                                    $"{path}.items[{itemIndex}].fieldKey",
+                                    $"stat-group item '{item.Label}' binds to field '{item.FieldKey}', which is " +
+                                    "neither a captured input field nor a calculations.fields entry. Either add " +
+                                    $"'{item.FieldKey}' to the workflow's calculations block, or fix the fieldKey."));
+                            }
+
+                            itemIndex++;
+                        }
+
+                        break;
+
+                    case ChartComponent chart:
+                        if (!string.IsNullOrWhiteSpace(chart.Series) && !calculatedSeriesNames.Contains(chart.Series))
+                        {
+                            diagnostics.Add(new WorkflowDiagnostic(
+                                "DATA_DISPLAY_UNKNOWN_FIELD",
+                                $"{path}.series",
+                                $"chart '{chart.Title}' binds to series '{chart.Series}', which is not a " +
+                                $"calculations.series entry. Either add '{chart.Series}' to the workflow's " +
+                                "calculations block, or fix the series name."));
+                        }
+
+                        break;
                 }
             }
         }
 
-        return errors;
+        if (Calculations is not null)
+        {
+            foreach (var (name, field) in Calculations.Fields)
+            {
+                if (string.Equals(field.Source, "service", StringComparison.OrdinalIgnoreCase) &&
+                    inputFieldKeys.Contains(name))
+                {
+                    diagnostics.Add(new WorkflowDiagnostic(
+                        "CALC_FIELD_SHADOWS_INPUT",
+                        $"calculations.fields.{name}",
+                        $"'{name}' is declared source: \"service\" in calculations, but a component in this " +
+                        $"workflow already captures user input under fieldKey '{name}' — that value is " +
+                        "automatically in the calculation scope already. `source: \"service\"` is for a value " +
+                        "an external system supplies (e.g. a lookup a host resolves), never for the user's own " +
+                        "submitted input. Remove this calculations entry, or use a different field name."));
+                }
+            }
+        }
+
+        return diagnostics;
     }
 
 

@@ -38,7 +38,7 @@ public class CalculationGoldenTests
 
         var calculations = BuildCalculationSet(testCase);
         var inputs = testCase.TryGetProperty("inputs", out var inputsElement)
-            ? (IReadOnlyDictionary<string, object?>)ToScopeValue(inputsElement)!
+            ? (IReadOnlyDictionary<string, object?>)CalculationScopeJson.ToScopeValue(inputsElement)!
             : new Dictionary<string, object?>();
 
         var expectError = testCase.TryGetProperty("expectError", out var errorElement) && errorElement.GetBoolean();
@@ -141,18 +141,6 @@ public class CalculationGoldenTests
                 : null
         };
     }
-
-    private static object? ToScopeValue(JsonElement element) => element.ValueKind switch
-    {
-        JsonValueKind.Number => element.GetDecimal(),
-        JsonValueKind.String => element.GetString(),
-        JsonValueKind.True => true,
-        JsonValueKind.False => false,
-        JsonValueKind.Null => null,
-        JsonValueKind.Object => element.EnumerateObject()
-            .ToDictionary(p => p.Name, p => ToScopeValue(p.Value)) as IReadOnlyDictionary<string, object?>,
-        _ => throw new InvalidOperationException($"Unsupported input kind {element.ValueKind}.")
-    };
 
     private static IReadOnlyList<JsonElement> LoadCases()
     {

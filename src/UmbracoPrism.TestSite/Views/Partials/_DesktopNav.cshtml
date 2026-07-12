@@ -1,0 +1,19 @@
+@using Umbraco.Cms.Core.Models.Blocks
+@model IEnumerable<BlockListItem>
+
+@if (Model != null && Model.Any())
+{
+    var navItems = Model.Select(block => new
+    {
+        label = block.Content.Value<string>("navLabel") ?? string.Empty,
+        href = block.Content.Value<string>("navUrl") ?? "/",
+        target = block.Content.Value<bool>("openInNewTab") ? "_blank" : null,
+    });
+
+    <nav aria-label="Main navigation">
+        @foreach (var item in navItems)
+        {
+            <a href="@item.href" target="@item.target">@item.label</a>
+        }
+    </nav>
+}
