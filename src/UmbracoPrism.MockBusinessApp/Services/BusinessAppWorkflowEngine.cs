@@ -83,27 +83,16 @@ public class BusinessAppWorkflowEngine : WorkflowRuntimeEngine
             return ErrorEnvelope($"Workflow '{instance.WorkflowKey}' not found.", "DEFINITION_NOT_FOUND");
         }
 
+        // Delegate to the base implementation, same as the gateway case below — this override
+        // exists to run MockBusinessApp-specific registered actions around a plain single-cursor
+        // stage transition, not to reimplement "change:" jump handling. This branch used to have
+        // its own copy of the (older, cursor-blind) base logic; that copy silently rotted out of
+        // sync when the base class was fixed to also move the right cursor
+        // (WorkflowRuntimeEngine.Advance), making every "Change" link on a summary-list a no-op in
+        // the real app despite unit tests against the base class passing (confirmed live).
         if (action.StartsWith("change:", StringComparison.OrdinalIgnoreCase))
         {
-            var targetStateKey = action["change:".Length..];
-            if (definition.States.All(s => s.StateKey != targetStateKey))
-            {
-                return ErrorEnvelope($"State '{targetStateKey}' not found in definition.", "STATE_NOT_FOUND");
-            }
-
-            var jumped = instance with
-            {
-                CurrentState = targetStateKey,
-                StateVersion = instance.StateVersion + 1,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
-
-            SaveInstance(jumped);
-            Logger.LogInformation(
-                "Change-link: jumped instance {Id} to state '{State}'",
-                instanceId,
-                targetStateKey);
-            return BuildEnvelope(jumped, definition, accessProfile, allowFallbackWhenHidden: true);
+            return base.Advance(instanceId, tenantId, userId, accessProfile, action, expectedStateVersion, fieldValues);
         }
 
         var visibleWorkItem = FindAccessibleWorkItems(instance, definition, accessProfile)

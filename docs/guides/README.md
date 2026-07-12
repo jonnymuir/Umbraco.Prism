@@ -19,4 +19,5 @@ Step-by-step guides for common workflows and customizations in Umbraco.Prism.
 
 ## Reference
 
-- **[Reference Workflow Contract](./reference-workflow-contract.md)** — Technical specification for the four reference workflows in Prism.
+- **[Reference Workflow Contract](./reference-workflow-contract.md)** — Technical specification for `WorkflowDefinitionFile`: states, routes, gateways, queues, components, response states.
+- **[The Prism Calculation Language](./calculation-language.md)** — Grammar, functions, tables/series, `showWhen`, and a worked walkthrough for the declarative calculation/actuarial expression language.

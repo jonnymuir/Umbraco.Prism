@@ -15,6 +15,19 @@ public sealed record CalculationResult
         = new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>();
 }
 
+/// <summary>Which part of a <see cref="WorkflowCalculationSet"/> a <see cref="CalculationDiagnostic"/> came from.</summary>
+public enum CalculationDiagnosticKind { Field, Series }
+
+/// <summary>One field/series failure collected by <see cref="CalculationEvaluator.EvaluateCollectingErrors"/>.</summary>
+public sealed record CalculationDiagnostic(CalculationDiagnosticKind Kind, string Name, string Message);
+
+/// <summary>
+/// Result of <see cref="CalculationEvaluator.EvaluateCollectingErrors"/> — the best-effort
+/// <see cref="CalculationResult"/> (failed fields/series are omitted, not thrown) plus every
+/// diagnostic collected along the way.
+/// </summary>
+public sealed record CalculationEvaluationResult(CalculationResult Result, IReadOnlyList<CalculationDiagnostic> Diagnostics);
+
 /// <summary>
 /// Evaluates a workflow calculation set against a scope of input values.
 ///
@@ -48,10 +61,28 @@ public sealed class CalculationEvaluator
 
     public CalculationResult Evaluate(
         WorkflowCalculationSet calculations,
-        IReadOnlyDictionary<string, object?> inputs)
+        IReadOnlyDictionary<string, object?> inputs) =>
+        EvaluateCore(calculations, inputs, collectErrors: false).Result;
+
+    /// <summary>
+    /// Like <see cref="Evaluate"/>, but collects every field/series failure instead of throwing
+    /// on the first one — a field or series that fails is simply omitted from the result and
+    /// recorded as a <see cref="CalculationDiagnostic"/>. Used by authoring-time validation,
+    /// where an author needs every problem in one pass, not just the first.
+    /// </summary>
+    public CalculationEvaluationResult EvaluateCollectingErrors(
+        WorkflowCalculationSet calculations,
+        IReadOnlyDictionary<string, object?> inputs) =>
+        EvaluateCore(calculations, inputs, collectErrors: true);
+
+    private CalculationEvaluationResult EvaluateCore(
+        WorkflowCalculationSet calculations,
+        IReadOnlyDictionary<string, object?> inputs,
+        bool collectErrors)
     {
         var scope = new Dictionary<string, object?>(inputs, StringComparer.Ordinal);
         var fields = new Dictionary<string, object?>(StringComparer.Ordinal);
+        var diagnostics = new List<CalculationDiagnostic>();
 
         foreach (var (name, field) in calculations.Fields)
         {
@@ -76,18 +107,33 @@ public sealed class CalculationEvaluator
                 throw new CalculationException($"Field '{name}' collides with an input or earlier field.");
             }
 
-            var value = EvaluateNode(CalculationExpressionParser.Parse(field.Expr), scope, calculations, name);
-            scope[name] = value;
-            fields[name] = value;
+            try
+            {
+                var value = EvaluateNode(CalculationExpressionParser.Parse(field.Expr), scope, calculations, name);
+                scope[name] = value;
+                fields[name] = value;
+            }
+            catch (CalculationException ex) when (collectErrors)
+            {
+                diagnostics.Add(new CalculationDiagnostic(CalculationDiagnosticKind.Field, name, ex.Message));
+                scope[name] = null;
+            }
         }
 
         var series = new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>(StringComparer.Ordinal);
         foreach (var (name, definition) in calculations.Series ?? new Dictionary<string, WorkflowCalculationSeries>())
         {
-            series[name] = EvaluateSeries(name, definition, scope, calculations);
+            try
+            {
+                series[name] = EvaluateSeries(name, definition, scope, calculations);
+            }
+            catch (CalculationException ex) when (collectErrors)
+            {
+                diagnostics.Add(new CalculationDiagnostic(CalculationDiagnosticKind.Series, name, ex.Message));
+            }
         }
 
-        return new CalculationResult { Fields = fields, Series = series };
+        return new CalculationEvaluationResult(new CalculationResult { Fields = fields, Series = series }, diagnostics);
     }
 
     private IReadOnlyList<IReadOnlyDictionary<string, object?>> EvaluateSeries(

@@ -156,7 +156,19 @@ export class MockBusinessAppWorkflowSource implements WorkflowSource {
     if (!response.ok) {
       throw new Error(`Failed to list workflows (${response.status} ${response.statusText}).`);
     }
-    return (await response.json()) as WorkflowSummary[];
+    // /mockapp/workflows serializes WorkflowSourceSummary(DefinitionKey, DisplayName) — there's no
+    // separate "host-facing key" concept on this host, so workflowKey and definitionKey are the
+    // same string here. The naive `as WorkflowSummary[]` this replaced compiled fine (TypeScript
+    // doesn't check across a JSON boundary) but left every option's `workflowKey` undefined at
+    // runtime, so the shell's `option.workflowKey === this._draftWorkflowKey` selected-match never
+    // fired and the <select> silently fell back to its first option regardless of which workflow
+    // was actually loaded.
+    const summaries = (await response.json()) as Array<{ definitionKey: string; displayName: string }>;
+    return summaries.map(({ definitionKey, displayName }) => ({
+      workflowKey: definitionKey,
+      definitionKey,
+      displayName,
+    }));
   }
 
   async load(workflowKey: string): Promise<AuthoredWorkflow> {

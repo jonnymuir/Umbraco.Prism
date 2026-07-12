@@ -12,15 +12,7 @@
     // 2. Resolve site-wide Settings node (Paul Seal pattern)
     var settings = TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.SettingsAlias);
     var mobileNavLinks = settings?.Value<BlockListModel>("mobileNavLinks");
-    var homeUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.HomePageAlias),
-        TestSiteSeedContract.HomePageUrl);
-    var workflowPageUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedWorkflowPage(rootContent, TestSiteSeedContract.WorkflowKey),
-        TestSiteSeedContract.WorkflowPageUrl);
-    var workflowHubUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.WorkflowHubAlias),
-        TestSiteSeedContract.WorkflowHubUrl);
+    var webNavLinks = settings?.Value<BlockListModel>("webNavLinks");
 }
 
 <!DOCTYPE html>
@@ -57,11 +49,7 @@
         <div class="logo">
             <strong>@(tenant?.Name ?? "Prism Portal")</strong>
         </div>
-        <nav aria-label="Main navigation">
-            <a href="@homeUrl">Home</a>
-            <a href="@workflowPageUrl">Get in Touch</a>
-            <a href="@workflowHubUrl">My Workflows</a>
-        </nav>
+        @await Html.PartialAsync("_DesktopNav", webNavLinks)
     </header>
 
     <main id="main-content" class="container">

@@ -234,7 +234,12 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
             }
         }
 
-        if (string.IsNullOrEmpty(instanceId) || string.IsNullOrEmpty(action))
+        // Action can legitimately be "" — a route with a blank trigger is still a real, valid
+        // action key (WorkflowRuntimeEngine defaults a blank trigger to "continue" when building
+        // available actions, so this shouldn't happen post-fix, but older/unrefreshed definitions
+        // can still submit ""). What actually indicates a malformed request is the field being
+        // absent from the form entirely, not merely empty.
+        if (string.IsNullOrEmpty(instanceId) || !form.ContainsKey("Action"))
         {
             _logger.LogWarning("Workflow POST: missing InstanceId or Action");
             return Redirect(safeReturnUrl);

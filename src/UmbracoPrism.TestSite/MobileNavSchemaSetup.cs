@@ -15,6 +15,10 @@ namespace UmbracoPrism.TestSite;
 /// <summary>
 /// Creates the <c>MobileNavItem</c> element type and associated data types on startup,
 /// then replaces the multi-URL-picker <c>mobileNavLinks</c> property on Settings with a Block List.
+/// Also adds a sibling <c>webNavLinks</c> Block List property, reusing the same element type, so
+/// the desktop header nav can be authored independently of the mobile bottom bar — the two
+/// surfaces genuinely carry different content today (see <c>DemoMobileNavSeeder</c>), and this
+/// makes that difference backoffice-editable instead of one being hardcoded HTML.
 /// Runs idempotently in Development only — skip if element type already exists.
 /// </summary>
 public class MobileNavSchemaSetup(
@@ -32,6 +36,7 @@ public class MobileNavSchemaSetup(
     private static readonly Guid MobileNavItemTypeKey  = new("a9f4b2c1-3d5e-6f70-8912-34abc5678def");
     private static readonly Guid MobileNavIconPickerKey = new("b8e3a1d0-2c4f-5e69-7801-23bcd4567efa");
     private static readonly Guid MobileNavBlockListKey  = new("c7d2f0e9-1b3a-4d58-6790-12cde3456fe9");
+    private static readonly Guid WebNavBlockListKey     = new("d1e2f3a4-5b6c-4d7e-8f90-123456789abc");
 
     // Well-known Umbraco built-in data type GUIDs (stable across all Umbraco v14+ installs).
     private static readonly Guid BuiltInTextBoxKey  = new("0cc0eba1-9960-42c9-bf9b-60e150b429ae");
@@ -61,6 +66,8 @@ public class MobileNavSchemaSetup(
                 PatchPropertyDescriptions(existingElementType);
                 await GetOrCreateBlockListAsync(MobileNavItemTypeKey);
                 await EnsureSettingsMobileNavPropertyAsync();
+                await GetOrCreateWebNavBlockListAsync(MobileNavItemTypeKey);
+                await EnsureSettingsWebNavPropertyAsync();
                 return;
             }
 
@@ -141,6 +148,17 @@ public class MobileNavSchemaSetup(
 
             // Step D: Wire up Settings.mobileNavLinks to use the new Block List.
             await EnsureSettingsMobileNavPropertyAsync(blockList);
+
+            // Step E: same element type, a second dedicated Block List + Settings property for
+            // the desktop nav — see class doc-comment for why these are separate properties.
+            var webNavBlockList = await GetOrCreateWebNavBlockListAsync(elementType.Key);
+            if (webNavBlockList == null)
+            {
+                logger.LogError("MOBILE NAV SCHEMA: Failed to create web nav block list data type.");
+                return;
+            }
+
+            await EnsureSettingsWebNavPropertyAsync(webNavBlockList);
         }
         catch (Exception ex)
         {
@@ -251,6 +269,91 @@ public class MobileNavSchemaSetup(
         await dataTypeService.CreateAsync(dataType, Constants.Security.SuperUserKey);
         logger.LogInformation("MOBILE NAV SCHEMA: Created Mobile Nav Block List data type.");
         return dataType;
+    }
+
+    private async Task<IDataType?> GetOrCreateWebNavBlockListAsync(Guid mobileNavItemKey)
+    {
+        var existing = await dataTypeService.GetAsync(WebNavBlockListKey);
+        if (existing != null)
+        {
+            logger.LogDebug("MOBILE NAV SCHEMA: Web nav block list data type already exists.");
+            return existing;
+        }
+
+        var editor = propertyEditorCollection["Umbraco.BlockList"];
+        if (editor == null)
+        {
+            logger.LogError("MOBILE NAV SCHEMA: Umbraco.BlockList editor not found in PropertyEditorCollection.");
+            return null;
+        }
+
+        var dataType = new DataType(editor, configurationEditorJsonSerializer)
+        {
+            Key = WebNavBlockListKey,
+            Name = "Web Nav Block List",
+            DatabaseType = ValueStorageType.Ntext,
+            EditorUiAlias = "Umb.PropertyEditorUi.BlockList",
+            ConfigurationData = new Dictionary<string, object>
+            {
+                {
+                    "blocks", new[]
+                    {
+                        new Dictionary<string, object>
+                        {
+                            { "contentElementTypeKey", mobileNavItemKey },
+                            { "label", "{=navLabel}" }
+                        }
+                    }
+                },
+                { "validationLimit", new Dictionary<string, object> { { "min", 0 }, { "max", 6 } } }
+            }
+        };
+
+        await dataTypeService.CreateAsync(dataType, Constants.Security.SuperUserKey);
+        logger.LogInformation("MOBILE NAV SCHEMA: Created Web Nav Block List data type.");
+        return dataType;
+    }
+
+    private async Task EnsureSettingsWebNavPropertyAsync(IDataType? blockListDataType = null)
+    {
+        var settings = contentTypeService.Get("settings");
+        if (settings == null)
+        {
+            logger.LogDebug("MOBILE NAV SCHEMA: Settings content type not found — skipping webNavLinks update.");
+            return;
+        }
+
+        blockListDataType ??= await dataTypeService.GetAsync(WebNavBlockListKey);
+        if (blockListDataType == null)
+        {
+            logger.LogDebug("MOBILE NAV SCHEMA: Web nav block list data type not found — cannot update Settings property.");
+            return;
+        }
+
+        const string propertyAlias = "webNavLinks";
+        if (settings.PropertyTypes.Any(p => p.Alias == propertyAlias))
+        {
+            logger.LogDebug("MOBILE NAV SCHEMA: Settings.webNavLinks already exists — nothing to do.");
+            return;
+        }
+
+        const string groupName = "Web Navigation";
+        if (!settings.PropertyGroups.Any(g => g.Name == groupName))
+            settings.AddPropertyGroup(groupName, "webNavigation");
+
+        settings.AddPropertyType(new PropertyType(shortStringHelper, blockListDataType, propertyAlias)
+        {
+            Name = "Web Navigation Links",
+            Description = "Navigation items for the desktop site header. Each item has a label, URL, icon (optional), and open-in-new-tab toggle.",
+            Mandatory = false,
+            SortOrder = 0
+        }, groupName);
+
+#pragma warning disable CS0618
+        contentTypeService.Save(settings);
+#pragma warning restore CS0618
+
+        logger.LogInformation("MOBILE NAV SCHEMA: Settings.webNavLinks created using Web Nav Block List.");
     }
 
     private async Task EnsureSettingsMobileNavPropertyAsync(IDataType? blockListDataType = null)

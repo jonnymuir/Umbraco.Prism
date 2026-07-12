@@ -26,7 +26,18 @@ host app does to expose this surface.
 | `read_workflow` | Read a workflow definition by `definitionKey`. |
 | `validate_workflow` | Check gateway routing and any `calculations` block, without saving. |
 | `save_workflow` | Validate and save. Invalid definitions are rejected, not saved. Visible to the live app immediately. |
-| `simulate_workflow` | Dry-run a scripted sequence of actions with zero persistence, and return the resulting state trace. |
+| `simulate_workflow` | Dry-run a scripted sequence of actions with zero persistence. Returns `{ trace, calculations }` — the resulting state trace, plus the raw calculated field/series values per step (not just what's baked into rendered UI text). Accepts optional `mockServiceInputsJson` to resolve any `source: "service"` calculation field. |
+
+## Resources
+
+Alongside the tools, this project also registers two MCP resources — the canonical
+authoring docs, embedded from `docs/guides/` at build time, fetchable directly by any
+MCP client with no repo checkout:
+
+| Resource URI | Content |
+|---|---|
+| `workflow-docs://calculation-language` | [The Prism Calculation Language](../../docs/guides/calculation-language.md) — grammar, functions, tables/series, `showWhen`. |
+| `workflow-docs://authoring-guide` | [Reference Workflow Contract](../../docs/guides/reference-workflow-contract.md) — the full `WorkflowDefinitionFile` shape. |
 
 ## Connect it to Claude Code
 

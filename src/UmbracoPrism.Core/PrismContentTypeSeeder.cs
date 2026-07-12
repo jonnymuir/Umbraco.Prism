@@ -43,6 +43,7 @@ public class PrismContentTypeSeeder(
         await EnsureWorkflowPageAsync();
         await EnsureWorkflowHubAsync();
         await EnsureSettingsDocumentTypeAsync();
+        await EnsureHomeAllowedChildrenAsync();
 
         logger.LogInformation("PRISM ContentTypeSeeder: Complete");
     }
@@ -71,6 +72,39 @@ public class PrismContentTypeSeeder(
         }
 
         await EnsureTemplateAsync(contentType, name);
+    }
+
+    /// <summary>
+    /// Lets the backoffice "Create" dialog under Home actually offer the content types the
+    /// seeded demo content already nests there (workflowPage, workflowHub, memberDashboard) —
+    /// without this, those pages only ever exist because host seeders create them directly via
+    /// <see cref="IContentService"/>, bypassing the same permission check a real backoffice user
+    /// creating a new page under Home would hit.
+    /// </summary>
+    private async Task EnsureHomeAllowedChildrenAsync()
+    {
+        var homePage = contentTypeService.Get("homePage");
+        if (homePage == null) return;
+
+        var childAliases = new[] { "workflowPage", "workflowHub", "memberDashboard" };
+        var existingAliases = homePage.AllowedContentTypes.Select(sort => sort.Alias).ToHashSet();
+        if (childAliases.All(existingAliases.Contains)) return;
+
+        var childSorts = childAliases
+            .Select(alias => contentTypeService.Get(alias))
+            .Where(childType => childType != null)
+            .Select((childType, index) => new ContentTypeSort(childType!.Key, index, childType.Alias));
+
+        homePage.AllowedContentTypes = homePage.AllowedContentTypes
+            .Concat(childSorts)
+            .DistinctBy(sort => sort.Alias);
+
+#pragma warning disable CS0618
+        contentTypeService.Save(homePage);
+#pragma warning restore CS0618
+
+        logger.LogInformation("PRISM: homePage now allows workflowPage/workflowHub/memberDashboard as children");
+        await Task.CompletedTask;
     }
 
     private async Task EnsureWorkflowPageAsync()

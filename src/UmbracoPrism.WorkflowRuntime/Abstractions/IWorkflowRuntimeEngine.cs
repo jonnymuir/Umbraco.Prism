@@ -48,6 +48,7 @@ public interface IWorkflowRuntimeEngine
 
     WorkflowDefinitionFile? GetDefinition(string key);
 
+    /// <summary>Registers or updates a definition — an upsert. Always returns true.</summary>
     bool UpdateDefinition(string key, WorkflowDefinitionFile updated);
 
     bool Reset(string instanceId);

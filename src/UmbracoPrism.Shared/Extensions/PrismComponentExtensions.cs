@@ -53,6 +53,57 @@ public static class PrismComponentExtensions
         => components.Flatten().OfType<InputComponent>();
 
     /// <summary>
+    /// Recursively walks the component tree like <see cref="Flatten"/>, but also yields each
+    /// component's document path (e.g. <c>states.review.components[2].children[0]</c>) rooted
+    /// at <paramref name="basePath"/>, for callers that need to address a specific component in
+    /// diagnostics.
+    /// </summary>
+    public static IEnumerable<(PrismComponent Component, string Path)> FlattenWithPaths(
+        this IEnumerable<PrismComponent> components, string basePath)
+    {
+        var index = 0;
+        foreach (var component in components)
+        {
+            var path = $"{basePath}[{index}]";
+            index++;
+            yield return (component, path);
+
+            switch (component)
+            {
+                case FieldsetComponent fieldset:
+                    foreach (var descendant in fieldset.Children.FlattenWithPaths($"{path}.children"))
+                        yield return descendant;
+                    break;
+
+                case AccordionComponent accordion:
+                {
+                    var sectionIndex = 0;
+                    foreach (var section in accordion.Sections)
+                    {
+                        foreach (var descendant in section.Children.FlattenWithPaths($"{path}.sections[{sectionIndex}].children"))
+                            yield return descendant;
+                        sectionIndex++;
+                    }
+
+                    break;
+                }
+
+                case RadiosComponent radios when radios.ConditionalChildren is { Count: > 0 }:
+                    foreach (var (option, children) in radios.ConditionalChildren)
+                        foreach (var descendant in children.FlattenWithPaths($"{path}.conditionalChildren.{option}"))
+                            yield return descendant;
+                    break;
+
+                case CheckboxesComponent checkboxes when checkboxes.ConditionalChildren is { Count: > 0 }:
+                    foreach (var (option, children) in checkboxes.ConditionalChildren)
+                        foreach (var descendant in children.FlattenWithPaths($"{path}.conditionalChildren.{option}"))
+                            yield return descendant;
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
     /// Returns the first descendant of type <typeparamref name="T"/> in the tree, or null if none exists.
     /// </summary>
     public static T? FindFirst<T>(this IEnumerable<PrismComponent> components) where T : PrismComponent

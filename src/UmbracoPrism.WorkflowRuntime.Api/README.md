@@ -26,16 +26,16 @@ any other endpoint group. This extension applies none itself.
 
 All request/response bodies are `WorkflowDefinitionFile` and friends from
 `UmbracoPrism.Shared.Models.Workflow` — no bespoke DTOs except `SimulateWorkflowRequest`,
-which just bundles the two simulate inputs.
+which bundles the simulate inputs.
 
 | Method | Route | Body | Response |
 |---|---|---|---|
 | `GET` | `/workflows` | — | `200` `WorkflowSourceSummary[]` |
 | `GET` | `/workflows/{definitionKey}` | — | `200` `WorkflowDefinitionFile`, or `404` |
 | `GET` | `/workflows/{definitionKey}/version` | — | `200` `{ version }`, or `404` — cheap to poll for staleness without fetching the full definition |
-| `POST` | `/workflows/validate` | `WorkflowDefinitionFile` | `200` `WorkflowValidationOutcome` (`{ isValid, errors }`) |
+| `POST` | `/workflows/validate` | `WorkflowDefinitionFile` | `200` `WorkflowValidationOutcome` (`{ isValid, diagnostics }`, each diagnostic `{ code, path, message, severity }`) |
 | `PUT` | `/workflows/{definitionKey}` | `WorkflowDefinitionFile` | `200` `WorkflowSaveOutcome` if saved; `400` (same shape) if invalid or `definitionKey` doesn't match the route; `409` if `version` is stale |
-| `POST` | `/workflows/simulate` | `SimulateWorkflowRequest` (`{ workflow, steps }`) | `200` `WorkflowResponseEnvelope[]` — the state trace |
+| `POST` | `/workflows/simulate` | `SimulateWorkflowRequest` (`{ workflow, steps, mockServiceInputs? }`) | `200` `WorkflowSimulationResult` (`{ trace, calculations }`) — `trace` is the state trace; `calculations` is the raw calculated field/series values per step (parallel array, `null` for steps with no calculations block). `mockServiceInputs` supplies any `source: "service"` calculation field — without it, those fields (and anything calculated from them) are simply unresolved, not an error. |
 
 `validate`/`save`/`simulate` never throw for an invalid workflow — they report it in the
 response body.
@@ -52,7 +52,7 @@ compares against it, then authoritatively sets the real new version itself, so a
 can't fabricate an arbitrary version number.
 
 A stale version returns `409 Conflict` with a `WorkflowSaveOutcome`-shaped body
-(`{ status: "Conflict", currentVersion, errors }`) — re-`GET` to see what's actually
+(`{ status: "Conflict", currentVersion, diagnostics }`) — re-`GET` to see what's actually
 there now, reapply your change on top of it, and `PUT` again with the fresh `version`.
 
 Every `IWorkflowSourceStore` implementation must perform this compare-and-write

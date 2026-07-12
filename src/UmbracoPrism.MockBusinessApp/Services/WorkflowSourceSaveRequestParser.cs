@@ -112,8 +112,8 @@ internal static class WorkflowSourceSaveRequestParser
                     InvalidWorkflowPayloadTitle,
                     "The workflow definition failed validation.",
                     "workflow-validation-invalid",
-                    outcome.Errors.Take(MaxIssues)
-                        .Select(msg => new WorkflowSourceSaveError("workflow-invalid", msg, "$"))
+                    outcome.Diagnostics.Take(MaxIssues)
+                        .Select(diagnostic => new WorkflowSourceSaveError(diagnostic.Code, diagnostic.Message, diagnostic.Path))
                         .ToArray());
             }
 

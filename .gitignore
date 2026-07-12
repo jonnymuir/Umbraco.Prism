@@ -494,6 +494,13 @@ umbraco-package-schema.json
 
 # Media files
 /wwwroot/media/
+
+# Data Protection key rings + other runtime app data (never committed; regenerated per machine)
+src/UmbracoPrism.TestSite/App_Data/
+src/UmbracoPrism.MockBusinessApp/App_Data/
+
+# Demo recording footage (raw video captures, see tests/demo/README.md)
+src/UmbracoPrism.Client/demo-footage/
 # Squad: ignore runtime state (logs and sessions)
 .squad/orchestration-log/
 .squad/log/
