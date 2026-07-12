@@ -28,6 +28,13 @@ public abstract record InputComponent : PrismComponent
     /// pre-populates the rendered control and seeds the calculation scope.
     /// </summary>
     public string? Default { get; init; }
+
+    /// <summary>
+    /// When this component appears as a summary-list row, the state key its own "Change" link
+    /// navigates back to — overriding the summary-list's own <c>ChangeStateKey</c> for rows
+    /// summarising fields captured on a different earlier stage. Ignored outside a summary-list.
+    /// </summary>
+    public string? ChangeStateKey { get; init; }
 }
 
 /// <summary>

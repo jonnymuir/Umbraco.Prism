@@ -1,7 +1,7 @@
 @model UmbracoPrism.Core.Models.Workflow.PrismComponentContext
 @{
     var token = Html.AntiForgeryToken();
-    var sourceKey = Model.Component.SourceStateKey;
+    var defaultSourceKey = Model.Component.SourceStateKey;
 }
 
 @if (!string.IsNullOrEmpty(Model.Component.Title))
@@ -12,6 +12,11 @@
 <dl class="govuk-summary-list">
     @foreach (var field in Model.Component.Fields.Where(f => string.IsNullOrEmpty(f.ConditionalOn)))
     {
+        // Each row can point its own "Change" link at a different earlier stage (e.g. a bin-count
+        // row changing "how-many-bins", an address row changing "property-address") — falls back
+        // to the summary-list's own single ChangeStateKey when the row doesn't specify one, which
+        // is all a single-stage summary (the common case) ever needs.
+        var sourceKey = string.IsNullOrEmpty(field.ChangeStateKey) ? defaultSourceKey : field.ChangeStateKey;
         <div class="govuk-summary-list__row">
             <dt class="govuk-summary-list__key">@field.Label</dt>
             <dd class="govuk-summary-list__value">@(field.Value ?? "Not answered")</dd>

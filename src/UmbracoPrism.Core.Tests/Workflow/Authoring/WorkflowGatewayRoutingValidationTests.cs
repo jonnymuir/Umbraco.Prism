@@ -38,6 +38,7 @@ public class WorkflowGatewayRoutingValidationTests
                     Key = "my-gateway",
                     DisplayName = "My Gateway",
                     GatewayType = "Split",
+                    QueueKey = "web-user",
                     Routes =
                     [
                         new WorkflowRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }
@@ -49,6 +50,49 @@ public class WorkflowGatewayRoutingValidationTests
         var errors = workflow.ValidateGatewayRouting();
 
         errors.Should().BeEmpty("state → gateway → state is a valid routing pattern");
+    }
+
+    [Fact]
+    public void ValidateGatewayRouting_GatewayWithNoOutgoingRoutes_ReturnsError()
+    {
+        // Reproduces a real agent-authored bug found live: a gateway saved with an empty routes
+        // array validated cleanly (nothing previously checked for *zero* routes, only that each
+        // existing route's own target resolves), then hard-failed the very first real submission
+        // that reached it with a runtime GATEWAY_NO_OUTGOING error.
+        var workflow = new WorkflowDefinitionFile
+        {
+            DefinitionKey = "test",
+            DisplayName = "Test",
+            InitialState = "start",
+            States =
+            [
+                new StepDefinition
+                {
+                    StateKey = "start",
+                    DisplayName = "Start",
+                    Routes =
+                    [
+                        new WorkflowRouteDefinition { Id = "start-to-gw", Target = "dead-end-gateway", Trigger = "continue" }
+                    ]
+                }
+            ],
+            Gateways =
+            [
+                new WorkflowGatewayDefinition
+                {
+                    Key = "dead-end-gateway",
+                    DisplayName = "Dead End",
+                    GatewayType = "Join",
+                    QueueKey = "web-user",
+                    Routes = []
+                }
+            ]
+        };
+
+        var errors = workflow.ValidateGatewayRouting();
+
+        errors.Should().ContainSingle(d =>
+            d.Code == "GATEWAY_NO_OUTGOING_ROUTES" && d.Path == "gateways[0].routes");
     }
 
     [Fact]
@@ -109,6 +153,7 @@ public class WorkflowGatewayRoutingValidationTests
                     Key = "gw",
                     DisplayName = "GW",
                     GatewayType = "Split",
+                    QueueKey = "web-user",
                     Routes =
                     [
                         new WorkflowRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }
@@ -151,6 +196,7 @@ public class WorkflowGatewayRoutingValidationTests
                     Key = "split",
                     DisplayName = "Split",
                     GatewayType = "Split",
+                    QueueKey = "web-user",
                     Routes =
                     [
                         new WorkflowRouteDefinition { Id = "split-to-join", Target = "join", Trigger = "submit" },
@@ -162,6 +208,7 @@ public class WorkflowGatewayRoutingValidationTests
                     Key = "join",
                     DisplayName = "Join",
                     GatewayType = "Join",
+                    QueueKey = "web-user",
                     Routes =
                     [
                         new WorkflowRouteDefinition { Id = "join-to-end", Target = "end", Trigger = "release" }

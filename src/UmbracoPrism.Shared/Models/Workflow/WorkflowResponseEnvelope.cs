@@ -338,6 +338,13 @@ public record FieldRenderPayload
     /// (inset-text, warning-text, details, notification-banner).
     /// </summary>
     public string? Content { get; init; }
+
+    /// <summary>
+    /// For a summary-list row: the state key this row's own "Change" link navigates back to,
+    /// overriding the parent summary-list's <see cref="PrismComponentRenderPayload.SourceStateKey"/>.
+    /// Null outside a summary-list context.
+    /// </summary>
+    public string? ChangeStateKey { get; init; }
 }
 
 /// <summary>

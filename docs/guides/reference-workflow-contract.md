@@ -158,6 +158,21 @@ reused as a makeshift "display" is structurally valid and won't be flagged, it j
 won't show a live value — so pick a data-display component when the goal is to
 render a calculated result.
 
+`summary-list` specifically is for **reviewing already-captured input values**, not
+for presenting a calculated result — each child is an inline input-type component
+(its own `fieldKey`, `label`, type) with an optional "Change" link back to the state
+that captured it, GOV.UK's standard check-your-answers pattern. Set `changeStateKey`
+on the summary-list itself when every row was captured on the *same* earlier stage;
+when rows summarise fields captured on *different* stages (e.g. a bin count captured
+on `how-many-bins`, an address captured on a separate `property-address` stage), give
+the individual child its own `changeStateKey` instead — it overrides the summary-list's
+own default for that one row. `validate_workflow`/`save_workflow` check both the
+component-level and any per-row `changeStateKey` against the workflow's actual state
+keys and flag a dangling target as `DATA_DISPLAY_UNKNOWN_CHANGE_STATE`. A summary-list
+row *can* bind its `fieldKey` to a `calculations.fields` entry instead of a captured
+input, but there's nothing sensible for a "Change" link to navigate to for a derived
+value — `stat-group`/`chart` are the right choice for presenting a calculated result.
+
 Every component, regardless of type, may declare `showWhen` — see
 [Visibility (`showWhen`)](./calculation-language.md#visibility-showwhen) in the
 calculation language guide.

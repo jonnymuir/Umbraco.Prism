@@ -262,14 +262,32 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         if (action.StartsWith("change:", StringComparison.OrdinalIgnoreCase))
         {
             var targetStateKey = action["change:".Length..];
-            if (definition.States.All(s => s.StateKey != targetStateKey))
+            var targetState = definition.States.FirstOrDefault(s => s.StateKey == targetStateKey);
+            if (targetState is null)
             {
                 return ErrorEnvelope($"State '{targetStateKey}' not found in definition.", "STATE_NOT_FOUND");
             }
 
+            // FindAccessibleWorkItems (called by BuildEnvelope below) renders from instance.Cursors,
+            // not instance.CurrentState, the moment ANY cursor exists — which happens for every
+            // workflow that's passed through a gateway, i.e. effectively all of them, since Prism
+            // requires state routes to always target a gateway. Updating only CurrentState left a
+            // "change:" jump a silent no-op past the first stage: the render kept coming from the
+            // stale cursor position and the user landed right back where they started (confirmed
+            // live). Move whichever active, non-gateway cursor belongs to the target state's own
+            // queue — same cursor a normal forward Advance would move — so the jump actually takes.
+            var updatedCursors = instance.Cursors.Count == 0
+                ? instance.Cursors
+                : MoveCursor(
+                    instance.Cursors,
+                    instance.Cursors.FirstOrDefault(c => !c.IsAtGateway && c.QueueKey == GetQueueKey(targetState))?.CursorId,
+                    targetStateKey,
+                    isAtGateway: false);
+
             var jumped = instance with
             {
                 CurrentState = targetStateKey,
+                Cursors = updatedCursors,
                 StateVersion = instance.StateVersion + 1,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
@@ -783,11 +801,25 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             .Select(transition => new WorkflowAction
             {
                 ActionKey = transition.Action,
-                Label = transition.Label ?? ActionLabel(transition.Action),
+                // `??` alone doesn't catch an empty-but-non-null Label, which is exactly what an
+                // agent leaving the field blank (rather than omitting it) produces — treat blank
+                // the same as absent. transition.Action is never blank by the time it gets here;
+                // GetOutgoingTransitions defaults it below, the one place raw route.Trigger values
+                // are read, so every consumer (this, and the action-matching in Advance) agrees.
+                Label = string.IsNullOrWhiteSpace(transition.Label) ? ActionLabel(transition.Action) : transition.Label,
                 Style = transition.Style ?? ActionStyle(transition.Action)
             })
             .ToArray();
     }
+
+    /// <summary>
+    /// A route's trigger can be authored blank (an AI agent leaving it empty rather than omitting
+    /// it, so it survives as "" not null) — default it to "continue" here, the single place raw
+    /// route.Trigger values are read into a transition's Action, so the rendered button's value
+    /// and the action-matching in <see cref="Advance"/> always agree on the same non-empty key.
+    /// </summary>
+    private static string ResolveTrigger(string? trigger) =>
+        string.IsNullOrWhiteSpace(trigger) ? "continue" : trigger;
 
     protected static string? ResolveQueueName(WorkflowDefinitionFile definition, string? queueKey)
     {
@@ -834,7 +866,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 {
                     FromState = sourceKey,
                     ToState = route.Target,
-                    Action = route.Trigger,
+                    Action = ResolveTrigger(route.Trigger),
                     Label = route.Label,
                     Style = route.Style,
                     RequiresRole = route.RequiresRole,
@@ -854,7 +886,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 {
                     FromState = gateway.Key,
                     ToState = route.Target,
-                    Action = route.Trigger,
+                    Action = ResolveTrigger(route.Trigger),
                     Label = route.Label,
                     Style = route.Style,
                     RequiresRole = route.RequiresRole,
@@ -917,7 +949,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             {
                 FromState = sourceKey,
                 ToState = route.Target,
-                Action = route.Trigger,
+                Action = ResolveTrigger(route.Trigger),
                 Label = route.Label,
                 Style = route.Style,
                 RequiresRole = route.RequiresRole,
@@ -1513,7 +1545,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 _ => null
             },
             ConditionalOn = input.ConditionalOn,
-            VisibleWhen = input.VisibleWhen
+            VisibleWhen = input.VisibleWhen,
+            ChangeStateKey = input.ChangeStateKey
         };
     }
 
@@ -1977,6 +2010,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         "start-another" => "Start Another",
         "approve" => "Approve",
         "request-changes" => "Request Changes",
+        "continue" => "Continue",
         _ => key
     };
 

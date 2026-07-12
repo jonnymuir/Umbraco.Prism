@@ -221,6 +221,239 @@ public class WorkflowDataDisplayBindingValidationTests
     }
 
     [Fact]
+    public void ValidateDataDisplayBindings_SummaryListWithNoChildren_ReturnsError()
+    {
+        // Reproduces a real agent-authored bug: an agent asked to make a fee display "richer"
+        // added a summary-list component but left its children empty — a calculation with
+        // nothing rendering it, exactly the failure mode this whole validator exists to catch,
+        // but summary-list wasn't checked at all until this test was added.
+        var workflow = new WorkflowDefinitionFile
+        {
+            DefinitionKey = "test",
+            DisplayName = "Test",
+            InitialState = "result",
+            States =
+            [
+                new StepDefinition
+                {
+                    StateKey = "result",
+                    DisplayName = "Result",
+                    Components = [new SummaryListComponent { Title = "Fee", Children = [] }]
+                }
+            ]
+        };
+
+        workflow.ValidateDataDisplayBindings().Should().ContainSingle(d => d.Code == "DATA_DISPLAY_NO_ITEMS");
+    }
+
+    [Fact]
+    public void ValidateDataDisplayBindings_SummaryListChildBoundToUndefinedField_ReturnsError()
+    {
+        var workflow = new WorkflowDefinitionFile
+        {
+            DefinitionKey = "test",
+            DisplayName = "Test",
+            InitialState = "result",
+            States =
+            [
+                new StepDefinition
+                {
+                    StateKey = "result",
+                    DisplayName = "Result",
+                    Components =
+                    [
+                        new SummaryListComponent
+                        {
+                            Title = "Fee",
+                            Children = [new TextInputComponent { FieldKey = "fee", Label = "Fee" }]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var errors = workflow.ValidateDataDisplayBindings();
+
+        errors.Should().ContainSingle(d =>
+            d.Code == "DATA_DISPLAY_UNKNOWN_FIELD" &&
+            d.Message.Contains("'fee'") &&
+            d.Path == "states.result.components[0].children[0].fieldKey");
+    }
+
+    [Fact]
+    public void ValidateDataDisplayBindings_SummaryListChildBoundToCalculatedField_ReturnsNoErrors()
+    {
+        var workflow = new WorkflowDefinitionFile
+        {
+            DefinitionKey = "test",
+            DisplayName = "Test",
+            InitialState = "result",
+            States =
+            [
+                new StepDefinition
+                {
+                    StateKey = "result",
+                    DisplayName = "Result",
+                    Components =
+                    [
+                        new SummaryListComponent
+                        {
+                            Title = "Fee",
+                            Children = [new TextInputComponent { FieldKey = "fee", Label = "Fee" }]
+                        }
+                    ]
+                }
+            ],
+            Calculations = new WorkflowCalculationSet
+            {
+                Fields = new Dictionary<string, WorkflowCalculationField>
+                {
+                    ["fee"] = new WorkflowCalculationField { Expr = "40" }
+                }
+            }
+        };
+
+        workflow.ValidateDataDisplayBindings().Should().BeEmpty(
+            "the summary-list child binds to a real calculations.fields entry");
+    }
+
+    [Fact]
+    public void ValidateDataDisplayBindings_SummaryListChangeStateKeyPointsNowhere_ReturnsError()
+    {
+        var workflow = new WorkflowDefinitionFile
+        {
+            DefinitionKey = "test",
+            DisplayName = "Test",
+            InitialState = "capture",
+            States =
+            [
+                new StepDefinition { StateKey = "capture", DisplayName = "Capture" },
+                new StepDefinition
+                {
+                    StateKey = "result",
+                    DisplayName = "Result",
+                    Components =
+                    [
+                        new SummaryListComponent
+                        {
+                            Title = "Details",
+                            ChangeStateKey = "does-not-exist",
+                            Children = [new TextInputComponent { FieldKey = "binCount", Label = "Bins" }]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var errors = workflow.ValidateDataDisplayBindings();
+
+        errors.Should().ContainSingle(d =>
+            d.Code == "DATA_DISPLAY_UNKNOWN_CHANGE_STATE" &&
+            d.Path == "states.result.components[0].changeStateKey");
+    }
+
+    [Fact]
+    public void ValidateDataDisplayBindings_SummaryListChildChangeStateKeyPointsNowhere_ReturnsError()
+    {
+        // Reproduces the real design gap this fixes: a summary-list whose rows summarise fields
+        // captured on TWO different earlier stages (e.g. bin count on "how-many-bins", address on
+        // "property-address") needs each row's own Change link to target the right one — a single
+        // component-level ChangeStateKey can't do that.
+        var workflow = new WorkflowDefinitionFile
+        {
+            DefinitionKey = "test",
+            DisplayName = "Test",
+            InitialState = "how-many-bins",
+            States =
+            [
+                new StepDefinition { StateKey = "how-many-bins", DisplayName = "Bins" },
+                new StepDefinition { StateKey = "property-address", DisplayName = "Address" },
+                new StepDefinition
+                {
+                    StateKey = "result",
+                    DisplayName = "Result",
+                    Components =
+                    [
+                        new SummaryListComponent
+                        {
+                            Title = "Details",
+                            Children =
+                            [
+                                new NumberInputComponent
+                                {
+                                    FieldKey = "binCount", Label = "Bins", ChangeStateKey = "how-many-bins"
+                                },
+                                new TextInputComponent
+                                {
+                                    FieldKey = "propertyAddress", Label = "Address", ChangeStateKey = "does-not-exist"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        var errors = workflow.ValidateDataDisplayBindings();
+
+        errors.Should().ContainSingle(d =>
+            d.Code == "DATA_DISPLAY_UNKNOWN_CHANGE_STATE" &&
+            d.Path == "states.result.components[0].children[1].changeStateKey");
+    }
+
+    [Fact]
+    public void ValidateDataDisplayBindings_SummaryListChildrenWithDifferentValidChangeStateKeys_ReturnsNoErrors()
+    {
+        var workflow = new WorkflowDefinitionFile
+        {
+            DefinitionKey = "test",
+            DisplayName = "Test",
+            InitialState = "how-many-bins",
+            States =
+            [
+                new StepDefinition
+                {
+                    StateKey = "how-many-bins",
+                    DisplayName = "Bins",
+                    Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins" }]
+                },
+                new StepDefinition
+                {
+                    StateKey = "property-address",
+                    DisplayName = "Address",
+                    Components = [new TextInputComponent { FieldKey = "propertyAddress", Label = "Address" }]
+                },
+                new StepDefinition
+                {
+                    StateKey = "result",
+                    DisplayName = "Result",
+                    Components =
+                    [
+                        new SummaryListComponent
+                        {
+                            Title = "Details",
+                            Children =
+                            [
+                                new NumberInputComponent
+                                {
+                                    FieldKey = "binCount", Label = "Bins", ChangeStateKey = "how-many-bins"
+                                },
+                                new TextInputComponent
+                                {
+                                    FieldKey = "propertyAddress", Label = "Address", ChangeStateKey = "property-address"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        workflow.ValidateDataDisplayBindings().Should().BeEmpty(
+            "each row's own changeStateKey points to a real state, and each fieldKey is a real captured input");
+    }
+
+    [Fact]
     public void ValidateDataDisplayBindings_ServiceFieldShadowsCapturedInput_ReturnsError()
     {
         // Reproduces a real agent-authored bug: marking the user's own captured input as

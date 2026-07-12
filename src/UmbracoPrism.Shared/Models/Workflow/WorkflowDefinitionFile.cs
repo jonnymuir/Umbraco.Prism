@@ -47,6 +47,38 @@ public record WorkflowDefinitionFile
                     "by key, so a keyless gateway can never be reached — give it a unique key."));
             }
 
+            if (string.IsNullOrWhiteSpace(gateway.GatewayType))
+            {
+                // Not a runtime break — Advance() treats anything that isn't exactly "Split" as a
+                // Join, so routing through a blank-typed gateway still works for the common single
+                // in/single out case. But it IS an authoring-clarity gap (a reader can't tell fan
+                // out from pass-through at a glance), so warn rather than stay silent.
+                diagnostics.Add(new WorkflowDiagnostic(
+                    "GATEWAY_MISSING_TYPE",
+                    $"gateways[{gatewayIndex}].gatewayType",
+                    $"Gateway '{gateway.Key}' has no gatewayType. It still routes correctly (anything " +
+                    "other than \"Split\" behaves as a Join), but set it explicitly — \"Split\" for a " +
+                    "fan-out, \"Join\" for a merge or plain pass-through — so the shape is clear from " +
+                    "the definition alone.",
+                    WorkflowDiagnosticSeverity.Warning));
+            }
+
+            if (string.IsNullOrWhiteSpace(gateway.QueueKey))
+            {
+                // Also not a runtime break for the common case — but the editor canvas visually
+                // groups stages and gateways into lanes by queue, so a blank queue here renders the
+                // gateway in its own separate lane even when every stage it connects shares one
+                // queue, reading as "this got put in a different queue" even though nothing at
+                // runtime actually treats it that way.
+                diagnostics.Add(new WorkflowDiagnostic(
+                    "GATEWAY_MISSING_QUEUE",
+                    $"gateways[{gatewayIndex}].queueKey",
+                    $"Gateway '{gateway.Key}' has no queueKey. Set it to match the queue of the " +
+                    "stage(s) that route into it — otherwise the canvas renders it in its own lane, " +
+                    "visually separate from a workflow that's actually all in one queue.",
+                    WorkflowDiagnosticSeverity.Warning));
+            }
+
             gatewayIndex++;
         }
 
@@ -86,6 +118,21 @@ public record WorkflowDefinitionFile
                         "any gateway's key in this workflow. Routes from states must target an existing gateway."));
                 }
 
+                if (string.IsNullOrWhiteSpace(route.Trigger))
+                {
+                    // Warning, not Error: the engine now defaults a blank trigger to "continue" at
+                    // render time, so this no longer breaks the workflow — but a generic
+                    // "Continue" button is rarely what an author actually wants on a human-facing
+                    // stage, so it's worth flagging rather than passing silently.
+                    diagnostics.Add(new WorkflowDiagnostic(
+                        "ROUTE_TRIGGER_EMPTY",
+                        $"states.{state.StateKey}.routes[{routeIndex}]",
+                        $"State '{state.StateKey}' route '{route.Id}' has no trigger — it will render as a " +
+                        "generic \"Continue\" button. Give it a specific trigger (e.g. \"continue\", \"submit\") " +
+                        "and label if you want more intentional wording.",
+                        WorkflowDiagnosticSeverity.Warning));
+                }
+
                 routeIndex++;
             }
         }
@@ -93,6 +140,22 @@ public record WorkflowDefinitionFile
         gatewayIndex = 0;
         foreach (var gateway in gateways)
         {
+            // A gateway with zero outgoing routes is a dead end: WorkflowRuntimeEngine's own
+            // BuildJoinWaitingEnvelope hard-fails at runtime with GATEWAY_NO_OUTGOING the moment an
+            // instance actually reaches it. Reproduced live — an agent-authored gateway saved
+            // cleanly with an empty routes array (nothing above checks for *zero* routes, only that
+            // each existing route's own target is valid), and the very first real submission that
+            // reached it broke with that runtime error. Catch it at design time instead.
+            if ((gateway.Routes ?? []).Count == 0)
+            {
+                diagnostics.Add(new WorkflowDiagnostic(
+                    "GATEWAY_NO_OUTGOING_ROUTES",
+                    $"gateways[{gatewayIndex}].routes",
+                    $"Gateway '{gateway.Key}' has no outgoing routes — any instance that reaches it " +
+                    "will hard-fail at runtime (GATEWAY_NO_OUTGOING). Add at least one route to a " +
+                    "state or another gateway."));
+            }
+
             var routeIndex = 0;
             foreach (var route in gateway.Routes ?? [])
             {
@@ -146,6 +209,7 @@ public record WorkflowDefinitionFile
             .Select(c => c.FieldKey)
             .Where(key => !string.IsNullOrWhiteSpace(key))
             .ToHashSet(StringComparer.Ordinal);
+        var stateKeys = States.Select(s => s.StateKey).ToHashSet(StringComparer.Ordinal);
 
         var diagnostics = new List<WorkflowDiagnostic>();
 
@@ -168,8 +232,21 @@ public record WorkflowDefinitionFile
                         var itemIndex = 0;
                         foreach (var item in statGroup.Items)
                         {
-                            if (!string.IsNullOrWhiteSpace(item.FieldKey) &&
-                                !calculatedFieldNames.Contains(item.FieldKey) &&
+                            if (string.IsNullOrWhiteSpace(item.FieldKey))
+                            {
+                                // Distinct from DATA_DISPLAY_UNKNOWN_FIELD below: this isn't a typo pointing
+                                // at the wrong name, it's not pointing anywhere at all — a real regression
+                                // seen in practice (an agent wired the calculation but left the display
+                                // component's binding blank), and one the old "only check non-empty keys"
+                                // logic silently let through.
+                                diagnostics.Add(new WorkflowDiagnostic(
+                                    "DATA_DISPLAY_MISSING_FIELD",
+                                    $"{path}.items[{itemIndex}].fieldKey",
+                                    $"stat-group item '{item.Label}' has no fieldKey — it can never bind to " +
+                                    "anything and will always render its empty-value placeholder. Set it to a " +
+                                    "captured input's fieldKey or a calculations.fields entry."));
+                            }
+                            else if (!calculatedFieldNames.Contains(item.FieldKey) &&
                                 !inputFieldKeys.Contains(item.FieldKey))
                             {
                                 diagnostics.Add(new WorkflowDiagnostic(
@@ -185,8 +262,80 @@ public record WorkflowDefinitionFile
 
                         break;
 
+                    case SummaryListComponent summaryList:
+                        if (summaryList.Children.Count == 0)
+                        {
+                            diagnostics.Add(new WorkflowDiagnostic(
+                                "DATA_DISPLAY_NO_ITEMS",
+                                $"{path}.children",
+                                $"summary-list '{summaryList.Title}' has no children — it will render nothing. " +
+                                "Add at least one child bound to a captured input or calculations.fields entry."));
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(summaryList.ChangeStateKey) &&
+                            !stateKeys.Contains(summaryList.ChangeStateKey))
+                        {
+                            diagnostics.Add(new WorkflowDiagnostic(
+                                "DATA_DISPLAY_UNKNOWN_CHANGE_STATE",
+                                $"{path}.changeStateKey",
+                                $"summary-list '{summaryList.Title}' changeStateKey '{summaryList.ChangeStateKey}' " +
+                                "is not a state in this workflow — its 'Change' link would navigate nowhere. Fix " +
+                                "the state key, or remove changeStateKey if there's nothing to change."));
+                        }
+
+                        var childIndex = 0;
+                        foreach (var child in summaryList.Children.OfType<InputComponent>())
+                        {
+                            if (string.IsNullOrWhiteSpace(child.FieldKey))
+                            {
+                                diagnostics.Add(new WorkflowDiagnostic(
+                                    "DATA_DISPLAY_MISSING_FIELD",
+                                    $"{path}.children[{childIndex}].fieldKey",
+                                    $"summary-list child '{child.Label}' has no fieldKey — it can never bind to " +
+                                    "anything and will always render its empty-value placeholder. Set it to a " +
+                                    "captured input's fieldKey or a calculations.fields entry."));
+                            }
+                            else if (!calculatedFieldNames.Contains(child.FieldKey) &&
+                                !inputFieldKeys.Contains(child.FieldKey))
+                            {
+                                diagnostics.Add(new WorkflowDiagnostic(
+                                    "DATA_DISPLAY_UNKNOWN_FIELD",
+                                    $"{path}.children[{childIndex}].fieldKey",
+                                    $"summary-list child '{child.Label}' binds to field '{child.FieldKey}', which " +
+                                    "is neither a captured input field nor a calculations.fields entry. Either " +
+                                    $"add '{child.FieldKey}' to the workflow's calculations block, or fix the " +
+                                    "fieldKey."));
+                            }
+
+                            // A row's own ChangeStateKey (for summary lists spanning multiple earlier
+                            // stages) needs the same dangling-target check as the component-level one.
+                            if (!string.IsNullOrWhiteSpace(child.ChangeStateKey) &&
+                                !stateKeys.Contains(child.ChangeStateKey))
+                            {
+                                diagnostics.Add(new WorkflowDiagnostic(
+                                    "DATA_DISPLAY_UNKNOWN_CHANGE_STATE",
+                                    $"{path}.children[{childIndex}].changeStateKey",
+                                    $"summary-list child '{child.Label}' changeStateKey '{child.ChangeStateKey}' " +
+                                    "is not a state in this workflow — its 'Change' link would navigate nowhere. " +
+                                    "Fix the state key, or remove changeStateKey to fall back to the summary-list's " +
+                                    "own changeStateKey."));
+                            }
+
+                            childIndex++;
+                        }
+
+                        break;
+
                     case ChartComponent chart:
-                        if (!string.IsNullOrWhiteSpace(chart.Series) && !calculatedSeriesNames.Contains(chart.Series))
+                        if (string.IsNullOrWhiteSpace(chart.Series))
+                        {
+                            diagnostics.Add(new WorkflowDiagnostic(
+                                "DATA_DISPLAY_MISSING_FIELD",
+                                $"{path}.series",
+                                $"chart '{chart.Title}' has no series set — it can never bind to anything and " +
+                                "will always render empty. Set it to a calculations.series entry."));
+                        }
+                        else if (!calculatedSeriesNames.Contains(chart.Series))
                         {
                             diagnostics.Add(new WorkflowDiagnostic(
                                 "DATA_DISPLAY_UNKNOWN_FIELD",

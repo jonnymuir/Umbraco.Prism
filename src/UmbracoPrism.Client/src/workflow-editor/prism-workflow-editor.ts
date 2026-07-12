@@ -1677,6 +1677,14 @@ export class PrismWorkflowEditorElement extends LitElement {
 
     try {
       await this.workflowSource.save(this.workflowKey, this._workflow);
+      // A successful save (no conflict thrown) means expectedVersion — this._workflow.version at
+      // the time of the call — matched what the store had, and every IWorkflowSourceStore
+      // increments by exactly 1 on that path. workflowSource.save() returns void, not the new
+      // version, so bump it locally rather than leaving _workflow.version stale: left unbumped,
+      // the next _pollWorkflowVersion (15s later) compares that stale local version against the
+      // real server version and false-positives "someone else changed this" against the editor's
+      // own save.
+      this._workflow = cloneWorkflow({ ...this._workflow, version: this._workflow.version + 1 });
       this._savedWorkflowSnapshot = cloneWorkflow(this._workflow);
       this._saveState = 'saved';
       this._saveMessage = 'Workflow saved.';

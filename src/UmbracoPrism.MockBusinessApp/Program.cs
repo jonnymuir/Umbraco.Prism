@@ -563,6 +563,10 @@ app.MapGet("/admin/workflow", async (BusinessAppWorkflowEngine engine, IWorkflow
             .header-link:hover { background:rgba(255,255,255,.2); }
             .toolbar { margin-bottom:.75rem; display:flex; gap:.5rem; align-items:center; }
             .count { color:#888; font-size:.85rem; }
+            .new-workflow-form { display:flex; gap:1rem; align-items:flex-end; background:#fff; border-radius:8px; padding:1rem 1.25rem; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+            .new-workflow-form label { display:flex; flex-direction:column; gap:.3rem; font-size:.8rem; color:#555; flex:1; }
+            .new-workflow-form input { padding:.5rem .6rem; border:1px solid #d7d9e0; border-radius:5px; font-size:.9rem; }
+            .new-workflow-form button { flex-shrink:0; }
           </style>
         </head>
         <body>
@@ -611,6 +615,19 @@ app.MapGet("/admin/workflow", async (BusinessAppWorkflowEngine engine, IWorkflow
               <thead><tr><th>Definition</th><th></th></tr></thead>
               <tbody>{{defRows}}</tbody>
             </table>
+
+            <h2>Add a new service</h2>
+            <form method="post" action="/admin/workflow/create" class="new-workflow-form">
+              <label>
+                Definition key
+                <input type="text" name="definitionKey" placeholder="garden-waste-permit" pattern="[a-zA-Z0-9_\-]+" required />
+              </label>
+              <label>
+                Display name
+                <input type="text" name="displayName" placeholder="Garden Waste Permit" required />
+              </label>
+              <button class="btn btn-edit-workflow" type="submit">+ Create workflow</button>
+            </form>
           </main>
         </body>
         </html>
@@ -660,6 +677,49 @@ app.MapPost("/admin/workflow/reset-all", (BusinessAppWorkflowEngine engine) =>
 {
     engine.ResetAll();
     return Results.Redirect("/admin/workflow");
+});
+
+// Scaffolds a brand-new, state-less workflow shell and hands off straight to the editor — the
+// on-screen counterpart to what a script previously had to do off-camera via a raw PUT. Genuinely
+// generic, not demo-specific: the graph's own "add stage" affordance sets `initialState` to the
+// first stage's key the moment one gets created (see prism-workflow-graph.ts), so an empty
+// `states`/`initialState` shell is a real, supported starting point for any new workflow, not a
+// special case this endpoint invents. Memory-only, same as every other authoring write in this
+// reference app — nothing here touches disk.
+app.MapPost("/admin/workflow/create", async (HttpRequest request, IWorkflowSourceStore store, CancellationToken ct) =>
+{
+    var form = await request.ReadFormAsync(ct);
+    var definitionKey = form["definitionKey"].ToString().Trim();
+    var displayName = form["displayName"].ToString().Trim();
+
+    if (!System.Text.RegularExpressions.Regex.IsMatch(definitionKey, @"^[a-zA-Z0-9_\-]+$") || displayName.Length == 0)
+    {
+        return Results.Problem(
+            detail: "Definition key must be letters/numbers/hyphens/underscores only, and display name can't be empty.",
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Invalid new-workflow request");
+    }
+
+    var existing = await store.LoadAsync(definitionKey, ct);
+    if (existing is not null)
+    {
+        // Already exists — nothing to scaffold, just take the author to it.
+        return Results.Redirect($"/workflow-editor?workflow={Uri.EscapeDataString(definitionKey)}");
+    }
+
+    var shell = new WorkflowDefinitionFile
+    {
+        DefinitionKey = definitionKey,
+        DisplayName = displayName,
+        Version = 0,
+        InitialState = "",
+        InstancePolicy = "single",
+        States = [],
+        Queues = [new WorkflowQueueDefinition { Key = "web-user", DisplayName = "Member", Actor = "member" }]
+    };
+
+    await store.SaveAsync(shell, expectedVersion: 0, ct);
+    return Results.Redirect($"/workflow-editor?workflow={Uri.EscapeDataString(definitionKey)}");
 });
 
 app.Run();

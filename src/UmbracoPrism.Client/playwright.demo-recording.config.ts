@@ -17,7 +17,9 @@ export default defineConfig({
   use: {
     baseURL: 'https://localhost:44345',
     ignoreHTTPSErrors: true,
-    video: 'on',
+    // The spec never destructures Playwright's built-in `page` fixture — it creates and records
+    // its own single page in beforeAll (see garden-waste-demo.spec.ts) so every act shares one
+    // continuous video instead of one-per-test. `use.video` would be a no-op here either way.
     trace: 'off'
   }
 });
