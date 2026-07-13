@@ -113,6 +113,16 @@ A gateway (`WorkflowGatewayDefinition`) is a routing node — not a rendered sta
   usually waiting on user choice the way a state's routes are, they're evaluating
   where an already-triggered action goes next.
 
+**Convention for a business-side/reviewer action after a Split:** route it
+*only* into the Join, never fan it out to its own separate terminal state as
+well. `simulate_workflow`'s trace follows a single cursor — if the business
+side's action routes to both a Join and its own terminal, the trace can only
+follow one of those branches, silently leaving the other's actions
+unexercised and unverified. `payment-demo` and `information-request` both
+follow this convention already (the reviewer's action routes straight into
+the Join, with no separate reviewer-side terminal) — match it rather than
+adding a parallel terminal for the business queue.
+
 ## Response states
 
 Every runtime response (`WorkflowResponseEnvelope`, what `simulate_workflow`
@@ -218,7 +228,15 @@ its own way to publish an extended declaration; nothing exercises this today.
 (and the REST `PUT`) compare the submitted `version` against what's currently
 stored: if they match, the save succeeds and the version increments; if not, the
 save is rejected as a conflict (`WorkflowSaveStatus.Conflict`) rather than silently
-overwriting a concurrent human or agent edit — reload and reapply on conflict. See
+overwriting a concurrent human or agent edit — reload and reapply on conflict.
+
+**For a brand-new `definitionKey` that's never been saved before, set `version`
+to `0`**, not `1` — a non-existent workflow's current version is `0`, so that's
+what `save_workflow` expects to match on the first save. It's an easy mistake
+to copy `"version": 1` from an existing seed you read as a style reference
+(`read_workflow` shows a workflow's *current* saved version, e.g. `1` after
+its first save — not what a new one should start at) and get
+`SAVE_VERSION_CONFLICT` on your very first attempt. See
 [AI-Ready Workflow Authoring](./ai-workflow-authoring.md) for the full save
 protocol, including how a host implements the atomic compare-and-swap this depends
 on.

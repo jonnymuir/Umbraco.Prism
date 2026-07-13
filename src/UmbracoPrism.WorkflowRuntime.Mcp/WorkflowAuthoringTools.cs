@@ -107,7 +107,11 @@ public static class WorkflowAuthoringTools
         "\"Saved\", \"Invalid\", or \"Conflict\"). A Conflict means the workflow's `version` " +
         "field is stale — someone else (a human in the editor, or another agent) saved a newer " +
         "version; re-read_workflow to get the current version and reapply your change on top of " +
-        "it before saving again. This is the only way to persist a workflow change the running " +
+        "it before saving again. For a brand-new definitionKey that has never been saved, set " +
+        "`version` to 0, not 1 — a non-existent workflow's current version is 0, and copying " +
+        "`\"version\": 1` from an existing seed you read as a style reference (that's its " +
+        "*current* saved version, not a starting value) will Conflict on your very first save. " +
+        "This is the only way to persist a workflow change the running " +
         "app will honor; editing seed/source files directly (e.g. workflow-seeds/*.json) has no " +
         "effect on the live app. " + CalculationsShapeReminder + " " +
         "See also workflow-docs://authoring-guide for the full contract shape.")]
@@ -134,7 +138,11 @@ public static class WorkflowAuthoringTools
         "source: \"service\" calculation field (e.g. money-modeller's \"member\") needs " +
         "mockServiceInputsJson supplying it, or those fields — and anything calculated from " +
         "them — are simply unresolved, the same as against a host with no data for them. Use " +
-        "this to check a definition actually behaves as intended before saving it.")]
+        "this to check a definition actually behaves as intended before saving it. The trace " +
+        "follows a single cursor: if a Split's business-side branch routes to both a Join and " +
+        "its own separate terminal state, only one branch is followed and the other's actions " +
+        "go unverified — route a reviewer/business action only into the Join, matching " +
+        "payment-demo/information-request's convention, rather than giving it a parallel terminal.")]
     public static WorkflowSimulationResult SimulateWorkflow(
         WorkflowAuthoringService service,
         [Description("The full WorkflowDefinitionFile JSON to simulate.")] string workflowJson,
