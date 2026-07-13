@@ -24,7 +24,8 @@ host app does to expose this surface.
 |---|---|
 | `list_workflows` | List every workflow definition in the store (key + display name). |
 | `read_workflow` | Read a workflow definition by `definitionKey`. |
-| `validate_workflow` | Check gateway routing and any `calculations` block, without saving. |
+| `list_queue_capabilities` | List every queue this host has declared render capabilities for, and which component types each supports. A queue absent from the result is unrestricted (not this host's declared concern). |
+| `validate_workflow` | Check gateway routing, any `calculations` block, and (when the host declares queue render capabilities) that every component is supported by its state's queue, without saving. |
 | `save_workflow` | Validate and save. Invalid definitions are rejected, not saved. Visible to the live app immediately. |
 | `simulate_workflow` | Dry-run a scripted sequence of actions with zero persistence. Returns `{ trace, calculations }` — the resulting state trace, plus the raw calculated field/series values per step (not just what's baked into rendered UI text). Accepts optional `mockServiceInputsJson` to resolve any `source: "service"` calculation field. |
 

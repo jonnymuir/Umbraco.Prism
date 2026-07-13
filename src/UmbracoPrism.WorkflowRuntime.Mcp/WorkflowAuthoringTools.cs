@@ -63,6 +63,19 @@ public static class WorkflowAuthoringTools
         "Read workflow-docs://calculation-language before writing or editing a calculations block; it " +
         "has the full grammar and a worked example.";
 
+    [McpServerTool(Name = "list_queue_capabilities")]
+    [Description(
+        "List every workflow queue this host has explicitly declared render capabilities for, " +
+        "and which PrismComponent \"type\" discriminators (e.g. \"text\", \"summary-list\", " +
+        "\"panel\") are supported for each. A queue key NOT present in this result is " +
+        "unrestricted from this toolkit's point of view — not a declared concern of this host " +
+        "(e.g. served by a different downstream app). Check this before drafting a state for a " +
+        "queue you haven't authored for before, rather than finding out from validate_workflow's " +
+        "QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT diagnostic after the fact.")]
+    public static IReadOnlyDictionary<string, IReadOnlyList<string>> ListQueueCapabilities(
+        WorkflowAuthoringService service) =>
+        service.GetQueueCapabilities();
+
     [McpServerTool(Name = "validate_workflow")]
     [Description(
         "Validate a workflow definition JSON — checks that every state route targets a gateway " +
@@ -70,6 +83,9 @@ public static class WorkflowAuthoringTools
         "every stat-group/chart/summary-list component's bound field or series actually exists. " +
         "Does not save. Returns { isValid, diagnostics }, each diagnostic { code, path, message, severity } " +
         "— severity \"Warning\" (e.g. an unverifiable service-sourced field) does not block isValid. " +
+        "When the host declares queue render capabilities, also checks that every component in a " +
+        "state is actually supported by that state's queue (QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT " +
+        "— call list_queue_capabilities first to check what a queue supports). " +
         CalculationsShapeReminder + " " +
         "See also workflow-docs://authoring-guide for the full contract shape.")]
     public static WorkflowValidationOutcome ValidateWorkflow(

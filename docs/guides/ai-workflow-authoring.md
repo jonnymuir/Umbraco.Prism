@@ -136,13 +136,17 @@ using them through a chat interface or an agent driving them directly:
 
 1. **`list_workflows`** → **`read_workflow`** to see what exists and its current
    shape (and `version`, needed to save later).
-2. **Draft** a change against the real contract — reference the two docs above
+2. **`list_queue_capabilities`**, if you haven't authored for this workflow's
+   queues before — check what component types the queue's host actually
+   supports before drafting, rather than finding out from
+   `QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT` after the fact.
+3. **Draft** a change against the real contract — reference the two docs above
    rather than guessing syntax.
-3. **`validate_workflow`** on the draft *before* touching anything live — it
+4. **`validate_workflow`** on the draft *before* touching anything live — it
    checks gateway routing and every calculation/`showWhen` expression, returning
    structured diagnostics (`code`, `path`, `message`) an agent can act on directly
    rather than a single opaque error.
-4. **`simulate_workflow`** to dry-run the draft through the real engine with no
+5. **`simulate_workflow`** to dry-run the draft through the real engine with no
    persistence — confirms it actually behaves as intended (right stage shown at
    the right time, right actions available) before it's saved. Returns the raw
    calculated field/series values alongside the trace, so you can check the maths
@@ -150,7 +154,7 @@ using them through a chat interface or an agent driving them directly:
    `source: "service"` calculation field, pass `mockServiceInputsJson` to resolve
    it — without one, those fields simply stay unresolved rather than erroring, the
    same as against a host with no data for them.
-5. **`save_workflow`** with the `version` read in step 1. A concurrent edit
+6. **`save_workflow`** with the `version` read in step 1. A concurrent edit
    (human or another agent) surfaces as a conflict, not a silent overwrite —
    reload and reapply.
 

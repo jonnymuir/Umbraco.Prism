@@ -177,6 +177,41 @@ Every component, regardless of type, may declare `showWhen` — see
 [Visibility (`showWhen`)](./calculation-language.md#visibility-showwhen) in the
 calculation language guide.
 
+### Queue render capabilities (host-declared)
+
+Different queues in the same workflow can be served by entirely different host
+applications with different rendering capability — a web front end with a full
+component catalog, versus an admin surface that only supports a generic
+"advance" action with no rendering pipeline at all. A host can optionally
+register an `IQueueCapabilitiesProvider` (`UmbracoPrism.WorkflowRuntime.Abstractions`)
+declaring, per queue key, which component `"type"` discriminators it actually
+renders. When registered, `validate_workflow`/`save_workflow` check every
+component in every state against its queue's declared capability list and
+reject (`QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT`) a component type the queue's
+host can't render — instead of letting you author something that silently
+renders as nothing. A queue key with **no** declared entry is unrestricted —
+not this host's concern (e.g. a queue actually served by a different app); an
+entry with an **empty** list means the host genuinely supports zero component
+types for that queue today. Use `list_queue_capabilities` to discover a
+queue's supported types before drafting a state for it.
+
+Capabilities are a contract each host declares about itself, never a runtime
+call to another host's process. `PrismComponentTypeCatalog`
+(`UmbracoPrism.Shared`) reflects `PrismComponent`'s closed, compile-time-fixed
+set of `[JsonDerivedType]` discriminators — since that assembly is shared by
+every Prism-Core host, `PrismComponentTypeCatalog.AllDiscriminators` is a
+ready-made, honest declaration of "I'm a stock Prism-Core web host", provable
+locally with no dependency on any other app actually running. A host with
+bespoke rendering (like `UmbracoPrism.MockBusinessApp`'s admin surface)
+declares its own smaller, hand-maintained list instead, matching exactly what
+it implements.
+
+**Known limitation:** there is no mechanism today for a host to extend the
+component catalog itself with genuinely new types beyond what
+`UmbracoPrism.Shared` ships — the `[JsonDerivedType]` list is fixed at compile
+time. If that ever becomes possible, a host with real extensions would need
+its own way to publish an extended declaration; nothing exercises this today.
+
 ## Saving and conflicts
 
 `WorkflowDefinitionFile.version` is the optimistic-concurrency token. `save_workflow`
