@@ -30,7 +30,7 @@ host app does to expose this surface.
 
 ## Resources
 
-Alongside the tools, this project also registers two MCP resources — the canonical
+Alongside the tools, this project also registers three MCP resources — the canonical
 authoring docs, embedded from `docs/guides/` at build time, fetchable directly by any
 MCP client with no repo checkout:
 
@@ -38,6 +38,7 @@ MCP client with no repo checkout:
 |---|---|
 | `workflow-docs://calculation-language` | [The Prism Calculation Language](../../docs/guides/calculation-language.md) — grammar, functions, tables/series, `showWhen`. |
 | `workflow-docs://authoring-guide` | [Reference Workflow Contract](../../docs/guides/reference-workflow-contract.md) — the full `WorkflowDefinitionFile` shape. |
+| `workflow-docs://service-design-principles` | [Service Design Principles](../../docs/guides/service-design-principles.md) — Double Diamond, the GOV.UK Service Standard, and Lou Downe's 15 principles of good services, industry-agnostic. |
 
 ## Connect it to Claude Code
 

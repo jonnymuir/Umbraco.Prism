@@ -21,3 +21,4 @@ Step-by-step guides for common workflows and customizations in Umbraco.Prism.
 
 - **[Reference Workflow Contract](./reference-workflow-contract.md)** — Technical specification for `WorkflowDefinitionFile`: states, routes, gateways, queues, components, response states.
 - **[The Prism Calculation Language](./calculation-language.md)** — Grammar, functions, tables/series, `showWhen`, and a worked walkthrough for the declarative calculation/actuarial expression language.
+- **[Service Design Principles](./service-design-principles.md)** — Industry-agnostic grounding for workflow authors: the Design Council Double Diamond, the GOV.UK Service Standard, and Lou Downe's 15 principles of good services, each mapped to concrete authoring decisions.

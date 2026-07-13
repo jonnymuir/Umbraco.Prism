@@ -121,6 +121,13 @@ letting it infer syntax from trial and error:
 - **[Reference Workflow Contract](./reference-workflow-contract.md)** — the full
   `WorkflowDefinitionFile` shape: states, routes, gateways, queues, components,
   response states. Also exposed as `workflow-docs://authoring-guide`.
+- **[Service Design Principles](./service-design-principles.md)** — the Design
+  Council Double Diamond, the GOV.UK Service Standard, and Lou Downe's 15
+  principles of good services, industry-agnostic and mapped to concrete
+  authoring decisions. Also exposed as `workflow-docs://service-design-principles`.
+  It deliberately stops short of sector-specific regulation or domain best
+  practice (FCA Consumer Duty, PASA standards, and the like) — bring that
+  yourself, as your own reference material alongside this one.
 
 ## The author loop
 

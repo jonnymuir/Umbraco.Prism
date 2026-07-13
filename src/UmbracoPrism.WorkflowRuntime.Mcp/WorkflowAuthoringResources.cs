@@ -5,7 +5,8 @@ namespace UmbracoPrism.WorkflowRuntime.Mcp;
 
 /// <summary>
 /// MCP resources exposing the workflow authoring reference docs — the calculation
-/// expression grammar and the full WorkflowDefinitionFile contract — so an agent
+/// expression grammar, the full WorkflowDefinitionFile contract, and the general
+/// service design principles a workflow should be judged against — so an agent
 /// connected only over MCP (no repo checkout) can fetch them directly. Content is
 /// embedded from the canonical, tool-agnostic markdown in docs/guides/ at build
 /// time; there is no separate copy to keep in sync.
@@ -34,6 +35,18 @@ public static class WorkflowAuthoringResources
         "The full WorkflowDefinitionFile JSON contract: states, routes, gateways and the gateway " +
         "routing rule, queues, the component catalog, response states, and the save/conflict protocol.")]
     public static string AuthoringGuide() => ReadEmbeddedDoc("reference-workflow-contract.md");
+
+    [McpServerResource(
+        Name = "service-design-principles",
+        UriTemplate = "workflow-docs://service-design-principles",
+        Title = "Service Design Principles",
+        MimeType = "text/markdown")]
+    [System.ComponentModel.Description(
+        "Industry-agnostic service design grounding for whoever is authoring a workflow: the Design " +
+        "Council Double Diamond process, the GOV.UK Service Standard, and Lou Downe's 15 principles of " +
+        "good services, each mapped to concrete workflow-authoring decisions. Does not cover sector-specific " +
+        "regulation or domain best practice — bring that yourself alongside this resource.")]
+    public static string ServiceDesignPrinciples() => ReadEmbeddedDoc("service-design-principles.md");
 
     private static string ReadEmbeddedDoc(string fileName)
     {
