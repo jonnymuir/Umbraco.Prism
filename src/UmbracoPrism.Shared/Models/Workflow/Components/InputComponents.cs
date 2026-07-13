@@ -1,4 +1,41 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace UmbracoPrism.Shared.Models.Workflow.Components;
+
+/// <summary>
+/// Accepts a default value authored as its natural JSON scalar type (string, boolean, or
+/// number) and normalizes it to a string — an agent authoring a BooleanComponent or
+/// NumberInputComponent naturally writes <c>"default": false</c> or <c>"default": 5</c>
+/// rather than a quoted string, and without this, System.Text.Json throws deserializing it
+/// into <see cref="InputComponent.Default"/>'s <c>string?</c> type.
+/// </summary>
+public sealed class LenientDefaultValueConverter : JsonConverter<string?>
+{
+    public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.TokenType switch
+        {
+            JsonTokenType.String => reader.GetString(),
+            JsonTokenType.True => "true",
+            JsonTokenType.False => "false",
+            JsonTokenType.Number => reader.GetDecimal().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            JsonTokenType.Null => null,
+            _ => throw new JsonException(
+                $"A component's \"default\" must be a string, boolean, or number, not {reader.TokenType}.")
+        };
+
+    public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
+    {
+        if (value is null)
+        {
+            writer.WriteNullValue();
+        }
+        else
+        {
+            writer.WriteStringValue(value);
+        }
+    }
+}
 
 /// <summary>
 /// Abstract base for all input field components, carrying common field properties.
@@ -27,6 +64,7 @@ public abstract record InputComponent : PrismComponent
     /// Default value used when the instance has no saved value for this field —
     /// pre-populates the rendered control and seeds the calculation scope.
     /// </summary>
+    [JsonConverter(typeof(LenientDefaultValueConverter))]
     public string? Default { get; init; }
 
     /// <summary>

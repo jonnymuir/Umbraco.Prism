@@ -74,8 +74,14 @@ public static class WorkflowAuthoringTools
         "See also workflow-docs://authoring-guide for the full contract shape.")]
     public static WorkflowValidationOutcome ValidateWorkflow(
         WorkflowAuthoringService service,
-        [Description("The full WorkflowDefinitionFile JSON to validate.")] string workflowJson) =>
-        service.Validate(Deserialize(workflowJson));
+        [Description("The full WorkflowDefinitionFile JSON to validate.")] string workflowJson)
+    {
+        if (!TryDeserialize(workflowJson, out var workflow, out var diagnostic))
+        {
+            return new WorkflowValidationOutcome(false, [diagnostic!]);
+        }
+        return service.Validate(workflow);
+    }
 
     [McpServerTool(Name = "save_workflow")]
     [Description(
@@ -94,7 +100,10 @@ public static class WorkflowAuthoringTools
         [Description("The full WorkflowDefinitionFile JSON to save, including the `version` you read it at.")] string workflowJson,
         CancellationToken ct)
     {
-        var workflow = Deserialize(workflowJson);
+        if (!TryDeserialize(workflowJson, out var workflow, out var diagnostic))
+        {
+            return Task.FromResult(WorkflowSaveOutcome.Invalid([diagnostic!]));
+        }
         return service.SaveAsync(workflow, workflow.Version, ct);
     }
 
@@ -122,15 +131,39 @@ public static class WorkflowAuthoringTools
             "{\"member\":{\"age\":47,\"active\":true}}. Omit if the definition has none.")]
         string? mockServiceInputsJson = null)
     {
+        if (!TryDeserialize(workflowJson, out var workflow, out var diagnostic))
+        {
+            throw new InvalidOperationException(diagnostic!.Message);
+        }
         var steps = JsonSerializer.Deserialize<List<WorkflowRuntimeSimulationStep>>(stepsJson, WorkflowJsonOptions)
             ?? [];
         var mockServiceInputs = string.IsNullOrWhiteSpace(mockServiceInputsJson)
             ? null
             : CalculationScopeJson.ToScopeValues(mockServiceInputsJson);
-        return service.Simulate(Deserialize(workflowJson), steps, mockServiceInputs);
+        return service.Simulate(workflow, steps, mockServiceInputs);
     }
 
-    private static WorkflowDefinitionFile Deserialize(string workflowJson) =>
-        JsonSerializer.Deserialize<WorkflowDefinitionFile>(workflowJson, WorkflowJsonOptions)
-            ?? throw new InvalidOperationException("workflowJson did not deserialize to a WorkflowDefinitionFile.");
+    // System.Text.Json throws on any malformed workflowJson (wrong types, truncated JSON,
+    // etc.) — without this guard, that exception bubbles out of the MCP tool call unhandled
+    // instead of the structured { isValid/status, diagnostics } shape these tools document,
+    // which the MCP SDK then surfaces as an opaque tool-call error rather than something an
+    // agent can act on.
+    private static bool TryDeserialize(
+        string workflowJson, out WorkflowDefinitionFile workflow, out WorkflowDiagnostic? diagnostic)
+    {
+        try
+        {
+            workflow = JsonSerializer.Deserialize<WorkflowDefinitionFile>(workflowJson, WorkflowJsonOptions)
+                ?? throw new JsonException("workflowJson did not deserialize to a WorkflowDefinitionFile.");
+            diagnostic = null;
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            workflow = null!;
+            diagnostic = new WorkflowDiagnostic(
+                "INVALID_JSON", ex.Path ?? "$", $"workflowJson is not a valid WorkflowDefinitionFile: {ex.Message}");
+            return false;
+        }
+    }
 }
