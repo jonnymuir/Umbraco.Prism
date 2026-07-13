@@ -211,4 +211,4 @@ In a production system, workflow administration would be:
 
 ---
 
-**Executable spec:** This walkthrough is executed on every PR by [`workflow-administration.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/workflow-administration.walkthrough.spec.ts). Screenshots above regenerate via the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) workflow (manual dispatch). See [`walkthroughs-as-executable-specs`](../../.squad/skills/walkthroughs-as-executable-specs/SKILL.md) for the policy.
+**Executable spec:** This walkthrough is executed on every PR by [`workflow-administration.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/workflow-administration.walkthrough.spec.ts). Screenshots above regenerate via the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) workflow (manual dispatch). See [`walkthroughs-as-executable-specs`](../../.claude/skills/walkthroughs-as-executable-specs/SKILL.md) for the policy.

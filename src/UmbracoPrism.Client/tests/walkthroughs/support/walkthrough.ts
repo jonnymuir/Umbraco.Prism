@@ -1,6 +1,6 @@
 /**
  * Shared helpers for walkthrough executable specs.
- * See .squad/skills/walkthroughs-as-executable-specs/SKILL.md for the policy.
+ * See .claude/skills/walkthroughs-as-executable-specs/SKILL.md for the policy.
  */
 import { expect, type Page, type APIRequestContext } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';

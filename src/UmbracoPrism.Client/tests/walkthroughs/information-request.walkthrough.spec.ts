@@ -1,4 +1,4 @@
-// Executable counterpart of docs/walkthroughs/information-request.md. See .squad/skills/walkthroughs-as-executable-specs/SKILL.md.
+// Executable counterpart of docs/walkthroughs/information-request.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { test, expect } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
 import { assertHealthyPage, step, signIn, resetWorkflows } from './support/walkthrough';

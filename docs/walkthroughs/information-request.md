@@ -88,4 +88,4 @@ The urgency field demonstrates a straightforward radio-driven priority choice:
 
 ---
 
-**Executable spec:** This walkthrough is executed on every PR by [`information-request.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/information-request.walkthrough.spec.ts). Screenshots above regenerate via the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) workflow (manual dispatch). See [`walkthroughs-as-executable-specs`](../../.squad/skills/walkthroughs-as-executable-specs/SKILL.md) for the policy.
+**Executable spec:** This walkthrough is executed on every PR by [`information-request.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/information-request.walkthrough.spec.ts). Screenshots above regenerate via the [`Capture Walkthrough Screenshots`](../../.github/workflows/capture-screenshots.yml) workflow (manual dispatch). See [`walkthroughs-as-executable-specs`](../../.claude/skills/walkthroughs-as-executable-specs/SKILL.md) for the policy.

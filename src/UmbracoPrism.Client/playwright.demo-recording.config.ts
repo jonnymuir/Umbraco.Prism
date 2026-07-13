@@ -1,11 +1,11 @@
 import { defineConfig } from '@playwright/test';
 
 // Not a test config — a recording tool. Deliberately excluded from CI: no npm script or
-// workflow references this file, and the spec's filename doesn't match
-// playwright.localhost-auth.config.ts's testMatch, so it can never run there either.
+// workflow references this file, and neither spec's filename matches
+// playwright.localhost-auth.config.ts's testMatch, so they can never run there either.
 export default defineConfig({
   testDir: './tests/demo',
-  testMatch: /garden-waste-demo\.spec\.ts/,
+  testMatch: /(garden-waste|pension-bereavement)-demo\.spec\.ts/,
   globalSetup: './tests/demo/support/demo-prereqs-setup.ts',
   fullyParallel: false,
   workers: 1,

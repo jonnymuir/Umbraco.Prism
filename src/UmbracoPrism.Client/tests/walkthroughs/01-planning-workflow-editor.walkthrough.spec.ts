@@ -1,4 +1,4 @@
-// Executable counterpart of docs/walkthroughs/planning-workflow-editor.md. See .squad/skills/walkthroughs-as-executable-specs/SKILL.md.
+// Executable counterpart of docs/walkthroughs/planning-workflow-editor.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { test, expect } from '../support/shared-app-host-fixture';

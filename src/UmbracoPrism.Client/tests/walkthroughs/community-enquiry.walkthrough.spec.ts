@@ -1,4 +1,4 @@
-// Executable counterpart of docs/walkthroughs/community-enquiry.md. See .squad/skills/walkthroughs-as-executable-specs/SKILL.md.
+// Executable counterpart of docs/walkthroughs/community-enquiry.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { test, expect } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
 import { assertHealthyPage, openDashboard, step, signIn, resetWorkflows } from './support/walkthrough';
