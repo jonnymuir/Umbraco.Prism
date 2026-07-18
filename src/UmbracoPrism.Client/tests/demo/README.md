@@ -191,7 +191,7 @@ the CI-facing config, and no `test:playwright:*` script or GitHub Actions workfl
 ## Act 1 manual-fallback cue sheet
 
 Umbraco backoffice content creation has no automation precedent anywhere in this repo (see the
-project's testing convention in `.squad/skills/walkthroughs-as-executable-specs/SKILL.md` — this
+project's testing convention in `.claude/skills/walkthroughs-as-executable-specs/SKILL.md` — this
 class of flow is normally treated as "manual capture only"). Act 1 attempts full automation
 anyway, since backoffice admin login is plain native Umbraco auth, not OIDC. If a specific step
 proves too fragile after real attempts, fall back to doing it by hand while the recording is

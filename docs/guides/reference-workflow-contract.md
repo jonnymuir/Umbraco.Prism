@@ -113,6 +113,34 @@ A gateway (`WorkflowGatewayDefinition`) is a routing node — not a rendered sta
   usually waiting on user choice the way a state's routes are, they're evaluating
   where an already-triggered action goes next.
 
+**Convention for a business-side/reviewer action after a Split:** route it
+*only* into the Join, never fan it out to its own separate terminal state as
+well. `simulate_workflow`'s trace follows a single cursor — if the business
+side's action routes to both a Join and its own terminal, the trace can only
+follow one of those branches, silently leaving the other's actions
+unexercised and unverified. `payment-demo` and `information-request` both
+follow this convention already (the reviewer's action routes straight into
+the Join, with no separate reviewer-side terminal) — match it rather than
+adding a parallel terminal for the business queue.
+
+**A "request more info" (or any) loop must have a real way out.** A gateway
+can have every route resolve to a real target and still be a dead end in
+practice — e.g. a business-side stage that requests more information by
+routing to a gateway that only ever loops back within the *same* queue, with
+no state anywhere that the other queue's actor could actually answer from.
+Nothing about that is structurally invalid (every gateway has outgoing
+routes, every target exists), so it isn't caught by the routing checks above
+— but no real instance that takes that branch can ever complete.
+`validate_workflow`/`save_workflow` also run `ValidateReachability()`, which
+checks that every state and gateway has *some* path to a terminal state (one
+with no outgoing routes) — not that every path does, so a deliberate
+self-loop like `money-modeller`'s `recalculate` route is fine as long as
+another route out of the same stage still leads somewhere. A node with no
+path at all is flagged as `STATE_UNREACHABLE_TERMINAL` /
+`GATEWAY_UNREACHABLE_TERMINAL`. It can't tell you *why* the loop is a dead
+end (usually: the loop needed to hand off to a state in the other queue and
+never did) — only that structurally, nothing escapes it.
+
 ## Response states
 
 Every runtime response (`WorkflowResponseEnvelope`, what `simulate_workflow`
@@ -173,9 +201,55 @@ row *can* bind its `fieldKey` to a `calculations.fields` entry instead of a capt
 input, but there's nothing sensible for a "Change" link to navigate to for a derived
 value — `stat-group`/`chart` are the right choice for presenting a calculated result.
 
+Only give a `summary-list` a `changeStateKey` (or per-row one) when the page is a
+*pre-decision* check-your-answers step — the same actor whose input it's reviewing is
+about to submit, and going back to change something is still meaningful. Once a
+decision has actually been recorded (a discretionary call, an approval, anything past
+the point where a route already fired based on those values), a summary-list showing
+that same data is a historical record, not a form to revisit — leave `changeStateKey`
+unset so it renders read-only. Nothing validates this distinction (it's about *when*
+in the flow the page sits, not the JSON shape), so get it right at authoring time:
+before drafting a "review" or "outcome" stage, check whether it comes before or after
+the workflow's actual decision point.
+
 Every component, regardless of type, may declare `showWhen` — see
 [Visibility (`showWhen`)](./calculation-language.md#visibility-showwhen) in the
 calculation language guide.
+
+### Queue render capabilities (host-declared)
+
+Different queues in the same workflow can be served by entirely different host
+applications with different rendering capability — a web front end with a full
+component catalog, versus an admin surface that only supports a generic
+"advance" action with no rendering pipeline at all. A host can optionally
+register an `IQueueCapabilitiesProvider` (`UmbracoPrism.WorkflowRuntime.Abstractions`)
+declaring, per queue key, which component `"type"` discriminators it actually
+renders. When registered, `validate_workflow`/`save_workflow` check every
+component in every state against its queue's declared capability list and
+reject (`QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT`) a component type the queue's
+host can't render — instead of letting you author something that silently
+renders as nothing. A queue key with **no** declared entry is unrestricted —
+not this host's concern (e.g. a queue actually served by a different app); an
+entry with an **empty** list means the host genuinely supports zero component
+types for that queue today. Use `list_queue_capabilities` to discover a
+queue's supported types before drafting a state for it.
+
+Capabilities are a contract each host declares about itself, never a runtime
+call to another host's process. `PrismComponentTypeCatalog`
+(`UmbracoPrism.Shared`) reflects `PrismComponent`'s closed, compile-time-fixed
+set of `[JsonDerivedType]` discriminators — since that assembly is shared by
+every Prism-Core host, `PrismComponentTypeCatalog.AllDiscriminators` is a
+ready-made, honest declaration of "I'm a stock Prism-Core web host", provable
+locally with no dependency on any other app actually running. A host with
+bespoke rendering (like `UmbracoPrism.MockBusinessApp`'s admin surface)
+declares its own smaller, hand-maintained list instead, matching exactly what
+it implements.
+
+**Known limitation:** there is no mechanism today for a host to extend the
+component catalog itself with genuinely new types beyond what
+`UmbracoPrism.Shared` ships — the `[JsonDerivedType]` list is fixed at compile
+time. If that ever becomes possible, a host with real extensions would need
+its own way to publish an extended declaration; nothing exercises this today.
 
 ## Saving and conflicts
 
@@ -183,7 +257,15 @@ calculation language guide.
 (and the REST `PUT`) compare the submitted `version` against what's currently
 stored: if they match, the save succeeds and the version increments; if not, the
 save is rejected as a conflict (`WorkflowSaveStatus.Conflict`) rather than silently
-overwriting a concurrent human or agent edit — reload and reapply on conflict. See
+overwriting a concurrent human or agent edit — reload and reapply on conflict.
+
+**For a brand-new `definitionKey` that's never been saved before, set `version`
+to `0`**, not `1` — a non-existent workflow's current version is `0`, so that's
+what `save_workflow` expects to match on the first save. It's an easy mistake
+to copy `"version": 1` from an existing seed you read as a style reference
+(`read_workflow` shows a workflow's *current* saved version, e.g. `1` after
+its first save — not what a new one should start at) and get
+`SAVE_VERSION_CONFLICT` on your very first attempt. See
 [AI-Ready Workflow Authoring](./ai-workflow-authoring.md) for the full save
 protocol, including how a host implements the atomic compare-and-swap this depends
 on.

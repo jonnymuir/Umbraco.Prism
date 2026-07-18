@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.Shared.Services.Calculations;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
 
@@ -52,7 +53,7 @@ public sealed record WorkflowSaveOutcome(
 /// definitions against a host-supplied <see cref="IWorkflowSourceStore"/>. Reusable by
 /// any front door (MCP tools, a CLI, a host's own code) — no MCP dependency here.
 /// </summary>
-public sealed class WorkflowAuthoringService(IWorkflowSourceStore store)
+public sealed class WorkflowAuthoringService(IWorkflowSourceStore store, IQueueCapabilitiesProvider? queueCapabilities = null)
 {
     private static readonly IReadOnlyDictionary<string, object?> EmptyFieldValues =
         new Dictionary<string, object?>();
@@ -62,6 +63,14 @@ public sealed class WorkflowAuthoringService(IWorkflowSourceStore store)
 
     public Task<WorkflowDefinitionFile?> ReadAsync(string definitionKey, CancellationToken ct = default) =>
         store.LoadAsync(definitionKey, ct);
+
+    /// <summary>
+    /// Every queue this host has declared render capabilities for, per
+    /// <see cref="IQueueCapabilitiesProvider.GetAllDeclaredCapabilities"/> — empty if no
+    /// provider is registered.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> GetQueueCapabilities() =>
+        queueCapabilities?.GetAllDeclaredCapabilities() ?? new Dictionary<string, IReadOnlyList<string>>();
 
     /// <summary>
     /// Validates gateway routing, every stat-group/chart binding against the fields and series
@@ -80,6 +89,8 @@ public sealed class WorkflowAuthoringService(IWorkflowSourceStore store)
     {
         var diagnostics = new List<WorkflowDiagnostic>(workflow.ValidateGatewayRouting());
         diagnostics.AddRange(workflow.ValidateDataDisplayBindings());
+        diagnostics.AddRange(workflow.ValidateReachability());
+        diagnostics.AddRange(ValidateQueueCapabilities(workflow));
         var evaluator = new CalculationEvaluator();
 
         IReadOnlyDictionary<string, object?> showWhenScope;
@@ -161,6 +172,50 @@ public sealed class WorkflowAuthoringService(IWorkflowSourceStore store)
 
         return new WorkflowValidationOutcome(
             !diagnostics.Any(d => d.Severity == WorkflowDiagnosticSeverity.Error), diagnostics);
+    }
+
+    /// <summary>
+    /// When a host registers <see cref="IQueueCapabilitiesProvider"/>, reject any state whose
+    /// components exceed what its queue's host can actually render — otherwise a workflow can
+    /// be authored/saved with a component that silently renders as nothing at runtime. A queue
+    /// with no declaration at all is unrestricted (not this host's concern).
+    /// </summary>
+    private IEnumerable<WorkflowDiagnostic> ValidateQueueCapabilities(WorkflowDefinitionFile workflow)
+    {
+        if (queueCapabilities is null)
+        {
+            yield break;
+        }
+
+        foreach (var state in workflow.States)
+        {
+            var supportedTypes = queueCapabilities.GetSupportedComponentTypes(state.QueueKey);
+            if (supportedTypes is null)
+            {
+                continue;
+            }
+
+            foreach (var (component, path) in state.Components.FlattenWithPaths($"states.{state.StateKey}.components"))
+            {
+                var discriminator = PrismComponentTypeCatalog.DiscriminatorFor(component);
+                if (supportedTypes.Contains(discriminator, StringComparer.Ordinal))
+                {
+                    continue;
+                }
+
+                yield return new WorkflowDiagnostic(
+                    "QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT",
+                    path,
+                    $"State '{state.StateKey}' uses component type '{discriminator}', which queue " +
+                    $"'{state.QueueKey}''s host does not declare support for " +
+                    (supportedTypes.Count == 0
+                        ? "(it currently supports no component types at all). "
+                        : $"(it supports: {string.Join(", ", supportedTypes)}). ") +
+                    "Remove/replace this component, or extend that host's IQueueCapabilitiesProvider " +
+                    "declaration once it can actually render it. Call list_queue_capabilities to check " +
+                    "what a queue supports before drafting for it.");
+            }
+        }
     }
 
     private static readonly Regex UnknownNamePattern = new(@"^Unknown name '([^']+)' in", RegexOptions.Compiled);

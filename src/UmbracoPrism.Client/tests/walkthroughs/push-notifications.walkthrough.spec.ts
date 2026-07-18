@@ -1,4 +1,4 @@
-// Executable counterpart of docs/walkthroughs/push-notifications.md. See .squad/skills/walkthroughs-as-executable-specs/SKILL.md.
+// Executable counterpart of docs/walkthroughs/push-notifications.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { test } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
 import { resetWorkflows } from './support/walkthrough';

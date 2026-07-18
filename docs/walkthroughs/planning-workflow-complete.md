@@ -541,5 +541,5 @@ The planning workflow complete E2E test validates:
 - **Runtime context:** [Planning Notification](planning-notification.md)
 - **Issue #72:** [QA: Complete planning workflow end-to-end test](https://github.com/jonnymuir/Umbraco.Prism/issues/72)
 - **Skills:**
-  - [walkthroughs-as-executable-specs](../../.squad/skills/walkthroughs-as-executable-specs/SKILL.md)
-  - [workflow-stage-preview-runtime](../../.squad/skills/workflow-stage-preview-runtime/SKILL.md)
+  - [walkthroughs-as-executable-specs](../../.claude/skills/walkthroughs-as-executable-specs/SKILL.md)
+  - [workflow-stage-preview-runtime](../../.claude/skills/workflow-stage-preview-runtime/SKILL.md)

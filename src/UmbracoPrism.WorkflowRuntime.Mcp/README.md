@@ -24,13 +24,14 @@ host app does to expose this surface.
 |---|---|
 | `list_workflows` | List every workflow definition in the store (key + display name). |
 | `read_workflow` | Read a workflow definition by `definitionKey`. |
-| `validate_workflow` | Check gateway routing and any `calculations` block, without saving. |
+| `list_queue_capabilities` | List every queue this host has declared render capabilities for, and which component types each supports. A queue absent from the result is unrestricted (not this host's declared concern). |
+| `validate_workflow` | Check gateway routing, any `calculations` block, and (when the host declares queue render capabilities) that every component is supported by its state's queue, without saving. |
 | `save_workflow` | Validate and save. Invalid definitions are rejected, not saved. Visible to the live app immediately. |
 | `simulate_workflow` | Dry-run a scripted sequence of actions with zero persistence. Returns `{ trace, calculations }` — the resulting state trace, plus the raw calculated field/series values per step (not just what's baked into rendered UI text). Accepts optional `mockServiceInputsJson` to resolve any `source: "service"` calculation field. |
 
 ## Resources
 
-Alongside the tools, this project also registers two MCP resources — the canonical
+Alongside the tools, this project also registers three MCP resources — the canonical
 authoring docs, embedded from `docs/guides/` at build time, fetchable directly by any
 MCP client with no repo checkout:
 
@@ -38,6 +39,7 @@ MCP client with no repo checkout:
 |---|---|
 | `workflow-docs://calculation-language` | [The Prism Calculation Language](../../docs/guides/calculation-language.md) — grammar, functions, tables/series, `showWhen`. |
 | `workflow-docs://authoring-guide` | [Reference Workflow Contract](../../docs/guides/reference-workflow-contract.md) — the full `WorkflowDefinitionFile` shape. |
+| `workflow-docs://service-design-principles` | [Service Design Principles](../../docs/guides/service-design-principles.md) — Double Diamond, the GOV.UK Service Standard, and Lou Downe's 15 principles of good services, industry-agnostic. |
 
 ## Connect it to Claude Code
 
