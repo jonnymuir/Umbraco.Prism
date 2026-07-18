@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type Locator } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -15,6 +15,25 @@ import { humanClick, humanType } from './support/human-interactions';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const footageDir = path.join(__dirname, '..', '..', 'demo-footage');
 mkdirSync(footageDir, { recursive: true });
+
+// Act 5's loop bounces between two origins several times a round; an admin action's own
+// server-side redirect (POST /admin/workflow/{id}/advance -> 302 -> GET /admin/workflow) can
+// still be in flight when the very next page.goto() fires, and Chromium aborts whichever
+// navigation loses that race — surfacing as net::ERR_ABORTED on the goto call, not the click that
+// actually caused it. A short pause plus one retry is enough since the redirect itself is local
+// and fast; this isn't papering over a real failure — assertNoValidationErrors/assertFormIsValid
+// still run against whatever page we land on afterwards.
+async function gotoWithRetry(page: Page, url: string): Promise<void> {
+  try {
+    await page.goto(url);
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes('ERR_ABORTED')) {
+      throw error;
+    }
+    await page.waitForTimeout(500);
+    await page.goto(url);
+  }
+}
 
 function tryConvertToMp4(webmPath: string): void {
   const mp4Path = webmPath.replace(/\.webm$/, '.mp4');
@@ -42,7 +61,7 @@ const claudeSessionLogPath = '/tmp/claude-session.log';
 interface WorkflowStateDefinition {
   stateKey: string;
   title?: string;
-  queueName?: string;
+  queueKey?: string;
 }
 
 interface WorkflowDefinition {
@@ -123,15 +142,31 @@ async function fillGdsFormGenerically(page: Page): Promise<void> {
     await humanType(page, page.locator(`input[name="fields[${key}-year]"]`), '2026');
   }
 
+  // Two field-naming conventions exist across the surfaces this filler has to handle: the
+  // informant-facing GDS pages use `fields[key]` with a separate `label[for]`; MockBusinessApp's
+  // admin surface (Program.cs RenderComponent) uses `field:key` with no `id` at all — the label
+  // wraps the input directly instead. Missing the second convention previously left every admin
+  // required field unfilled, which the browser's own HTML5 `required` then silently blocked at
+  // submit time (no navigation, no error markup) — nothing downstream ever saw a failure.
   const textLikeFields = await page.evaluate(() => {
     const results: Array<{ name: string; tag: string; type: string; label: string }> = [];
     const els = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-      'input[name^="fields["], textarea[name^="fields["]'
+      'input[name^="fields["], textarea[name^="fields["], input[name^="field:"], textarea[name^="field:"]'
     );
     for (const el of Array.from(els)) {
       if (/^fields\[.+-(day|month|year)\]$/.test(el.name)) continue;
       if (el instanceof HTMLInputElement && (el.type === 'radio' || el.type === 'checkbox' || el.type === 'hidden')) continue;
-      const label = document.querySelector(`label[for="${el.id}"]`)?.textContent?.trim() ?? '';
+
+      let label = document.querySelector(`label[for="${el.id}"]`)?.textContent?.trim() ?? '';
+      if (!label) {
+        const wrapping = el.closest('label');
+        if (wrapping) {
+          const clone = wrapping.cloneNode(true) as HTMLElement;
+          clone.querySelectorAll('input, textarea, select').forEach(child => child.remove());
+          label = clone.textContent?.trim() ?? '';
+        }
+      }
+
       results.push({ name: el.name, tag: el.tagName.toLowerCase(), type: el instanceof HTMLInputElement ? el.type : 'textarea', label });
     }
     return results;
@@ -169,6 +204,124 @@ async function fillGdsFormGenerically(page: Page): Promise<void> {
   for (const name of radioNames) {
     await humanClick(page, page.locator(`input[type="radio"][name="${name}"]`).first());
   }
+
+  // Checkboxes were previously skipped entirely (excluded from textLikeFields, never handled
+  // anywhere else) — a real gap: a required GDS declaration checkbox ("I confirm this
+  // information is correct") or a required checkbox-list ("select at least one") would silently
+  // fail server-side validation with nothing in this filler ever attempting to check one.
+  // Checking the first option per name group covers both shapes without over-selecting a list.
+  const checkboxNames = await page.evaluate(() =>
+    Array.from(new Set(
+      Array.from(document.querySelectorAll<HTMLInputElement>('input[type="checkbox"][name^="fields["]')).map(c => c.name)
+    ))
+  );
+  for (const name of checkboxNames) {
+    await humanClick(page, page.locator(`input[type="checkbox"][name="${name}"]`).first());
+  }
+}
+
+// Complements assertNoValidationErrors: the informant's GDS pages re-render a server-side
+// `.govuk-error-summary` on failure, but MockBusinessApp's bare admin surface has no such
+// markup — a required field left empty there just makes the browser silently refuse to submit
+// the form at all (no navigation, no error, nothing for a DOM-scraping check to see). Checking
+// native HTML5 validity directly, before ever clicking submit, catches that class of failure on
+// *either* surface regardless of what (if anything) the failure would otherwise render as.
+async function assertFormIsValid(page: Page, context: string): Promise<void> {
+  const invalidFields = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+      'input[name^="fields["], textarea[name^="fields["], select[name^="fields["], ' +
+      'input[name^="field:"], textarea[name^="field:"]'
+    ))
+      .filter(el => !el.checkValidity())
+      .map(el => ({ name: el.name, validationMessage: el.validationMessage }))
+  );
+  if (invalidFields.length > 0) {
+    throw new Error(
+      `${context}: the generic form filler left ${invalidFields.length} field(s) failing native ` +
+      `validation before submit was even clicked — ${invalidFields.map(f => `'${f.name}' (${f.validationMessage})`).join(', ')}.`
+    );
+  }
+}
+
+// GDS's own pattern: a failed submission re-renders the same page with a
+// `.govuk-error-summary` at the top (`role="alert"`) — the CLAUDE.md testing convention this
+// project follows is to always check both the summary and field-level errors, so a silent
+// validation failure never gets mistaken for a real step forward. Throws instead of returning
+// a boolean so a broken run stops loudly right where it broke, with the page still open for
+// inspection, rather than sailing on to a closing slate that claims success.
+async function assertNoValidationErrors(page: Page, context: string): Promise<void> {
+  const errorSummary = page.locator('.govuk-error-summary');
+  const count = await errorSummary.count();
+  if (count > 0) {
+    const text = await errorSummary.first().innerText().catch(() => '(could not read error summary text)');
+    throw new Error(
+      `${context}: submission failed validation instead of advancing — a required field was ` +
+      `left unfilled or mis-filled by the generic form filler. Error summary:\n${text}`
+    );
+  }
+}
+
+// Prefer an action whose label doesn't read as a loop-back/request for more information —
+// otherwise a blind first-button click can pick exactly the branch that never reaches a
+// completed state (the real defect found reviewing an earlier recording of this same demo).
+// Falls back to the first not-yet-tried button, then to the very first button, since a fully
+// generic script can't always know an agent's exact wording for "this is the forward path".
+async function pickForwardAction(
+  page: Page,
+  alreadyTried: Set<string>
+): Promise<Locator> {
+  const buttons = page.locator('button.btn-queue-action');
+  const count = await buttons.count();
+  // Each button's visible text is the route's `label`; its `value` attribute (the form posts
+  // `name="action" value="{actionKey}"`) is the real route/trigger key — checking both catches a
+  // loop-back action whose programmatic key reads as one (e.g. "request-more-info") even if an
+  // agent gave it a friendlier display label, and vice versa.
+  const entries = await Promise.all(
+    (await buttons.all()).map(async button => ({
+      label: (await button.textContent()) ?? '',
+      actionKey: (await button.getAttribute('value')) ?? ''
+    }))
+  );
+  const loopBackPattern = /more info|need more|further detail|request|reject|declin|return|re-?open|query|escalat|concern/i;
+  const identity = (entry: { label: string; actionKey: string }) => `${entry.actionKey}::${entry.label.trim()}`;
+
+  let candidateIndex = entries.findIndex(entry =>
+    !loopBackPattern.test(entry.label) && !loopBackPattern.test(entry.actionKey) && !alreadyTried.has(identity(entry)));
+  if (candidateIndex === -1) {
+    candidateIndex = entries.findIndex(entry => !alreadyTried.has(identity(entry)));
+  }
+  if (candidateIndex === -1) {
+    candidateIndex = 0;
+  }
+
+  alreadyTried.add(identity(entries[candidateIndex] ?? { label: '', actionKey: '' }));
+  return buttons.nth(Math.min(candidateIndex, count - 1));
+}
+
+// Authoritative completion signal, not a guess at which component an agent chose to render a
+// terminal stage with: the runtime computes `IsCompleted`/responseState "complete" from the
+// state's `stageType` being "Confirmation" (see WorkflowRuntimeEngine's effectiveStepType switch),
+// and /my-workflows already buckets each of the informant's own cases into "In Progress" or
+// "Completed" sections using exactly that flag. Walks the DOM backwards from the case's card to
+// find the nearest preceding section heading, rather than assuming a specific wrapper markup.
+async function isCaseCompletedOnMyWorkflows(page: Page, workflowKey: string): Promise<boolean> {
+  await gotoWithRetry(page, '/my-workflows');
+  await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+  return page.evaluate(key => {
+    const card = document.querySelector(`[data-workflow-key="${key}"]`);
+    if (!card) return false;
+    let el: Element | null = card;
+    while (el) {
+      let sibling: Element | null = el.previousElementSibling;
+      while (sibling) {
+        if (sibling.id === 'completed-heading') return true;
+        if (sibling.id === 'active-heading') return false;
+        sibling = sibling.previousElementSibling;
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }, workflowKey);
 }
 
 test.describe.serial('pension bereavement demo', () => {
@@ -379,8 +532,8 @@ test.describe.serial('pension bereavement demo', () => {
     const definition = (await (
       await request.get(`${businessAppOrigin}/prism/workflow-authoring/workflows/${workflowKey}`, { ignoreHTTPSErrors: true })
     ).json()) as WorkflowDefinition;
-    const queueNames = Array.from(new Set((definition.states ?? []).map(s => s.queueName).filter(Boolean))) as string[];
-    const businessState = (definition.states ?? []).find(s => (s.queueName ?? '').toLowerCase().includes('business'));
+    const queueNames = Array.from(new Set((definition.states ?? []).map(s => s.queueKey).filter(Boolean))) as string[];
+    const businessState = (definition.states ?? []).find(s => (s.queueKey ?? '').toLowerCase().includes('business'));
 
     await beat(page, 'intent', "Let's open the editor and see what it actually built — no restart, no redeploy.");
 
@@ -391,7 +544,9 @@ test.describe.serial('pension bereavement demo', () => {
       .toHaveAttribute('data-prism-workflow-loaded', workflowKey, { timeout: 30_000 });
 
     await beat(page, 'note', "Let's zoom to fit so we can see the whole graph.", { position: 'top' });
-    await humanClick(page, page.getByRole('button', { name: 'Fit' }));
+    // More than one "Fit" button can now match (the editor's per-queue lane toolbars each carry
+    // one) — the first is the canvas-level control this beat is actually narrating.
+    await humanClick(page, page.getByRole('button', { name: 'Fit' }).first());
     await page.waitForTimeout(400);
 
     await beat(
@@ -423,9 +578,15 @@ test.describe.serial('pension bereavement demo', () => {
   });
 
   test('Act 5 — run it end to end, as both sides', async () => {
-    // Two logins, two generically-discovered forms, human-paced typing throughout — comfortably
-    // over the config's 5-minute per-test default.
-    test.setTimeout(8 * 60_000);
+    // A real workflow can bounce between informant and administrator more than once (a
+    // request-for-more-information round, a discretionary decision round, a final outcome) —
+    // fixed "one form, one action" acts silently declared victory after only the first hop even
+    // when the case was nowhere near done. This runs bounded round-trips instead, and only
+    // narrates completion once /my-workflows itself reports the case as completed — if that
+    // never happens within the bound, the test fails loudly rather than the recording quietly
+    // implying a finished case that was actually still stuck mid-flow.
+    test.setTimeout(10 * 60_000);
+    const maxRounds = 6;
 
     await beat(page, 'setup', "Now let's run it for real — first as the bereaved next of kin.");
     await page.goto('/');
@@ -444,37 +605,85 @@ test.describe.serial('pension bereavement demo', () => {
     await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
     await beat(page, 'note', "This is the first question — reached the way a real visitor would, not a direct URL.");
-    await fillGdsFormGenerically(page);
-    await page.waitForTimeout(400);
-    const submit = page.locator('form button[type="submit"], form button').first();
-    await humanClick(page, submit);
-    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
+    const triedAdminLabels = new Set<string>();
+    let completed = false;
+
+    for (let round = 0; round < maxRounds && !completed; round++) {
+      const informantHasForm = (await page.locator('input[name^="fields["], textarea[name^="fields["], select[name^="fields["]').count()) > 0;
+      if (informantHasForm) {
+        await fillGdsFormGenerically(page);
+        await assertFormIsValid(page, `informant, round ${round + 1}`);
+        await page.waitForTimeout(400);
+        await humanClick(page, page.locator('form button[type="submit"], form button').first());
+        await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+        await assertNoValidationErrors(page, `informant, round ${round + 1}`);
+      }
+
+      if (round === 0) {
+        await beat(
+          page,
+          'recap',
+          "Submitted — and it's now sitting in a queue on the pensions administration side, " +
+            'waiting for a human to pick it up.'
+        );
+        await beat(page, 'setup', "Let's switch sides and be the pensions administrator.", { position: 'top' });
+      }
+
+      if (await isCaseCompletedOnMyWorkflows(page, workflowKey)) {
+        completed = true;
+        break;
+      }
+
+      await gotoWithRetry(page, `${businessAppOrigin}/admin/workflow`);
+      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+
+      const actionButtons = page.locator('button.btn-queue-action');
+      const actionCount = await actionButtons.count();
+      if (actionCount > 0) {
+        if (round === 0) {
+          await beat(page, 'intent', "Here's the case we just submitted, waiting in the admin queue.", { position: 'top' });
+        }
+        await fillGdsFormGenerically(page);
+        await assertFormIsValid(page, `administrator, round ${round + 1}`);
+        const chosen = await pickForwardAction(page, triedAdminLabels);
+        await humanClick(page, chosen);
+        await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+        await assertNoValidationErrors(page, `administrator, round ${round + 1}`);
+      }
+
+      // Prep the informant's page for next round's check — if the case is genuinely done, the
+      // top of the next iteration's isCaseCompletedOnMyWorkflows call catches it; if there's a
+      // further question, this is the same real nav-link path a returning visitor would use.
+      await gotoWithRetry(page, '/');
+      await humanClick(page, page.getByRole('link', { name: 'Report a Death' }));
+      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+    }
+
+    expect(
+      completed,
+      `The case never reached a completed state within ${maxRounds} round-trips between the ` +
+        'informant and the administrator — the workflow likely has a routing dead end ' +
+        '(ValidateReachability should have caught this at save time; if it did not, that check ' +
+        'needs another look).'
+    ).toBeTruthy();
+
+    // isCaseCompletedOnMyWorkflows already left the page on /my-workflows for its last check —
+    // a real, user-facing confirmation that the case genuinely finished, not just an assertion
+    // the audience has to take on faith.
     await beat(
       page,
       'recap',
-      "Submitted — and it's now sitting in a queue on the pensions administration side, waiting " +
-        'for a human to pick it up.'
+      "And here it is on the informant's own \"My Workflows\" page, moved out of \"In Progress\" " +
+        'and into \"Completed\" — the case really did finish, not just render one more screen.'
     );
-
-    await beat(page, 'setup', "Let's switch sides and be the pensions administrator.", { position: 'top' });
-    await page.goto(`${businessAppOrigin}/admin/workflow`);
-    await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-
-    await beat(page, 'intent', "Here's the case we just submitted, waiting in the admin queue.", { position: 'top' });
-    await fillGdsFormGenerically(page);
-    const actionButtons = page.locator('button.btn-queue-action');
-    const actionCount = await actionButtons.count();
-    if (actionCount > 0) {
-      await humanClick(page, actionButtons.first());
-      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-    }
 
     await beat(
       page,
       'recap',
       'A real informant on one side, a real administrator on the other, one workflow routing ' +
-        'between them — designed, built, and saved by an agent that only ever spoke MCP.',
+        'between them, run all the way to completion — designed, built, and saved by an agent ' +
+        'that only ever spoke MCP.',
       { position: 'top' }
     );
   });
