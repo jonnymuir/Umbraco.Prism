@@ -20,7 +20,10 @@ public sealed class PrismCmsWorkflowInstanceSweepService(
     {
         using var timer = new PeriodicTimer(SweepInterval);
 
-        do
+        // Wait for the first tick before sweeping — this runs as soon as the host starts, before
+        // UmbracoApplicationStartedNotification's migrations (which create the table this sweep
+        // targets) have necessarily finished, so an immediate first sweep would race them.
+        while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             try
             {
@@ -40,6 +43,6 @@ public sealed class PrismCmsWorkflowInstanceSweepService(
             {
                 logger.LogWarning(ex, "CMS Workflow instance sweep failed; will retry next interval.");
             }
-        } while (await timer.WaitForNextTickAsync(stoppingToken));
+        }
     }
 }

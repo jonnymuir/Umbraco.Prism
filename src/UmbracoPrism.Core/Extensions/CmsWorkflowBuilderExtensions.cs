@@ -35,8 +35,10 @@ public static class CmsWorkflowBuilderExtensions
 
         // Keyed so the default (business-app, HTTP) IBusinessAppWorkflowClient registration from
         // AddPrismWorkflowEngine() is untouched — CmsWorkflowPageController resolves this one
-        // explicitly via [FromKeyedServices("cms")].
-        services.AddKeyedSingleton<IBusinessAppWorkflowClient, InProcessCmsWorkflowClient>("cms");
+        // explicitly via [FromKeyedServices("cms")]. Scoped, not singleton — it depends on the
+        // scoped IPrismUserContext (and resolves identity per-request via IHttpContextAccessor
+        // anyway), matching BusinessAppWorkflowClient's own lifetime for the same reason.
+        services.AddKeyedScoped<IBusinessAppWorkflowClient, InProcessCmsWorkflowClient>("cms");
 
         services.AddHostedService<PrismCmsWorkflowInstanceSweepService>();
 

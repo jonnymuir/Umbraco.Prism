@@ -3,7 +3,12 @@ using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using UmbracoPrism.Core.Services.Workflow;
+using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.TestSite.BackgroundServices;
+using UmbracoPrism.TestSite.Services;
+using UmbracoPrism.WorkflowRuntime.Abstractions;
 
 namespace UmbracoPrism.TestSite;
 
@@ -41,5 +46,36 @@ public class TestSiteComposer : IComposer
 
         // Workflow Page demo — runs after PrismContentTypeSeeder has created the workflowPage doc type
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WorkflowPageSeeder>();
+
+        // Prism CMS Workflow demo ("Apply for a juggling licence") — demonstrates the
+        // service-sourced field extension point for a logged-in member. Re-registering
+        // CmsWorkflowEngine here (after AddPrismCmsWorkflow()'s own registration in
+        // PrismComposer) supplies the serviceInputsResolver delegate; last registration wins
+        // for single-instance resolution, and IWorkflowRuntimeEngine's factory (registered by
+        // Core) resolves CmsWorkflowEngine lazily, so it picks up this one.
+        builder.Services.AddSingleton<IJugglingSocietyMembershipClient, JugglingSocietyMembershipClient>();
+        builder.Services.AddSingleton(sp =>
+        {
+            var membershipClient = sp.GetRequiredService<IJugglingSocietyMembershipClient>();
+            return new CmsWorkflowEngine(
+                sp.GetRequiredService<ILogger<CmsWorkflowEngine>>(),
+                sp.GetRequiredService<IWorkflowDefinitionStore>(),
+                sp.GetRequiredService<IWorkflowContentSanitizer>(),
+                sp.GetRequiredService<IWorkflowInstanceStore>(),
+                (instance, definition, _) =>
+                {
+                    if (!string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceWorkflowKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return null;
+                    }
+
+                    var membership = membershipClient.GetForUser(instance.UserId);
+                    return new Dictionary<string, object?>
+                    {
+                        ["member"] = new Dictionary<string, object?> { ["tier"] = membership.Tier }
+                    };
+                });
+        });
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, JugglingLicenceCmsWorkflowSeeder>();
     }
 }

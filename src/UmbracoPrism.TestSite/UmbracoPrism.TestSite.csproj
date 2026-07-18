@@ -29,6 +29,12 @@
     <Content Remove="wwwroot/App_Plugins/UmbracoPrism/**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="cms-workflow-seeds\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
   <PropertyGroup>
     <!-- Razor files are needed for the backoffice to work correctly -->
     <CopyRazorGenerateFilesToPublishDirectory>true</CopyRazorGenerateFilesToPublishDirectory>

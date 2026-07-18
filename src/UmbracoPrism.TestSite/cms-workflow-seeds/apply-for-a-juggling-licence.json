@@ -1,0 +1,297 @@
+{
+  "definitionKey": "apply-for-a-juggling-licence",
+  "displayName": "Apply for a juggling licence",
+  "version": 1,
+  "schemaVersion": "1.0",
+  "description": "Prism CMS Workflow reference example — a GDS-style public application journey, entirely hosted and authored in Umbraco with no separate business app.",
+  "initialState": "eligibility",
+  "instancePolicy": "single",
+  "calculations": {
+    "fields": {
+      "member": { "source": "service" },
+      "isMember": { "expr": "member.tier <> ''" },
+      "membershipTier": { "expr": "member.tier" },
+      "feeAmount": {
+        "expr": "if(isMember and (member.tier = 'Competitive' or member.tier = 'Professional'), 20, 25)",
+        "format": "gbp"
+      }
+    }
+  },
+  "queues": [
+    {
+      "key": "cms-visitor",
+      "displayName": "Site visitor",
+      "description": "The site visitor applying for a juggling licence — anonymous, or a logged-in Prism Member.",
+      "actor": "applicant"
+    }
+  ],
+  "states": [
+    {
+      "stateKey": "eligibility",
+      "displayName": "Eligibility",
+      "description": "Confirms the applicant meets the basic eligibility rules before collecting any details.",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "inset-text",
+          "content": "You can apply for a juggling licence if you are 16 or over and have a UK postal address."
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "boolean",
+              "fieldKey": "age-confirmation",
+              "label": "I confirm I am aged 16 or over",
+              "required": true
+            },
+            {
+              "type": "boolean",
+              "fieldKey": "uk-address-confirmation",
+              "label": "I confirm I have a UK postal address",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "eligibility--continue--route-from-eligibility",
+          "target": "route-from-eligibility",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stateKey": "applicant-details",
+      "displayName": "Your details",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "About you",
+          "children": [
+            {
+              "type": "text",
+              "maxLength": 100,
+              "fieldKey": "full-name",
+              "label": "Full name",
+              "required": true
+            },
+            {
+              "type": "email",
+              "fieldKey": "email-address",
+              "label": "Email address",
+              "required": true
+            },
+            {
+              "type": "date",
+              "fieldKey": "date-of-birth",
+              "label": "Date of birth",
+              "hint": "For example, 12 03 1990",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "applicant-details--continue--route-from-applicant-details",
+          "target": "route-from-applicant-details",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stateKey": "licence-details",
+      "displayName": "Licence type",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "stat-group",
+          "showWhen": "isMember",
+          "title": "Your Juggling Society membership",
+          "items": [
+            { "label": "Membership tier", "fieldKey": "membershipTier" }
+          ]
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "radio",
+              "fieldKey": "licence-type",
+              "label": "What type of licence are you applying for?",
+              "hint": "Choose the option that best matches how you plan to juggle.",
+              "options": ["Recreational", "Competitive", "Professional"],
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": "details",
+          "heading": "How is my licence fee calculated?",
+          "content": "The standard fee is £25. Juggling Society members with a Competitive or Professional membership tier receive a discounted fee of £20."
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "boolean",
+              "fieldKey": "declaration",
+              "label": "I confirm the information I have given is accurate",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "licence-details--continue--route-from-licence-details",
+          "target": "route-from-licence-details",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stateKey": "check-answers",
+      "displayName": "Check your answers",
+      "stageType": "CheckAnswers",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "summary-list",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "full-name",
+              "label": "Full name",
+              "required": true
+            },
+            {
+              "type": "email",
+              "fieldKey": "email-address",
+              "label": "Email address",
+              "required": true
+            },
+            {
+              "type": "date",
+              "fieldKey": "date-of-birth",
+              "label": "Date of birth",
+              "required": true
+            },
+            {
+              "type": "radio",
+              "fieldKey": "licence-type",
+              "label": "Licence type",
+              "options": ["Recreational", "Competitive", "Professional"],
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": "stat-group",
+          "title": "Your licence fee",
+          "items": [
+            { "label": "Fee due", "fieldKey": "feeAmount", "emphasis": true }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "check-answers--submit--route-from-check-answers",
+          "target": "route-from-check-answers",
+          "trigger": "submit"
+        }
+      ]
+    },
+    {
+      "stateKey": "confirmation",
+      "displayName": "Application submitted",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Application submitted"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "content": "What happens next"
+        },
+        {
+          "type": "body",
+          "content": "We've sent a confirmation to the email address you gave us."
+        },
+        {
+          "type": "body",
+          "content": "Your juggling licence will arrive by post within 10 working days."
+        }
+      ],
+      "routes": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "route-from-eligibility",
+      "displayName": "Continue to your details",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-eligibility--continue--applicant-details",
+          "target": "applicant-details",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "route-from-applicant-details",
+      "displayName": "Continue to licence type",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-applicant-details--continue--licence-details",
+          "target": "licence-details",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "route-from-licence-details",
+      "displayName": "Continue to check your answers",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-licence-details--continue--check-answers",
+          "target": "check-answers",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "route-from-check-answers",
+      "displayName": "Submit application",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-check-answers--submit--confirmation",
+          "target": "confirmation",
+          "trigger": "submit"
+        }
+      ]
+    }
+  ]
+}
