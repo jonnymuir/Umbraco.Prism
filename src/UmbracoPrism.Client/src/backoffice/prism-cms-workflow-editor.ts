@@ -58,6 +58,7 @@ export class PrismCmsWorkflowEditorElement extends UmbElementMixin(LitElement) {
 
     return html`
       <prism-workflow-editor-shell
+        workflow-key=""
         .workflowSource=${this._source}
         .availableQueues=${this._availableQueues}
       ></prism-workflow-editor-shell>
@@ -67,8 +68,20 @@ export class PrismCmsWorkflowEditorElement extends UmbElementMixin(LitElement) {
   static styles = css`
     :host {
       display: block;
-      height: 100%;
       width: 100%;
+    }
+
+    /* The shell defaults to owning the full viewport (100vh, overflow: hidden) — right for
+       its standalone runtime-only hosts, wrong here: nested below Umbraco's own nav chrome,
+       100vh overflows the visible area and traps the difference where neither the shell's own
+       overflow:hidden nor the outer backoffice page can reach it. Fill this container's given
+       height instead of claiming the viewport, and let the backoffice page's own scrolling
+       handle anything taller than that. */
+    prism-workflow-editor-shell {
+      --prism-workflow-editor-height: 100%;
+      --prism-workflow-editor-min-height: 0;
+      --prism-workflow-editor-overflow: visible;
+      --prism-workflow-editor-shell-min-height: 70vh;
     }
   `;
 }

@@ -173,26 +173,30 @@
               "type": "text",
               "fieldKey": "full-name",
               "label": "Full name",
-              "required": true
+              "required": true,
+              "changeStateKey": "applicant-details"
             },
             {
               "type": "email",
               "fieldKey": "email-address",
               "label": "Email address",
-              "required": true
+              "required": true,
+              "changeStateKey": "applicant-details"
             },
             {
               "type": "date",
               "fieldKey": "date-of-birth",
               "label": "Date of birth",
-              "required": true
+              "required": true,
+              "changeStateKey": "applicant-details"
             },
             {
               "type": "radio",
               "fieldKey": "licence-type",
               "label": "Licence type",
               "options": ["Recreational", "Competitive", "Professional"],
-              "required": true
+              "required": true,
+              "changeStateKey": "licence-details"
             }
           ]
         },

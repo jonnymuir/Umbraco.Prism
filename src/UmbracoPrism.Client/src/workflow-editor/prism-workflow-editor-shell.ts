@@ -195,11 +195,17 @@ export class PrismWorkflowEditorShellElement extends LitElement {
   }
 
   static styles = css`
+    /* Sizing is host-configurable via CSS custom properties — the standalone runtime-only
+       host (MockBusinessApp, Storybook, the reference shell) legitimately owns the whole
+       viewport, so the defaults below are unchanged for it. A host embedding this shell
+       inside its own chrome (e.g. the Umbraco backoffice) overrides these instead of fighting
+       a hardcoded 100vh/overflow:hidden that traps content below its own nav bars where
+       neither the shell nor the outer page can reach it. */
     :host {
       display: block;
-      height: 100vh;
-      min-height: 100vh;
-      overflow: hidden;
+      height: var(--prism-workflow-editor-height, 100vh);
+      min-height: var(--prism-workflow-editor-min-height, 100vh);
+      overflow: var(--prism-workflow-editor-overflow, hidden);
       color: #0b0c0c;
       background: #f3f2f1;
       font-family: "GDS Transport", arial, sans-serif;
@@ -228,7 +234,7 @@ export class PrismWorkflowEditorShellElement extends LitElement {
       display: flex;
       flex-direction: column;
       height: 100%;
-      min-height: 0;
+      min-height: var(--prism-workflow-editor-shell-min-height, 0);
       overflow: hidden;
     }
 
