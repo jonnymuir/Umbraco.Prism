@@ -157,6 +157,7 @@ public class PrismComposer : IComposer
         // Any new browser-facing POST endpoint MUST carry [ValidateAntiForgeryToken].
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismMigrationHandler>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismContentTypeSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismSectionAccessSeeder>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismStarterContentSeeder>();
         builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>();
         builder.Services.ConfigureOptions<PrismManagementApiConfiguration>();
