@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using UmbracoPrism.Shared.Models.Workflow.Calculations;
@@ -11,6 +10,7 @@ using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
 using UmbracoPrism.WorkflowRuntime.Models;
+using UmbracoPrism.WorkflowRuntime.Stores;
 
 namespace UmbracoPrism.WorkflowRuntime.Services;
 
@@ -21,18 +21,20 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 {
     private readonly IWorkflowContentSanitizer _sanitizer;
     private readonly Dictionary<string, WorkflowDefinitionFile> _definitions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, WorkflowInstanceState> _instancesById = new();
+    private readonly IWorkflowInstanceStore _instanceStore;
     private readonly Func<WorkflowInstanceState, WorkflowDefinitionFile, StepDefinition, IReadOnlyDictionary<string, object?>?>? _serviceInputsResolver;
 
     public WorkflowRuntimeEngine(
         ILogger logger,
         IWorkflowDefinitionStore definitionStore,
         IWorkflowContentSanitizer sanitizer,
-        Func<WorkflowInstanceState, WorkflowDefinitionFile, StepDefinition, IReadOnlyDictionary<string, object?>?>? serviceInputsResolver = null)
+        Func<WorkflowInstanceState, WorkflowDefinitionFile, StepDefinition, IReadOnlyDictionary<string, object?>?>? serviceInputsResolver = null,
+        IWorkflowInstanceStore? instanceStore = null)
     {
         Logger = logger;
         _sanitizer = sanitizer;
         _serviceInputsResolver = serviceInputsResolver;
+        _instanceStore = instanceStore ?? new InMemoryWorkflowInstanceStore();
 
         foreach (var (lookupKey, definition) in definitionStore.LoadDefinitions(logger))
         {
@@ -83,7 +85,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
         if (!string.IsNullOrEmpty(instanceId))
         {
-            if (!_instancesById.TryGetValue(instanceId, out var specificInstance))
+            if (!_instanceStore.TryGet(instanceId, out var specificInstance))
             {
                 return ErrorEnvelope($"Workflow instance '{instanceId}' not found.", "INSTANCE_NOT_FOUND");
             }
@@ -237,7 +239,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         int expectedStateVersion,
         Dictionary<string, object?>? fieldValues)
     {
-        if (!_instancesById.TryGetValue(instanceId, out var instance))
+        if (!_instanceStore.TryGet(instanceId, out var instance))
         {
             return ErrorEnvelope($"Workflow instance '{instanceId}' not found.", "INSTANCE_NOT_FOUND");
         }
@@ -377,11 +379,11 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         return BuildEnvelope(updated, definition, accessProfile, allowFallbackWhenHidden: true);
     }
 
-    public IEnumerable<WorkflowInstanceState> GetAllInstances() => _instancesById.Values;
+    public IEnumerable<WorkflowInstanceState> GetAllInstances() => _instanceStore.GetAll();
 
     public WorkflowInstanceListEnvelope GetInstances(string tenantId, string userId)
     {
-        var userInstances = _instancesById.Values
+        var userInstances = _instanceStore.GetAll()
             .Where(i => string.Equals(i.TenantId, tenantId, StringComparison.Ordinal)
                      && string.Equals(i.UserId, userId, StringComparison.Ordinal))
             .Select(instance =>
@@ -416,7 +418,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     public WorkflowQueueWorkListEnvelope GetQueueWorkItems(WorkflowAccessProfile accessProfile)
     {
-        var items = _instancesById.Values
+        var items = _instanceStore.GetAll()
             .SelectMany(instance =>
             {
                 if (!_definitions.TryGetValue(instance.WorkflowKey, out var definition))
@@ -464,7 +466,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     public bool Reset(string instanceId)
     {
-        if (!_instancesById.TryRemove(instanceId, out var instance))
+        if (!_instanceStore.Remove(instanceId))
         {
             return false;
         }
@@ -475,7 +477,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     public void ResetAll()
     {
-        _instancesById.Clear();
+        _instanceStore.Clear();
         Logger.LogInformation("ResetAll: all workflow instances cleared");
     }
 
@@ -516,10 +518,10 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         StepDefinition state) => _serviceInputsResolver?.Invoke(instance, definition, state);
 
     protected bool TryGetInstance(string instanceId, out WorkflowInstanceState instance) =>
-        _instancesById.TryGetValue(instanceId, out instance!);
+        _instanceStore.TryGet(instanceId, out instance!);
 
     protected void SaveInstance(WorkflowInstanceState instance) =>
-        _instancesById[instance.InstanceId] = instance;
+        _instanceStore.Save(instance);
 
     /// <summary>
     /// The most recently computed <see cref="CalculationResult"/> for an instance, if its
@@ -1017,7 +1019,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             return error;
         }
 
-        _instancesById[instance.InstanceId] = instance;
+        _instanceStore.Save(instance);
 
         Logger.LogInformation(logMessage, [instance.InstanceId, .. additionalLogArgs]);
         return BuildEnvelope(instance, definition, accessProfile, false);
@@ -1976,7 +1978,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
     // ─── end Gateway helpers ──────────────────────────────────────────────────
 
     private WorkflowInstanceState? FindLatestInstance(string tenantId, string userId, string workflowKey) =>
-        _instancesById.Values
+        _instanceStore.GetAll()
             .Where(instance =>
                 string.Equals(instance.TenantId, tenantId, StringComparison.Ordinal)
                 && string.Equals(instance.UserId, userId, StringComparison.Ordinal)
