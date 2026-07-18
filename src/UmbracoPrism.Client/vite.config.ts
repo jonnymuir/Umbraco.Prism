@@ -13,6 +13,10 @@ export default defineConfig({
       input: {
         // Umbraco backoffice extension (dashboard + modals)
         'prism-dashboard': 'src/backoffice/index.ts',
+        // CMS Workflow's native backoffice mount — the workflow editor itself, compiled
+        // directly into Core's bundle (unlike vite.workflow-editor.config.ts's runtime-only
+        // build for hosts like MockBusinessApp with no backoffice of their own)
+        'prism-cms-workflow-editor': 'src/backoffice/prism-cms-workflow-editor.ts',
         // Standalone frontend web component — no Umbraco dependencies,
         // safe to load in the public-facing test site shell
         'prism-mobile-nav': 'src/mobile/prism-mobile-nav.ts',

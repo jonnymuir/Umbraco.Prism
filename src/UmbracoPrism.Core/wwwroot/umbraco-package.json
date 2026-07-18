@@ -37,6 +37,23 @@
       "name": "Prism Create Tenant Modal",
       "elementName": "prism-create-tenant-modal",
       "js": "/App_Plugins/UmbracoPrism/dist/prism-dashboard.js"
+    },
+    {
+      "type": "dashboard",
+      "alias": "Prism.CmsWorkflow.Dashboard",
+      "name": "Prism CMS Workflow Dashboard",
+      "elementName": "prism-cms-workflow-editor",
+      "js": "/App_Plugins/UmbracoPrism/dist/prism-cms-workflow-editor.js",
+      "conditions": [
+        {
+          "alias": "Umb.Condition.SectionAlias",
+          "match": "Prism.Section"
+        }
+      ],
+      "meta": {
+        "label": "CMS Workflow",
+        "pathname": "cms-workflow"
+      }
     }
   ]
 }

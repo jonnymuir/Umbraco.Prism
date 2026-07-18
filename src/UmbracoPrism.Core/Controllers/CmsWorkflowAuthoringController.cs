@@ -33,7 +33,7 @@ public class CmsWorkflowAuthoringController(WorkflowAuthoringService authoringSe
     /// </summary>
     [HttpGet("cms-workflows/queues")]
     public IActionResult GetQueues() =>
-        Ok(new[] { new { key = CmsWorkflowQueue.Key, displayName = CmsWorkflowQueue.DisplayName } });
+        Ok(new[] { new { queueName = CmsWorkflowQueue.Key, displayName = CmsWorkflowQueue.DisplayName } });
 
     [HttpGet("cms-workflows")]
     public async Task<IActionResult> ListWorkflows(CancellationToken ct) =>
