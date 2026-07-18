@@ -83,6 +83,66 @@ public class JugglingLicenceCmsWorkflowTests
     }
 
     [Fact]
+    public void Simulate_LoggedInMember_LicenceTypeIsPreFilledFromMembershipTier_BeforeAnySubmission()
+    {
+        var definition = LoadDefinition();
+        var mockServiceInputs = new Dictionary<string, object?>
+        {
+            ["member"] = new Dictionary<string, object?> { ["tier"] = "Professional" }
+        };
+
+        // Only the first two steps — stop right before licence-type would be submitted, so this
+        // reads the field's suggested value, not a value the walkthrough itself supplied.
+        var steps = new[]
+        {
+            new WorkflowRuntimeSimulationStep("continue", new Dictionary<string, object?>
+            {
+                ["age-confirmation"] = true,
+                ["uk-address-confirmation"] = true
+            }),
+            new WorkflowRuntimeSimulationStep("continue", new Dictionary<string, object?>
+            {
+                ["full-name"] = "Alex Juggler",
+                ["email-address"] = "alex@example.test",
+                ["date-of-birth"] = "12/03/1990"
+            })
+        };
+
+        var result = new WorkflowSimulationRunner().Run(definition, steps, mockServiceInputs);
+
+        var licenceTypeField = result.Trace[^1].Render!.Components
+            .SelectMany(c => c.Fields)
+            .Single(f => f.FieldKey == "licence-type");
+
+        licenceTypeField.Value.Should().Be("Professional",
+            "defaultFrom should suggest the member's own tier before they've chosen anything");
+    }
+
+    [Fact]
+    public void Simulate_LoggedInMember_CanOverrideTheSuggestedLicenceType()
+    {
+        var definition = LoadDefinition();
+        var mockServiceInputs = new Dictionary<string, object?>
+        {
+            ["member"] = new Dictionary<string, object?> { ["tier"] = "Professional" }
+        };
+
+        // Submits "Recreational" despite the member's tier being "Professional" — proves
+        // defaultFrom is a genuine, overridable default, not a locked-in value.
+        var result = new WorkflowSimulationRunner().Run(definition, BuildWalkthroughSteps(overrideLicenceType: "Recreational"), mockServiceInputs);
+
+        result.Trace[^1].ResponseState.Should().Be("complete");
+
+        var checkAnswersEnvelope = result.Trace.First(e => e.Render?.StepType == "check-answers");
+        var summaryValue = checkAnswersEnvelope.Render!.Components
+            .SelectMany(c => c.Fields)
+            .Single(f => f.FieldKey == "licence-type")
+            .Value;
+
+        summaryValue.Should().Be("Recreational", "the visitor's own submitted choice always wins over the suggested default");
+    }
+
+    [Fact]
     public void Simulate_RecreationalMember_DoesNotReceiveTheDiscount()
     {
         var definition = LoadDefinition();
@@ -97,7 +157,7 @@ public class JugglingLicenceCmsWorkflowTests
         result.Calculations[^1]!.Fields["feeAmount"].Should().Be(25m, "the discount is Competitive/Professional-only");
     }
 
-    private static IReadOnlyList<WorkflowRuntimeSimulationStep> BuildWalkthroughSteps() =>
+    private static IReadOnlyList<WorkflowRuntimeSimulationStep> BuildWalkthroughSteps(string overrideLicenceType = "Competitive") =>
     [
         new WorkflowRuntimeSimulationStep("continue", new Dictionary<string, object?>
         {
@@ -112,7 +172,7 @@ public class JugglingLicenceCmsWorkflowTests
         }),
         new WorkflowRuntimeSimulationStep("continue", new Dictionary<string, object?>
         {
-            ["licence-type"] = "Competitive",
+            ["licence-type"] = overrideLicenceType,
             ["declaration"] = true
         }),
         new WorkflowRuntimeSimulationStep("submit")

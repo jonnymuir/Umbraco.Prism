@@ -1203,7 +1203,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             {
                 case FieldsetComponent fieldset:
                 {
-                    var fields = BuildFields(fieldset.Children, displayValues);
+                    var fields = BuildFields(fieldset.Children, displayValues, calc);
                     if (fields.Length == 0)
                     {
                         Logger.LogWarning("Fieldset component contains no renderable fields");
@@ -1222,7 +1222,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
                 case SummaryListComponent summary:
                 {
-                    var fields = BuildFields(summary.Children, displayValues);
+                    var fields = BuildFields(summary.Children, displayValues, calc);
                     if (fields.Length == 0)
                     {
                         Logger.LogWarning("Summary-list component contains no renderable fields");
@@ -1246,7 +1246,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                         {
                             Heading = section.Heading,
                             Summary = section.Summary,
-                            Fields = BuildFields(section.Children, displayValues)
+                            Fields = BuildFields(section.Children, displayValues, calc)
                         })
                         .ToArray();
 
@@ -1372,7 +1372,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
                 case InputComponent input:
                 {
-                    var fields = BuildFields(new[] { (PrismComponent)input }, displayValues);
+                    var fields = BuildFields(new[] { (PrismComponent)input }, displayValues, calc);
                     result.Add(new PrismComponentRenderPayload
                     {
                         Type = "fieldset",
@@ -1436,7 +1436,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     private static FieldRenderPayload[] BuildFields(
         IEnumerable<PrismComponent> children,
-        Dictionary<string, object?> savedValues)
+        Dictionary<string, object?> savedValues,
+        CalculationRenderContext? calc = null)
     {
         var fields = new List<FieldRenderPayload>();
 
@@ -1445,7 +1446,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             switch (child)
             {
                 case InputComponent input:
-                    fields.Add(BuildInputPayload(input, savedValues));
+                    fields.Add(BuildInputPayload(input, savedValues, calc));
 
                     var conditional = (child as RadiosComponent)?.ConditionalChildren
                                       ?? (child as CheckboxesComponent)?.ConditionalChildren;
@@ -1455,7 +1456,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                         {
                             foreach (var sub in subComponents.GetAllInputs())
                             {
-                                fields.Add(BuildInputPayload(sub, savedValues) with
+                                fields.Add(BuildInputPayload(sub, savedValues, calc) with
                                 {
                                     ConditionalOn = input.FieldKey,
                                     VisibleWhen = optionValue
@@ -1467,7 +1468,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                     break;
 
                 case FieldsetComponent nestedFieldset:
-                    fields.AddRange(BuildFields(nestedFieldset.Children, savedValues));
+                    fields.AddRange(BuildFields(nestedFieldset.Children, savedValues, calc));
                     break;
             }
         }
@@ -1477,7 +1478,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     private static FieldRenderPayload BuildInputPayload(
         InputComponent input,
-        Dictionary<string, object?> savedValues)
+        Dictionary<string, object?> savedValues,
+        CalculationRenderContext? calc = null)
     {
         var fieldType = InputFieldType(input);
         return new FieldRenderPayload
@@ -1494,7 +1496,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 CheckboxesComponent checkboxes => checkboxes.Options,
                 _ => null
             },
-            Value = GetDisplayValue(input, fieldType, savedValues) ?? input.Default,
+            Value = GetDisplayValue(input, fieldType, savedValues) ?? ResolveDefaultFrom(input, calc) ?? input.Default,
             MinLength = input switch
             {
                 TextInputComponent text => text.MinLength,
@@ -1608,6 +1610,26 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         return !string.IsNullOrEmpty(prefix)
             ? $"{prefix}{raw}"
             : raw;
+    }
+
+    /// <summary>
+    /// Resolves <see cref="InputComponent.DefaultFrom"/> against the calculation display
+    /// overlay — the same already-formatted scope stat-groups and summary-lists read from, so
+    /// a "£20"-style gbp format applies here too if the named field declares one. Only ever
+    /// called when there's no saved value yet (see <see cref="BuildInputPayload"/>'s value
+    /// chain), so a visitor's own submitted choice always overrides this — it's a default, not
+    /// a lock.
+    /// </summary>
+    private static string? ResolveDefaultFrom(InputComponent input, CalculationRenderContext? calc)
+    {
+        if (string.IsNullOrWhiteSpace(input.DefaultFrom) || calc is null)
+        {
+            return null;
+        }
+
+        return calc.DisplayValues.TryGetValue(input.DefaultFrom, out var value)
+            ? value?.ToString()
+            : null;
     }
 
     // ─── Gateway helpers ──────────────────────────────────────────────────────

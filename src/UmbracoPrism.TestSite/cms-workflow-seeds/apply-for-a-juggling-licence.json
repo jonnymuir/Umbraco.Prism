@@ -122,6 +122,11 @@
           ]
         },
         {
+          "type": "inset-text",
+          "showWhen": "isMember",
+          "content": "We've suggested a licence type based on your Juggling Society membership above — change it if it's not right."
+        },
+        {
           "type": "fieldset",
           "children": [
             {
@@ -130,7 +135,8 @@
               "label": "What type of licence are you applying for?",
               "hint": "Choose the option that best matches how you plan to juggle.",
               "options": ["Recreational", "Competitive", "Professional"],
-              "required": true
+              "required": true,
+              "defaultFrom": "membershipTier"
             }
           ]
         },
