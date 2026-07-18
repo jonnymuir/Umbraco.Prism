@@ -89,6 +89,7 @@ public sealed class WorkflowAuthoringService(IWorkflowSourceStore store, IQueueC
     {
         var diagnostics = new List<WorkflowDiagnostic>(workflow.ValidateGatewayRouting());
         diagnostics.AddRange(workflow.ValidateDataDisplayBindings());
+        diagnostics.AddRange(workflow.ValidateReachability());
         diagnostics.AddRange(ValidateQueueCapabilities(workflow));
         var evaluator = new CalculationEvaluator();
 

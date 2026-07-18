@@ -123,6 +123,24 @@ follow this convention already (the reviewer's action routes straight into
 the Join, with no separate reviewer-side terminal) — match it rather than
 adding a parallel terminal for the business queue.
 
+**A "request more info" (or any) loop must have a real way out.** A gateway
+can have every route resolve to a real target and still be a dead end in
+practice — e.g. a business-side stage that requests more information by
+routing to a gateway that only ever loops back within the *same* queue, with
+no state anywhere that the other queue's actor could actually answer from.
+Nothing about that is structurally invalid (every gateway has outgoing
+routes, every target exists), so it isn't caught by the routing checks above
+— but no real instance that takes that branch can ever complete.
+`validate_workflow`/`save_workflow` also run `ValidateReachability()`, which
+checks that every state and gateway has *some* path to a terminal state (one
+with no outgoing routes) — not that every path does, so a deliberate
+self-loop like `money-modeller`'s `recalculate` route is fine as long as
+another route out of the same stage still leads somewhere. A node with no
+path at all is flagged as `STATE_UNREACHABLE_TERMINAL` /
+`GATEWAY_UNREACHABLE_TERMINAL`. It can't tell you *why* the loop is a dead
+end (usually: the loop needed to hand off to a state in the other queue and
+never did) — only that structurally, nothing escapes it.
+
 ## Response states
 
 Every runtime response (`WorkflowResponseEnvelope`, what `simulate_workflow`
@@ -182,6 +200,17 @@ keys and flag a dangling target as `DATA_DISPLAY_UNKNOWN_CHANGE_STATE`. A summar
 row *can* bind its `fieldKey` to a `calculations.fields` entry instead of a captured
 input, but there's nothing sensible for a "Change" link to navigate to for a derived
 value — `stat-group`/`chart` are the right choice for presenting a calculated result.
+
+Only give a `summary-list` a `changeStateKey` (or per-row one) when the page is a
+*pre-decision* check-your-answers step — the same actor whose input it's reviewing is
+about to submit, and going back to change something is still meaningful. Once a
+decision has actually been recorded (a discretionary call, an approval, anything past
+the point where a route already fired based on those values), a summary-list showing
+that same data is a historical record, not a form to revisit — leave `changeStateKey`
+unset so it renders read-only. Nothing validates this distinction (it's about *when*
+in the flow the page sits, not the JSON shape), so get it right at authoring time:
+before drafting a "review" or "outcome" stage, check whether it comes before or after
+the workflow's actual decision point.
 
 Every component, regardless of type, may declare `showWhen` — see
 [Visibility (`showWhen`)](./calculation-language.md#visibility-showwhen) in the
