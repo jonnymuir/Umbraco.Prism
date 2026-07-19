@@ -1,4 +1,4 @@
-// Executable counterpart of docs/walkthroughs/payment-demo.md. See .squad/skills/walkthroughs-as-executable-specs/SKILL.md.
+// Executable counterpart of docs/walkthroughs/payment-demo.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { test, expect, type Page } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
 import {

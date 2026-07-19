@@ -12,7 +12,7 @@ When a user issues a hard scope reset on an accumulated feature ("take it back t
 
 1. **Pin the new rules verbatim.** Quote the directive into the decision draft so future agents can verify intent.
 2. **Inventory the surface.** List every file in the target package and classify each as KEEP / DELETE / SIMPLIFY against the minimal model. Include backend + frontend + tests + stories + docs in the same pass — one of them is always the silent straggler.
-3. **Confirm "should already be gone" claims.** Don't trust the directive's "we've already removed this" — grep production code, tests, walkthroughs, and design docs separately. Squad metadata (agent histories, orchestration logs, skills) is *not* a residue concern; design docs and walkthroughs are.
+3. **Confirm "should already be gone" claims.** Don't trust the directive's "we've already removed this" — grep production code, tests, walkthroughs, and design docs separately. Legacy agent-framework metadata (old orchestration logs, retired skills) is *not* a residue concern; design docs and walkthroughs are.
 4. **Disambiguate doubled-purpose abstractions.** Some types (e.g. patch envelopes, event buses) carry both the UI narrative being cut and an unrelated infrastructure role. Call this out explicitly so the follow-up agent doesn't over-delete.
 5. **Encode the new rule as a server-side validation.** A UI-only enforcement of a model rule will rot. Identify which validator owns the rule and what diagnostic codes already exist.
 6. **Slice deletions first.** The smaller the surface before the model/visual edits, the safer those edits become. First slice = remove the named-cut features; later slices = lock model + visuals + tidy types.
@@ -28,5 +28,5 @@ When a user issues a hard scope reset on an accumulated feature ("take it back t
 
 ## Deliverables
 
-- One decision file in `.squad/decisions/inbox/` with: pinned directive, canonical model, validation rules, visual contract, sliced plan, supersedes list, open questions.
-- History.md learnings entry that captures surprises (most useful when the next agent thinks they already understand the surface).
+- One decision record with: pinned directive, canonical model, validation rules, visual contract, sliced plan, supersedes list, open questions. (This used to file to `.squad/decisions/inbox/` under the retired multi-agent workflow — no current equivalent location is established, so ask the user where they want it captured.)
+- A learnings note that captures surprises (most useful when the next agent thinks they already understand the surface).

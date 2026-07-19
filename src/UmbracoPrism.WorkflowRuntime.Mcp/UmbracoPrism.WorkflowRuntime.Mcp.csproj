@@ -37,6 +37,7 @@
   <ItemGroup>
     <EmbeddedResource Include="../../docs/guides/calculation-language.md" LogicalName="UmbracoPrism.WorkflowRuntime.Mcp.docs.calculation-language.md" />
     <EmbeddedResource Include="../../docs/guides/reference-workflow-contract.md" LogicalName="UmbracoPrism.WorkflowRuntime.Mcp.docs.reference-workflow-contract.md" />
+    <EmbeddedResource Include="../../docs/guides/service-design-principles.md" LogicalName="UmbracoPrism.WorkflowRuntime.Mcp.docs.service-design-principles.md" />
   </ItemGroup>
 
   <ItemGroup>

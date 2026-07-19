@@ -8,6 +8,7 @@ using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
+using UmbracoPrism.WorkflowRuntime.Services;
 using MockBusinessAppWorkflowEngine = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.BusinessAppWorkflowEngine;
 using MockReferenceWorkflowDefinitionStore = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.ReferenceWorkflowDefinitionStore;
 using MockReferenceWorkflowQueues = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.ReferenceWorkflowQueues;
@@ -279,6 +280,33 @@ public class PaymentDemoReferenceWorkflowTests
         complete.ResponseState.Should().Be("complete");
     }
 
+    [Fact]
+    public void CapabilitiesProvider_WebUser_ReferencesTheComponentCatalogDirectly()
+    {
+        var capabilities = MockReferenceWorkflowQueues.CapabilitiesProvider();
+
+        capabilities.GetSupportedComponentTypes(MockReferenceWorkflowQueues.WebUser)
+            .Should().BeEquivalentTo(PrismComponentTypeCatalog.AllDiscriminators,
+                because: "web-user's declared capability must be Prism's own catalog contract, not a stale hand-copied list");
+    }
+
+    [Theory]
+    [InlineData("payment-demo")]
+    [InlineData("money-modeller")]
+    public void CapabilitiesProvider_RealSeed_ValidatesCleanlyAgainstBusinessUserCapability(string definitionKey)
+    {
+        var definition = MockReferenceWorkflowRepository.GetReferenceWorkflows()
+            .Single(workflow => workflow.Key == definitionKey)
+            .Value;
+
+        var service = new WorkflowAuthoringService(new NoOpWorkflowSourceStore(), queueCapabilities: MockReferenceWorkflowQueues.CapabilitiesProvider());
+
+        var outcome = service.Validate(definition);
+
+        outcome.Diagnostics.Should().NotContain(d => d.Code == "QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT",
+            because: "MockBusinessApp's cut-down admin capability set was chosen specifically to cover this real seed's business-user components");
+    }
+
     private static MockBusinessAppWorkflowEngine CreateEngine()
     {
         var environment = new Mock<IWebHostEnvironment>();
@@ -302,6 +330,21 @@ public class PaymentDemoReferenceWorkflowTests
             .SelectMany(fieldset => fieldset.Children.OfType<InputComponent>())
             .Select(component => component.FieldKey)
             .ToArray();
+
+    private sealed class NoOpWorkflowSourceStore : IWorkflowSourceStore
+    {
+        public Task<IReadOnlyList<WorkflowSourceSummary>> ListAsync(CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<WorkflowSourceSummary>>([]);
+
+        public Task<WorkflowDefinitionFile?> LoadAsync(string definitionKey, CancellationToken ct = default) =>
+            Task.FromResult<WorkflowDefinitionFile?>(null);
+
+        public Task<WorkflowSaveResult> SaveAsync(WorkflowDefinitionFile workflow, int expectedVersion, CancellationToken ct = default) =>
+            throw new NotSupportedException("Not needed for Validate-only tests.");
+
+        public Task<bool> DeleteAsync(string definitionKey, CancellationToken ct = default) =>
+            throw new NotSupportedException("Not needed for Validate-only tests.");
+    }
 
     private sealed class InMemoryDefinitionStore : IWorkflowDefinitionStore
     {

@@ -11,6 +11,7 @@ using UmbracoPrism.MockBusinessApp.Services.Publishing;
 using UmbracoPrism.MockBusinessApp.Services.WorkflowActions;
 using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.WorkflowEditor.Extensions;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
@@ -42,6 +43,7 @@ builder.Services.AddSingleton<IWorkflowContentSanitizer, PassthroughSanitizer>()
 // is immediately visible to both (InMemoryRuntimePublishedWorkflowStore.SaveAsync calls
 // engine.UpdateDefinition). See MapPrismWorkflowAuthoringApi()/MapPrismWorkflowAuthoringMcp() below.
 builder.Services.AddSingleton<IWorkflowSourceStore, InMemoryRuntimePublishedWorkflowStore>();
+builder.Services.AddSingleton<IQueueCapabilitiesProvider>(ReferenceWorkflowQueues.CapabilitiesProvider());
 builder.Services.AddPrismWorkflowAuthoring();
 builder.Services.AddPrismWorkflowAuthoringMcp();
 
@@ -58,7 +60,6 @@ builder.Services.AddSingleton<IWorkflowDefinitionStore, ReferenceWorkflowDefinit
 builder.Services.AddSingleton<UmbracoPrism.MockBusinessApp.Services.MoneyModeller.MemberRecordService>();
 builder.Services.AddSingleton<BusinessAppWorkflowEngine>();
 builder.Services.AddSingleton<IWorkflowRuntimeEngine>(sp => sp.GetRequiredService<BusinessAppWorkflowEngine>());
-builder.Services.AddHostedService<WorkflowTuiService>();
 
 var app = builder.Build();
 
@@ -445,20 +446,78 @@ app.MapGet("/admin/workflow", async (BusinessAppWorkflowEngine engine, IWorkflow
 
     string Esc(string s) => System.Net.WebUtility.HtmlEncode(s);
 
+    // Minimal real field-capture, matching exactly the component types declared as
+    // business-user's capability in ReferenceWorkflowQueues.CapabilitiesProvider() — anything
+    // outside this set isn't rendered specially (queue-capability validation is what actually
+    // prevents a state from using something unsupported, not this renderer).
+    string RenderComponent(PrismComponent component, IReadOnlyDictionary<string, object?> fieldValues) => component switch
+    {
+        BodyComponent body => $"<p class=\"field-body\">{Esc(body.Content)}</p>",
+        PanelComponent panel => $"""<div class="gds-panel"><strong>{Esc(panel.Heading)}</strong></div>""",
+        FieldsetComponent fieldset => $"""
+            <fieldset>
+              {(string.IsNullOrWhiteSpace(fieldset.Legend) ? "" : $"<legend>{Esc(fieldset.Legend)}</legend>")}
+              {string.Join("\n", fieldset.Children.Select(c => RenderComponent(c, fieldValues)))}
+            </fieldset>
+            """,
+        TextareaComponent textarea => $"""
+            <label class="field-label">{Esc(textarea.Label)}{(textarea.Required ? " *" : "")}
+              <textarea name="field:{Esc(textarea.FieldKey)}" {(textarea.Required ? "required" : "")}>{Esc(ExistingOrDefault(textarea, fieldValues))}</textarea>
+            </label>
+            """,
+        DecimalInputComponent number => RenderTextInput(number, "number", fieldValues, step: "any"),
+        TextInputComponent text => RenderTextInput(text, "text", fieldValues),
+        SummaryListComponent summary => $"""
+            <dl class="summary-list">
+              {string.Join("\n", summary.Children.OfType<InputComponent>().Select(c => $"""
+                <div><dt>{Esc(c.Label)}</dt><dd>{Esc(ExistingOrDefault(c, fieldValues))}</dd></div>
+                """))}
+            </dl>
+            """,
+        _ => ""
+    };
+
+    string RenderTextInput(InputComponent input, string type, IReadOnlyDictionary<string, object?> fieldValues, string? step = null) => $"""
+        <label class="field-label">{Esc(input.Label)}{(input.Required ? " *" : "")}
+          <input type="{type}" name="field:{Esc(input.FieldKey)}" value="{Esc(ExistingOrDefault(input, fieldValues))}" {(step is not null ? $"step=\"{step}\"" : "")} {(input.Required ? "required" : "")} />
+        </label>
+        """;
+
+    string ExistingOrDefault(InputComponent input, IReadOnlyDictionary<string, object?> fieldValues) =>
+        fieldValues.TryGetValue(input.FieldKey, out var existing) && existing is not null
+            ? existing.ToString() ?? ""
+            : input.Default ?? "";
+
+    var instancesById = instances.ToDictionary(i => i.InstanceId, StringComparer.Ordinal);
+
     var queueRows = businessQueue.Count == 0
         ? """<tr><td colspan="7" style="text-align:center;color:#888;padding:1.5rem">No business-user queue work</td></tr>"""
         : string.Join("\n", businessQueue.Select((item, n) =>
         {
             var shortId = item.InstanceId.Length > 12 ? item.InstanceId[..8] + "…" : item.InstanceId;
-            var actions = item.AvailableActions.Count == 0
+            defsByKey.TryGetValue(item.WorkflowKey, out var itemDef);
+            var state = itemDef?.States.FirstOrDefault(
+                s => string.Equals(s.StateKey, item.StateKey, StringComparison.OrdinalIgnoreCase));
+            instancesById.TryGetValue(item.InstanceId, out var instanceState);
+            var fieldValues = instanceState?.FieldValues ?? new Dictionary<string, object?>();
+
+            var componentsHtml = state is null
+                ? ""
+                : string.Join("\n", state.Components.Select(c => RenderComponent(c, fieldValues)));
+
+            var buttons = item.AvailableActions.Count == 0
                 ? """<span style="color:#888;font-size:.8rem">No actions</span>"""
                 : string.Join(" ", item.AvailableActions.Select(action => $"""
-                    <form method="post" action="/admin/workflow/{Esc(item.InstanceId)}/advance" style="display:inline">
-                      <input type="hidden" name="action" value="{Esc(action.ActionKey)}" />
-                      <input type="hidden" name="stateVersion" value="{item.StateVersion}" />
-                      <button class="btn btn-queue-action">{Esc(action.Label)}</button>
-                    </form>
+                    <button class="btn btn-queue-action" type="submit" name="action" value="{Esc(action.ActionKey)}">{Esc(action.Label)}</button>
                     """));
+
+            var actionsCell = $"""
+                <form method="post" action="/admin/workflow/{Esc(item.InstanceId)}/advance">
+                  <input type="hidden" name="stateVersion" value="{item.StateVersion}" />
+                  {componentsHtml}
+                  <div class="actions">{buttons}</div>
+                </form>
+                """;
 
             return $"""
             <tr data-workflow-key="{Esc(item.WorkflowKey)}" data-queue-name="{Esc(item.QueueName ?? string.Empty)}">
@@ -474,7 +533,7 @@ app.MapGet("/admin/workflow", async (BusinessAppWorkflowEngine engine, IWorkflow
               </td>
               <td>{Esc(item.QueueName ?? "default")}</td>
               <td>{Esc(item.TenantId)}</td>
-              <td class="actions">{actions}</td>
+              <td>{actionsCell}</td>
             </tr>
             """;
         }));
@@ -567,6 +626,16 @@ app.MapGet("/admin/workflow", async (BusinessAppWorkflowEngine engine, IWorkflow
             .new-workflow-form label { display:flex; flex-direction:column; gap:.3rem; font-size:.8rem; color:#555; flex:1; }
             .new-workflow-form input { padding:.5rem .6rem; border:1px solid #d7d9e0; border-radius:5px; font-size:.9rem; }
             .new-workflow-form button { flex-shrink:0; }
+            .field-body { margin:.3rem 0; font-size:.85rem; color:#333; }
+            .gds-panel { background:#00703c; color:#fff; padding:.6rem .9rem; border-radius:4px; margin:.4rem 0; }
+            fieldset { border:1px solid #d7d9e0; border-radius:6px; padding:.6rem .8rem; margin:.4rem 0; }
+            legend { font-size:.78rem; font-weight:600; color:#555; padding:0 .3rem; }
+            .field-label { display:block; font-size:.78rem; color:#555; margin:.4rem 0; }
+            .field-label input, .field-label textarea { display:block; margin-top:.2rem; width:100%; padding:.35rem .5rem; border:1px solid #d7d9e0; border-radius:4px; font-size:.85rem; }
+            .summary-list { margin:.4rem 0; }
+            .summary-list div { display:flex; justify-content:space-between; gap:1rem; font-size:.82rem; padding:.15rem 0; border-bottom:1px solid #f0f1f4; }
+            .summary-list dt { color:#666; }
+            .summary-list dd { margin:0; font-weight:600; }
           </style>
         </head>
         <body>
@@ -655,6 +724,24 @@ app.MapPost("/admin/workflow/{instanceId}/advance", async (string instanceId, Ht
         return Results.NotFound();
     }
 
+    // Recover the state's declared component types so a "decimal" field posts as a real
+    // number rather than a raw string — everything else (text/textarea) passes through as-is.
+    var definition = engine.GetDefinition(instance.WorkflowKey);
+    var state = definition?.States.FirstOrDefault(
+        s => string.Equals(s.StateKey, instance.CurrentState, StringComparison.OrdinalIgnoreCase));
+    var decimalFieldKeys = state?.Components.GetAllInputs()
+        .Where(c => c is DecimalInputComponent)
+        .Select(c => c.FieldKey)
+        .ToHashSet(StringComparer.Ordinal) ?? [];
+
+    var fieldValues = form
+        .Where(kv => kv.Key.StartsWith("field:", StringComparison.Ordinal))
+        .ToDictionary(
+            kv => kv.Key["field:".Length..],
+            object? (kv) => decimalFieldKeys.Contains(kv.Key["field:".Length..]) && decimal.TryParse(kv.Value, out var d)
+                ? d
+                : kv.Value.ToString());
+
     engine.Advance(
         instanceId,
         instance.TenantId,
@@ -662,7 +749,7 @@ app.MapPost("/admin/workflow/{instanceId}/advance", async (string instanceId, Ht
         ReferenceWorkflowQueues.BusinessUserProfile(),
         action,
         stateVersion,
-        fieldValues: null);
+        fieldValues: fieldValues.Count > 0 ? fieldValues : null);
 
     return Results.Redirect("/admin/workflow");
 });
