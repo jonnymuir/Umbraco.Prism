@@ -160,7 +160,29 @@ var testsite = builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoP
     .WithEnvironment(ResetTestSiteRuntimeEnvironmentVariable, resetTestSiteRuntime)
     .WaitFor(keycloakProxy)
     .WaitFor(businessApp)
-    .WaitFor(prismClient);
+    .WaitFor(prismClient)
+    .WithUrls(ctx =>
+    {
+        // CMS Workflow's own MCP surface (MapPrismCmsWorkflowAuthoringMcp) — a distinct
+        // endpoint from businessApp's above, gated by real backoffice admin auth (client
+        // credentials) rather than left open, since (unlike MockBusinessApp) TestSite has
+        // an existing manual-auth surface to match. See docs/guides/ai-workflow-authoring.md.
+        var httpBaseUrl = ctx.Urls
+            .Where(u => u.Url?.StartsWith("http://", StringComparison.OrdinalIgnoreCase) == true)
+            .Select(u => new Uri(u.Url!))
+            .Select(uri => $"{uri.Scheme}://{uri.Authority}")
+            .FirstOrDefault();
+
+        if (httpBaseUrl != null)
+        {
+            ctx.Urls.Add(new ResourceUrlAnnotation
+            {
+                Url = $"{httpBaseUrl}/prism/workflow-authoring/mcp",
+                DisplayText = "CMS Workflow Authoring MCP (HTTP, requires backoffice admin auth)",
+                DisplayOrder = 1,
+            });
+        }
+    });
 
 // In Codespaces, tell the TestSite its public URL so OIDC generates the correct redirect_uri.
 if (testSitePublicUrl != null)

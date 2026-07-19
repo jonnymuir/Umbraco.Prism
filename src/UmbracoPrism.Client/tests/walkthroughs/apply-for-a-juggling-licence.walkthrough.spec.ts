@@ -137,4 +137,16 @@ test.describe('Apply for a juggling licence (CMS Workflow) walkthrough', () => {
     );
     expect(response.status()).toBe(401);
   });
+
+  test('CMS Workflow AI-authoring MCP endpoint requires the same admin auth', async ({ request }) => {
+    // MapPrismCmsWorkflowAuthoringMcp() chains RequireAuthorization(BackOfficeAccess,
+    // PrismAdmins) — same policy stack as the REST controller above and the backoffice
+    // editor itself. No separate auth story for the MCP surface.
+    const response = await request.post('https://localhost:44345/prism/workflow-authoring/mcp', {
+      ignoreHTTPSErrors: true,
+      headers: { 'Content-Type': 'application/json' },
+      data: {},
+    } as never);
+    expect(response.status()).toBe(401);
+  });
 });

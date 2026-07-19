@@ -108,6 +108,59 @@ If your endpoints require auth, pass it at registration:
 claude mcp add --transport http prism-workflow <url> --header "Authorization: Bearer <token>"
 ```
 
+## Two MCP surfaces in this repo — and how they differ
+
+This repo ships two concrete hosts, each with its own MCP endpoint, on its own URL, with its
+own auth. There's no server-side "which one is this" logic — the two are just separate HTTP
+endpoints on separate processes; the *client* config is where the distinction lives (two
+named entries, per the `claude mcp add` command twice, below).
+
+| | `UmbracoPrism.MockBusinessApp` | `UmbracoPrism.TestSite` (CMS Workflow) |
+|---|---|---|
+| Endpoint | `MockBusinessApp`'s own port, `/prism/workflow-authoring/mcp` | TestSite's own port, `/prism/workflow-authoring/mcp` |
+| Auth | **None** — intentionally, to prove the toolkit's auth boundary is real without inheriting a policy. Local-dev-only reference host; its `/admin/workflow/*` and `/workflow-editor` routes have no auth either. | **Real backoffice admin auth** — `MapPrismCmsWorkflowAuthoringMcp()` chains `RequireAuthorization(AuthorizationPolicies.BackOfficeAccess, "PrismAdmins")`, the exact same policy stack as `CmsWorkflowAuthoringController` and the native backoffice editor. |
+| Aspire dashboard label | "Workflow Authoring MCP (HTTP)" on the `businessapp` row | "CMS Workflow Authoring MCP (HTTP, requires backoffice admin auth)" on the `testsite` row |
+
+### Connecting to the CMS Workflow MCP surface (real auth)
+
+Umbraco 17 ships a first-class, non-Cloud client-credentials grant on its own Management API
+token endpoint — the exact same OpenIddict flow the interactive backoffice SPA uses for every
+call after its initial login, just with `grant_type=client_credentials` instead of
+`authorization_code`. `IBackOfficeSecurityAccessor.BackOfficeSecurity.CurrentUser` resolves the
+same real `IUser`, with real group memberships, regardless of which grant minted the token — so
+an MCP agent authenticating this way genuinely gets "the same security as doing it manually,"
+not a parallel scheme.
+
+1. **In the backoffice** (as an existing admin), create or designate a service-account user and
+   add it to whichever group `Prism:AdminGroups:GroupAliases` allows (default: `admin`).
+2. **Register client credentials for that user** — requires an authenticated admin session to
+   call:
+   ```
+   POST /umbraco/management/api/v1/user/{userId}/client-credentials
+   { "clientId": "prism-mcp-agent", "clientSecret": "<a-strong-secret-you-generate>" }
+   ```
+3. **Exchange the credentials for a bearer token** — this is what your MCP client needs; some
+   clients can do this exchange themselves, but Claude Code's HTTP transport expects a
+   ready-made header, so fetch one manually first:
+   ```
+   curl -k -X POST https://localhost:44345/umbraco/management/api/v1/security/back-office/token \
+     -d grant_type=client_credentials -d client_id=prism-mcp-agent -d client_secret=<your-secret>
+   ```
+   Tokens expire — repeat this to refresh, or automate it in your own MCP client config if it
+   supports a token-refresh hook.
+4. **Register it with Claude Code**, distinct from the business-workflow one above:
+   ```
+   claude mcp add --transport http prism-cms-workflow http://localhost:9250/prism/workflow-authoring/mcp \
+     --header "Authorization: Bearer <token-from-step-3>"
+   ```
+   (Port `9250` matches TestSite's `launchSettings.json` HTTP profile — check the Aspire
+   dashboard's "CMS Workflow Authoring MCP" link on the `testsite` row for the live value, same
+   dev-cert-trust reasoning as the HTTP-not-HTTPS note above.)
+
+Verified live (`apply-for-a-juggling-licence.walkthrough.spec.ts`): this endpoint returns `401`
+with no token, exactly like `CmsWorkflowAuthoringController`'s REST surface — there's no gap
+between what the backoffice UI enforces and what the MCP surface enforces.
+
 ## Reference material for the agent
 
 Two things worth pointing an agent at before it starts authoring, rather than
