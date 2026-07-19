@@ -69,4 +69,16 @@ public sealed class InMemoryRuntimePublishedWorkflowStore(BusinessAppWorkflowEng
 
         return Task.FromResult<IReadOnlyList<WorkflowSourceSummary>>(summaries);
     }
+
+    public Task<bool> DeleteAsync(string definitionKey, CancellationToken ct = default)
+    {
+        lock (_saveLock)
+        {
+            // Non-short-circuiting | — both removals must run regardless of whether the first
+            // one found something, since a definition can exist in one without the other
+            // (e.g. a seed-only workflow never overridden by an editor save).
+            var existed = _overrides.Remove(definitionKey) | engine.RemoveDefinition(definitionKey);
+            return Task.FromResult(existed);
+        }
+    }
 }

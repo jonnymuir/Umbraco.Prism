@@ -112,4 +112,16 @@ public sealed class FilesystemWorkflowSourceStore(string basePath) : IWorkflowSo
             _saveLock.Release();
         }
     }
+
+    public Task<bool> DeleteAsync(string definitionKey, CancellationToken ct = default)
+    {
+        var path = ResolveSafePath($"{definitionKey}.json");
+        if (!File.Exists(path))
+        {
+            return Task.FromResult(false);
+        }
+
+        File.Delete(path);
+        return Task.FromResult(true);
+    }
 }

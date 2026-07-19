@@ -41,6 +41,7 @@ public class PrismContentTypeSeeder(
         await EnsureDocumentTypeAsync("memberDashboard", "Member Dashboard", allowedAsRoot: false);
         await EnsureWorkflowDemoPageAsync();
         await EnsureWorkflowPageAsync();
+        await EnsureCmsWorkflowPageAsync();
         await EnsureWorkflowHubAsync();
         await EnsureSettingsDocumentTypeAsync();
         await EnsureHomeAllowedChildrenAsync();
@@ -86,7 +87,7 @@ public class PrismContentTypeSeeder(
         var homePage = contentTypeService.Get("homePage");
         if (homePage == null) return;
 
-        var childAliases = new[] { "workflowPage", "workflowHub", "memberDashboard" };
+        var childAliases = new[] { "workflowPage", "cmsWorkflowPage", "workflowHub", "memberDashboard" };
         var existingAliases = homePage.AllowedContentTypes.Select(sort => sort.Alias).ToHashSet();
         if (childAliases.All(existingAliases.Contains)) return;
 
@@ -103,7 +104,7 @@ public class PrismContentTypeSeeder(
         contentTypeService.Save(homePage);
 #pragma warning restore CS0618
 
-        logger.LogInformation("PRISM: homePage now allows workflowPage/workflowHub/memberDashboard as children");
+        logger.LogInformation("PRISM: homePage now allows workflowPage/cmsWorkflowPage/workflowHub/memberDashboard as children");
         await Task.CompletedTask;
     }
 
@@ -122,6 +123,44 @@ public class PrismContentTypeSeeder(
                 Name = name,
                 AllowedAsRoot = true,
                 Icon = "icon-activity"
+            };
+#pragma warning disable CS0618
+            contentTypeService.Save(contentType);
+#pragma warning restore CS0618
+        }
+        else if (contentType.AllowedAsRoot)
+        {
+            contentType.AllowedAsRoot = false;
+#pragma warning disable CS0618
+            contentTypeService.Save(contentType);
+#pragma warning restore CS0618
+        }
+
+        await EnsureWorkflowKeyPropertyAsync(contentType);
+        await EnsureTemplateAsync(contentType, name);
+    }
+
+    /// <summary>
+    /// The CMS Workflow implementation's own document type — distinct from <c>workflowPage</c>
+    /// (the business-workflow demo pattern, route-hijacked by a per-host controller) so Umbraco's
+    /// naming-convention routing dispatches to <c>CmsWorkflowPageController</c> instead, which
+    /// ships ready to use directly in Core with no host-side controller needed.
+    /// </summary>
+    private async Task EnsureCmsWorkflowPageAsync()
+    {
+        const string alias = "cmsWorkflowPage";
+        const string name = "CMS Workflow Page";
+
+        var contentType = contentTypeService.Get(alias);
+
+        if (contentType == null)
+        {
+            contentType = new ContentType(shortStringHelper, -1)
+            {
+                Alias = alias,
+                Name = name,
+                AllowedAsRoot = true,
+                Icon = "icon-diagram"
             };
 #pragma warning disable CS0618
             contentTypeService.Save(contentType);

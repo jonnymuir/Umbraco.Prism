@@ -53,16 +53,25 @@ public sealed record WorkflowSaveOutcome(
 /// definitions against a host-supplied <see cref="IWorkflowSourceStore"/>. Reusable by
 /// any front door (MCP tools, a CLI, a host's own code) — no MCP dependency here.
 /// </summary>
-public sealed class WorkflowAuthoringService(IWorkflowSourceStore store, IQueueCapabilitiesProvider? queueCapabilities = null)
+public sealed class WorkflowAuthoringService(
+    IWorkflowSourceStore store,
+    IEnumerable<IWorkflowStructuralValidator>? structuralValidators = null,
+    IQueueCapabilitiesProvider? queueCapabilities = null)
 {
     private static readonly IReadOnlyDictionary<string, object?> EmptyFieldValues =
         new Dictionary<string, object?>();
+
+    private readonly IReadOnlyList<IWorkflowStructuralValidator> _structuralValidators =
+        structuralValidators?.ToArray() ?? [];
 
     public Task<IReadOnlyList<WorkflowSourceSummary>> ListAsync(CancellationToken ct = default) =>
         store.ListAsync(ct);
 
     public Task<WorkflowDefinitionFile?> ReadAsync(string definitionKey, CancellationToken ct = default) =>
         store.LoadAsync(definitionKey, ct);
+
+    public Task<bool> DeleteAsync(string definitionKey, CancellationToken ct = default) =>
+        store.DeleteAsync(definitionKey, ct);
 
     /// <summary>
     /// Every queue this host has declared render capabilities for, per
@@ -91,6 +100,10 @@ public sealed class WorkflowAuthoringService(IWorkflowSourceStore store, IQueueC
         diagnostics.AddRange(workflow.ValidateDataDisplayBindings());
         diagnostics.AddRange(workflow.ValidateReachability());
         diagnostics.AddRange(ValidateQueueCapabilities(workflow));
+        foreach (var validator in _structuralValidators)
+        {
+            diagnostics.AddRange(validator.Validate(workflow));
+        }
         var evaluator = new CalculationEvaluator();
 
         IReadOnlyDictionary<string, object?> showWhenScope;

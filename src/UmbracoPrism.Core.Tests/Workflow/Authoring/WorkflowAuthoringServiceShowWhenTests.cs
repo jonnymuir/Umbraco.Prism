@@ -158,5 +158,8 @@ public class WorkflowAuthoringServiceShowWhenTests
 
         public Task<WorkflowSaveResult> SaveAsync(WorkflowDefinitionFile workflow, int expectedVersion, CancellationToken ct = default) =>
             throw new NotSupportedException("Validate() does not touch the store.");
+
+        public Task<bool> DeleteAsync(string definitionKey, CancellationToken ct = default) =>
+            throw new NotSupportedException("Validate() does not touch the store.");
     }
 }

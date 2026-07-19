@@ -299,7 +299,7 @@ public class PaymentDemoReferenceWorkflowTests
             .Single(workflow => workflow.Key == definitionKey)
             .Value;
 
-        var service = new WorkflowAuthoringService(new NoOpWorkflowSourceStore(), MockReferenceWorkflowQueues.CapabilitiesProvider());
+        var service = new WorkflowAuthoringService(new NoOpWorkflowSourceStore(), queueCapabilities: MockReferenceWorkflowQueues.CapabilitiesProvider());
 
         var outcome = service.Validate(definition);
 
@@ -340,6 +340,9 @@ public class PaymentDemoReferenceWorkflowTests
             Task.FromResult<WorkflowDefinitionFile?>(null);
 
         public Task<WorkflowSaveResult> SaveAsync(WorkflowDefinitionFile workflow, int expectedVersion, CancellationToken ct = default) =>
+            throw new NotSupportedException("Not needed for Validate-only tests.");
+
+        public Task<bool> DeleteAsync(string definitionKey, CancellationToken ct = default) =>
             throw new NotSupportedException("Not needed for Validate-only tests.");
     }
 

@@ -212,6 +212,44 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
         tenant2Result.ResponseState.Should().Be("render");
     }
 
+    [Fact]
+    public void SinglePolicy_ImmediatelyAfterCompletion_FirstGetCurrentStillShowsConfirmation()
+    {
+        // Mirrors the PRG pattern: PrismWorkflowPageController redirects to a bare GET (no
+        // instanceId) after every POST, so THIS call is how the visitor actually sees the
+        // confirmation page they just submitted — it must not be silently swapped for a
+        // brand-new, blank instance.
+        _engine.ResetAll();
+
+        var first = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+        _engine.Advance(first.InstanceId, "tenant1", "user1", "submit", expectedStateVersion: 0, fieldValues: new Dictionary<string, object?>());
+
+        var confirmation = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+
+        confirmation.InstanceId.Should().Be(first.InstanceId);
+        confirmation.Render!.StateDisplayName.Should().Be("Done");
+    }
+
+    [Fact]
+    public void SinglePolicy_LaterVisitAfterCompletion_KeepsShowingTheSameConfirmation()
+    {
+        // "single" means at most one instance per user for this workflow, full stop — reaching a
+        // terminal state doesn't make it any less "the" instance. A member returning to the page
+        // later must keep seeing their completed confirmation, not have it silently swapped for a
+        // fresh, blank instance (community-enquiry's walkthrough depends on exactly this).
+        _engine.ResetAll();
+
+        var first = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+        _engine.Advance(first.InstanceId, "tenant1", "user1", "submit", expectedStateVersion: 0, fieldValues: new Dictionary<string, object?>());
+        var confirmation = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+
+        // A later, separate visit — the confirmation has already been shown once.
+        var nextVisit = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+
+        nextVisit.InstanceId.Should().Be(confirmation.InstanceId);
+        nextVisit.Render!.StateDisplayName.Should().Be("Done");
+    }
+
     // -----------------------------------------------------------------------
     // "multiple" policy tests
     // -----------------------------------------------------------------------

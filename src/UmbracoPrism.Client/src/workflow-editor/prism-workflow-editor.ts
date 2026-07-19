@@ -145,9 +145,11 @@ function makeCopiedStageKey(baseStageKey: string, workflow: AuthoredWorkflow): s
  */
 @customElement('prism-workflow-editor')
 export class PrismWorkflowEditorElement extends LitElement {
-  /** Workflow key — read from ?workflow= URL param or set directly. */
+  /** Workflow key — read from ?workflow= URL param or set directly. No implicit default: a
+   * host must supply one (directly, or via the shell's own workflow list/auto-select) — there
+   * is no single workflow name that's a sensible fallback across every possible host. */
   @property({ type: String, attribute: 'workflow-key' })
-  workflowKey = 'planning';
+  workflowKey = '';
 
   /**
    * Host-supplied source the editor reads workflows from and writes back to.

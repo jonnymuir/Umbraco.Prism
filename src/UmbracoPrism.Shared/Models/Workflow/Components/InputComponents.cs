@@ -68,6 +68,19 @@ public abstract record InputComponent : PrismComponent
     public string? Default { get; init; }
 
     /// <summary>
+    /// Names a calculation-scope value (a calculated field, or a <c>source: "service"</c> field
+    /// — dotted paths like <c>member.tier</c> also resolve) to use as this field's default
+    /// instead of the static <see cref="Default"/>, when the instance has no saved value yet.
+    /// Takes priority over <see cref="Default"/> when both are set and the name resolves.
+    /// Still just a default: once the visitor submits their own value, it's saved like any
+    /// other field and this stops applying — the field remains a real, editable, overridable
+    /// choice, not a locked-in value. Falls back to <see cref="Default"/> (or empty) if the
+    /// definition has no calculations block, the name doesn't resolve (e.g. an unresolved
+    /// <c>source: "service"</c> field for an anonymous visitor), or resolves to null.
+    /// </summary>
+    public string? DefaultFrom { get; init; }
+
+    /// <summary>
     /// When this component appears as a summary-list row, the state key its own "Change" link
     /// navigates back to — overriding the summary-list's own <c>ChangeStateKey</c> for rows
     /// summarising fields captured on a different earlier stage. Ignored outside a summary-list.

@@ -6,9 +6,20 @@ considered **public API**. Everything else in this folder is composition detail
 and is marked `@internal` in its source — Razor authors and host applications
 should not depend on it, and breaking changes there will not bump a contract.
 
-> 🛑 **The editor is runtime-only.** It must not be mounted into the Umbraco v17
-> backoffice. Hosts are TestSite Razor pages, the Storybook harness, and the
-> reference shell — never a backoffice dashboard.
+> **Host it wherever the implementation needs it.** The editor is a plain Lit
+> bundle with no assumptions about its host — the toolkit's job is to make
+> hosting trivial anywhere, not to prescribe one hosting model. MockBusinessApp
+> is a pure business-app host with no backoffice, so it hosts the editor
+> runtime-only (`vite.workflow-editor.config.ts` → `UmbracoPrism.WorkflowEditor`'s
+> static assets, served as a standalone page — see TestSite Razor pages, the
+> Storybook harness, and the reference shell). Prism CMS Workflow's entire
+> reason for existing is the backoffice editing experience, so it mounts the
+> same components natively as a Collection + entity-actions + Workspace backoffice
+> screen instead (`vite.config.ts`'s `prism-cms-workflow-manifests` entry →
+> `UmbracoPrism.Core`'s own bundle; `<prism-workflow-editor>` itself is mounted by
+> `cms-workflow-workspace-editor.element.ts` in
+> `UmbracoPrism.Client/src/backoffice/cms-workflow/workspace/`, scoped to whichever
+> definitionKey the workspace route is currently editing).
 
 ## Public elements
 

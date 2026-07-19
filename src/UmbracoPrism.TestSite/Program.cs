@@ -1,3 +1,4 @@
+using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.TestSite;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -81,6 +82,10 @@ app.UseUmbraco()
     {
         u.UseBackOfficeEndpoints();
         u.UseWebsiteEndpoints();
+
+        // AI-agent authoring for CMS Workflow — same PrismAdmins/BackOfficeAccess gate as the
+        // native backoffice editor. See CmsWorkflowBuilderExtensions.MapPrismCmsWorkflowAuthoringMcp.
+        u.EndpointRouteBuilder.MapPrismCmsWorkflowAuthoringMcp();
     });
 
 await app.RunAsync();

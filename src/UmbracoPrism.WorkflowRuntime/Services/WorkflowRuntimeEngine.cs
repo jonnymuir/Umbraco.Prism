@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using UmbracoPrism.Shared.Models.Workflow.Calculations;
@@ -11,6 +10,7 @@ using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
 using UmbracoPrism.WorkflowRuntime.Models;
+using UmbracoPrism.WorkflowRuntime.Stores;
 
 namespace UmbracoPrism.WorkflowRuntime.Services;
 
@@ -21,18 +21,20 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 {
     private readonly IWorkflowContentSanitizer _sanitizer;
     private readonly Dictionary<string, WorkflowDefinitionFile> _definitions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, WorkflowInstanceState> _instancesById = new();
+    private readonly IWorkflowInstanceStore _instanceStore;
     private readonly Func<WorkflowInstanceState, WorkflowDefinitionFile, StepDefinition, IReadOnlyDictionary<string, object?>?>? _serviceInputsResolver;
 
     public WorkflowRuntimeEngine(
         ILogger logger,
         IWorkflowDefinitionStore definitionStore,
         IWorkflowContentSanitizer sanitizer,
-        Func<WorkflowInstanceState, WorkflowDefinitionFile, StepDefinition, IReadOnlyDictionary<string, object?>?>? serviceInputsResolver = null)
+        Func<WorkflowInstanceState, WorkflowDefinitionFile, StepDefinition, IReadOnlyDictionary<string, object?>?>? serviceInputsResolver = null,
+        IWorkflowInstanceStore? instanceStore = null)
     {
         Logger = logger;
         _sanitizer = sanitizer;
         _serviceInputsResolver = serviceInputsResolver;
+        _instanceStore = instanceStore ?? new InMemoryWorkflowInstanceStore();
 
         foreach (var (lookupKey, definition) in definitionStore.LoadDefinitions(logger))
         {
@@ -83,7 +85,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
         if (!string.IsNullOrEmpty(instanceId))
         {
-            if (!_instancesById.TryGetValue(instanceId, out var specificInstance))
+            if (!_instanceStore.TryGet(instanceId, out var specificInstance))
             {
                 return ErrorEnvelope($"Workflow instance '{instanceId}' not found.", "INSTANCE_NOT_FOUND");
             }
@@ -156,9 +158,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             if (existingInstance is not null)
             {
                 var currentState = definition.States.FirstOrDefault(s => s.StateKey == existingInstance.CurrentState);
-                var isTerminal = currentState != null && currentState.Components.InferStepType() == "confirmation";
 
-                if (!isTerminal)
+                if (!IsTerminalInstance(existingInstance, definition))
                 {
                     Logger.LogInformation(
                         "Active instance {Id} exists for key={Key}; returning instance_picker",
@@ -209,6 +210,12 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 tenantId);
         }
 
+        // "single" means at most one instance per user for this workflow, full stop — once it
+        // reaches a terminal state it keeps being shown on every subsequent visit (the community
+        // enquiry demo depends on this: a member returning to the page sees "Thank you", not a
+        // silently-reset blank form). PrismWorkflowPageController's PRG redirect after a POST
+        // relies on this same fallthrough to show the confirmation page for the visit that just
+        // submitted it.
         return BuildEnvelope(existingInstance, definition, accessProfile, false);
     }
 
@@ -237,7 +244,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         int expectedStateVersion,
         Dictionary<string, object?>? fieldValues)
     {
-        if (!_instancesById.TryGetValue(instanceId, out var instance))
+        if (!_instanceStore.TryGet(instanceId, out var instance))
         {
             return ErrorEnvelope($"Workflow instance '{instanceId}' not found.", "INSTANCE_NOT_FOUND");
         }
@@ -377,11 +384,11 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         return BuildEnvelope(updated, definition, accessProfile, allowFallbackWhenHidden: true);
     }
 
-    public IEnumerable<WorkflowInstanceState> GetAllInstances() => _instancesById.Values;
+    public IEnumerable<WorkflowInstanceState> GetAllInstances() => _instanceStore.GetAll();
 
     public WorkflowInstanceListEnvelope GetInstances(string tenantId, string userId)
     {
-        var userInstances = _instancesById.Values
+        var userInstances = _instanceStore.GetAll()
             .Where(i => string.Equals(i.TenantId, tenantId, StringComparison.Ordinal)
                      && string.Equals(i.UserId, userId, StringComparison.Ordinal))
             .Select(instance =>
@@ -416,7 +423,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     public WorkflowQueueWorkListEnvelope GetQueueWorkItems(WorkflowAccessProfile accessProfile)
     {
-        var items = _instancesById.Values
+        var items = _instanceStore.GetAll()
             .SelectMany(instance =>
             {
                 if (!_definitions.TryGetValue(instance.WorkflowKey, out var definition))
@@ -462,9 +469,19 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         return true;
     }
 
+    /// <summary>
+    /// Removes a definition from the live engine — the delete-side counterpart to
+    /// <see cref="UpdateDefinition"/>. Existing instances already running against this key are
+    /// left untouched (they keep whatever state they have; the definition lookups they depend on,
+    /// e.g. in <see cref="GetCurrent(string,string,string,WorkflowAccessProfile,string?,string?)"/>,
+    /// will simply start failing with DEFINITION_NOT_FOUND) — deleting a workflow definition that
+    /// still has active instances is a host-authoring concern to guard against, not this engine's.
+    /// </summary>
+    public bool RemoveDefinition(string key) => _definitions.Remove(key);
+
     public bool Reset(string instanceId)
     {
-        if (!_instancesById.TryRemove(instanceId, out var instance))
+        if (!_instanceStore.Remove(instanceId))
         {
             return false;
         }
@@ -475,7 +492,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     public void ResetAll()
     {
-        _instancesById.Clear();
+        _instanceStore.Clear();
         Logger.LogInformation("ResetAll: all workflow instances cleared");
     }
 
@@ -516,10 +533,10 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         StepDefinition state) => _serviceInputsResolver?.Invoke(instance, definition, state);
 
     protected bool TryGetInstance(string instanceId, out WorkflowInstanceState instance) =>
-        _instancesById.TryGetValue(instanceId, out instance!);
+        _instanceStore.TryGet(instanceId, out instance!);
 
     protected void SaveInstance(WorkflowInstanceState instance) =>
-        _instancesById[instance.InstanceId] = instance;
+        _instanceStore.Save(instance);
 
     /// <summary>
     /// The most recently computed <see cref="CalculationResult"/> for an instance, if its
@@ -1017,7 +1034,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             return error;
         }
 
-        _instancesById[instance.InstanceId] = instance;
+        _instanceStore.Save(instance);
 
         Logger.LogInformation(logMessage, [instance.InstanceId, .. additionalLogArgs]);
         return BuildEnvelope(instance, definition, accessProfile, false);
@@ -1201,7 +1218,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             {
                 case FieldsetComponent fieldset:
                 {
-                    var fields = BuildFields(fieldset.Children, displayValues);
+                    var fields = BuildFields(fieldset.Children, displayValues, calc);
                     if (fields.Length == 0)
                     {
                         Logger.LogWarning("Fieldset component contains no renderable fields");
@@ -1220,7 +1237,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
                 case SummaryListComponent summary:
                 {
-                    var fields = BuildFields(summary.Children, displayValues);
+                    var fields = BuildFields(summary.Children, displayValues, calc);
                     if (fields.Length == 0)
                     {
                         Logger.LogWarning("Summary-list component contains no renderable fields");
@@ -1244,7 +1261,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                         {
                             Heading = section.Heading,
                             Summary = section.Summary,
-                            Fields = BuildFields(section.Children, displayValues)
+                            Fields = BuildFields(section.Children, displayValues, calc)
                         })
                         .ToArray();
 
@@ -1370,7 +1387,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
                 case InputComponent input:
                 {
-                    var fields = BuildFields(new[] { (PrismComponent)input }, displayValues);
+                    var fields = BuildFields(new[] { (PrismComponent)input }, displayValues, calc);
                     result.Add(new PrismComponentRenderPayload
                     {
                         Type = "fieldset",
@@ -1434,7 +1451,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     private static FieldRenderPayload[] BuildFields(
         IEnumerable<PrismComponent> children,
-        Dictionary<string, object?> savedValues)
+        Dictionary<string, object?> savedValues,
+        CalculationRenderContext? calc = null)
     {
         var fields = new List<FieldRenderPayload>();
 
@@ -1443,7 +1461,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             switch (child)
             {
                 case InputComponent input:
-                    fields.Add(BuildInputPayload(input, savedValues));
+                    fields.Add(BuildInputPayload(input, savedValues, calc));
 
                     var conditional = (child as RadiosComponent)?.ConditionalChildren
                                       ?? (child as CheckboxesComponent)?.ConditionalChildren;
@@ -1453,7 +1471,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                         {
                             foreach (var sub in subComponents.GetAllInputs())
                             {
-                                fields.Add(BuildInputPayload(sub, savedValues) with
+                                fields.Add(BuildInputPayload(sub, savedValues, calc) with
                                 {
                                     ConditionalOn = input.FieldKey,
                                     VisibleWhen = optionValue
@@ -1465,7 +1483,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                     break;
 
                 case FieldsetComponent nestedFieldset:
-                    fields.AddRange(BuildFields(nestedFieldset.Children, savedValues));
+                    fields.AddRange(BuildFields(nestedFieldset.Children, savedValues, calc));
                     break;
             }
         }
@@ -1475,7 +1493,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     private static FieldRenderPayload BuildInputPayload(
         InputComponent input,
-        Dictionary<string, object?> savedValues)
+        Dictionary<string, object?> savedValues,
+        CalculationRenderContext? calc = null)
     {
         var fieldType = InputFieldType(input);
         return new FieldRenderPayload
@@ -1492,7 +1511,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 CheckboxesComponent checkboxes => checkboxes.Options,
                 _ => null
             },
-            Value = GetDisplayValue(input, fieldType, savedValues) ?? input.Default,
+            Value = GetDisplayValue(input, fieldType, savedValues) ?? ResolveDefaultFrom(input, calc) ?? input.Default,
             MinLength = input switch
             {
                 TextInputComponent text => text.MinLength,
@@ -1606,6 +1625,26 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         return !string.IsNullOrEmpty(prefix)
             ? $"{prefix}{raw}"
             : raw;
+    }
+
+    /// <summary>
+    /// Resolves <see cref="InputComponent.DefaultFrom"/> against the calculation display
+    /// overlay — the same already-formatted scope stat-groups and summary-lists read from, so
+    /// a "£20"-style gbp format applies here too if the named field declares one. Only ever
+    /// called when there's no saved value yet (see <see cref="BuildInputPayload"/>'s value
+    /// chain), so a visitor's own submitted choice always overrides this — it's a default, not
+    /// a lock.
+    /// </summary>
+    private static string? ResolveDefaultFrom(InputComponent input, CalculationRenderContext? calc)
+    {
+        if (string.IsNullOrWhiteSpace(input.DefaultFrom) || calc is null)
+        {
+            return null;
+        }
+
+        return calc.DisplayValues.TryGetValue(input.DefaultFrom, out var value)
+            ? value?.ToString()
+            : null;
     }
 
     // ─── Gateway helpers ──────────────────────────────────────────────────────
@@ -1975,8 +2014,14 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
 
     // ─── end Gateway helpers ──────────────────────────────────────────────────
 
+    private static bool IsTerminalInstance(WorkflowInstanceState instance, WorkflowDefinitionFile definition)
+    {
+        var currentState = definition.States.FirstOrDefault(s => s.StateKey == instance.CurrentState);
+        return currentState != null && currentState.Components.InferStepType() == "confirmation";
+    }
+
     private WorkflowInstanceState? FindLatestInstance(string tenantId, string userId, string workflowKey) =>
-        _instancesById.Values
+        _instanceStore.GetAll()
             .Where(instance =>
                 string.Equals(instance.TenantId, tenantId, StringComparison.Ordinal)
                 && string.Equals(instance.UserId, userId, StringComparison.Ordinal)

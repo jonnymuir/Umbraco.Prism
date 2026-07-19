@@ -152,8 +152,12 @@ or client components — put it in the definition's `calculations` block (or dec
 The UI is equally declarative: stages compose generic components only. Calculated fields
 bind by name (`stat-group` items, `summary-list` rows, `chart` components bound to a
 series); any component may declare `showWhen` (an expression) for live visibility; input
-components declare `default` values that seed both the form and the calculation scope;
-calculated fields may declare `format` ("gbp"). The server renders everything (works
+components declare `default` values that seed both the form and the calculation scope, or
+`defaultFrom` to suggest a *calculation-scope* value (a calculated field, or a `source:
+"service"` field — dotted paths like `member.tier` resolve too) instead of a static literal,
+while a saved value is always absent — a genuine overridable default, never a lock, and it
+falls back to `default` when the name doesn't resolve (e.g. an anonymous visitor with no
+member data); calculated fields may declare `format` ("gbp"). The server renders everything (works
 without JavaScript; the Recalculate self-loop re-renders authoritatively) and
 `prism-live-form` (`src/UmbracoPrism.Client/src/live-form/`) upgrades the page in place —
 it contains no domain knowledge and no layout. There are no bespoke per-workflow client

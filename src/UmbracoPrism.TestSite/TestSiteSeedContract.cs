@@ -43,6 +43,11 @@ public static class TestSiteSeedContract
     public const string WorkflowHubName = "My Workflows";
     public const string WorkflowHubUrl = "/my-workflows";
 
+    public const string CmsWorkflowPageAlias = "cmsWorkflowPage";
+    public const string JugglingLicencePageName = "Apply for a juggling licence";
+    public const string JugglingLicencePageUrl = "/apply-for-a-juggling-licence";
+    public const string JugglingLicenceWorkflowKey = "apply-for-a-juggling-licence";
+
     public static IContent? FindContentByAlias(IContentService contentService, string alias)
         => EnumerateContentTree(contentService)
             .FirstOrDefault(content => content.ContentType.Alias == alias);

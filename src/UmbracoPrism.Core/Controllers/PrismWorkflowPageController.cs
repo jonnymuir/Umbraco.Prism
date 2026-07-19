@@ -77,6 +77,17 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
     }
 
     /// <summary>
+    /// Whether this workflow page requires an authenticated Prism Member. Defaults to
+    /// <see langword="true"/> — the member-authenticated business-workflow demo pattern every
+    /// existing subclass relies on. Override to <see langword="false"/> for an anonymous-first
+    /// public journey (e.g. a GDS-style CMS Workflow page): the workflow itself still resolves
+    /// its own notion of "who this is" (a member's identity when logged in, an anonymous
+    /// session identity otherwise) — this flag only controls whether an unauthenticated visitor
+    /// gets redirected to login before ever reaching the page.
+    /// </summary>
+    protected virtual bool RequiresAuthentication => true;
+
+    /// <summary>
     /// Routes GET and POST requests for the workflow page based on the HTTP method.
     /// GET requests retrieve the current workflow state and render the form.
     /// POST requests validate submitted fields, advance the workflow, and redirect using the PRG pattern.
@@ -84,7 +95,7 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
     /// <returns>An <see cref="IActionResult"/> containing the rendered view or redirect.</returns>
     public override IActionResult Index()
     {
-        if (User.Identity?.IsAuthenticated != true)
+        if (RequiresAuthentication && User.Identity?.IsAuthenticated != true)
         {
             return Redirect(BuildLoginRedirectUrl());
         }

@@ -25,7 +25,7 @@ public class WorkflowAuthoringServiceQueueCapabilitiesTests
     {
         var provider = new StaticQueueCapabilitiesProvider(
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase));
-        var service = new WorkflowAuthoringService(new InMemoryWorkflowSourceStore(), provider);
+        var service = new WorkflowAuthoringService(new InMemoryWorkflowSourceStore(), queueCapabilities: provider);
 
         var outcome = service.Validate(ProjectWorkflowWithFieldsetOnBusinessUser());
 
@@ -41,7 +41,7 @@ public class WorkflowAuthoringServiceQueueCapabilitiesTests
             {
                 ["business-user"] = new[] { "text" }
             });
-        var service = new WorkflowAuthoringService(new InMemoryWorkflowSourceStore(), provider);
+        var service = new WorkflowAuthoringService(new InMemoryWorkflowSourceStore(), queueCapabilities: provider);
 
         var outcome = service.Validate(ProjectWorkflowWithFieldsetOnBusinessUser());
 
@@ -60,7 +60,7 @@ public class WorkflowAuthoringServiceQueueCapabilitiesTests
             {
                 ["business-user"] = Array.Empty<string>()
             });
-        var service = new WorkflowAuthoringService(new InMemoryWorkflowSourceStore(), provider);
+        var service = new WorkflowAuthoringService(new InMemoryWorkflowSourceStore(), queueCapabilities: provider);
 
         var outcome = service.Validate(ProjectWorkflowWithFieldsetOnBusinessUser());
 
@@ -85,7 +85,7 @@ public class WorkflowAuthoringServiceQueueCapabilitiesTests
             {
                 ["business-user"] = new[] { "text", "decimal" }
             });
-        var service = new WorkflowAuthoringService(new InMemoryWorkflowSourceStore(), provider);
+        var service = new WorkflowAuthoringService(new InMemoryWorkflowSourceStore(), queueCapabilities: provider);
 
         var capabilities = service.GetQueueCapabilities();
 
@@ -150,5 +150,8 @@ public class WorkflowAuthoringServiceQueueCapabilitiesTests
             _entries[workflow.DefinitionKey] = workflow with { Version = newVersion };
             return Task.FromResult(new WorkflowSaveResult(Saved: true, CurrentVersion: newVersion, Location: $"memory://{workflow.DefinitionKey}"));
         }
+
+        public Task<bool> DeleteAsync(string definitionKey, CancellationToken ct = default) =>
+            Task.FromResult(_entries.Remove(definitionKey));
     }
 }

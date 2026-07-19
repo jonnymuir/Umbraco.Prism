@@ -50,6 +50,7 @@ public class PrismComposer : IComposer
             builder.Config.GetSection(PrismConfiguration.SectionName));
         // 2. Workflow Engine
         builder.AddPrismWorkflowEngine();
+        builder.Services.AddPrismCmsWorkflow();
 
         // 3. Middleware Registration
         // ForwardedHeaders must run before any middleware that reads RemoteIpAddress
@@ -156,6 +157,7 @@ public class PrismComposer : IComposer
         // Any new browser-facing POST endpoint MUST carry [ValidateAntiForgeryToken].
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismMigrationHandler>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismContentTypeSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismSectionAccessSeeder>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismStarterContentSeeder>();
         builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>();
         builder.Services.ConfigureOptions<PrismManagementApiConfiguration>();
