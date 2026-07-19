@@ -2,6 +2,24 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.12.0] — 2026-07-19
+
+### New Features
+
+- **Prism CMS Workflow — workflow journeys hosted entirely inside Umbraco:** A second, complete implementation of the workflow engine that needs no separate business app. Author a workflow with the visual editor mounted natively in the Umbraco backoffice, save it straight to the database (uSync-portable, so a backoffice edit exports and re-imports cleanly elsewhere), and run it as a public-facing journey — anonymous by default, but the same definition can also pull in a logged-in member's own data (e.g. pre-filling a form field and applying a discount) with zero special-casing in the workflow JSON. Ships with a full "Apply for a juggling licence" reference demo covering both journeys end-to-end, and its own MCP authoring surface secured by real Umbraco backoffice admin auth (distinct from the open, local-dev-only MCP surface on the reference business app).
+- **AI-ready workflow authoring toolkit (REST + MCP):** Workflow list/read/validate/save/simulate is now a reusable toolkit any host app can wire in — as plain REST endpoints or as MCP tools an AI agent can call directly — both hosted in-process so a save reaches the live engine immediately with no restart required. Adds optimistic-concurrency version conflicts (a human and an AI editing the same workflow no longer silently overwrite each other — the editor now shows a "changed elsewhere" banner with a reload action), save-time validation for unreachable dead-end routes and for components a queue's host can't actually render, and reference docs (calculation language, authoring guide, service-design principles) exposed as MCP resources an agent can read directly.
+- **Declarative calculations and fully live stages:** Workflow definitions can now own their own business maths — a `calculations` block (lookup tables, calculated fields, chart series) evaluated identically by matching C# and TypeScript engines, kept in sync by a shared conformance test suite. Any stage can bind generic components (sliders, stat groups, charts, conditionally-shown fields) to that calculated data with zero bespoke per-workflow client code — a general-purpose live-form runtime re-evaluates the definition as a visitor changes inputs. An editable field can also default from a calculated or service-sourced value instead of only a static literal, with GDS-style "this was pre-filled from…" messaging.
+- **Redesigned workflow canvas:** The workflow editor's graph is rebuilt on React Flow with an Automate-style visual refresh — drag-to-connect, shift-marquee multi-select and group drag, subgraph copy/paste, a minimap, and manually-arranged layouts that persist with the definition — plus a batch of graph-correctness fixes (fan-out/fan-in routing, Join gateways, cycle detection).
+- **Per-row Change links on Check Your Answers:** Summary-list rows can each declare their own source stage, so a review screen's "Change" link routes back to whichever stage actually captured that specific field, instead of one link for the whole list.
+
+### Bug Fixes & Improvements
+
+- Fixes workflow "Change"/jump links silently failing to navigate on any gateway-routed workflow — effectively all of them, since Prism requires every stage route to pass through a gateway.
+- Fixes the workflow graph rendering a phantom edge between gateways when a single stage routes to more than one.
+- Adds save-time validation for two previously-silent failure modes: a summary list saved with no rows, and a gateway saved with no outgoing routes (both used to pass validation and then fail or render nothing at runtime).
+
+---
+
 ## [v1.11.0] — 2026-07-03
 
 ### New Features
