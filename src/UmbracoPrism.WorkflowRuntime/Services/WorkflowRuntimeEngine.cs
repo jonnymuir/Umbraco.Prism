@@ -158,9 +158,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             if (existingInstance is not null)
             {
                 var currentState = definition.States.FirstOrDefault(s => s.StateKey == existingInstance.CurrentState);
-                var isTerminal = currentState != null && currentState.Components.InferStepType() == "confirmation";
 
-                if (!isTerminal)
+                if (!IsTerminalInstance(existingInstance, definition))
                 {
                     Logger.LogInformation(
                         "Active instance {Id} exists for key={Key}; returning instance_picker",
@@ -209,6 +208,44 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 "Created workflow instance {Id} for key={Key} tenant={Tenant}",
                 workflowKey,
                 tenantId);
+        }
+
+        if (IsTerminalInstance(existingInstance, definition))
+        {
+            if (!existingInstance.HasRenderedTerminalState)
+            {
+                // The PRG pattern (see PrismWorkflowPageController) redirects to a bare GET with
+                // no instanceId after every POST, so THIS is how the confirmation page the
+                // visitor just submitted actually gets shown to them — not a later, separate
+                // visit. Render it, and remember it's now been viewed once.
+                var viewed = existingInstance with
+                {
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                    HasRenderedTerminalState = true
+                };
+                SaveInstance(viewed);
+                return BuildEnvelope(viewed, definition, accessProfile, false);
+            }
+
+            // "single" means at most one *active* instance, not "pin the visitor to their
+            // first-ever instance forever" — once its terminal state has already been shown once,
+            // there is nothing left to resume, so a fresh visit starts a new application. The
+            // finished instance is removed rather than left behind: FindLatestInstance scans every
+            // instance in the store on every call, and stores with no TTL sweep of their own (e.g.
+            // the default in-memory store) would otherwise grow one abandoned instance per
+            // completed visit, for every user, forever.
+            _instanceStore.Remove(existingInstance.InstanceId);
+
+            return CreateAndRegisterNewInstance(
+                workflowKey,
+                tenantId,
+                userId,
+                definition,
+                accessProfile,
+                action,
+                "Created new instance {Id} for key={Key} (policy=single, replacing terminal instance {PreviousId})",
+                workflowKey,
+                existingInstance.InstanceId);
         }
 
         return BuildEnvelope(existingInstance, definition, accessProfile, false);
@@ -463,6 +500,16 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             key);
         return true;
     }
+
+    /// <summary>
+    /// Removes a definition from the live engine — the delete-side counterpart to
+    /// <see cref="UpdateDefinition"/>. Existing instances already running against this key are
+    /// left untouched (they keep whatever state they have; the definition lookups they depend on,
+    /// e.g. in <see cref="GetCurrent(string,string,string,WorkflowAccessProfile,string?,string?)"/>,
+    /// will simply start failing with DEFINITION_NOT_FOUND) — deleting a workflow definition that
+    /// still has active instances is a host-authoring concern to guard against, not this engine's.
+    /// </summary>
+    public bool RemoveDefinition(string key) => _definitions.Remove(key);
 
     public bool Reset(string instanceId)
     {
@@ -1998,6 +2045,12 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
     // ─── end Gateway helpers ──────────────────────────────────────────────────
+
+    private static bool IsTerminalInstance(WorkflowInstanceState instance, WorkflowDefinitionFile definition)
+    {
+        var currentState = definition.States.FirstOrDefault(s => s.StateKey == instance.CurrentState);
+        return currentState != null && currentState.Components.InferStepType() == "confirmation";
+    }
 
     private WorkflowInstanceState? FindLatestInstance(string tenantId, string userId, string workflowKey) =>
         _instanceStore.GetAll()

@@ -212,6 +212,59 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
         tenant2Result.ResponseState.Should().Be("render");
     }
 
+    [Fact]
+    public void SinglePolicy_ImmediatelyAfterCompletion_FirstGetCurrentStillShowsConfirmation()
+    {
+        // Mirrors the PRG pattern: PrismWorkflowPageController redirects to a bare GET (no
+        // instanceId) after every POST, so THIS call is how the visitor actually sees the
+        // confirmation page they just submitted — it must not be silently swapped for a
+        // brand-new, blank instance.
+        _engine.ResetAll();
+
+        var first = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+        _engine.Advance(first.InstanceId, "tenant1", "user1", "submit", expectedStateVersion: 0, fieldValues: new Dictionary<string, object?>());
+
+        var confirmation = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+
+        confirmation.InstanceId.Should().Be(first.InstanceId);
+        confirmation.Render!.StateDisplayName.Should().Be("Done");
+    }
+
+    [Fact]
+    public void SinglePolicy_SecondVisitAfterConfirmationAlreadyShown_StartsFreshInstance()
+    {
+        _engine.ResetAll();
+
+        var first = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+        _engine.Advance(first.InstanceId, "tenant1", "user1", "submit", expectedStateVersion: 0, fieldValues: new Dictionary<string, object?>());
+        var confirmation = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+
+        // A later, separate visit — the confirmation has already been shown once.
+        var nextVisit = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+
+        nextVisit.InstanceId.Should().NotBe(confirmation.InstanceId);
+        nextVisit.Render!.StateDisplayName.Should().Be("Step 1");
+        nextVisit.ResponseState.Should().Be("render");
+    }
+
+    [Fact]
+    public void SinglePolicy_SecondVisitAfterConfirmationAlreadyShown_RemovesTheFinishedInstance()
+    {
+        // Guards against unbounded growth: a visitor who keeps re-applying after each
+        // completion must not leave an ever-growing trail of finished instances behind.
+        _engine.ResetAll();
+
+        var first = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+        _engine.Advance(first.InstanceId, "tenant1", "user1", "submit", expectedStateVersion: 0, fieldValues: new Dictionary<string, object?>());
+        _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+
+        _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+
+        var stillResumable = _engine.GetCurrent("test-workflow-single", "tenant1", "user1", instanceId: first.InstanceId);
+        stillResumable.ResponseState.Should().Be("error");
+        stillResumable.Problems.Should().ContainSingle(p => p.Code == "INSTANCE_NOT_FOUND");
+    }
+
     // -----------------------------------------------------------------------
     // "multiple" policy tests
     // -----------------------------------------------------------------------

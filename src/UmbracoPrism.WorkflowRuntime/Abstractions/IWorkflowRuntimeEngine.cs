@@ -51,6 +51,9 @@ public interface IWorkflowRuntimeEngine
     /// <summary>Registers or updates a definition — an upsert. Always returns true.</summary>
     bool UpdateDefinition(string key, WorkflowDefinitionFile updated);
 
+    /// <summary>Removes a definition. Returns false if it wasn't registered.</summary>
+    bool RemoveDefinition(string key);
+
     bool Reset(string instanceId);
 
     void ResetAll();
