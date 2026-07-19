@@ -210,44 +210,12 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 tenantId);
         }
 
-        if (IsTerminalInstance(existingInstance, definition))
-        {
-            if (!existingInstance.HasRenderedTerminalState)
-            {
-                // The PRG pattern (see PrismWorkflowPageController) redirects to a bare GET with
-                // no instanceId after every POST, so THIS is how the confirmation page the
-                // visitor just submitted actually gets shown to them — not a later, separate
-                // visit. Render it, and remember it's now been viewed once.
-                var viewed = existingInstance with
-                {
-                    UpdatedAt = DateTimeOffset.UtcNow,
-                    HasRenderedTerminalState = true
-                };
-                SaveInstance(viewed);
-                return BuildEnvelope(viewed, definition, accessProfile, false);
-            }
-
-            // "single" means at most one *active* instance, not "pin the visitor to their
-            // first-ever instance forever" — once its terminal state has already been shown once,
-            // there is nothing left to resume, so a fresh visit starts a new application. The
-            // finished instance is removed rather than left behind: FindLatestInstance scans every
-            // instance in the store on every call, and stores with no TTL sweep of their own (e.g.
-            // the default in-memory store) would otherwise grow one abandoned instance per
-            // completed visit, for every user, forever.
-            _instanceStore.Remove(existingInstance.InstanceId);
-
-            return CreateAndRegisterNewInstance(
-                workflowKey,
-                tenantId,
-                userId,
-                definition,
-                accessProfile,
-                action,
-                "Created new instance {Id} for key={Key} (policy=single, replacing terminal instance {PreviousId})",
-                workflowKey,
-                existingInstance.InstanceId);
-        }
-
+        // "single" means at most one instance per user for this workflow, full stop — once it
+        // reaches a terminal state it keeps being shown on every subsequent visit (the community
+        // enquiry demo depends on this: a member returning to the page sees "Thank you", not a
+        // silently-reset blank form). PrismWorkflowPageController's PRG redirect after a POST
+        // relies on this same fallthrough to show the confirmation page for the visit that just
+        // submitted it.
         return BuildEnvelope(existingInstance, definition, accessProfile, false);
     }
 

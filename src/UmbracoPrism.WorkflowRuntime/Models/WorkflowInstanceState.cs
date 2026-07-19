@@ -51,15 +51,4 @@ public record WorkflowInstanceState
     /// simulation runner) can read raw calculated values without duplicating evaluation.
     /// </summary>
     public CalculationResult? LastCalculationResult { get; init; }
-
-    /// <summary>
-    /// True once a terminal (confirmation) state has actually been rendered to the visitor via
-    /// <c>GetCurrent</c> — distinct from merely reaching that state via <c>Advance</c>. The PRG
-    /// pattern used by <c>PrismWorkflowPageController</c> redirects to a bare GET with no
-    /// instanceId after every POST, so the very next <c>GetCurrent</c> call is how the
-    /// confirmation page the visitor just submitted actually gets shown; only a call AFTER that
-    /// one means a later, separate visit. "single" instance policy uses this to distinguish the
-    /// two — see <c>WorkflowRuntimeEngine.GetCurrent</c>'s terminal-instance handling.
-    /// </summary>
-    public bool HasRenderedTerminalState { get; init; }
 }

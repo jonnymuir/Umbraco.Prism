@@ -231,8 +231,12 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
     }
 
     [Fact]
-    public void SinglePolicy_SecondVisitAfterConfirmationAlreadyShown_StartsFreshInstance()
+    public void SinglePolicy_LaterVisitAfterCompletion_KeepsShowingTheSameConfirmation()
     {
+        // "single" means at most one instance per user for this workflow, full stop — reaching a
+        // terminal state doesn't make it any less "the" instance. A member returning to the page
+        // later must keep seeing their completed confirmation, not have it silently swapped for a
+        // fresh, blank instance (community-enquiry's walkthrough depends on exactly this).
         _engine.ResetAll();
 
         var first = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
@@ -242,27 +246,8 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
         // A later, separate visit — the confirmation has already been shown once.
         var nextVisit = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
 
-        nextVisit.InstanceId.Should().NotBe(confirmation.InstanceId);
-        nextVisit.Render!.StateDisplayName.Should().Be("Step 1");
-        nextVisit.ResponseState.Should().Be("render");
-    }
-
-    [Fact]
-    public void SinglePolicy_SecondVisitAfterConfirmationAlreadyShown_RemovesTheFinishedInstance()
-    {
-        // Guards against unbounded growth: a visitor who keeps re-applying after each
-        // completion must not leave an ever-growing trail of finished instances behind.
-        _engine.ResetAll();
-
-        var first = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
-        _engine.Advance(first.InstanceId, "tenant1", "user1", "submit", expectedStateVersion: 0, fieldValues: new Dictionary<string, object?>());
-        _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
-
-        _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
-
-        var stillResumable = _engine.GetCurrent("test-workflow-single", "tenant1", "user1", instanceId: first.InstanceId);
-        stillResumable.ResponseState.Should().Be("error");
-        stillResumable.Problems.Should().ContainSingle(p => p.Code == "INSTANCE_NOT_FOUND");
+        nextVisit.InstanceId.Should().Be(confirmation.InstanceId);
+        nextVisit.Render!.StateDisplayName.Should().Be("Done");
     }
 
     // -----------------------------------------------------------------------
