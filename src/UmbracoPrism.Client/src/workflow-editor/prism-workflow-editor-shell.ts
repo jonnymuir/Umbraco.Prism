@@ -10,8 +10,12 @@ import type { WorkflowQueueDefinition } from './workflow-stage-assignment.js';
 
 @customElement('prism-workflow-editor-shell')
 export class PrismWorkflowEditorShellElement extends LitElement {
+  /** No implicit default — a hardcoded demo workflow name doesn't make sense across every
+   * possible host. An empty key means "let the workflow list decide": _loadWorkflowOptions()
+   * auto-selects the first entry once workflowSource.list() resolves (see
+   * _renderEditorOrPlaceholder's loading/empty-state handling for that gap). */
   @property({ type: String, attribute: 'workflow-key' })
-  workflowKey = 'planning';
+  workflowKey = '';
 
   /**
    * Host-supplied source of authored workflows. The shell lists workflows
@@ -33,9 +37,10 @@ export class PrismWorkflowEditorShellElement extends LitElement {
   @property({ attribute: false })
   availableQueues: WorkflowQueueDefinition[] = [];
 
-  @state() private _draftWorkflowKey = 'planning';
+  @state() private _draftWorkflowKey = '';
   @state() private _workflowOptions: WorkflowSummary[] = [];
   @state() private _sourceError: string | null = null;
+  @state() private _optionsLoading = true;
 
   protected updated(changed: Map<string, unknown>): void {
     if (changed.has('workflowKey')) {
@@ -66,6 +71,7 @@ export class PrismWorkflowEditorShellElement extends LitElement {
     if (!this.workflowSource) {
       this._workflowOptions = [];
       this._sourceError = null;
+      this._optionsLoading = false;
       return;
     }
 
@@ -81,6 +87,8 @@ export class PrismWorkflowEditorShellElement extends LitElement {
     } catch (error) {
       this._workflowOptions = [];
       this._sourceError = error instanceof Error ? error.message : String(error);
+    } finally {
+      this._optionsLoading = false;
     }
   }
 
@@ -135,6 +143,29 @@ export class PrismWorkflowEditorShellElement extends LitElement {
         <div class="empty-state" role="alert" data-prism-shell-empty="source-error">
           <h2>Workflow source unavailable</h2>
           <p>${this._sourceError}</p>
+        </div>
+      `;
+    }
+
+    // A host that starts with no known workflow key (e.g. the Umbraco backoffice, which
+    // hands us workflow-key="" so it can drive selection from the list itself) must not
+    // mount <prism-workflow-editor> with an empty key — that element immediately tries to
+    // load it, 404s, and (worse) can leave a stale empty-key version-poll running. Wait for
+    // _loadWorkflowOptions() to either auto-select the first workflow (setting a real key)
+    // or confirm there genuinely are none.
+    if (!this.workflowKey.trim()) {
+      if (this._optionsLoading) {
+        return html`
+          <div class="empty-state" role="status" data-prism-shell-empty="loading">
+            <p>Loading workflows…</p>
+          </div>
+        `;
+      }
+
+      return html`
+        <div class="empty-state" role="status" data-prism-shell-empty="no-workflows">
+          <h2>No workflows yet</h2>
+          <p>This host has no workflows to author yet.</p>
         </div>
       `;
     }
@@ -215,19 +246,35 @@ export class PrismWorkflowEditorShellElement extends LitElement {
       box-sizing: border-box;
     }
 
+    /* Hides itself via clipping to a 1px box, not via a negative offset relying on an
+       ancestor's overflow:hidden to clip it — some hosts (e.g. the Umbraco backoffice)
+       override --prism-workflow-editor-overflow to "visible" to fix page scrolling, which
+       would otherwise leave this rendered on-screen at all times instead of only on focus. */
     .skip-link {
       position: absolute;
-      left: 1rem;
-      top: -3rem;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
       z-index: 10;
       background: #0b0c0c;
       color: #fff;
-      padding: 0.75rem 1rem;
       text-decoration: none;
     }
 
     .skip-link:focus {
+      left: 1rem;
       top: 1rem;
+      width: auto;
+      height: auto;
+      margin: 0;
+      padding: 0.75rem 1rem;
+      overflow: visible;
+      clip: auto;
+      white-space: normal;
     }
 
     .shell {

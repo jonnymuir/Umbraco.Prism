@@ -14,9 +14,12 @@ should not depend on it, and breaking changes there will not bump a contract.
 > static assets, served as a standalone page — see TestSite Razor pages, the
 > Storybook harness, and the reference shell). Prism CMS Workflow's entire
 > reason for existing is the backoffice editing experience, so it mounts the
-> same components natively as a backoffice extension instead (`vite.config.ts`'s
-> `prism-cms-workflow-editor` entry → `UmbracoPrism.Core`'s own bundle, wrapped
-> by `prism-cms-workflow-editor.ts` in `UmbracoPrism.Client/src/backoffice/`).
+> same components natively as a Collection + entity-actions + Workspace backoffice
+> screen instead (`vite.config.ts`'s `prism-cms-workflow-manifests` entry →
+> `UmbracoPrism.Core`'s own bundle; `<prism-workflow-editor>` itself is mounted by
+> `cms-workflow-workspace-editor.element.ts` in
+> `UmbracoPrism.Client/src/backoffice/cms-workflow/workspace/`, scoped to whichever
+> definitionKey the workspace route is currently editing).
 
 ## Public elements
 
