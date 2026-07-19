@@ -120,4 +120,18 @@ public sealed class UmbracoCmsWorkflowDefinitionStore(
         engine.UpdateDefinition(workflow.DefinitionKey, toSave);
         return Task.FromResult(new WorkflowSaveResult(Saved: true, CurrentVersion: newVersion, Location: "prismCmsWorkflowDefinition"));
     }
+
+    public Task<bool> DeleteAsync(string definitionKey, CancellationToken ct = default)
+    {
+        using var db = databaseFactory.CreateDatabase();
+        var rowsAffected = db.Execute(
+            "DELETE FROM prismCmsWorkflowDefinition WHERE DefinitionKey = @0", definitionKey);
+
+        if (rowsAffected > 0)
+        {
+            engine.RemoveDefinition(definitionKey);
+        }
+
+        return Task.FromResult(rowsAffected > 0);
+    }
 }

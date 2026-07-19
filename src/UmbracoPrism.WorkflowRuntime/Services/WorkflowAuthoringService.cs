@@ -52,16 +52,24 @@ public sealed record WorkflowSaveOutcome(
 /// definitions against a host-supplied <see cref="IWorkflowSourceStore"/>. Reusable by
 /// any front door (MCP tools, a CLI, a host's own code) — no MCP dependency here.
 /// </summary>
-public sealed class WorkflowAuthoringService(IWorkflowSourceStore store)
+public sealed class WorkflowAuthoringService(
+    IWorkflowSourceStore store,
+    IEnumerable<IWorkflowStructuralValidator>? structuralValidators = null)
 {
     private static readonly IReadOnlyDictionary<string, object?> EmptyFieldValues =
         new Dictionary<string, object?>();
+
+    private readonly IReadOnlyList<IWorkflowStructuralValidator> _structuralValidators =
+        structuralValidators?.ToArray() ?? [];
 
     public Task<IReadOnlyList<WorkflowSourceSummary>> ListAsync(CancellationToken ct = default) =>
         store.ListAsync(ct);
 
     public Task<WorkflowDefinitionFile?> ReadAsync(string definitionKey, CancellationToken ct = default) =>
         store.LoadAsync(definitionKey, ct);
+
+    public Task<bool> DeleteAsync(string definitionKey, CancellationToken ct = default) =>
+        store.DeleteAsync(definitionKey, ct);
 
     /// <summary>
     /// Validates gateway routing, every stat-group/chart binding against the fields and series
@@ -80,6 +88,10 @@ public sealed class WorkflowAuthoringService(IWorkflowSourceStore store)
     {
         var diagnostics = new List<WorkflowDiagnostic>(workflow.ValidateGatewayRouting());
         diagnostics.AddRange(workflow.ValidateDataDisplayBindings());
+        foreach (var validator in _structuralValidators)
+        {
+            diagnostics.AddRange(validator.Validate(workflow));
+        }
         var evaluator = new CalculationEvaluator();
 
         IReadOnlyDictionary<string, object?> showWhenScope;

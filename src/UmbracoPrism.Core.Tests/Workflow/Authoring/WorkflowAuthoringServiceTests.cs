@@ -25,6 +25,40 @@ public class WorkflowAuthoringServiceTests
     }
 
     [Fact]
+    public async Task SaveAsync_HostRegisteredStructuralValidatorRejectsIt_RejectsWithoutSaving()
+    {
+        var store = new InMemoryWorkflowSourceStore();
+        var validator = new AlwaysRejectStructuralValidator();
+        var service = new WorkflowAuthoringService(store, [validator]);
+        var workflow = ProjectLinearWorkflow();
+
+        var outcome = await service.SaveAsync(workflow, expectedVersion: 0);
+
+        outcome.Status.Should().Be(WorkflowSaveStatus.Invalid);
+        outcome.Diagnostics.Should().ContainSingle(d => d.Code == "TEST_HOST_RULE");
+        (await store.LoadAsync(workflow.DefinitionKey)).Should().BeNull();
+    }
+
+    [Fact]
+    public void Validate_NoStructuralValidatorsRegistered_DoesNotThrow()
+    {
+        var store = new InMemoryWorkflowSourceStore();
+        var service = new WorkflowAuthoringService(store);
+
+        var outcome = service.Validate(ProjectLinearWorkflow());
+
+        outcome.IsValid.Should().BeTrue();
+    }
+
+    private sealed class AlwaysRejectStructuralValidator : IWorkflowStructuralValidator
+    {
+        public IEnumerable<WorkflowDiagnostic> Validate(WorkflowDefinitionFile workflow)
+        {
+            yield return new WorkflowDiagnostic("TEST_HOST_RULE", "$", "Rejected by a host-specific rule.");
+        }
+    }
+
+    [Fact]
     public async Task SaveAsync_StateRoutedDirectlyToAnotherState_RejectsWithoutSaving()
     {
         var store = new InMemoryWorkflowSourceStore();
@@ -180,5 +214,8 @@ public class WorkflowAuthoringServiceTests
             _entries[workflow.DefinitionKey] = workflow with { Version = newVersion };
             return Task.FromResult(new WorkflowSaveResult(Saved: true, CurrentVersion: newVersion, Location: $"memory://{workflow.DefinitionKey}"));
         }
+
+        public Task<bool> DeleteAsync(string definitionKey, CancellationToken ct = default) =>
+            Task.FromResult(_entries.Remove(definitionKey));
     }
 }

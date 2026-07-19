@@ -88,6 +88,13 @@ public class CmsWorkflowAuthoringController(WorkflowAuthoringService authoringSe
     [HttpPost("cms-workflows/simulate")]
     public IActionResult SimulateWorkflow([FromBody] CmsWorkflowSimulationRequest request) =>
         Ok(authoringService.Simulate(request.Workflow, request.Steps));
+
+    [HttpDelete("cms-workflows/{definitionKey}")]
+    public async Task<IActionResult> DeleteWorkflow(string definitionKey, CancellationToken ct)
+    {
+        var deleted = await authoringService.DeleteAsync(definitionKey, ct);
+        return deleted ? Ok() : NotFound();
+    }
 }
 
 /// <summary>Request body for <see cref="CmsWorkflowAuthoringController.SimulateWorkflow"/>.</summary>

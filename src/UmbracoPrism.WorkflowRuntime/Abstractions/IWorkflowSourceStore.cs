@@ -30,6 +30,16 @@ public interface IWorkflowSourceStore
     /// </para>
     /// </summary>
     Task<WorkflowSaveResult> SaveAsync(WorkflowDefinitionFile workflow, int expectedVersion, CancellationToken ct = default);
+
+    /// <summary>
+    /// Removes <paramref name="definitionKey"/> permanently. Returns <c>false</c> if it didn't
+    /// exist (idempotent — a caller retrying a timed-out delete shouldn't get an error for it).
+    /// Implementations that keep a live runtime engine in sync with saves (see
+    /// <see cref="SaveAsync"/>'s remarks) must remove the definition from that engine too, so an
+    /// in-progress instance can't keep advancing against a definition its own authoring store no
+    /// longer has.
+    /// </summary>
+    Task<bool> DeleteAsync(string definitionKey, CancellationToken ct = default);
 }
 
 /// <summary>Lightweight listing entry for discovering available workflows before loading one in full.</summary>

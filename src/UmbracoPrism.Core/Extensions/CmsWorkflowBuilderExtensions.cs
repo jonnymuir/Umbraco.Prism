@@ -1,8 +1,12 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Umbraco.Cms.Web.Common.Authorization;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.Services.Workflow;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
 using UmbracoPrism.WorkflowRuntime.Extensions;
+using UmbracoPrism.WorkflowRuntime.Mcp;
 
 namespace UmbracoPrism.Core.Extensions;
 
@@ -31,7 +35,18 @@ public static class CmsWorkflowBuilderExtensions
         // Authoring-side store — a save reaches the live engine immediately (see
         // UmbracoCmsWorkflowDefinitionStore's own remarks).
         services.AddSingleton<IWorkflowSourceStore, UmbracoCmsWorkflowDefinitionStore>();
+
+        // CMS-Workflow-specific authoring constraint (single queue only) — the shared
+        // WorkflowAuthoringService runs every registered IWorkflowStructuralValidator alongside
+        // its own generic validation, so the toolkit itself stays unaware this rule exists.
+        services.AddSingleton<IWorkflowStructuralValidator, CmsWorkflowSingleQueueValidator>();
+
         services.AddPrismWorkflowAuthoring();
+
+        // AI-agent authoring surface for CMS Workflow — mapped and gated in the host's
+        // Program.cs (see MapPrismCmsWorkflowAuthoringMcp()), same live WorkflowAuthoringService
+        // as the backoffice editor and CmsWorkflowAuthoringController.
+        services.AddPrismWorkflowAuthoringMcp();
 
         // Keyed so the default (business-app, HTTP) IBusinessAppWorkflowClient registration from
         // AddPrismWorkflowEngine() is untouched — CmsWorkflowPageController resolves this one
@@ -44,4 +59,20 @@ public static class CmsWorkflowBuilderExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Maps the CMS Workflow AI-authoring MCP endpoint, gated with the exact same auth stack as
+    /// <see cref="Controllers.CmsWorkflowAuthoringController"/> and the backoffice editor itself
+    /// — <see cref="AuthorizationPolicies.BackOfficeAccess"/> (any validly-authenticated backoffice
+    /// principal, human or machine — Umbraco's client-credentials grant on
+    /// <c>/umbraco/management/api/v1/security/back-office/token</c> resolves a real <c>IUser</c>
+    /// the same way interactive login does) plus <c>"PrismAdmins"</c> (the same
+    /// <c>Prism:AdminGroups:GroupAliases</c> group check). An MCP agent therefore needs a real
+    /// backoffice service-account user in an admin group — "the same security as doing it
+    /// manually," not a parallel scheme. Call from the host's <c>Program.cs</c>; a package (RCL)
+    /// like this one has no access to the host's own <see cref="IEndpointRouteBuilder"/>.
+    /// </summary>
+    public static IEndpointConventionBuilder MapPrismCmsWorkflowAuthoringMcp(this IEndpointRouteBuilder endpoints) =>
+        endpoints.MapPrismWorkflowAuthoringMcp()
+            .RequireAuthorization(AuthorizationPolicies.BackOfficeAccess, "PrismAdmins");
 }

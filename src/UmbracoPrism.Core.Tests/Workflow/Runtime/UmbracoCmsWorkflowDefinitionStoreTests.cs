@@ -125,4 +125,34 @@ public class UmbracoCmsWorkflowDefinitionStoreTests
         result.CurrentVersion.Should().Be(3);
         engine.Verify(e => e.UpdateDefinition(It.IsAny<string>(), It.IsAny<WorkflowDefinitionFile>()), Times.Never);
     }
+
+    [Fact]
+    public async Task DeleteAsync_ExistingDefinition_DeletesRowAndRemovesFromEngine()
+    {
+        var (store, db, engine) = BuildStore();
+        db.Setup(d => d.Execute(
+                It.Is<string>(sql => sql.Contains("DELETE FROM prismCmsWorkflowDefinition")),
+                It.IsAny<object[]>()))
+            .Returns(1);
+
+        var deleted = await store.DeleteAsync("apply-for-a-juggling-licence");
+
+        deleted.Should().BeTrue();
+        engine.Verify(e => e.RemoveDefinition("apply-for-a-juggling-licence"), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_UnknownDefinition_ReturnsFalseWithoutTouchingEngine()
+    {
+        var (store, db, engine) = BuildStore();
+        db.Setup(d => d.Execute(
+                It.Is<string>(sql => sql.Contains("DELETE FROM prismCmsWorkflowDefinition")),
+                It.IsAny<object[]>()))
+            .Returns(0);
+
+        var deleted = await store.DeleteAsync("does-not-exist");
+
+        deleted.Should().BeFalse();
+        engine.Verify(e => e.RemoveDefinition(It.IsAny<string>()), Times.Never);
+    }
 }
