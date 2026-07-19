@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && vite build --config vite.workflow-editor.config.ts",
+    "build": "tsc && vite build && vite build --config vite.cms-workflow-manifests.config.ts && vite build --config vite.workflow-editor.config.ts",
     "test:calc": "node scripts/run-calculation-golden.mjs",
     "test:editor-roundtrip": "node scripts/run-editor-roundtrip.mjs",
     "preview": "vite preview",
