@@ -41,6 +41,7 @@ public class DemoMobileNavSeeder(
     private static readonly Guid WebHomeElementKey = new("c6d7e8f9-a0b1-4345-fabc-567890123456");
     private static readonly Guid WebGetInTouchElementKey = new("d7e8f9a0-b1c2-4456-abcd-678901234567");
     private static readonly Guid WebWorkflowsElementKey = new("e8f9a0b1-c2d3-4567-bcde-789012345678");
+    private static readonly Guid WebJugglingLicenceElementKey = new("f9a0b1c2-d3e4-4678-cdef-890123456789");
 
     // Must match MobileNavSchemaSetup.MobileNavItemTypeKey.
     private static readonly Guid MobileNavItemTypeKey = new("a9f4b2c1-3d5e-6f70-8912-34abc5678def");
@@ -105,7 +106,8 @@ public class DemoMobileNavSeeder(
             TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.DashboardUrl, TestSiteSeedContract.WorkflowHubUrl);
         var needsWebUpdate = settings.HasProperty("webNavLinks") && NeedsBlockListSeed(
             settings.GetValue<string>("webNavLinks"),
-            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.WorkflowPageUrl, TestSiteSeedContract.WorkflowHubUrl);
+            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.WorkflowPageUrl, TestSiteSeedContract.WorkflowHubUrl,
+            TestSiteSeedContract.JugglingLicencePageUrl);
 
         if (!needsMobileUpdate && !needsWebUpdate)
         {
@@ -122,7 +124,7 @@ public class DemoMobileNavSeeder(
 
         if (needsWebUpdate)
         {
-            logger.LogInformation("DEMO SEEDER: Seeding webNavLinks with Home, Get in Touch, and My Workflows items.");
+            logger.LogInformation("DEMO SEEDER: Seeding webNavLinks with Home, Get in Touch, My Workflows, and Apply for a juggling licence items.");
             var webBlockListJson = BuildWebNavBlockListJson();
             settings.SetValue("webNavLinks", webBlockListJson);
         }
@@ -337,15 +339,21 @@ public class DemoMobileNavSeeder(
 
     /// <summary>
     /// Builds the desktop nav's Block List JSON — same shape and element type as
-    /// <see cref="BuildBlockListJson"/>, but its own three items (Home, Get in Touch, My
-    /// Workflows — genuinely different content from the mobile bar's Home/Dashboard/Workflows)
-    /// and no icons, matching how the desktop header nav has always rendered as plain text links.
+    /// <see cref="BuildBlockListJson"/>, but its own four items (Home, Get in Touch, My
+    /// Workflows, Apply for a juggling licence — genuinely different content from the mobile
+    /// bar's Home/Dashboard/Workflows) and no icons, matching how the desktop header nav has
+    /// always rendered as plain text links. The juggling licence link is the only route into
+    /// Prism's CMS Workflow demo — unlike the MockBusinessApp-hosted GDS demos (reached by
+    /// direct URL, documented for developers testing the toolkit), CMS Workflow's entire point
+    /// is a native, discoverable public journey, so it earns a permanent nav entry the others
+    /// don't.
     /// </summary>
     private static string BuildWebNavBlockListJson()
     {
         var homeKey = WebHomeElementKey.ToString();
         var getInTouchKey = WebGetInTouchElementKey.ToString();
         var workflowsKey = WebWorkflowsElementKey.ToString();
+        var jugglingLicenceKey = WebJugglingLicenceElementKey.ToString();
 
         var root = new JsonObject
         {
@@ -354,19 +362,22 @@ public class DemoMobileNavSeeder(
                 ["Umbraco.BlockList"] = new JsonArray(
                     new JsonObject { ["contentKey"] = homeKey },
                     new JsonObject { ["contentKey"] = getInTouchKey },
-                    new JsonObject { ["contentKey"] = workflowsKey }
+                    new JsonObject { ["contentKey"] = workflowsKey },
+                    new JsonObject { ["contentKey"] = jugglingLicenceKey }
                 )
             },
             ["contentData"] = new JsonArray(
                 BuildBlockItem(homeKey, "Home", TestSiteSeedContract.HomePageUrl, mediaKey: null),
                 BuildBlockItem(getInTouchKey, "Get in Touch", TestSiteSeedContract.WorkflowPageUrl, mediaKey: null),
-                BuildBlockItem(workflowsKey, "My Workflows", TestSiteSeedContract.WorkflowHubUrl, mediaKey: null)
+                BuildBlockItem(workflowsKey, "My Workflows", TestSiteSeedContract.WorkflowHubUrl, mediaKey: null),
+                BuildBlockItem(jugglingLicenceKey, TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicencePageUrl, mediaKey: null)
             ),
             ["settingsData"] = new JsonArray(),
             ["expose"] = new JsonArray(
                 new JsonObject { ["contentKey"] = homeKey, ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = getInTouchKey, ["culture"] = null, ["segment"] = null },
-                new JsonObject { ["contentKey"] = workflowsKey, ["culture"] = null, ["segment"] = null }
+                new JsonObject { ["contentKey"] = workflowsKey, ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = jugglingLicenceKey, ["culture"] = null, ["segment"] = null }
             )
         };
 
