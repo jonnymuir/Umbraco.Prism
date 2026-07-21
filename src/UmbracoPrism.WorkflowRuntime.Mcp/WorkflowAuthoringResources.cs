@@ -48,6 +48,18 @@ public static class WorkflowAuthoringResources
         "regulation or domain best practice — bring that yourself alongside this resource.")]
     public static string ServiceDesignPrinciples() => ReadEmbeddedDoc("service-design-principles.md");
 
+    [McpServerResource(
+        Name = "ai-workflow-authoring",
+        UriTemplate = "workflow-docs://ai-workflow-authoring",
+        Title = "AI-Ready Workflow Authoring — Integrator Guide",
+        MimeType = "text/markdown")]
+    [System.ComponentModel.Description(
+        "How a host app wires this MCP surface into its own pipeline (MapPrismWorkflowAuthoringMcp, " +
+        "IWorkflowSourceStore, auth). For an integrator setting this up, not for an agent authoring a " +
+        "workflow — that agent wants authoring-guide, calculation-language, or service-design-principles " +
+        "instead.")]
+    public static string AiWorkflowAuthoring() => ReadEmbeddedDoc("ai-workflow-authoring.md");
+
     private static string ReadEmbeddedDoc(string fileName)
     {
         var assembly = Assembly.GetExecutingAssembly();

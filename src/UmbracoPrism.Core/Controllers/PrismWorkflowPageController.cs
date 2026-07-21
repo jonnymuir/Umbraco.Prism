@@ -9,6 +9,8 @@ using Umbraco.Cms.Web.Common.Controllers;
 using Umbraco.Extensions;
 using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.Core.Services;
+using UmbracoPrism.Core.Services.Workflow;
+using UmbracoPrism.Shared.Models.Workflow;
 
 namespace UmbracoPrism.Core.Controllers;
 
@@ -39,12 +41,16 @@ namespace UmbracoPrism.Core.Controllers;
 public abstract class PrismWorkflowPageController<TViewModel> : RenderController
     where TViewModel : PrismWorkflowViewModel
 {
+    /// <summary>Fallback max upload size for a <c>file-upload</c> field with no <c>MaxSizeBytes</c> of its own.</summary>
+    public const long DefaultMaxFileSizeBytes = 10 * 1024 * 1024;
+
     private readonly ILogger<RenderController> _logger;
     private readonly IBusinessAppWorkflowClient _workflowClient;
     private readonly IPublishedValueFallback _publishedValueFallback;
     private readonly IAntiforgery _antiforgery;
     private readonly IWorkflowStepNonceService _nonceService;
     private readonly IWorkflowFieldValidator _fieldValidator;
+    private readonly IWorkflowFileStorage _fileStorage;
 
     /// <summary>
     /// Initializes a new instance of the PrismWorkflowPageController class.
@@ -57,6 +63,7 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
     /// <param name="antiforgery">Service for validating antiforgery tokens on form submissions.</param>
     /// <param name="nonceService">Service for creating and resolving tamper-proof nonces bound to field definitions.</param>
     /// <param name="fieldValidator">Service for validating submitted field values against their server-side definitions.</param>
+    /// <param name="fileStorage">Service for persisting files posted against <c>file-upload</c> fields.</param>
     protected PrismWorkflowPageController(
         ILogger<RenderController> logger,
         ICompositeViewEngine compositeViewEngine,
@@ -65,7 +72,8 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         IPublishedValueFallback publishedValueFallback,
         IAntiforgery antiforgery,
         IWorkflowStepNonceService nonceService,
-        IWorkflowFieldValidator fieldValidator)
+        IWorkflowFieldValidator fieldValidator,
+        IWorkflowFileStorage fileStorage)
         : base(logger, compositeViewEngine, umbracoContextAccessor)
     {
         _logger = logger;
@@ -74,6 +82,7 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         _antiforgery = antiforgery;
         _nonceService = nonceService;
         _fieldValidator = fieldValidator;
+        _fileStorage = fileStorage;
     }
 
     /// <summary>
@@ -211,10 +220,39 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
                 k => k[7..^1],
                 k => form[k].ToString());
 
-        var validationResult = _fieldValidator.Validate(authoritativeFields, submittedFields);
-        if (!validationResult.IsValid)
+        // Files never appear in form.Keys (they're a separate IFormFileCollection) — a
+        // file-upload field's "value" for required-checking purposes is simply whether a file
+        // was posted for it, so validate against a copy carrying a non-empty sentinel and let
+        // the existing string-based required check apply completely unmodified. The sentinel
+        // never enters submittedFields itself — nothing has actually been saved yet at this
+        // point, so it must not leak into the redisplay-on-failure form values.
+        var postedFiles = authoritativeFields
+            .Where(field => field.FieldType.Equals("file-upload", StringComparison.OrdinalIgnoreCase))
+            .Select(field => (Field: field, File: form.Files.GetFile($"fields[{field.FieldKey}]")))
+            .Where(pair => pair.File is not null)
+            .ToList();
+
+        var validationInput = new Dictionary<string, string>(submittedFields);
+        foreach (var (field, _) in postedFiles)
         {
-            var problems = validationResult.Errors
+            validationInput[field.FieldKey] = "uploaded";
+        }
+
+        var validationResult = _fieldValidator.Validate(authoritativeFields, validationInput);
+        var errors = new Dictionary<string, string>(validationResult.Errors);
+
+        foreach (var (field, file) in postedFiles)
+        {
+            var maxSizeBytes = field.MaxSizeBytes ?? DefaultMaxFileSizeBytes;
+            if (file!.Length > maxSizeBytes)
+            {
+                errors[field.FieldKey] = $"{field.Label} must be smaller than {maxSizeBytes / (1024 * 1024)}MB.";
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            var problems = errors
                 .Select(e => new WorkflowProblem { FieldKey = e.Key, Message = e.Value, Code = "validation_error" })
                 .ToList();
             TempData["WorkflowProblems"] = JsonSerializer.Serialize(problems);
@@ -230,6 +268,13 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         var fieldValues = submittedFields.ToDictionary(
             kvp => kvp.Key,
             kvp => (object?)kvp.Value);
+
+        // Validation passed, so every posted file is genuinely wanted — save it now and
+        // replace its sentinel with the real reference the engine will persist.
+        foreach (var (field, file) in postedFiles)
+        {
+            fieldValues[field.FieldKey] = await _fileStorage.SaveAsync(instanceId, field.FieldKey, file!);
+        }
 
         // Combine GDS date sub-input parts (-day/-month/-year) into a display value
         foreach (var field in authoritativeFields.Where(f => f.FieldType.Equals("date", StringComparison.OrdinalIgnoreCase)))

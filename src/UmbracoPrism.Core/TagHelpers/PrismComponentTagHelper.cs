@@ -149,7 +149,7 @@ public class PrismComponentTagHelper : TagHelper
         }
 
         var fieldError = Errors?.GetValueOrDefault(Field.FieldKey);
-        var ctx        = PrismFieldContext.Build(Field, fieldError, Values);
+        var ctx        = PrismFieldContext.Build(Field, fieldError, Values, InstanceId);
         var partial    = ResolveFieldPartial(fieldType);
         var content    = await _htmlHelper.PartialAsync(partial, ctx);
 
@@ -173,10 +173,7 @@ public class PrismComponentTagHelper : TagHelper
     /// </summary>
     private string ResolveFieldPartial(string fieldType)
     {
-        var typeName = string.IsNullOrEmpty(fieldType)
-            ? "Default"
-            : char.ToUpperInvariant(fieldType[0]) + fieldType[1..];
-
+        var typeName = KebabToPascalCase(fieldType);
         var candidate = $"{FieldsBase}_Component-{typeName}.cshtml";
         return ViewExists(candidate) ? candidate : FieldsFallback;
     }

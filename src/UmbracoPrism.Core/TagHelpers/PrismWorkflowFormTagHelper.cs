@@ -36,6 +36,11 @@ public class PrismWorkflowFormTagHelper(IAntiforgery antiforgery) : TagHelper
         output.Attributes.SetAttribute("method", "post");
         output.Attributes.SetAttribute("action", ReturnUrl);
         output.Attributes.SetAttribute("novalidate", "novalidate");
+        // Always multipart, not just when the current stage happens to render a file-upload
+        // field: without this, a stage containing <input type="file"> silently submits it empty
+        // under the default urlencoded encoding — no validation error, no file ever reaches
+        // Request.Form.Files, nothing to distinguish it from an ordinary field going through fine.
+        output.Attributes.SetAttribute("enctype", "multipart/form-data");
 
         var tokens = antiforgery.GetAndStoreTokens(ViewContext.HttpContext);
         var antiforgeryHtml = $@"<input type=""hidden"" name=""__RequestVerificationToken"" value=""{tokens.RequestToken}"" />";

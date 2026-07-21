@@ -19,7 +19,17 @@
         var sourceKey = string.IsNullOrEmpty(field.ChangeStateKey) ? defaultSourceKey : field.ChangeStateKey;
         <div class="govuk-summary-list__row">
             <dt class="govuk-summary-list__key">@field.Label</dt>
-            <dd class="govuk-summary-list__value">@(field.Value ?? "Not answered")</dd>
+            <dd class="govuk-summary-list__value">
+                @if (field.FieldType == "file-upload" && field.Value is not null)
+                {
+                    var downloadUrl = $"/prism/cms-workflow/files/{Uri.EscapeDataString(Model.InstanceId)}/{Uri.EscapeDataString(field.FieldKey)}";
+                    @field.Value<text> — </text><a class="govuk-link" href="@downloadUrl" target="_blank" rel="noopener">View</a>
+                }
+                else
+                {
+                    @(field.Value ?? "Not answered")
+                }
+            </dd>
             <dd class="govuk-summary-list__actions">
                 @if (!string.IsNullOrEmpty(sourceKey))
                 {

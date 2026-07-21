@@ -250,6 +250,25 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
         nextVisit.Render!.StateDisplayName.Should().Be("Done");
     }
 
+    [Fact]
+    public void SinglePolicy_StartNewActionAfterCompletion_CreatesAGenuinelyFreshInstance()
+    {
+        // The explicit, visitor-initiated escape hatch from the "keep showing the same
+        // confirmation" behaviour above: a real "Start again" link (?action=start-new) must
+        // still create a brand-new instance even though the existing one is terminal under
+        // "single" policy — this is deliberate, opt-in, and distinct from a plain revisit.
+        _engine.ResetAll();
+
+        var first = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+        _engine.Advance(first.InstanceId, "tenant1", "user1", "submit", expectedStateVersion: 0, fieldValues: new Dictionary<string, object?>());
+        var confirmation = _engine.GetCurrent("test-workflow-single", "tenant1", "user1");
+
+        var restarted = _engine.GetCurrent("test-workflow-single", "tenant1", "user1", action: "start-new");
+
+        restarted.InstanceId.Should().NotBe(confirmation.InstanceId);
+        restarted.ResponseState.Should().Be("render");
+    }
+
     // -----------------------------------------------------------------------
     // "multiple" policy tests
     // -----------------------------------------------------------------------

@@ -47,8 +47,10 @@ public class TestSiteComposer : IComposer
         // Workflow Page demo — runs after PrismContentTypeSeeder has created the workflowPage doc type
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WorkflowPageSeeder>();
 
-        // Prism CMS Workflow demo ("Apply for a juggling licence") — demonstrates the
-        // service-sourced field extension point for a logged-in member. Re-registering
+        // Prism CMS Workflow demos ("Apply for a juggling licence" and "Transfer a professional
+        // juggling licence") — demonstrates the service-sourced field extension point for a
+        // logged-in member, shared across both since they're the same fictional membership
+        // scheme. Re-registering
         // CmsWorkflowEngine here (after AddPrismCmsWorkflow()'s own registration in
         // PrismComposer) supplies the serviceInputsResolver delegate; last registration wins
         // for single-instance resolution, and IWorkflowRuntimeEngine's factory (registered by
@@ -64,7 +66,10 @@ public class TestSiteComposer : IComposer
                 sp.GetRequiredService<IWorkflowInstanceStore>(),
                 (instance, definition, _) =>
                 {
-                    if (!string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceWorkflowKey, StringComparison.OrdinalIgnoreCase))
+                    var isJugglingLicenceWorkflow =
+                        string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceWorkflowKey, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceTransferWorkflowKey, StringComparison.OrdinalIgnoreCase);
+                    if (!isJugglingLicenceWorkflow)
                     {
                         return null;
                     }
@@ -77,5 +82,11 @@ public class TestSiteComposer : IComposer
                 });
         });
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, JugglingLicenceCmsWorkflowSeeder>();
+
+        // Guidance articles for the (separately, live-authored) "Transfer a Professional
+        // Juggling Licence" CMS Workflow demo — seeded ahead of time so that build has real
+        // CMS content to link to rather than needing to author it on camera.
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, GuidanceArticleContentTypes>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, GuidanceArticleSeeder>();
     }
 }

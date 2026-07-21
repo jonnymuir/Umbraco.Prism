@@ -1,0 +1,29 @@
+@model UmbracoPrism.Core.Models.Workflow.PrismFieldContext
+@{
+    var acceptAttr = Model.Field.AcceptedFileTypes is { Count: > 0 }
+        ? $@" accept=""{string.Join(",", Model.Field.AcceptedFileTypes)}"""
+        : string.Empty;
+    var alreadyUploaded = !string.IsNullOrEmpty(Model.DisplayValue);
+    var downloadUrl = alreadyUploaded && !string.IsNullOrEmpty(Model.InstanceId)
+        ? $"/prism/cms-workflow/files/{Uri.EscapeDataString(Model.InstanceId)}/{Uri.EscapeDataString(Model.Field.FieldKey)}"
+        : null;
+}
+<div class="@Model.WrapperClass"@Html.Raw(Model.WrapperAttrs)>
+    @await Html.PartialAsync("~/Views/Partials/PrismFields/_ComponentLabel.cshtml", Model)
+    @if (alreadyUploaded)
+    {
+        <p class="govuk-body">
+            Uploaded: @Model.DisplayValue
+            @if (downloadUrl is not null)
+            {
+                <text> — <a class="govuk-link" href="@downloadUrl" target="_blank" rel="noopener">View</a></text>
+            }
+        </p>
+        <p class="govuk-hint">Choose a file below to replace it.</p>
+    }
+    <input class="govuk-file-upload@(Model.HasFieldError ? " govuk-file-upload--error" : "")"
+           type="file"
+           id="@Model.Field.FieldKey"
+           name="fields[@Model.Field.FieldKey]"
+           data-label="@Model.Field.Label"@Html.Raw(acceptAttr)@Html.Raw(Model.DescribedBy)@Html.Raw(Model.AriaRequired)@Html.Raw(Model.AriaInvalid) />
+</div>

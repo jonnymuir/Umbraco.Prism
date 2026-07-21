@@ -1,4 +1,5 @@
 using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 
 namespace UmbracoPrism.Core.Models.Workflow;
 
@@ -345,6 +346,25 @@ public record FieldRenderPayload
     /// Null outside a summary-list context.
     /// </summary>
     public string? ChangeStateKey { get; init; }
+
+    /// <summary>
+    /// File extensions accepted for a <c>file-upload</c> field (the HTML <c>accept</c>
+    /// attribute), e.g. [".pdf", ".jpg"]. Null means no restriction.
+    /// </summary>
+    public IReadOnlyList<string>? AcceptedFileTypes { get; init; }
+
+    /// <summary>
+    /// Maximum upload size in bytes for a <c>file-upload</c> field, enforced server-side on
+    /// POST. Null falls back to <c>PrismWorkflowPageController.DefaultMaxFileSizeBytes</c>.
+    /// </summary>
+    public long? MaxSizeBytes { get; init; }
+
+    /// <summary>
+    /// The guidance items for a <c>guidance-checklist</c> field — <see cref="Options"/> only
+    /// carries each item's key (needed for the required-all-acknowledged validation), so the
+    /// label and link to render come from here instead.
+    /// </summary>
+    public IReadOnlyList<GuidanceChecklistItem>? GuidanceItems { get; init; }
 }
 
 /// <summary>

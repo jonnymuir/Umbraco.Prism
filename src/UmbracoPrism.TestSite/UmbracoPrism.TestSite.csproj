@@ -27,6 +27,12 @@
 
   <ItemGroup>
     <Content Remove="wwwroot/App_Plugins/UmbracoPrism/**" />
+    <!-- CI (Linux, case-sensitive filesystem) reports Views/GuidanceArticle.cshtml as a
+         duplicate Content item; this Remove+Include pair collapses whatever double glob match
+         is occurring back to a single clean item, regardless of which two SDK/Umbraco-targets
+         inclusion paths are colliding. -->
+    <Content Remove="Views/GuidanceArticle.cshtml" />
+    <Content Include="Views/GuidanceArticle.cshtml" />
   </ItemGroup>
 
   <ItemGroup>

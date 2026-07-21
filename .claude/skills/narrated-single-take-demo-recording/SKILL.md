@@ -12,7 +12,7 @@ Use this when the ask is a presentation-quality demo video (not a CI test) that 
 continuous take: on-screen captions telling the story, a visible cursor, human-paced typing, and —
 critically — no ffmpeg stitching of separately-recorded clips afterward. This applies whether the
 demo is entirely UI-driven (garden-waste-permit-demo) or hands part of the story to a live AI agent
-over MCP through a terminal (pension-bereavement-demo).
+over MCP through a terminal.
 
 The load-bearing constraint that shapes everything below: Playwright records **one video per
 Page**, not per test. As long as every act navigates the *same* page instead of opening a new one,
@@ -39,8 +39,10 @@ to get wrong.
 
 ### Reference implementation
 
-- `src/UmbracoPrism.Client/tests/demo/garden-waste-demo.spec.ts` (UI-only, agent extends a hand-built
-  stage) and `pension-bereavement-demo.spec.ts` (agent designs and builds the whole thing in one turn).
+- `src/UmbracoPrism.Client/tests/demo/garden-waste-demo.spec.ts` — UI-only acts plus one act that
+  hands a single stage (with a real calculation) to an AI agent over MCP through a ttyd terminal.
+  Any future demo that hands an agent the *entire* design in one turn (not just one stage) follows
+  the same one-shared-page/ttyd/tmux mechanics documented below.
 - Shared helpers: `tests/demo/support/narration.ts` (`beat`/`showSlate`/`clearSlate`/`moveNarrationTo`
   — reading-paced hold times computed from word count, not a fixed flash) and
   `tests/demo/support/human-interactions.ts` (`humanClick`/`humanType` — an animated visible cursor
@@ -163,8 +165,6 @@ to get wrong.
   600s, 900s, and 1800s despite the underlying `claude` process and its session log continuing to
   grow the whole time — the actual evidence that pinned this on headless rAF throttling rather than
   a hung agent.
-- `tests/demo/pension-bereavement-demo.spec.ts`'s `fillGdsFormGenerically()` — the generic
-  label/type-heuristic form filler for a schema only known once the agent has actually saved it.
 - `tests/demo/README.md` — the full ttyd/tmux operator setup this skill's ttyd section summarizes.
 
 ## Anti-Patterns

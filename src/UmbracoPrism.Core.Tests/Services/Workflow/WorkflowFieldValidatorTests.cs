@@ -1063,4 +1063,146 @@ public class WorkflowFieldValidatorTests
 
         result.IsValid.Should().BeTrue();
     }
+
+    // ------------------------------------------------------------------ Guidance Checklist
+
+    [Fact]
+    public void GivenGuidanceChecklist_WhenAllItemsAcknowledged_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "guidance",
+                Label = "Guidance",
+                FieldType = "guidance-checklist",
+                Required = true,
+                Options = new List<string> { "transfer-rules", "international-transfers", "supporting-evidence" }
+            }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["guidance"] = "transfer-rules,international-transfers,supporting-evidence"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenGuidanceChecklist_WhenOnlySomeItemsAcknowledged_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "guidance",
+                Label = "Guidance",
+                FieldType = "guidance-checklist",
+                Required = true,
+                Options = new List<string> { "transfer-rules", "international-transfers", "supporting-evidence" }
+            }
+        };
+        var submitted = new Dictionary<string, string>
+        {
+            ["guidance"] = "transfer-rules"
+        };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse("a plain checkboxlist would accept a non-empty subset, but a required guidance-checklist must not");
+        result.Errors.Should().ContainKey("guidance");
+    }
+
+    [Fact]
+    public void GivenGuidanceChecklist_WhenNoneAcknowledged_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "guidance",
+                Label = "Guidance",
+                FieldType = "guidance-checklist",
+                Required = true,
+                Options = new List<string> { "transfer-rules", "international-transfers" }
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["guidance"] = "" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("guidance");
+    }
+
+    [Fact]
+    public void GivenGuidanceChecklist_WhenNotRequiredAndPartiallyAcknowledged_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new()
+            {
+                FieldKey = "guidance",
+                Label = "Guidance",
+                FieldType = "guidance-checklist",
+                Required = false,
+                Options = new List<string> { "transfer-rules", "international-transfers" }
+            }
+        };
+        var submitted = new Dictionary<string, string> { ["guidance"] = "transfer-rules" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue("the require-all rule only applies when the field is required");
+    }
+
+    // ------------------------------------------------------------------ File Upload
+
+    [Fact]
+    public void GivenFileUploadField_WhenRequiredAndSentinelPresent_ThenIsValidTrue()
+    {
+        // The controller injects a non-empty sentinel when a file was actually posted —
+        // the validator itself never sees file bytes, only this string-based presence check.
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "current-licence", Label = "Current licence", FieldType = "file-upload", Required = true }
+        };
+        var submitted = new Dictionary<string, string> { ["current-licence"] = "uploaded" };
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenFileUploadField_WhenRequiredAndNoFilePosted_ThenValidationFails()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "current-licence", Label = "Current licence", FieldType = "file-upload", Required = true }
+        };
+        var submitted = new Dictionary<string, string>();
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().ContainKey("current-licence");
+        result.Errors["current-licence"].Should().Be("Current licence is required.");
+    }
+
+    [Fact]
+    public void GivenFileUploadField_WhenOptionalAndNoFilePosted_ThenIsValidTrue()
+    {
+        var authoritative = new List<FieldRenderPayload>
+        {
+            new() { FieldKey = "video-evidence", Label = "Video evidence", FieldType = "file-upload", Required = false }
+        };
+        var submitted = new Dictionary<string, string>();
+
+        var result = Validator.Validate(authoritative, submitted);
+
+        result.IsValid.Should().BeTrue();
+    }
 }

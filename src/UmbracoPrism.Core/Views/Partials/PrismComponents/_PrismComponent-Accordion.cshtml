@@ -33,7 +33,7 @@
                     {
                         @foreach (var field in accordionSection.Fields)
                         {
-                            <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" />
+                            <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" />
                         }
                     }
                     else if (!string.IsNullOrEmpty(accordionSection.Content))
