@@ -48,6 +48,10 @@ public static class TestSiteSeedContract
     public const string JugglingLicencePageUrl = "/apply-for-a-juggling-licence";
     public const string JugglingLicenceWorkflowKey = "apply-for-a-juggling-licence";
 
+    // Built live via MCP (see tests/demo/licence-transfer-demo.spec.ts), not C#-seeded like the
+    // key above — kept here anyway so both juggling-licence workflow keys live in one place.
+    public const string JugglingLicenceTransferWorkflowKey = "transfer-a-juggling-licence";
+
     public static IContent? FindContentByAlias(IContentService contentService, string alias)
         => EnumerateContentTree(contentService)
             .FirstOrDefault(content => content.ContentType.Alias == alias);

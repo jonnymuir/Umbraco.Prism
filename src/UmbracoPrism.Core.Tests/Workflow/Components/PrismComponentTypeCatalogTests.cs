@@ -12,9 +12,9 @@ public class PrismComponentTypeCatalogTests
     private static readonly string[] ExpectedDiscriminators =
     [
         "accordion", "body", "boolean", "chart", "checkboxlist", "date", "decimal", "details",
-        "email", "fieldset", "heading", "inset-text", "notification-banner", "number", "panel",
-        "radio", "select", "slider", "stat-group", "summary-list", "task-list", "text",
-        "textarea", "waiting", "warning-text"
+        "email", "fieldset", "file-upload", "guidance-checklist", "heading", "inset-text",
+        "notification-banner", "number", "panel", "radio", "select", "slider", "stat-group",
+        "summary-list", "task-list", "text", "textarea", "waiting", "warning-text"
     ];
 
     [Fact]

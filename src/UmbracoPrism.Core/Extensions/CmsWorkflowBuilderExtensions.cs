@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Web.Common.Authorization;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.Services.Workflow;
+using UmbracoPrism.Shared.Models.Workflow.Components;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
 using UmbracoPrism.WorkflowRuntime.Extensions;
 using UmbracoPrism.WorkflowRuntime.Mcp;
@@ -41,12 +42,38 @@ public static class CmsWorkflowBuilderExtensions
         // its own generic validation, so the toolkit itself stays unaware this rule exists.
         services.AddSingleton<IWorkflowStructuralValidator, CmsWorkflowSingleQueueValidator>();
 
+        // Explicit capability contract for cms-visitor — matches today's de-facto behaviour
+        // (nothing was registered before, so capability enforcement was silently skipped) but
+        // now makes it honest: an agent authoring via list_queue_capabilities can see exactly
+        // what this host's stock rendering pipeline supports, including file-upload and
+        // guidance-checklist, instead of the check being quietly absent.
+        services.AddSingleton<IQueueCapabilitiesProvider>(new StaticQueueCapabilitiesProvider(
+            new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+            {
+                [CmsWorkflowQueue.Key] = PrismComponentTypeCatalog.AllDiscriminators
+            }));
+
         services.AddPrismWorkflowAuthoring();
 
         // AI-agent authoring surface for CMS Workflow — mapped and gated in the host's
         // Program.cs (see MapPrismCmsWorkflowAuthoringMcp()), same live WorkflowAuthoringService
-        // as the backoffice editor and CmsWorkflowAuthoringController.
-        services.AddPrismWorkflowAuthoringMcp();
+        // as the backoffice editor and CmsWorkflowAuthoringController. Host-specific facts (single
+        // queue, always cms-visitor) go in via ServerInstructions rather than requiring every
+        // human-written brief to repeat them — the generic toolkit itself stays unaware this
+        // constraint exists at all.
+        services.AddPrismWorkflowAuthoringMcp(
+            "This host is Prism's CMS Workflow — a single-actor, backoffice-hosted workflow " +
+            "surface. Every definition here has exactly one queue, always named \"cms-visitor\" " +
+            "(no reviewer/admin side is possible). Call list_queue_capabilities before drafting " +
+            "any component — this host's stock rendering pipeline is the source of truth for " +
+            "which component types are actually available, not assumption from other hosts or " +
+            "other Prism workflow systems.");
+
+        // Shared visitor-identity resolution (cookie for anonymous, member email when signed
+        // in) — used by InProcessCmsWorkflowClient and the file download endpoint alike, so
+        // both resolve "whose instance is this" identically. Scoped: depends on the scoped
+        // IPrismUserContext (and resolves identity per-request via IHttpContextAccessor anyway).
+        services.AddScoped<CmsWorkflowVisitorIdentityResolver>();
 
         // Keyed so the default (business-app, HTTP) IBusinessAppWorkflowClient registration from
         // AddPrismWorkflowEngine() is untouched — CmsWorkflowPageController resolves this one
@@ -54,6 +81,10 @@ public static class CmsWorkflowBuilderExtensions
         // scoped IPrismUserContext (and resolves identity per-request via IHttpContextAccessor
         // anyway), matching BusinessAppWorkflowClient's own lifetime for the same reason.
         services.AddKeyedScoped<IBusinessAppWorkflowClient, InProcessCmsWorkflowClient>("cms");
+
+        // File-upload storage for the "file-upload" component type — disk-backed by default;
+        // a host can replace this registration with its own (blob storage, etc.).
+        services.AddSingleton<IWorkflowFileStorage, DiskWorkflowFileStorage>();
 
         services.AddHostedService<PrismCmsWorkflowInstanceSweepService>();
 

@@ -90,6 +90,23 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
                 continue; // Don't cascade errors
             }
 
+            // a2. Guidance checklist: unlike a plain checkboxlist (any non-empty subset is
+            // valid), "required" here means every configured item must be acknowledged.
+            if (field.Required && field.FieldType.Equals("guidance-checklist", StringComparison.OrdinalIgnoreCase))
+            {
+                var acknowledged = raw
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var allAcknowledged = (field.Options ?? Array.Empty<string>())
+                    .All(key => acknowledged.Contains(key));
+
+                if (!allAcknowledged)
+                {
+                    errors[field.FieldKey] = $"You must confirm you have read all of the guidance in {field.Label} before continuing.";
+                    continue; // Don't cascade errors
+                }
+            }
+
             // Skip further validation if value is empty (and not required)
             if (string.IsNullOrWhiteSpace(raw))
             {

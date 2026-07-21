@@ -40,7 +40,8 @@ public class InProcessCmsWorkflowClientTests
         var accessor = new Mock<IHttpContextAccessor>();
         accessor.Setup(a => a.HttpContext).Returns(httpContext);
 
-        var client = new InProcessCmsWorkflowClient(engine, userContext.Object, accessor.Object);
+        var identityResolver = new CmsWorkflowVisitorIdentityResolver(userContext.Object, accessor.Object);
+        var client = new InProcessCmsWorkflowClient(engine, identityResolver);
         return (client, httpContext);
     }
 

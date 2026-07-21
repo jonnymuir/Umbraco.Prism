@@ -14,6 +14,13 @@ public record PrismFieldContext
     public string? FieldError { get; init; }
 
     /// <summary>
+    /// The current workflow instance id — needed by a <c>file-upload</c> field's partial to
+    /// build a link back to its own uploaded file. Empty outside a rendering context that
+    /// forwards it (see <c>PrismComponentTagHelper.ProcessFieldAsync</c>).
+    /// </summary>
+    public string InstanceId { get; init; } = string.Empty;
+
+    /// <summary>
     /// The value to display in the field — resolved from submitted values,
     /// then DefaultValue, then the engine-provided Value.
     /// </summary>
@@ -65,7 +72,8 @@ public record PrismFieldContext
     public static PrismFieldContext Build(
         FieldRenderPayload field,
         string? fieldError,
-        IReadOnlyDictionary<string, string>? values)
+        IReadOnlyDictionary<string, string>? values,
+        string instanceId = "")
     {
         var submittedValue = values?.GetValueOrDefault(field.FieldKey);
         var displayValue   = !string.IsNullOrWhiteSpace(field.DefaultValue)
@@ -108,6 +116,7 @@ public record PrismFieldContext
             DescribedBy  = describedBy,
             WrapperClass = wrapperClass,
             WrapperAttrs = wrapperAttrs,
+            InstanceId   = instanceId,
         };
     }
 }

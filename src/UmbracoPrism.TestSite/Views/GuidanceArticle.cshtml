@@ -1,0 +1,20 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@using UmbracoPrism.Shared.Services.Sanitization
+@inject IWorkflowContentSanitizer Sanitizer
+@{
+    Layout = "~/Views/Shared/Master.cshtml";
+
+    var body = Model.Value<string>("body") ?? "";
+}
+
+<div class="govuk-width-container">
+    <main class="govuk-main-wrapper">
+        <h1 class="govuk-heading-l">@Model.Name</h1>
+        @if (!string.IsNullOrWhiteSpace(body))
+        {
+            <div class="govuk-body">
+                @Html.Raw(Sanitizer.Sanitize(body))
+            </div>
+        }
+    </main>
+</div>

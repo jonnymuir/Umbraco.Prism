@@ -220,6 +220,20 @@ public sealed record BooleanComponent : InputComponent
 }
 
 /// <summary>
+/// GDS file upload component: a single named document slot (e.g. "Current licence",
+/// "Proof of identity"). One component per document a workflow needs — there is no
+/// multi-document container, matching how every other input component covers one field.
+/// </summary>
+public sealed record FileUploadComponent : InputComponent
+{
+    /// <summary>File extensions accepted, e.g. [".pdf", ".jpg", ".png"]. Null means no restriction.</summary>
+    public IReadOnlyList<string>? AcceptedFileTypes { get; init; }
+
+    /// <summary>Maximum upload size in bytes. Null falls back to the platform's own default limit.</summary>
+    public long? MaxSizeBytes { get; init; }
+}
+
+/// <summary>
 /// Range slider input. Renders as a native range control with its current value
 /// displayed alongside; submits like a number field.
 /// </summary>

@@ -8,6 +8,7 @@ using Umbraco.Cms.Web.Common.Controllers;
 using UmbracoPrism.Core.Controllers;
 using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.Core.Services;
+using UmbracoPrism.Core.Services.Workflow;
 using UmbracoPrism.TestSite.Models;
 
 namespace UmbracoPrism.TestSite.Controllers;
@@ -27,7 +28,8 @@ public class WorkflowPageController(
     IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery,
     IWorkflowStepNonceService nonceService,
-    IWorkflowFieldValidator fieldValidator)
+    IWorkflowFieldValidator fieldValidator,
+    IWorkflowFileStorage fileStorage)
     : PrismWorkflowPageController<WorkflowViewModel>(
         logger,
         compositeViewEngine,
@@ -36,7 +38,8 @@ public class WorkflowPageController(
         publishedValueFallback,
         antiforgery,
         nonceService,
-        fieldValidator)
+        fieldValidator,
+        fileStorage)
 {
     /// <summary>
     /// Pre-populates workflow fields from authenticated user claims.

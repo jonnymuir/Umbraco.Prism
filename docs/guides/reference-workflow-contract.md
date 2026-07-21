@@ -161,7 +161,7 @@ discriminated by `"type"`. The full catalog:
 **Input components** (declare a `fieldKey`, participate in the calculation scope —
 see [calculation-language.md](./calculation-language.md#where-it-lives-in-a-workflow)):
 `text`, `number`, `decimal`, `select`, `radio`, `checkboxlist`, `date`, `email`,
-`textarea`, `boolean`, `slider`.
+`textarea`, `boolean`, `slider`, `file-upload`, `guidance-checklist`.
 
 **Content components** (no `fieldKey`, purely presentational):
 `body`, `heading`, `inset-text`, `warning-text`, `details`, `notification-banner`,
@@ -211,6 +211,21 @@ unset so it renders read-only. Nothing validates this distinction (it's about *w
 in the flow the page sits, not the JSON shape), so get it right at authoring time:
 before drafting a "review" or "outcome" stage, check whether it comes before or after
 the workflow's actual decision point.
+
+`file-upload` is a real document upload — one component per named document a workflow
+needs (e.g. "Current licence", "Proof of identity"; there's no multi-document
+container), server-side saved via a host-registered file storage service and referenced
+from `FieldValues` by a `WorkflowFileReference` (never the raw bytes). `required: true`
+means a file must actually be posted, checked the same way any other required field is.
+Optional `acceptedFileTypes` (e.g. `[".pdf", ".jpg"]`) and `maxSizeBytes` narrow what's
+accepted; `maxSizeBytes` is enforced server-side on submit.
+
+`guidance-checklist` lists linked guidance articles (each with its own `key`, `label`,
+`href`) alongside an acknowledgement checkbox per item — unlike `checkboxlist`, where
+`required: true` only means *some* option was chosen, here it means **every** listed
+item must be acknowledged before the stage can advance. Use it for "you must read this
+guidance before continuing" patterns; the linked articles are ordinary content (e.g.
+separate CMS pages), not part of the component's own definition.
 
 Every component, regardless of type, may declare `showWhen` — see
 [Visibility (`showWhen`)](./calculation-language.md#visibility-showwhen) in the

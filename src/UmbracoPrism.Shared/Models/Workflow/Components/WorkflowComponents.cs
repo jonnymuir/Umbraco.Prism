@@ -77,3 +77,32 @@ public sealed record TaskItem
     /// <summary>Direct URL for this task (alternative to StateKey).</summary>
     public string? Href { get; init; }
 }
+
+/// <summary>
+/// Guidance checklist component: a set of linked guidance articles, each with its own
+/// acknowledgement checkbox. Posts as a single field — a comma-joined list of acknowledged
+/// item keys, the same wire shape as <see cref="CheckboxesComponent"/> — but unlike a plain
+/// checkbox list, <c>Required</c> here means every configured item must be acknowledged, not
+/// merely that at least one is checked.
+/// </summary>
+public sealed record GuidanceChecklistComponent : InputComponent
+{
+    /// <summary>The guidance items to acknowledge.</summary>
+    public IReadOnlyList<GuidanceChecklistItem> Items { get; init; } = Array.Empty<GuidanceChecklistItem>();
+}
+
+/// <summary>
+/// A single guidance article link and its acknowledgement key within a
+/// <see cref="GuidanceChecklistComponent"/>.
+/// </summary>
+public sealed record GuidanceChecklistItem
+{
+    /// <summary>Stable identifier posted when this item is acknowledged.</summary>
+    public string Key { get; init; } = "";
+
+    /// <summary>The guidance item's label.</summary>
+    public string Label { get; init; } = "";
+
+    /// <summary>URL of the CMS-managed article to open (typically in a new tab).</summary>
+    public string Href { get; init; } = "";
+}

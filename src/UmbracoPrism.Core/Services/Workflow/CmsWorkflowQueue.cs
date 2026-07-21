@@ -1,3 +1,5 @@
+using UmbracoPrism.Shared.Models.Workflow;
+
 namespace UmbracoPrism.Core.Services.Workflow;
 
 /// <summary>
@@ -12,4 +14,18 @@ public static class CmsWorkflowQueue
 {
     public const string Key = "cms-visitor";
     public const string DisplayName = "Site visitor";
+
+    /// <summary>
+    /// The access profile every CMS Workflow entry point (the page controller's client, a file
+    /// download endpoint, anything else that resolves a visitor's own instance) constructs
+    /// identically — a visitor can only see/start/act on this one queue, and only their own
+    /// instance within it.
+    /// </summary>
+    public static readonly WorkflowAccessProfile AccessProfile = new()
+    {
+        VisibleQueues = [Key],
+        StartableQueues = [Key],
+        ActionableQueues = [Key],
+        RestrictToInstanceOwner = true
+    };
 }

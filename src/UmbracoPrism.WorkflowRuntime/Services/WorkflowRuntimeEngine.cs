@@ -1509,6 +1509,7 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                 SelectComponent select => select.Options,
                 RadiosComponent radios => radios.Options,
                 CheckboxesComponent checkboxes => checkboxes.Options,
+                GuidanceChecklistComponent guidance => guidance.Items.Select(i => i.Key).ToList(),
                 _ => null
             },
             Value = GetDisplayValue(input, fieldType, savedValues) ?? ResolveDefaultFrom(input, calc) ?? input.Default,
@@ -1565,7 +1566,22 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             },
             ConditionalOn = input.ConditionalOn,
             VisibleWhen = input.VisibleWhen,
-            ChangeStateKey = input.ChangeStateKey
+            ChangeStateKey = input.ChangeStateKey,
+            AcceptedFileTypes = input switch
+            {
+                FileUploadComponent file => file.AcceptedFileTypes,
+                _ => null
+            },
+            MaxSizeBytes = input switch
+            {
+                FileUploadComponent file => file.MaxSizeBytes,
+                _ => null
+            },
+            GuidanceItems = input switch
+            {
+                GuidanceChecklistComponent guidance => guidance.Items,
+                _ => null
+            }
         };
     }
 
@@ -1583,6 +1599,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         TextareaComponent => "textarea",
         BooleanComponent => "boolean",
         SliderComponent => "slider",
+        FileUploadComponent => "file-upload",
+        GuidanceChecklistComponent => "guidance-checklist",
         _ => "text"
     };
 
@@ -1612,6 +1630,22 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
                     ", ",
                     rawString.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
             }
+        }
+
+        if (fieldType == "file-upload")
+        {
+            // A freshly-uploaded file survives as its original CLR type for the rest of the
+            // current request; a previously-uploaded one reloads from persistence as a boxed
+            // JsonElement (no custom converter on FieldValues) — display the original filename
+            // either way, never the reference object itself.
+            return raw switch
+            {
+                WorkflowFileReference reference => reference.OriginalFileName,
+                JsonElement jsonElement when jsonElement.ValueKind == JsonValueKind.Object
+                    && jsonElement.TryGetProperty(nameof(WorkflowFileReference.OriginalFileName), out var nameProperty)
+                    => nameProperty.GetString(),
+                _ => null
+            };
         }
 
         var prefix = input switch

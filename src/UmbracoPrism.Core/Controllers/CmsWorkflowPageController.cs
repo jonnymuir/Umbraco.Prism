@@ -7,6 +7,7 @@ using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
 using UmbracoPrism.Core.Models.Workflow;
 using UmbracoPrism.Core.Services;
+using UmbracoPrism.Core.Services.Workflow;
 using UmbracoPrism.WorkflowRuntime.Abstractions;
 
 namespace UmbracoPrism.Core.Controllers;
@@ -35,7 +36,8 @@ public class CmsWorkflowPageController(
     IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery,
     IWorkflowStepNonceService nonceService,
-    IWorkflowFieldValidator fieldValidator)
+    IWorkflowFieldValidator fieldValidator,
+    IWorkflowFileStorage fileStorage)
     : PrismWorkflowPageController<PrismWorkflowViewModel>(
         logger,
         compositeViewEngine,
@@ -44,7 +46,8 @@ public class CmsWorkflowPageController(
         publishedValueFallback,
         antiforgery,
         nonceService,
-        fieldValidator)
+        fieldValidator,
+        fileStorage)
 {
     protected override bool RequiresAuthentication => false;
 }

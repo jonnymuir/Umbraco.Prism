@@ -243,6 +243,8 @@ public class ComponentPolymorphismTests
     [InlineData("waiting")]
     [InlineData("summary-list")]
     [InlineData("task-list")]
+    [InlineData("file-upload")]
+    [InlineData("guidance-checklist")]
     public void WorkflowComponents_RoundtripCorrectly(string componentType)
     {
         // Arrange
@@ -282,6 +284,25 @@ public class ComponentPolymorphismTests
                     }
                 }
             },
+            "file-upload" => new FileUploadComponent
+            {
+                FieldKey = "current-licence",
+                Label = "Current licence",
+                Required = true,
+                AcceptedFileTypes = new List<string> { ".pdf", ".jpg" },
+                MaxSizeBytes = 5 * 1024 * 1024
+            },
+            "guidance-checklist" => new GuidanceChecklistComponent
+            {
+                FieldKey = "guidance",
+                Label = "Read the guidance",
+                Required = true,
+                Items = new List<GuidanceChecklistItem>
+                {
+                    new() { Key = "transfer-rules", Label = "Transfer Rules", Href = "/transfer-rules" },
+                    new() { Key = "supporting-evidence", Label = "Supporting Evidence", Href = "/supporting-evidence" }
+                }
+            },
             _ => throw new ArgumentException($"Unknown type: {componentType}")
         };
 
@@ -293,7 +314,7 @@ public class ComponentPolymorphismTests
         deserialized.Should().NotBeNull();
         deserialized.Should().BeOfType(component.GetType());
         json.Should().Contain($"\"type\": \"{componentType}\"");
-        
+
         // Verify round-trip by re-serializing and comparing JSON
         var reserializedJson = JsonSerializer.Serialize(deserialized, JsonOptions);
         reserializedJson.Should().Be(json);

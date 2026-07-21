@@ -266,8 +266,36 @@ function rebuildChart(figure: HTMLElement, series: Record<string, Array<Record<s
   }
 }
 
+// Guidance-checklist live progress text ("X of Y completed") — independent of the
+// calculations live model above (a workflow with a guidance checklist has no reason to also
+// declare a calculations block), so this runs unconditionally rather than being gated behind
+// boot()'s early return. The actual required-all-acknowledged gate is still server-side
+// validation on submit; this is purely a display nicety.
+function bootGuidanceChecklists(): void {
+  document.querySelectorAll<HTMLElement>('[data-prism-guidance-checklist]').forEach((container) => {
+    const progress = container.querySelector<HTMLElement>('[data-prism-guidance-progress]');
+    const total = Number(progress?.dataset.prismGuidanceTotal ?? '0');
+    if (!progress || total === 0) {
+      return;
+    }
+
+    container.addEventListener('change', (event) => {
+      if (!(event.target as HTMLElement).matches('[data-prism-guidance-checkbox]')) {
+        return;
+      }
+
+      const completed = container.querySelectorAll('[data-prism-guidance-checkbox]:checked').length;
+      progress.textContent = `${completed} of ${total} guidance articles completed`;
+    });
+  });
+}
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', boot);
+  document.addEventListener('DOMContentLoaded', () => {
+    boot();
+    bootGuidanceChecklists();
+  });
 } else {
   boot();
+  bootGuidanceChecklists();
 }

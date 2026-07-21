@@ -22,4 +22,35 @@ public sealed class CmsWorkflowEngine(
     IWorkflowContentSanitizer sanitizer,
     IWorkflowInstanceStore instanceStore,
     Func<WorkflowInstanceState, WorkflowDefinitionFile, StepDefinition, IReadOnlyDictionary<string, object?>?>? serviceInputsResolver = null)
-    : WorkflowRuntimeEngine(logger, definitionStore, sanitizer, serviceInputsResolver, instanceStore);
+    : WorkflowRuntimeEngine(logger, definitionStore, sanitizer, serviceInputsResolver, instanceStore)
+{
+    /// <summary>
+    /// Resolves a <c>file-upload</c> field's stored reference for a download endpoint — reuses
+    /// the exact same ownership check (<see cref="WorkflowRuntimeEngine.CanAccessInstance"/>)
+    /// every other instance access goes through, rather than a separate re-derivation. Returns
+    /// <see langword="null"/> for an unknown instance, a requester who doesn't own it, or a
+    /// field with no uploaded file — callers should treat all three identically (404), not
+    /// distinguish "not found" from "not yours".
+    /// </summary>
+    public WorkflowFileReference? TryGetOwnedFileReference(
+        string instanceId,
+        string tenantId,
+        string userId,
+        WorkflowAccessProfile accessProfile,
+        string fieldKey)
+    {
+        if (!instanceStore.TryGet(instanceId, out var instance))
+        {
+            return null;
+        }
+
+        if (!CanAccessInstance(instance, tenantId, userId, accessProfile))
+        {
+            return null;
+        }
+
+        return instance.FieldValues.TryGetValue(fieldKey, out var raw)
+            ? WorkflowFileReference.FromFieldValue(raw)
+            : null;
+    }
+}
