@@ -81,7 +81,35 @@ to get wrong.
   Run headed for any take with more than a couple of minutes of passive waiting; a small periodic
   `page.mouse.move` nudge is cheap extra insurance but headed mode is the actual fix.
 
-### ttyd: `--writable`, restrict `--tools` to the exact toolset, `bypassPermissions`
+### Preferred terminal surface: a tmux capture-pane DOM mirror, not ttyd/xterm in the browser
+
+Driving ttyd/xterm.js inside the recorded page failed in ways assertions can't catch: a terminal
+whose grid was computed at one font metric but painted at another (tiny text in a corner of a
+1080p frame), a huge unpainted grey canvas band, and the canvas visibly freezing for minutes
+mid-take while the underlying session kept working. The replacement
+(`tests/demo/support/tmux-terminal.ts`, first used by `licence-transfer-demo.spec.ts`): run the
+real session in tmux on a dedicated socket (`tmux -L <socket>`), send input via
+`tmux send-keys`, and render a styled DOM mirror of `tmux capture-pane -e` output into the
+recorded page (about:blank) on a ~300ms poll — ANSI SGR converted to HTML spans, cursor overlay
+positioned from tmux's own `#{cursor_x}/#{cursor_y}` in `ch` units. Because capture-pane reads
+tmux's virtual screen, even a full-screen TUI (Claude Code's) mirrors perfectly; there is no
+focus to lose, no password, no font negotiation, and no canvas to freeze. Three hard-won
+sub-lessons baked into that module and its spec:
+
+- **tmux `send-keys` silently swallows a bare `;`** — it parses a lone `;` argument as its own
+  command separator even after `--` and with `-l`. Escape as `\;` or a
+  `remove ...; add ...` command line collapses into one broken command (this cost three takes).
+- **Pin the spawned agent's model** (`claude --model sonnet ...`) — otherwise it inherits
+  whatever personal default the operator's claude config has that day.
+- **Probe service ports with the exact auth + grant the real consumer will use** (a full
+  authenticated MCP `initialize` with a client-credentials token), and add fail-fast connectivity
+  guards before the agent launches — a stale orphaned host process answers a generic
+  unauthenticated 401 probe convincingly while rejecting real tokens, and a UI session token is
+  not interchangeable with a client-credentials one.
+
+The ttyd notes below remain for the older garden-waste spec, which still uses it.
+
+### ttyd (legacy — garden-waste demo only): `--writable`, restrict `--tools`, `bypassPermissions`
 
 - `--writable` — ttyd defaults read-only; without it the whole hand-off act is inert.
 - `--tools "mcp__yourserver__*,..."` restricts the *entire available toolset*, not an allow-list on
