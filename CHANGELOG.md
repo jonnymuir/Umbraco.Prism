@@ -2,6 +2,16 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.13.0] — 2026-07-21
+
+### New Features
+
+- **Document upload and guidance-checklist components for CMS Workflow:** Two new component types — `file-upload` (real disk-backed file storage, with an ownership-checked download link on the review screen) and `guidance-checklist` (a "you must acknowledge every item before continuing" gate, unlike an ordinary checkbox list where any single one satisfies it) — so a CMS Workflow journey can now genuinely collect documents and enforce guidance sign-off.
+- **Member-data defaulting for CMS Workflow:** A signed-in visitor's own data can now default a field's value directly, the same defaulting pattern already available on the other workflow engine.
+- **"Start again" link for terminal single-instance workflows:** A workflow that keeps only one active instance per visitor now offers a real restart link once it reaches a dead-end state, instead of requiring a visitor to clear cookies to try again.
+
+---
+
 ## [v1.12.0] — 2026-07-19
 
 ### New Features
