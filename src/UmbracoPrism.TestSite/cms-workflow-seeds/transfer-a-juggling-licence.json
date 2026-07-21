@@ -1,0 +1,840 @@
+{
+  "definitionKey": "transfer-a-juggling-licence",
+  "displayName": "Transfer a Professional Juggling Licence",
+  "version": 1,
+  "schemaVersion": "1.0",
+  "description": "Prism CMS Workflow \u2014 GDS-style public journey for a juggler who already holds a professional licence from an overseas juggling authority, transferring it to the National Juggling Authority.",
+  "initialState": "eligibility-professional",
+  "instancePolicy": "single",
+  "calculations": {
+    "fields": {
+      "member": {
+        "source": "service"
+      },
+      "isMember": {
+        "expr": "member.tier <> ''"
+      },
+      "membershipTier": {
+        "expr": "member.tier"
+      }
+    }
+  },
+  "queues": [
+    {
+      "key": "cms-visitor",
+      "displayName": "Site visitor",
+      "description": "The site visitor transferring a professional juggling licence \u2014 anonymous, or a logged-in Prism Member.",
+      "actor": "applicant"
+    }
+  ],
+  "states": [
+    {
+      "stateKey": "eligibility-professional",
+      "displayName": "Have you performed professionally?",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "inset-text",
+          "content": "A licence transfer is only available to jugglers who have previously performed professionally."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "content": "Have you previously performed professionally as a juggler?"
+        }
+      ],
+      "routes": [
+        {
+          "id": "eligibility-professional--yes--route-from-eligibility-professional",
+          "target": "route-from-eligibility-professional",
+          "trigger": "yes",
+          "label": "Yes"
+        },
+        {
+          "id": "eligibility-professional--no--route-from-eligibility-professional",
+          "target": "route-from-eligibility-professional",
+          "trigger": "no",
+          "label": "No",
+          "style": "secondary"
+        }
+      ]
+    },
+    {
+      "stateKey": "eligibility-overseas",
+      "displayName": "Where was your licence issued?",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "heading",
+          "level": 2,
+          "content": "Was your existing licence issued by an authority outside the UK?"
+        }
+      ],
+      "routes": [
+        {
+          "id": "eligibility-overseas--yes--route-from-eligibility-overseas",
+          "target": "route-from-eligibility-overseas",
+          "trigger": "yes",
+          "label": "Yes"
+        },
+        {
+          "id": "eligibility-overseas--no--route-from-eligibility-overseas",
+          "target": "route-from-eligibility-overseas",
+          "trigger": "no",
+          "label": "No",
+          "style": "secondary"
+        }
+      ]
+    },
+    {
+      "stateKey": "eligibility-recognised",
+      "displayName": "Is your issuing authority recognised?",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "inset-text",
+          "content": "We can only transfer licences issued by an overseas authority recognised by the International Juggling Accreditation Register (IJAR)."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "content": "Is the authority that issued your licence recognised by the International Juggling Accreditation Register (IJAR)?"
+        }
+      ],
+      "routes": [
+        {
+          "id": "eligibility-recognised--yes--route-from-eligibility-recognised",
+          "target": "route-from-eligibility-recognised",
+          "trigger": "yes",
+          "label": "Yes"
+        },
+        {
+          "id": "eligibility-recognised--no--route-from-eligibility-recognised",
+          "target": "route-from-eligibility-recognised",
+          "trigger": "no",
+          "label": "No",
+          "style": "secondary"
+        }
+      ]
+    },
+    {
+      "stateKey": "ineligible-not-professional",
+      "displayName": "You cannot transfer a licence",
+      "stageType": "Outcome",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "You're not eligible to transfer a licence"
+        },
+        {
+          "type": "body",
+          "content": "A professional licence transfer is only available to jugglers who have previously performed professionally. Based on your answer, you're not eligible to use this service."
+        },
+        {
+          "type": "body",
+          "content": "If you'd like to juggle recreationally or competitively, you can apply for a new licence instead."
+        }
+      ],
+      "routes": []
+    },
+    {
+      "stateKey": "ineligible-licence-not-overseas",
+      "displayName": "You cannot transfer a licence",
+      "stageType": "Outcome",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "You're not eligible to transfer a licence"
+        },
+        {
+          "type": "body",
+          "content": "This service is only for transferring a licence issued by an authority outside the UK. If your licence was issued in the UK, there's nothing to transfer \u2014 it's already recognised by the National Juggling Authority."
+        }
+      ],
+      "routes": []
+    },
+    {
+      "stateKey": "ineligible-authority-not-recognised",
+      "displayName": "You cannot transfer a licence",
+      "stageType": "Outcome",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "You're not eligible to transfer a licence"
+        },
+        {
+          "type": "body",
+          "content": "We can only transfer licences issued by an overseas authority recognised by the International Juggling Accreditation Register (IJAR). Because your issuing authority isn't recognised, we can't transfer your licence."
+        },
+        {
+          "type": "body",
+          "content": "Contact the National Juggling Authority if you believe your issuing authority should be recognised."
+        }
+      ],
+      "routes": []
+    },
+    {
+      "stateKey": "guidance",
+      "displayName": "Before you continue",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "guidance-checklist",
+          "items": [
+            {
+              "key": "transfer-rules",
+              "label": "Transfer Rules",
+              "href": "/transfer-rules"
+            },
+            {
+              "key": "international-transfers",
+              "label": "International Transfers",
+              "href": "/international-transfers"
+            },
+            {
+              "key": "supporting-evidence",
+              "label": "Supporting Evidence",
+              "href": "/supporting-evidence"
+            },
+            {
+              "key": "professional-standards",
+              "label": "Professional Standards",
+              "href": "/professional-standards"
+            }
+          ],
+          "fieldKey": "guidance-acknowledgement",
+          "label": "Read the following guidance before you apply",
+          "hint": null,
+          "required": true,
+          "conditionalOn": null,
+          "visibleWhen": null,
+          "default": null,
+          "defaultFrom": null,
+          "changeStateKey": null
+        }
+      ],
+      "routes": [
+        {
+          "id": "guidance--continue--route-from-guidance",
+          "target": "route-from-guidance",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stateKey": "licence-details",
+      "displayName": "Your existing licence",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "stat-group",
+          "title": "Your Juggling Society membership",
+          "items": [
+            {
+              "label": "Membership tier",
+              "fieldKey": "membershipTier",
+              "qualifier": null,
+              "emphasis": false
+            }
+          ],
+          "showWhen": "isMember"
+        },
+        {
+          "type": "inset-text",
+          "content": "Because you're signed in as a Juggling Society member, we've pre-selected the professional category below to match your membership tier shown above. If your existing licence is in a different category, choose it instead \u2014 your answer here is what we'll use, whatever your membership says.",
+          "showWhen": "isMember"
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "text",
+              "minLength": null,
+              "maxLength": 150,
+              "pattern": null,
+              "prefix": null,
+              "fieldKey": "current-authority",
+              "label": "Name of the authority that issued your current licence",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            },
+            {
+              "type": "text",
+              "minLength": null,
+              "maxLength": 50,
+              "pattern": null,
+              "prefix": null,
+              "fieldKey": "licence-reference",
+              "label": "Licence reference number",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            },
+            {
+              "type": "date",
+              "fieldKey": "issue-date",
+              "label": "Date your licence was issued",
+              "hint": "For example, 12 03 2020",
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            },
+            {
+              "type": "date",
+              "fieldKey": "expiry-date",
+              "label": "Date your licence expires",
+              "hint": "For example, 12 03 2027",
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            },
+            {
+              "type": "radio",
+              "options": [
+                "Recreational",
+                "Competitive",
+                "Professional"
+              ],
+              "conditionalChildren": null,
+              "fieldKey": "professional-category",
+              "label": "What professional category is your existing licence?",
+              "hint": "Choose the option that best matches your existing licence. If we've pre-selected one for you above, you can still choose a different one.",
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": "membershipTier",
+              "changeStateKey": null
+            }
+          ],
+          "legend": "Your existing licence details",
+          "legendSize": null
+        }
+      ],
+      "routes": [
+        {
+          "id": "licence-details--continue--route-from-licence-details",
+          "target": "route-from-licence-details",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stateKey": "upload-evidence",
+      "displayName": "Upload your evidence",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "file-upload",
+              "acceptedFileTypes": [
+                ".pdf",
+                ".jpg",
+                ".png"
+              ],
+              "maxSizeBytes": null,
+              "fieldKey": "current-licence-upload",
+              "label": "Your current licence",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            },
+            {
+              "type": "file-upload",
+              "acceptedFileTypes": [
+                ".pdf",
+                ".jpg",
+                ".png"
+              ],
+              "maxSizeBytes": null,
+              "fieldKey": "proof-of-identity-upload",
+              "label": "Proof of identity",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            },
+            {
+              "type": "file-upload",
+              "acceptedFileTypes": [
+                ".pdf",
+                ".jpg",
+                ".png"
+              ],
+              "maxSizeBytes": null,
+              "fieldKey": "proof-of-address-upload",
+              "label": "Proof of address",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            },
+            {
+              "type": "file-upload",
+              "acceptedFileTypes": [
+                ".pdf",
+                ".jpg",
+                ".png"
+              ],
+              "maxSizeBytes": null,
+              "fieldKey": "professional-portfolio-upload",
+              "label": "Professional portfolio",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            },
+            {
+              "type": "file-upload",
+              "acceptedFileTypes": [
+                ".mp4",
+                ".mov"
+              ],
+              "maxSizeBytes": null,
+              "fieldKey": "video-evidence-upload",
+              "label": "Video evidence (optional)",
+              "hint": null,
+              "required": false,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            }
+          ],
+          "legend": "Supporting documents",
+          "legendSize": null
+        }
+      ],
+      "routes": [
+        {
+          "id": "upload-evidence--continue--route-from-upload-evidence",
+          "target": "route-from-upload-evidence",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stateKey": "check-answers",
+      "displayName": "Check your answers",
+      "stageType": "CheckAnswers",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "summary-list",
+          "children": [
+            {
+              "type": "text",
+              "minLength": null,
+              "maxLength": null,
+              "pattern": null,
+              "prefix": null,
+              "fieldKey": "current-authority",
+              "label": "Current issuing authority",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": "licence-details"
+            },
+            {
+              "type": "text",
+              "minLength": null,
+              "maxLength": null,
+              "pattern": null,
+              "prefix": null,
+              "fieldKey": "licence-reference",
+              "label": "Licence reference number",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": "licence-details"
+            },
+            {
+              "type": "date",
+              "fieldKey": "issue-date",
+              "label": "Date licence was issued",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": "licence-details"
+            },
+            {
+              "type": "date",
+              "fieldKey": "expiry-date",
+              "label": "Date licence expires",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": "licence-details"
+            },
+            {
+              "type": "radio",
+              "options": [
+                "Recreational",
+                "Competitive",
+                "Professional"
+              ],
+              "conditionalChildren": null,
+              "fieldKey": "professional-category",
+              "label": "Professional category",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": "licence-details"
+            },
+            {
+              "type": "file-upload",
+              "acceptedFileTypes": null,
+              "maxSizeBytes": null,
+              "fieldKey": "current-licence-upload",
+              "label": "Current licence",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": "upload-evidence"
+            },
+            {
+              "type": "file-upload",
+              "acceptedFileTypes": null,
+              "maxSizeBytes": null,
+              "fieldKey": "proof-of-identity-upload",
+              "label": "Proof of identity",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": "upload-evidence"
+            },
+            {
+              "type": "file-upload",
+              "acceptedFileTypes": null,
+              "maxSizeBytes": null,
+              "fieldKey": "proof-of-address-upload",
+              "label": "Proof of address",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": "upload-evidence"
+            },
+            {
+              "type": "file-upload",
+              "acceptedFileTypes": null,
+              "maxSizeBytes": null,
+              "fieldKey": "professional-portfolio-upload",
+              "label": "Professional portfolio",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": "upload-evidence"
+            },
+            {
+              "type": "file-upload",
+              "acceptedFileTypes": null,
+              "maxSizeBytes": null,
+              "fieldKey": "video-evidence-upload",
+              "label": "Video evidence",
+              "hint": null,
+              "required": false,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": "upload-evidence"
+            }
+          ],
+          "changeStateKey": null,
+          "title": null
+        }
+      ],
+      "routes": [
+        {
+          "id": "check-answers--continue--route-from-check-answers",
+          "target": "route-from-check-answers",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stateKey": "declaration",
+      "displayName": "Declaration",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "boolean",
+              "fieldKey": "information-accurate-declaration",
+              "label": "I confirm the information I have given is accurate",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            },
+            {
+              "type": "boolean",
+              "fieldKey": "authorise-contact-declaration",
+              "label": "I authorise the National Juggling Authority to contact my current licensing body to verify these details",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            },
+            {
+              "type": "boolean",
+              "fieldKey": "misleading-information-declaration",
+              "label": "I understand that providing misleading information may result in my application being rejected",
+              "hint": null,
+              "required": true,
+              "conditionalOn": null,
+              "visibleWhen": null,
+              "default": null,
+              "defaultFrom": null,
+              "changeStateKey": null
+            }
+          ],
+          "legend": "Before you submit",
+          "legendSize": null
+        }
+      ],
+      "routes": [
+        {
+          "id": "declaration--submit--route-from-declaration",
+          "target": "route-from-declaration",
+          "trigger": "submit"
+        }
+      ]
+    },
+    {
+      "stateKey": "confirmation",
+      "displayName": "Transfer application submitted",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "cms-visitor",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Transfer application submitted"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "content": "What happens next"
+        },
+        {
+          "type": "body",
+          "content": "We've sent a confirmation to the email address you gave us."
+        },
+        {
+          "type": "body",
+          "content": "The National Juggling Authority will contact your current licensing body to verify your details, then be in touch about the outcome of your transfer."
+        }
+      ],
+      "routes": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "route-from-eligibility-professional",
+      "displayName": "Route from professional performance question",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-eligibility-professional--yes--eligibility-overseas",
+          "target": "eligibility-overseas",
+          "trigger": "yes"
+        },
+        {
+          "id": "route-from-eligibility-professional--no--ineligible-not-professional",
+          "target": "ineligible-not-professional",
+          "trigger": "no"
+        }
+      ]
+    },
+    {
+      "key": "route-from-eligibility-overseas",
+      "displayName": "Route from overseas issue question",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-eligibility-overseas--yes--eligibility-recognised",
+          "target": "eligibility-recognised",
+          "trigger": "yes"
+        },
+        {
+          "id": "route-from-eligibility-overseas--no--ineligible-licence-not-overseas",
+          "target": "ineligible-licence-not-overseas",
+          "trigger": "no"
+        }
+      ]
+    },
+    {
+      "key": "route-from-eligibility-recognised",
+      "displayName": "Route from authority recognition question",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-eligibility-recognised--yes--guidance",
+          "target": "guidance",
+          "trigger": "yes"
+        },
+        {
+          "id": "route-from-eligibility-recognised--no--ineligible-authority-not-recognised",
+          "target": "ineligible-authority-not-recognised",
+          "trigger": "no"
+        }
+      ]
+    },
+    {
+      "key": "route-from-guidance",
+      "displayName": "Continue to licence details",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-guidance--continue--licence-details",
+          "target": "licence-details",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "route-from-licence-details",
+      "displayName": "Continue to upload evidence",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-licence-details--continue--upload-evidence",
+          "target": "upload-evidence",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "route-from-upload-evidence",
+      "displayName": "Continue to check your answers",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-upload-evidence--continue--check-answers",
+          "target": "check-answers",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "route-from-check-answers",
+      "displayName": "Continue to declaration",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-check-answers--continue--declaration",
+          "target": "declaration",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "route-from-declaration",
+      "displayName": "Submit transfer application",
+      "gatewayType": "Split",
+      "queueKey": "cms-visitor",
+      "routes": [
+        {
+          "id": "route-from-declaration--submit--confirmation",
+          "target": "confirmation",
+          "trigger": "submit"
+        }
+      ]
+    }
+  ]
+}

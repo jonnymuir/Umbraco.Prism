@@ -108,7 +108,11 @@ public class JugglingLicenceCmsWorkflowSeeder(
             return;
         }
 
-        var existing = TestSiteSeedContract.FindContentByAlias(contentService, TestSiteSeedContract.CmsWorkflowPageAlias);
+        // Filtered by workflowKey, not just alias — a second cmsWorkflowPage instance now exists
+        // (transfer-a-juggling-licence's seeded reference), and a bare alias match would find
+        // whichever one happens to be first in the tree and wrongly skip creating this one.
+        var existing = TestSiteSeedContract.FindCmsWorkflowPageByKey(
+            contentService, TestSiteSeedContract.JugglingLicenceWorkflowKey);
         if (existing != null)
         {
             return;
