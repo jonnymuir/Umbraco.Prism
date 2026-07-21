@@ -22,7 +22,7 @@
     "test:playwright:ui": "playwright test --ui",
     "test:graph-layout": "node scripts/run-graph-layout-tests.mjs",
     "demo:record": "playwright test tests/demo/garden-waste-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line",
-    "demo:record:bereavement": "playwright test tests/demo/pension-bereavement-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line"
+    "demo:record:licence-transfer": "playwright test tests/demo/licence-transfer-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",

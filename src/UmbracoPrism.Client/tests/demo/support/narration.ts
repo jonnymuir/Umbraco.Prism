@@ -27,10 +27,14 @@ const BEAT_ACCENT: Record<BeatKind, string> = {
 // that and a presenter reading the caption aloud is racing the fade-out.
 const READING_MS_PER_WORD = 380;
 const MIN_HOLD_MS = 3200;
+// A caption that would need longer than this to read comfortably should be shortened, not held
+// on screen longer — capping here keeps pacing tight instead of letting a long caption stall the
+// whole take (per direct viewer feedback: ~5s is plenty to read a typical beat).
+const MAX_HOLD_MS = 5000;
 
 function computeHoldMs(text: string): number {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(MIN_HOLD_MS, Math.round(words * READING_MS_PER_WORD));
+  return Math.min(MAX_HOLD_MS, Math.max(MIN_HOLD_MS, Math.round(words * READING_MS_PER_WORD)));
 }
 
 /**
@@ -117,6 +121,12 @@ export async function beat(
   text: string,
   opts: { holdMs?: number; position?: NarrationPosition } = {}
 ): Promise<void> {
+  // A cross-origin redirect (e.g. a Keycloak sign-in) has been observed to leave the recorded
+  // video frozen on a stale frame for tens of seconds afterward, even in headed mode — the
+  // underlying automation keeps working correctly (assertions still pass), but the video capture
+  // itself stalls, plausibly from losing real OS-level foreground focus. Every beat forcing focus
+  // back is cheap insurance against that recurring anywhere in a take.
+  await page.bringToFront().catch(() => {});
   const hold = opts.holdMs ?? computeHoldMs(text);
   const position = opts.position ?? 'bottom';
   recordTimelineEntry(kind, text, hold);
