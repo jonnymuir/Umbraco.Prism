@@ -3,6 +3,16 @@ using UmbracoPrism.TestSite;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
+// A real multi-file upload against the file-upload component's per-field default of 10MB (five
+// fields on the licence-transfer demo, some with a larger explicit MaxSizeBytes) crashed with an
+// unhandled BadHttpRequestException, not a graceful validation error. The actual limit hit isn't
+// Kestrel's own default — it's Umbraco.Cms.Core.Configuration.Models.RuntimeSettings.MaxRequestLength
+// (default 50MB, appsettings key Umbraco:CMS:Runtime:MaxRequestLength, in KB), which
+// UmbracoRequestMiddleware applies to IHttpMaxRequestBodySizeFeature on every Umbraco-routed
+// request — set there (appsettings.json) to match the value below. This Kestrel-level ceiling is
+// kept too, as a fallback for any endpoint that doesn't go through Umbraco's request pipeline.
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 100 * 1024 * 1024);
+
 // Local secrets override — gitignored. Place Prism:VaultUri and any other
 // environment-specific secrets here. See src/UmbracoPrism.TestSite/README.md.
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
