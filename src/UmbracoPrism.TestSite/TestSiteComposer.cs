@@ -83,10 +83,16 @@ public class TestSiteComposer : IComposer
         });
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, JugglingLicenceCmsWorkflowSeeder>();
 
-        // Guidance articles for the (separately, live-authored) "Transfer a Professional
-        // Juggling Licence" CMS Workflow demo — seeded ahead of time so that build has real
-        // CMS content to link to rather than needing to author it on camera.
+        // Guidance articles for "Transfer a Professional Juggling Licence" — seeded ahead of
+        // time so a live MCP build has real CMS content to link to rather than needing to author
+        // it on camera. Must run before LicenceTransferCmsWorkflowSeeder below only in the sense
+        // that both are idempotent and order-independent; listed here because it's the same demo.
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, GuidanceArticleContentTypes>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, GuidanceArticleSeeder>();
+
+        // The "here's one we made earlier" reference copy of the definition the recording builds
+        // live via MCP — see LicenceTransferCmsWorkflowSeeder's own remarks for what a future
+        // re-recording needs to do first.
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, LicenceTransferCmsWorkflowSeeder>();
     }
 }
