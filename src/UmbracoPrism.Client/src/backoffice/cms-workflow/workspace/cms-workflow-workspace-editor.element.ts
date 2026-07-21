@@ -78,15 +78,30 @@ export class PrismCmsWorkflowWorkspaceEditorElement extends UmbElementMixin(LitE
   }
 
   static styles = css`
+    /* The routable workspace mounts this element directly into a clipped, fixed-height
+       region — nothing above it in the backoffice chain scrolls (umb-workspace-editor,
+       which normally provides the scrollable body, isn't in play here). The editor lays
+       out at natural content height (its own height: 100% resolves against this auto-height
+       chain), so without a scroll container of our own the content below the fold is simply
+       unreachable. Make this host the scroll container — the same end state as the old
+       Prism-section tab wrapper's fix, adapted to workspace hosting. */
     :host {
       display: block;
       width: 100%;
-      min-height: 70vh;
+      height: 100%;
+      overflow-y: auto;
     }
 
+    /* Outer-tree declarations beat the editor's own :host rules, which hard-code
+       height: 100% + overflow: hidden for viewport-owning hosts. Here that combination
+       would resolve against this host's now-definite height and clip the editor to
+       exactly the container — leaving nothing for the scroll container above to scroll.
+       Force natural content height instead. */
     prism-workflow-editor {
       display: block;
+      height: auto;
       min-height: 70vh;
+      overflow: visible;
     }
   `;
 }
