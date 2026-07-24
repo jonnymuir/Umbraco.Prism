@@ -37,7 +37,8 @@ public class CmsWorkflowPageController(
     IAntiforgery antiforgery,
     IWorkflowStepNonceService nonceService,
     IWorkflowFieldValidator fieldValidator,
-    IWorkflowFileStorage fileStorage)
+    IWorkflowFileStorage fileStorage,
+    IUploadTokenService uploadTokenService)
     : PrismWorkflowPageController<PrismWorkflowViewModel>(
         logger,
         compositeViewEngine,
@@ -47,7 +48,8 @@ public class CmsWorkflowPageController(
         antiforgery,
         nonceService,
         fieldValidator,
-        fileStorage)
+        fileStorage,
+        uploadTokenService)
 {
     protected override bool RequiresAuthentication => false;
 }

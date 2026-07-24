@@ -120,4 +120,14 @@ public class PrismWorkflowViewModel : PublishedContentWrapped
             .SelectMany(c => c.Fields ?? Array.Empty<FieldRenderPayload>())
             .ToList();
 
+    /// <summary>
+    /// True when this step renders at least one <c>file-upload</c> field — gates whether the
+    /// view includes <c>prism-file-upload.js</c>, the same way <see cref="LiveModelJson"/>
+    /// already gates <c>prism-live-form.js</c>. Derived purely from <see cref="AllFields"/>
+    /// (already on this model), unlike <see cref="LiveModelJson"/>, which needs the controller's
+    /// own involvement because it comes from a separate render-data key.
+    /// </summary>
+    public bool HasFileUploadField =>
+        AllFields.Any(f => f.FieldType.Equals("file-upload", StringComparison.OrdinalIgnoreCase));
+
 }

@@ -86,6 +86,10 @@ public static class CmsWorkflowBuilderExtensions
         // a host can replace this registration with its own (blob storage, etc.).
         services.AddSingleton<IWorkflowFileStorage, DiskWorkflowFileStorage>();
 
+        // Binds an async-uploaded file to the opaque token the client carries until the stage's
+        // real POST — same IDistributedCache mechanism as the nonce service.
+        services.AddSingleton<IUploadTokenService, UploadTokenService>();
+
         services.AddHostedService<PrismCmsWorkflowInstanceSweepService>();
 
         return services;
