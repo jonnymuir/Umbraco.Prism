@@ -11,7 +11,7 @@
     @* Single-question page pattern — no fieldset wrapper *@
     @foreach (var field in fields)
     {
-        <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" />
+        <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" nonce="@Model.Nonce" workflow-key="@Model.WorkflowKey" />
     }
 }
 else if (!string.IsNullOrEmpty(legend))
@@ -22,7 +22,7 @@ else if (!string.IsNullOrEmpty(legend))
         </legend>
         @foreach (var field in fields)
         {
-            <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" />
+            <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" nonce="@Model.Nonce" workflow-key="@Model.WorkflowKey" />
         }
     </fieldset>
 }
@@ -30,6 +30,6 @@ else
 {
     @foreach (var field in fields)
     {
-        <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" />
+        <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" nonce="@Model.Nonce" workflow-key="@Model.WorkflowKey" />
     }
 }

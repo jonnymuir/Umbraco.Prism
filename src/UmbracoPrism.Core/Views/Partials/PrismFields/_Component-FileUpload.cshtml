@@ -3,27 +3,80 @@
     var acceptAttr = Model.Field.AcceptedFileTypes is { Count: > 0 }
         ? $@" accept=""{string.Join(",", Model.Field.AcceptedFileTypes)}"""
         : string.Empty;
+    var acceptList = Model.Field.AcceptedFileTypes is { Count: > 0 }
+        ? string.Join(",", Model.Field.AcceptedFileTypes)
+        : string.Empty;
+    // Kept in sync with PrismWorkflowPageController.DefaultMaxFileSizeBytes by hand (10MB) —
+    // same tradeoff as CmsWorkflowFileUploadController's own local copy of this constant.
+    var maxSizeBytes = Model.Field.MaxSizeBytes ?? 10 * 1024 * 1024;
     var alreadyUploaded = !string.IsNullOrEmpty(Model.DisplayValue);
     var downloadUrl = alreadyUploaded && !string.IsNullOrEmpty(Model.InstanceId)
         ? $"/prism/cms-workflow/files/{Uri.EscapeDataString(Model.InstanceId)}/{Uri.EscapeDataString(Model.Field.FieldKey)}"
         : null;
+    var uploadUrl = $"/prism/cms-workflow/upload/{Uri.EscapeDataString(Model.InstanceId)}/{Uri.EscapeDataString(Model.Field.FieldKey)}";
 }
-<div class="@Model.WrapperClass"@Html.Raw(Model.WrapperAttrs)>
+@* prism-file-upload.ts progressively enhances this into: choose a file -> real upload with an
+   accessible progress bar -> "Uploaded: name — View — Change", all client-side, before the
+   stage's own Continue button is ever pressed. Every data-prism-file-upload-* hook below is that
+   script's contract with this markup; changing one without the other will silently break it. *@
+<div class="@Model.WrapperClass"@Html.Raw(Model.WrapperAttrs)
+     data-prism-file-upload
+     data-prism-upload-url="@uploadUrl"
+     data-prism-nonce="@Model.Nonce"
+     data-prism-field-key="@Model.Field.FieldKey"
+     data-prism-max-size="@maxSizeBytes"
+     data-prism-accept="@acceptList"
+     data-prism-label="@Model.Field.Label">
     @await Html.PartialAsync("~/Views/Partials/PrismFields/_ComponentLabel.cshtml", Model)
-    @if (alreadyUploaded)
-    {
-        <p class="govuk-body">
-            Uploaded: @Model.DisplayValue
-            @if (downloadUrl is not null)
-            {
-                <text> — <a class="govuk-link" href="@downloadUrl" target="_blank" rel="noopener">View</a></text>
-            }
+
+    @* The filename span and View link always exist in the DOM (even on a page that's never had
+       an upload) — prism-file-upload.ts populates both itself the moment a real upload
+       completes, so it never needs to build DOM nodes from scratch, only fill in ones already
+       here. *@
+    <div data-prism-file-upload-uploaded@(alreadyUploaded ? "" : " hidden")>
+        <p class="govuk-body" data-prism-file-upload-uploaded-text>
+            Uploaded: <span data-prism-file-upload-filename>@Model.DisplayValue</span>
+            — <a class="govuk-link" data-prism-file-upload-view-link href="@(downloadUrl ?? "#")" target="_blank" rel="noopener"@(downloadUrl is null ? " hidden" : "")>View</a>
         </p>
-        <p class="govuk-hint">Choose a file below to replace it.</p>
-    }
+        <button type="button" class="govuk-button govuk-button--secondary govuk-!-margin-bottom-2" data-module="govuk-button" data-prism-file-upload-change>
+            Choose a different file
+        </button>
+    </div>
+
+    <div class="prism-file-upload-progress" data-prism-file-upload-progress hidden>
+        <p class="govuk-body" data-prism-file-upload-progress-label>Uploading @Model.Field.Label…</p>
+        <div class="prism-file-upload-progress-track"
+             role="progressbar"
+             aria-valuemin="0"
+             aria-valuemax="100"
+             aria-valuenow="0"
+             aria-label="Upload progress for @Model.Field.Label"
+             data-prism-file-upload-progress-bar>
+            <div class="prism-file-upload-progress-fill" data-prism-file-upload-progress-fill></div>
+        </div>
+        <span class="govuk-visually-hidden" aria-live="polite" data-prism-file-upload-progress-announce></span>
+    </div>
+
+    <p class="govuk-error-message" data-prism-file-upload-error hidden></p>
+
+    @* disabled (not just hidden) whenever a file is already uploaded — an unselected
+       <input type="file"> still submits an empty-but-present multipart part under this same
+       "fields[...]" name, which would silently overwrite the real existing reference with a
+       zero-byte one on any resubmit that doesn't touch this field. Only "Choose a different
+       file" (prism-file-upload.ts's showEmpty()) re-enables it. With neither this input nor the
+       token input below submitting anything, HandlePost's own fallback — field.Value already
+       being non-empty is treated as "already satisfied" without touching fieldValues — is what
+       correctly leaves the existing reference untouched. *@
     <input class="govuk-file-upload@(Model.HasFieldError ? " govuk-file-upload--error" : "")"
            type="file"
            id="@Model.Field.FieldKey"
            name="fields[@Model.Field.FieldKey]"
-           data-label="@Model.Field.Label"@Html.Raw(acceptAttr)@Html.Raw(Model.DescribedBy)@Html.Raw(Model.AriaRequired)@Html.Raw(Model.AriaInvalid) />
+           data-prism-file-upload-input
+           data-label="@Model.Field.Label"@Html.Raw(acceptAttr)@Html.Raw(Model.DescribedBy)@Html.Raw(Model.AriaRequired)@Html.Raw(Model.AriaInvalid)
+           @(alreadyUploaded ? "hidden disabled" : "") />
+
+    @* Carries the async-issued token once uploaded — the field's real submitted value.
+       Disabled (so it isn't posted) whenever neither this nor the raw input above has anything
+       real to submit for this field. *@
+    <input type="hidden" name="fields[@Model.Field.FieldKey]" data-prism-file-upload-token disabled value="" />
 </div>

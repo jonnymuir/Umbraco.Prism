@@ -51,6 +51,7 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
     private readonly IWorkflowStepNonceService _nonceService;
     private readonly IWorkflowFieldValidator _fieldValidator;
     private readonly IWorkflowFileStorage _fileStorage;
+    private readonly IUploadTokenService _uploadTokenService;
 
     /// <summary>
     /// Initializes a new instance of the PrismWorkflowPageController class.
@@ -64,6 +65,7 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
     /// <param name="nonceService">Service for creating and resolving tamper-proof nonces bound to field definitions.</param>
     /// <param name="fieldValidator">Service for validating submitted field values against their server-side definitions.</param>
     /// <param name="fileStorage">Service for persisting files posted against <c>file-upload</c> fields.</param>
+    /// <param name="uploadTokenService">Resolves a field that was already uploaded asynchronously ahead of this submission.</param>
     protected PrismWorkflowPageController(
         ILogger<RenderController> logger,
         ICompositeViewEngine compositeViewEngine,
@@ -73,7 +75,8 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         IAntiforgery antiforgery,
         IWorkflowStepNonceService nonceService,
         IWorkflowFieldValidator fieldValidator,
-        IWorkflowFileStorage fileStorage)
+        IWorkflowFileStorage fileStorage,
+        IUploadTokenService uploadTokenService)
         : base(logger, compositeViewEngine, umbracoContextAccessor)
     {
         _logger = logger;
@@ -83,6 +86,7 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         _nonceService = nonceService;
         _fieldValidator = fieldValidator;
         _fileStorage = fileStorage;
+        _uploadTokenService = uploadTokenService;
     }
 
     /// <summary>
@@ -199,6 +203,9 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         var nonce = form["Nonce"].ToString();
         var returnUrl = form["ReturnUrl"].ToString();
         var safeReturnUrl = GetSafeReturnUrl(returnUrl);
+        // Read here (rather than after validation, where the other hidden fields are read) —
+        // resolving an async-uploaded file's token below needs it too.
+        var instanceId = form["InstanceId"].ToString();
 
         if (string.IsNullOrEmpty(nonce))
         {
@@ -232,10 +239,58 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
             .Where(pair => pair.File is not null)
             .ToList();
 
+        // A file-upload field with no raw posted file may instead carry the opaque token
+        // CmsWorkflowFileUploadController issued when the visitor's browser uploaded it
+        // asynchronously ahead of this submission (prism-file-upload.ts) — resolve those here.
+        // A token is only trusted if it resolves at all AND its cached binding names this exact
+        // instance/field; anything else (expired, forged, copied from a different field or a
+        // different visitor's instance) is treated as if nothing were submitted at all by
+        // clearing it out of submittedFields, so the ordinary required-check below catches it
+        // the same way a genuinely-missing file would be caught.
+        var postedFileKeys = postedFiles.Select(pair => pair.Field.FieldKey).ToHashSet(StringComparer.Ordinal);
+        var tokenUploads = new List<(FieldRenderPayload Field, UploadTokenBinding Binding)>();
+        var validationOverrides = new Dictionary<string, string>();
+        foreach (var field in authoritativeFields.Where(f =>
+            f.FieldType.Equals("file-upload", StringComparison.OrdinalIgnoreCase) && !postedFileKeys.Contains(f.FieldKey)))
+        {
+            if (!submittedFields.TryGetValue(field.FieldKey, out var token) || string.IsNullOrWhiteSpace(token))
+            {
+                // Nothing submitted for this field at all this time round — a resubmit of a
+                // stage the visitor already satisfied earlier (e.g. editing a different field
+                // and continuing again) with no new choice made for THIS one. field.Value
+                // already reflects the instance's existing stored reference (the same value the
+                // "Uploaded: …" display state renders from), so let it satisfy the required
+                // check without touching fieldValues — leaving this key out of fieldValues
+                // entirely means the engine's own merge just preserves whatever's already there,
+                // the same way any other untouched field from an earlier stage is preserved.
+                if (!string.IsNullOrWhiteSpace(field.Value?.ToString()))
+                {
+                    validationOverrides[field.FieldKey] = field.Value!.ToString()!;
+                }
+                continue;
+            }
+
+            var binding = await _uploadTokenService.ResolveAsync(token);
+            if (binding is not null
+                && string.Equals(binding.InstanceId, instanceId, StringComparison.Ordinal)
+                && string.Equals(binding.FieldKey, field.FieldKey, StringComparison.Ordinal))
+            {
+                tokenUploads.Add((field, binding));
+            }
+            else
+            {
+                submittedFields[field.FieldKey] = string.Empty;
+            }
+        }
+
         var validationInput = new Dictionary<string, string>(submittedFields);
         foreach (var (field, _) in postedFiles)
         {
             validationInput[field.FieldKey] = "uploaded";
+        }
+        foreach (var (fieldKey, value) in validationOverrides)
+        {
+            validationInput[fieldKey] = value;
         }
 
         var validationResult = _fieldValidator.Validate(authoritativeFields, validationInput);
@@ -260,7 +315,6 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
             return Redirect(safeReturnUrl);
         }
 
-        var instanceId = form["InstanceId"].ToString();
         var workflowKey = form["WorkflowKey"].ToString();
         var action = form["Action"].ToString();
         var stateVersion = int.TryParse(form["StateVersion"], out var sv) ? sv : 0;
@@ -274,6 +328,12 @@ public abstract class PrismWorkflowPageController<TViewModel> : RenderController
         foreach (var (field, file) in postedFiles)
         {
             fieldValues[field.FieldKey] = await _fileStorage.SaveAsync(instanceId, field.FieldKey, file!);
+        }
+
+        // Already saved by the async upload endpoint — just swap the token for the real reference.
+        foreach (var (field, binding) in tokenUploads)
+        {
+            fieldValues[field.FieldKey] = binding.Reference;
         }
 
         // Combine GDS date sub-input parts (-day/-month/-year) into a display value

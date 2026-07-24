@@ -26,6 +26,11 @@
         <script type="application/json" data-prism-live-model>@Html.Raw(Model.LiveModelJson!.Replace("</", "<\\/"))</script>
     }
 
+    @if (Model.HasFileUploadField)
+    {
+        <script type="module" src="/App_Plugins/UmbracoPrism/dist/prism-file-upload.js"></script>
+    }
+
     <div class="govuk-button-group">
         @foreach (var action in Model.AvailableActions)
         {

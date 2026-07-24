@@ -149,7 +149,7 @@ public class PrismComponentTagHelper : TagHelper
         }
 
         var fieldError = Errors?.GetValueOrDefault(Field.FieldKey);
-        var ctx        = PrismFieldContext.Build(Field, fieldError, Values, InstanceId);
+        var ctx        = PrismFieldContext.Build(Field, fieldError, Values, InstanceId, Nonce, WorkflowKey);
         var partial    = ResolveFieldPartial(fieldType);
         var content    = await _htmlHelper.PartialAsync(partial, ctx);
 
