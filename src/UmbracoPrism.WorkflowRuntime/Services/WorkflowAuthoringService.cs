@@ -99,6 +99,7 @@ public sealed class WorkflowAuthoringService(
         var diagnostics = new List<WorkflowDiagnostic>(workflow.ValidateGatewayRouting());
         diagnostics.AddRange(workflow.ValidateDataDisplayBindings());
         diagnostics.AddRange(workflow.ValidateReachability());
+        diagnostics.AddRange(workflow.ValidateStageVocabulary());
         diagnostics.AddRange(ValidateQueueCapabilities(workflow));
         foreach (var validator in _structuralValidators)
         {

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using UmbracoPrism.Shared.Models.Workflow;
 
 namespace UmbracoPrism.WorkflowEditor.Authoring;
 
@@ -79,7 +80,8 @@ public static class AuthoredWorkflowSchemaValidator
         if (!string.IsNullOrWhiteSpace(stage.UnknownKindToken))
         {
             diagnostics.Add(Error("PROJ005",
-                $"Unknown stage kind '{stage.UnknownKindToken}'. Allowed kinds: Question, CheckAnswers, Confirmation, TaskList.",
+                $"Unknown stage kind '{stage.UnknownKindToken}'. Allowed kinds: " +
+                $"{string.Join(", ", WorkflowDefinitionFile.KnownStageKinds)}.",
                 stage.StageKey));
         }
 

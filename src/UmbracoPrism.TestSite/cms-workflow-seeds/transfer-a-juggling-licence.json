@@ -126,7 +126,7 @@
     {
       "stateKey": "ineligible-not-professional",
       "displayName": "You cannot transfer a licence",
-      "stageType": "Outcome",
+      "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -148,7 +148,7 @@
     {
       "stateKey": "ineligible-licence-not-overseas",
       "displayName": "You cannot transfer a licence",
-      "stageType": "Outcome",
+      "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -166,7 +166,7 @@
     {
       "stateKey": "ineligible-authority-not-recognised",
       "displayName": "You cannot transfer a licence",
-      "stageType": "Outcome",
+      "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
