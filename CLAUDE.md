@@ -98,7 +98,7 @@ State routes must always point to a gateway, never directly to another state. `V
 
 **Response states:** `"render"` (show this step), `"defer"` (wait), `"complete"`, `"error"`.
 
-Workflow saves are **memory-only** — POSTing to the editor writes to the in-memory store only; a restart reloads from seed files. This is intentional during the current demo/dev phase.
+Persistence differs by authoring surface. The backoffice **CMS Workflow** editor (`CmsWorkflowAuthoringController`, `UmbracoPrism.Core`) is DB-backed — saves go through `UmbracoCmsWorkflowDefinitionStore` to a real `prismCmsWorkflowDefinition` table in the Umbraco content database, survive restarts, and are uSync-portable via `PrismCmsWorkflowHandler`/`PrismCmsWorkflowSerializer`. `MockBusinessApp`'s own demo/business-workflow authoring surface (used by the AI-ready MCP/REST toolkit against the reference app) is memory-only by design — POSTing writes to an in-memory store only, and a restart reloads from `workflow-seeds/*.json`. Don't assume one behavior applies to the other.
 
 ### Queue model
 

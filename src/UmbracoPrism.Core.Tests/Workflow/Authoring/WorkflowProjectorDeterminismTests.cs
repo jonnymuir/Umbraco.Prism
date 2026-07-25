@@ -125,7 +125,7 @@ public class WorkflowProjectorDeterminismTests
 
         var result = _projector.Project(authored);
 
-        result.File.Transitions.Select(t => t.ToState)
+        result.File.Transitions!.Select(t => t.ToState)
             .Should().ContainInOrder(new[] { "out-of-a", "b", "c" },
                 because: "transitions must be emitted sorted by (source, target, trigger)");
     }

@@ -159,7 +159,8 @@ public sealed class WorkflowPublishServiceTests : IDisposable
         result.HasErrors.Should().BeFalse();
         result.File.Queues.Should().ContainSingle(queue =>
             queue.Key == "web-user" && queue.Actor == "applicant");
-        result.File.Metadata.Gateways.Should().HaveCount(2);
+        result.File.Metadata.Should().NotBeNull();
+        result.File.Metadata!.Gateways.Should().HaveCount(2);
         result.File.Metadata.Gateways.Should().ContainSingle(gateway => gateway.Key == "fan-out" && gateway.GatewayType == "Split");
         result.File.Metadata.Gateways.Should().ContainSingle(gateway => gateway.Key == "fan-in" && gateway.GatewayType == "Join");
 

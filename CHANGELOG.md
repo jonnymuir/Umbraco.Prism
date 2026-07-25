@@ -2,6 +2,26 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.14.0] — 2026-07-25
+
+### New Features
+
+- **Real-time upload progress on file-upload fields:** Choosing a file now uploads it immediately in the background with an accessible progress bar, instead of riding along with the whole stage's form submission and leaving the visitor with no feedback until the page reloads.
+- **New reference workflow — Transfer a Professional Juggling Licence:** A second complete CMS Workflow demo, alongside "Apply for a juggling licence," covering the member-aware, calculation-driven journey pattern end-to-end.
+
+### Bug Fixes & Improvements
+
+- Fixes the CMS Workflow editor being unable to save any workflow that has components — every save failed with a generic "One or more validation errors occurred" and no further detail.
+- Fixes save-time validation errors (e.g. a broken field binding or calculation) being visible only in the browser console — they now appear directly in the editor, with a clickable link to the exact stage that needs fixing.
+- Fixes editing a workflow via the Definition tab silently discarding its `calculations` block and canvas layout on save, breaking any conditional field or calculated value the workflow depended on.
+- Fixes the CMS Workflow workspace editor clipping tall workflows with no scrollbar.
+- Rejects an unrecognised stage type at save time on every authoring surface (backoffice, REST, MCP), instead of letting it through silently and only failing later when the workflow is opened in the editor.
+- Fixes an unhandled server error when uploading a file at or near the configured size limit.
+- Updates Umbraco to 17.5.3, fixing a high-severity Content Delivery API vulnerability that could leak Public-Access-protected content to unauthenticated requests (relevant to hosts with the Delivery API enabled).
+- Updates several transitive NuGet dependencies (Microsoft.OpenApi, System.Security.Cryptography.Xml, MessagePack) to patched versions, closing known vulnerability advisories.
+
+---
+
 ## [v1.12.0] — 2026-07-19
 
 ### New Features

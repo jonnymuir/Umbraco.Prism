@@ -88,7 +88,7 @@ public class PrismContentTypeSeeder(
         if (homePage == null) return;
 
         var childAliases = new[] { "workflowPage", "cmsWorkflowPage", "workflowHub", "memberDashboard" };
-        var existingAliases = homePage.AllowedContentTypes.Select(sort => sort.Alias).ToHashSet();
+        var existingAliases = (homePage.AllowedContentTypes ?? []).Select(sort => sort.Alias).ToHashSet();
         if (childAliases.All(existingAliases.Contains)) return;
 
         var childSorts = childAliases
@@ -96,7 +96,7 @@ public class PrismContentTypeSeeder(
             .Where(childType => childType != null)
             .Select((childType, index) => new ContentTypeSort(childType!.Key, index, childType.Alias));
 
-        homePage.AllowedContentTypes = homePage.AllowedContentTypes
+        homePage.AllowedContentTypes = (homePage.AllowedContentTypes ?? [])
             .Concat(childSorts)
             .DistinctBy(sort => sort.Alias);
 

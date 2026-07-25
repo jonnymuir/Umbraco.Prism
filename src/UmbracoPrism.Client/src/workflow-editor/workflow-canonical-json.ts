@@ -124,7 +124,16 @@ function sortKeys(value: unknown): unknown {
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>;
     const sorted: Record<string, unknown> = {};
+    // PrismComponent (UmbracoPrism.Shared) is a polymorphic type discriminated by "type".
+    // System.Text.Json's built-in polymorphic deserialization requires that discriminator
+    // to be the first property in the JSON object, so it must survive alphabetical sorting.
+    if (record.type !== undefined) {
+      sorted.type = sortKeys(record.type);
+    }
     for (const key of Object.keys(record).sort()) {
+      if (key === 'type') {
+        continue;
+      }
       if (record[key] !== undefined) {
         sorted[key] = sortKeys(record[key]);
       }
