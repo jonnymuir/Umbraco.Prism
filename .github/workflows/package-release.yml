@@ -16,6 +16,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify package version matches release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG="${{ github.ref_name }}"
+          TAG_VERSION="${TAG#v}"
+
+          CORE_VERSION=$(grep -oE '<Version>[^<]+</Version>' src/UmbracoPrism.Core/UmbracoPrism.Core.csproj | head -1 | sed -E 's#</?Version>##g')
+          CLIENT_VERSION=$(grep -oE '"version": *"[^"]+"' src/UmbracoPrism.Client/package.json | head -1 | sed -E 's/"version": *"([^"]+)"/\1/')
+
+          echo "Tag version:          $TAG_VERSION"
+          echo "Core.csproj version:  $CORE_VERSION"
+          echo "Client package.json:  $CLIENT_VERSION"
+
+          if [ "$TAG_VERSION" != "$CORE_VERSION" ]; then
+            echo "::error::Tag ${TAG} does not match UmbracoPrism.Core.csproj <Version>${CORE_VERSION}</Version>. The version file was not bumped for this release — refusing to pack, since this would silently try to re-push an already-published version to NuGet (as happened with v1.13.0, which packed and rejected as a duplicate of 1.12.0)."
+            exit 1
+          fi
+
+          if [ "$TAG_VERSION" != "$CLIENT_VERSION" ]; then
+            echo "::error::Tag ${TAG} does not match src/UmbracoPrism.Client/package.json version ${CLIENT_VERSION}. Both version files must be bumped together for a release."
+            exit 1
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
