@@ -39,7 +39,7 @@ public sealed class CmsWorkflowEngine(
         WorkflowAccessProfile accessProfile,
         string fieldKey)
     {
-        if (!instanceStore.TryGet(instanceId, out var instance))
+        if (!TryGetInstance(instanceId, out var instance))
         {
             return null;
         }
@@ -66,7 +66,7 @@ public sealed class CmsWorkflowEngine(
         string userId,
         WorkflowAccessProfile accessProfile)
     {
-        return instanceStore.TryGet(instanceId, out var instance)
+        return TryGetInstance(instanceId, out var instance)
             && CanAccessInstance(instance, tenantId, userId, accessProfile);
     }
 }

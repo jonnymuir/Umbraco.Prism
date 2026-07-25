@@ -92,7 +92,7 @@ public class WorkflowFieldValidator : IWorkflowFieldValidator
 
             // a2. Guidance checklist: unlike a plain checkboxlist (any non-empty subset is
             // valid), "required" here means every configured item must be acknowledged.
-            if (field.Required && field.FieldType.Equals("guidance-checklist", StringComparison.OrdinalIgnoreCase))
+            if (field.Required && string.Equals(field.FieldType, "guidance-checklist", StringComparison.OrdinalIgnoreCase))
             {
                 var acknowledged = raw
                     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

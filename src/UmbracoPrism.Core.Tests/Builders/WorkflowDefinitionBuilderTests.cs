@@ -195,7 +195,7 @@ public class WorkflowDefinitionBuilderTests
             .AddTransition("from-state", "to-state", "approve", "reviewer")
             .Build();
 
-        var transition = result.Transitions.Single();
+        var transition = result.Transitions!.Single();
         transition.FromState.Should().Be("from-state");
         transition.ToState.Should().Be("to-state");
         transition.Action.Should().Be("approve");
@@ -210,7 +210,7 @@ public class WorkflowDefinitionBuilderTests
             .AddTransition("from-state", "to-state", "submit")
             .Build();
 
-        var transition = result.Transitions.Single();
+        var transition = result.Transitions!.Single();
         transition.RequiresRole.Should().BeNull();
     }
 
@@ -225,7 +225,7 @@ public class WorkflowDefinitionBuilderTests
             .Build();
 
         result.Transitions.Should().HaveCount(3);
-        result.Transitions[0].Action.Should().Be("continue");
+        result.Transitions![0].Action.Should().Be("continue");
         result.Transitions[1].Action.Should().Be("next");
         result.Transitions[2].Action.Should().Be("finish");
     }
@@ -259,7 +259,7 @@ public class WorkflowDefinitionBuilderTests
         result.States.Should().HaveCount(3);
         result.Transitions.Should().HaveCount(2);
         result.States[0].Components.Should().HaveCount(2);
-        result.Transitions[1].RequiresRole.Should().Be("admin");
+        result.Transitions![1].RequiresRole.Should().Be("admin");
     }
 
     [Fact]

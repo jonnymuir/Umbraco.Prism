@@ -139,13 +139,14 @@ public class GuidanceArticleContentTypes(
             return;
         }
 
-        if (homePage.AllowedContentTypes.Any(sort => sort.Alias == Alias))
+        if ((homePage.AllowedContentTypes ?? []).Any(sort => sort.Alias == Alias))
         {
             return;
         }
 
-        homePage.AllowedContentTypes = homePage.AllowedContentTypes
-            .Append(new ContentTypeSort(guidanceArticleType.Key, homePage.AllowedContentTypes.Count(), Alias));
+        var existingChildren = homePage.AllowedContentTypes ?? [];
+        homePage.AllowedContentTypes = existingChildren
+            .Append(new ContentTypeSort(guidanceArticleType.Key, existingChildren.Count(), Alias));
 
 #pragma warning disable CS0618
         contentTypeService.Save(homePage);
