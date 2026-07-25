@@ -2,6 +2,19 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v1.15.0] — 2026-07-25
+
+### New Features
+
+- **Anonymous CMS Workflow journeys survive signing in:** Start a CMS Workflow without signing in, then sign in partway through, and your in-progress journey now carries over automatically — it shows up as resumable under "My Workflows" instead of being silently lost when the anonymous session expires.
+
+### Bug Fixes & Improvements
+
+- "My Workflows" now shows in-progress and completed journeys from both workflow implementations (the business-app workflow client and Prism's own CMS Workflow) merged into a single list, instead of only the business-app ones.
+- An authenticated member's CMS Workflow instance no longer expires on a sliding 30-minute window — it persists until the journey is completed, so coming back days later resumes exactly where you left off.
+
+---
+
 ## [v1.14.0] — 2026-07-25
 
 ### New Features
