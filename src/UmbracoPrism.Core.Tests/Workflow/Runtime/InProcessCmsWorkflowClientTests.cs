@@ -25,20 +25,21 @@ public class InProcessCmsWorkflowClientTests
         var sanitizer = new Mock<IWorkflowContentSanitizer>();
         sanitizer.Setup(s => s.Sanitize(It.IsAny<string>())).Returns<string>(x => x);
 
+        var httpContext = new DefaultHttpContext();
+        var accessor = new Mock<IHttpContextAccessor>();
+        accessor.Setup(a => a.HttpContext).Returns(httpContext);
+
         var engine = new CmsWorkflowEngine(
             NullLogger<CmsWorkflowEngine>.Instance,
             new EmptyDefinitionStore(),
             sanitizer.Object,
-            new InMemoryWorkflowInstanceStore());
+            new InMemoryWorkflowInstanceStore(),
+            accessor.Object);
 
         var userContext = new Mock<IPrismUserContext>();
         userContext.Setup(u => u.IsAuthenticated).Returns(authenticated);
         userContext.Setup(u => u.Email).Returns(email);
         userContext.Setup(u => u.CurrentTenant).Returns(new PrismTenant { Hostname = "example.test" });
-
-        var httpContext = new DefaultHttpContext();
-        var accessor = new Mock<IHttpContextAccessor>();
-        accessor.Setup(a => a.HttpContext).Returns(httpContext);
 
         var identityResolver = new CmsWorkflowVisitorIdentityResolver(userContext.Object, accessor.Object);
         var client = new InProcessCmsWorkflowClient(engine, identityResolver);

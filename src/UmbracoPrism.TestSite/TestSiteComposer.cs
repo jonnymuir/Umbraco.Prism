@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using UmbracoPrism.Core;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
@@ -64,6 +65,7 @@ public class TestSiteComposer : IComposer
                 sp.GetRequiredService<IWorkflowDefinitionStore>(),
                 sp.GetRequiredService<IWorkflowContentSanitizer>(),
                 sp.GetRequiredService<IWorkflowInstanceStore>(),
+                sp.GetRequiredService<IHttpContextAccessor>(),
                 (instance, definition, _) =>
                 {
                     var isJugglingLicenceWorkflow =

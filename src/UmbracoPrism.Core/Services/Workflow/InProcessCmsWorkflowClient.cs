@@ -26,7 +26,7 @@ public sealed class InProcessCmsWorkflowClient(
         string? action = null,
         CancellationToken cancellationToken = default)
     {
-        var (tenantId, userId) = identityResolver.Resolve();
+        var (tenantId, userId, _) = identityResolver.Resolve();
         return Task.FromResult(
             engine.GetCurrent(workflowKey, tenantId, userId, CmsWorkflowQueue.AccessProfile, instanceId, action));
     }
@@ -39,7 +39,7 @@ public sealed class InProcessCmsWorkflowClient(
         Dictionary<string, object?>? fieldValues = null,
         CancellationToken cancellationToken = default)
     {
-        var (tenantId, userId) = identityResolver.Resolve();
+        var (tenantId, userId, _) = identityResolver.Resolve();
         return Task.FromResult(
             engine.Advance(instanceId, tenantId, userId, CmsWorkflowQueue.AccessProfile, action, stateVersion, fieldValues));
     }
@@ -48,7 +48,7 @@ public sealed class InProcessCmsWorkflowClient(
         bool allowRefreshRetry = true,
         CancellationToken cancellationToken = default)
     {
-        var (tenantId, userId) = identityResolver.Resolve();
+        var (tenantId, userId, _) = identityResolver.Resolve();
         return Task.FromResult(engine.GetInstances(tenantId, userId));
     }
 }

@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
+using UmbracoPrism.Core.Services.Workflow;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Client;
 using System.Security.Authentication;
@@ -510,7 +511,9 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 props.RedirectUri = null;
                 await context.HttpContext.SignInAsync("PrismMemberCookie", principal, props);
 
-                // Tell the OIDC middleware to STOP. 
+                ClaimAnonymousWorkflowInstances(context.HttpContext, identity);
+
+                // Tell the OIDC middleware to STOP.
                 // If we don't call HandleResponse, it will try to sign in again and overwrite our cookie.
                 context.HandleResponse();
 
@@ -577,5 +580,56 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             }
         };
 
+    }
+
+    /// <summary>
+    /// A visitor who was browsing a CMS Workflow anonymously and has just signed in gets their
+    /// in-progress instance(s) re-keyed onto their new authenticated identity, so what would
+    /// otherwise become an orphaned, soon-to-expire anonymous session survives as a resumable
+    /// one under "My Workflows" instead. Reads <paramref name="newIdentity"/> directly rather
+    /// than <c>httpContext.User</c> — the sign-in cookie written moments ago only takes effect
+    /// on the *next* request, so the incoming request's principal is still whatever it was
+    /// before this callback ran (anonymous, or a different signed-in user), not the one just
+    /// authenticated.
+    /// </summary>
+    private void ClaimAnonymousWorkflowInstances(HttpContext httpContext, ClaimsIdentity newIdentity)
+    {
+        var services = httpContext.RequestServices;
+        // Resolved by concrete type, not IWorkflowRuntimeEngine — that interface isn't
+        // registered as a keyed service (only IBusinessAppWorkflowClient is, under "cms"), and
+        // a host that also registers its own business-app engine via AddPrismWorkflowEngine()
+        // would make an unkeyed IWorkflowRuntimeEngine lookup ambiguous. CmsWorkflowEngine
+        // itself is always registered by concrete type, so this is unambiguous regardless.
+        var engine = services.GetService<CmsWorkflowEngine>();
+        if (engine is null)
+        {
+            // A host using Prism's auth without its CMS Workflow feature — nothing to claim.
+            return;
+        }
+
+        var identityResolver = services.GetRequiredService<CmsWorkflowVisitorIdentityResolver>();
+        var anonymousUserId = identityResolver.PeekAnonymousVisitorId();
+        if (anonymousUserId is null)
+        {
+            return;
+        }
+
+        var newUserId = newIdentity.FindFirst("preferred_username")?.Value
+            ?? newIdentity.FindFirst(ClaimTypes.Email)?.Value;
+        if (string.IsNullOrWhiteSpace(newUserId))
+        {
+            return;
+        }
+
+        var tenantId = services.GetRequiredService<IPrismUserContext>().CurrentTenant?.Hostname ?? "default";
+
+        var claimed = engine.ClaimInstances(tenantId, anonymousUserId, newUserId);
+        if (claimed.Count > 0)
+        {
+            identityResolver.ClearAnonymousVisitorCookie();
+            logger.LogInformation(
+                "Claimed {Count} anonymous CMS Workflow instance(s) for tenant {TenantId} onto the newly signed-in user.",
+                claimed.Count, tenantId);
+        }
     }
 }

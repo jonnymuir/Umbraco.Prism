@@ -421,6 +421,50 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         };
     }
 
+    public IReadOnlyList<string> ClaimInstances(string tenantId, string fromUserId, string toUserId)
+    {
+        if (string.IsNullOrWhiteSpace(fromUserId)
+            || string.IsNullOrWhiteSpace(toUserId)
+            || string.Equals(fromUserId, toUserId, StringComparison.Ordinal))
+        {
+            return [];
+        }
+
+        var allInstances = _instanceStore.GetAll().ToList();
+        var workflowsAlreadyOwned = allInstances
+            .Where(i => string.Equals(i.TenantId, tenantId, StringComparison.Ordinal)
+                     && string.Equals(i.UserId, toUserId, StringComparison.Ordinal))
+            .Select(i => i.WorkflowKey)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var claimed = new List<string>();
+        foreach (var instance in allInstances)
+        {
+            if (!string.Equals(instance.TenantId, tenantId, StringComparison.Ordinal)
+                || !string.Equals(instance.UserId, fromUserId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (workflowsAlreadyOwned.Contains(instance.WorkflowKey))
+            {
+                // The signed-in user already has their own instance of this workflow — leave
+                // the anonymous one behind rather than silently discarding whichever loses.
+                continue;
+            }
+
+            _instanceStore.Save(instance with
+            {
+                UserId = toUserId,
+                IsAuthenticated = true,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+            claimed.Add(instance.InstanceId);
+        }
+
+        return claimed;
+    }
+
     public WorkflowQueueWorkListEnvelope GetQueueWorkItems(WorkflowAccessProfile accessProfile)
     {
         var items = _instanceStore.GetAll()
@@ -1028,7 +1072,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         string logMessage,
         params object?[] additionalLogArgs)
     {
-        var instance = CreateNewInstance(workflowKey, tenantId, userId, definition.InitialState);
+        var instance = CreateNewInstance(
+            workflowKey, tenantId, userId, definition.InitialState, ResolveIsAuthenticated(tenantId, userId));
         if (InitializeNewInstance(instance, definition, action) is { } error)
         {
             return error;
@@ -1044,7 +1089,8 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
         string workflowKey,
         string tenantId,
         string userId,
-        string initialState)
+        string initialState,
+        bool isAuthenticated)
     {
         var now = DateTimeOffset.UtcNow;
         return new WorkflowInstanceState
@@ -1053,12 +1099,22 @@ public class WorkflowRuntimeEngine : IWorkflowRuntimeEngine
             WorkflowKey = workflowKey,
             TenantId = tenantId,
             UserId = userId,
+            IsAuthenticated = isAuthenticated,
             CurrentState = initialState,
             StateVersion = 0,
             CreatedAt = now,
             UpdatedAt = now
         };
     }
+
+    /// <summary>
+    /// Whether <paramref name="userId"/> identifies a signed-in user, for a store that wants
+    /// to apply a different retention policy for authenticated vs anonymous instances (see
+    /// <see cref="WorkflowInstanceState.IsAuthenticated"/>). The base engine has no identity
+    /// model of its own — always false — a host overrides this using whatever identity
+    /// resolution its own request pipeline already performs.
+    /// </summary>
+    protected virtual bool ResolveIsAuthenticated(string tenantId, string userId) => false;
 
     /// <summary>Evaluated calculation state for one render pass.</summary>
     protected sealed record CalculationRenderContext(

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
+using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Extensions;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core;
@@ -12,12 +13,18 @@ using UmbracoPrism.Shared.Models.Workflow;
 namespace UmbracoPrism.Core.Controllers;
 
 /// <summary>
-/// Umbraco route-hijacking controller for the <c>workflowHub</c> document type.
-/// Displays all workflow instances for the authenticated member.
+/// Umbraco route-hijacking controller for the <c>workflowHub</c> document type — a single "My
+/// Workflows" surface across both workflow implementations a host may have running: the
+/// business-app one (<see cref="IBusinessAppWorkflowClient"/>'s default, unkeyed registration,
+/// talking to a remote business app) and Prism CMS Workflow (the keyed <c>"cms"</c>
+/// registration, in-process). Displays all workflow instances for the authenticated member from
+/// both, merged into one list — a member shouldn't need to know or care which implementation
+/// authored a given journey.
 /// </summary>
 public class WorkflowHubController : RenderController
 {
     private readonly IBusinessAppWorkflowClient _workflowClient;
+    private readonly IBusinessAppWorkflowClient _cmsWorkflowClient;
     private readonly IPublishedValueFallback _publishedValueFallback;
     private readonly IPublishedContentQuery _publishedContentQuery;
     private readonly ILogger<WorkflowHubController> _logger;
@@ -27,12 +34,14 @@ public class WorkflowHubController : RenderController
         ICompositeViewEngine compositeViewEngine,
         IUmbracoContextAccessor umbracoContextAccessor,
         IBusinessAppWorkflowClient workflowClient,
+        [FromKeyedServices("cms")] IBusinessAppWorkflowClient cmsWorkflowClient,
         IPublishedValueFallback publishedValueFallback,
         IPublishedContentQuery publishedContentQuery)
         : base(logger, compositeViewEngine, umbracoContextAccessor)
     {
         _logger = logger;
         _workflowClient = workflowClient;
+        _cmsWorkflowClient = cmsWorkflowClient;
         _publishedValueFallback = publishedValueFallback;
         _publishedContentQuery = publishedContentQuery;
     }
@@ -49,9 +58,14 @@ public class WorkflowHubController : RenderController
 
     private async Task<IActionResult> IndexAsync()
     {
-        var envelope = await _workflowClient.GetInstancesAsync();
+        var businessAppEnvelope = await _workflowClient.GetInstancesAsync();
+        var cmsEnvelope = await _cmsWorkflowClient.GetInstancesAsync();
+        var allInstances = businessAppEnvelope.Instances
+            .Concat(cmsEnvelope.Instances)
+            .OrderByDescending(i => i.LastUpdatedAt)
+            .ToList();
 
-        var activeInstances = envelope.Instances
+        var activeInstances = allInstances
             .Where(i => !i.IsCompleted)
             .Select(i => new WorkflowInstanceViewModel
             {
@@ -60,7 +74,7 @@ public class WorkflowHubController : RenderController
             })
             .ToList();
 
-        var completedInstances = envelope.Instances
+        var completedInstances = allInstances
             .Where(i => i.IsCompleted)
             .Select(i => new WorkflowInstanceViewModel
             {
@@ -98,7 +112,7 @@ public class WorkflowHubController : RenderController
             .ContentAtRoot()
             .SelectMany(root => root.DescendantsOrSelf())
             .FirstOrDefault(content =>
-                content.ContentType.Alias == "workflowPage"
+                (content.ContentType.Alias == "workflowPage" || content.ContentType.Alias == "cmsWorkflowPage")
                 && string.Equals(content.Value<string>("workflowKey"), summary.WorkflowKey, StringComparison.OrdinalIgnoreCase));
 
         if (workflowPage != null)

@@ -40,6 +40,17 @@ public interface IWorkflowRuntimeEngine
 
     WorkflowInstanceListEnvelope GetInstances(string tenantId, string userId);
 
+    /// <summary>
+    /// Re-keys every instance owned by <paramref name="fromUserId"/> onto
+    /// <paramref name="toUserId"/> and marks each as authenticated — for a visitor who was
+    /// browsing anonymously and has just signed in, so their in-progress instance survives
+    /// as a resumable one instead of being orphaned under an identity nothing will ever
+    /// resolve to again. An instance is left alone (not claimed) if <paramref name="toUserId"/>
+    /// already owns an instance of that same workflow — claiming would silently discard
+    /// whichever the caller didn't return here. Returns the claimed instance ids.
+    /// </summary>
+    IReadOnlyList<string> ClaimInstances(string tenantId, string fromUserId, string toUserId);
+
     WorkflowQueueWorkListEnvelope GetQueueWorkItems(WorkflowAccessProfile accessProfile);
 
     IEnumerable<WorkflowInstanceState> GetAllInstances();

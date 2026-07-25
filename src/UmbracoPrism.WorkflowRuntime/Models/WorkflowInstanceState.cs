@@ -16,6 +16,15 @@ public record WorkflowInstanceState
     public string UserId { get; init; } = "";
 
     /// <summary>
+    /// True when <see cref="UserId"/> identifies a signed-in user rather than an anonymous
+    /// visitor's correlation cookie. A store may use this to apply a longer-lived (or
+    /// unbounded) retention policy than it would for an anonymous session — see
+    /// <c>UmbracoCmsWorkflowInstanceStore</c>, whose 30-minute sliding expiry is skipped
+    /// entirely for authenticated instances.
+    /// </summary>
+    public bool IsAuthenticated { get; init; }
+
+    /// <summary>
     /// Primary cursor position. In single-queue workflows this is the only position.
     /// In multi-cursor mode this reflects the first active stage cursor for backward-compatibility
     /// with API consumers that read only this field.

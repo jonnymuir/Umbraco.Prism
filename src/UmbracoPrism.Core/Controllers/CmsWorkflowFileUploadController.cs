@@ -64,7 +64,7 @@ public class CmsWorkflowFileUploadController(
             return BadRequest("This field is no longer part of the current step.");
         }
 
-        var (tenantId, userId) = identityResolver.Resolve();
+        var (tenantId, userId, _) = identityResolver.Resolve();
         if (!engine.IsOwnedInstance(instanceId, tenantId, userId, CmsWorkflowQueue.AccessProfile))
         {
             return NotFound();

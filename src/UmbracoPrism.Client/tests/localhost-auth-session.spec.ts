@@ -49,6 +49,37 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     );
   });
 
+  test('anonymous CMS Workflow instance is claimed and resumable after signing in', async ({ page }) => {
+    // Start "Apply for a juggling licence" anonymously — no sign-in yet.
+    await page.goto('/apply-for-a-juggling-licence');
+    await page.getByLabel('I confirm I am aged 16 or over').check();
+    await page.getByLabel('I confirm I have a UK postal address').check();
+    await page.getByRole('button', { name: 'Continue' }).click();
+    await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
+
+    const anonymousCookie = (await page.context().cookies()).find(c => c.name === 'PrismCmsWorkflowVisitor');
+    expect(anonymousCookie, 'starting a CMS Workflow anonymously must set the visitor correlation cookie').toBeTruthy();
+
+    // Sign in — same browser context, so the anonymous cookie rides along with the sign-in
+    // request and the server-side claim hook can see both identities together.
+    await signIn(page);
+
+    // The claim succeeded: the anonymous cookie is gone (nothing left to correlate against —
+    // the instance now belongs to the signed-in member) and it shows up as resumable.
+    const cookiesAfterSignIn = await page.context().cookies();
+    expect(cookiesAfterSignIn.some(c => c.name === 'PrismCmsWorkflowVisitor')).toBe(false);
+
+    await page.goto('/my-workflows');
+    await expect(page.getByRole('heading', { name: 'In Progress' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Apply for a juggling licence', level: 3 })).toBeVisible();
+    await expect(page.getByText('Your details')).toBeVisible();
+
+    // Resuming lands back on the exact step left off, not a fresh restart.
+    await page.getByRole('link', { name: 'Continue' }).click();
+    await expect(page).toHaveURL(/\/apply-for-a-juggling-licence\/?\?instanceId=/);
+    await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
+  });
+
   test('signed-in member can open the seeded workflow start page', async ({ page }) => {
     await signIn(page);
     await page.goto('/get-in-touch');
