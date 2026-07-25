@@ -65,6 +65,17 @@ it for cross-test pages.
 
 ## Setup
 
+> **These ttyd steps apply to the garden-waste demo (`npm run demo:record`) only.** The
+> licence-transfer demo (`npm run demo:record:licence-transfer`) no longer uses ttyd at all: its
+> terminal is a plain tmux session the spec starts itself, mirrored into the recorded page as
+> styled DOM (`support/tmux-terminal.ts`) — no password, no manual terminal setup, no extra env
+> vars. Just start Aspire (with `PRISM_TESTSITE_RESET_RUNTIME=true
+> Umbraco__CMS__Global__TimeOut=02:00:00` for a real take) and run the npm script. The switch was
+> deliberate: driving ttyd/xterm.js in the recorded browser produced mis-sized text, unpainted
+> grey canvas regions, and multi-minute visual freezes that assertions can't catch — a
+> capture-pane-fed DOM mirror can't desync from the real session and renders at exactly the font
+> size the recording needs.
+
 Note: The ttyd is strickly just so we can automate the recording. If you want to do this as a manual walkthrough you do not need it, this is just your AI tool of choice, e.g. ```claude```
 
 1. **Warm the stack first, off-camera.** Start Aspire and wait for the dashboard to go green —

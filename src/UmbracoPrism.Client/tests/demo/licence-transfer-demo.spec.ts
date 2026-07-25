@@ -1,10 +1,17 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beat, showSlate, clearSlate, moveNarrationTo, startNarrationTimeline, getNarrationTimeline } from './support/narration';
 import { humanClick, humanType, humanMoveTo } from './support/human-interactions';
+import {
+  startDemoTerminalSession,
+  showTerminalMirror,
+  stopTerminalMirror,
+  sendTerminalText,
+  sendTerminalKey
+} from './support/tmux-terminal';
 
 // Sibling of garden-waste-demo.spec.ts and (the now-removed) pension-bereavement-demo.spec.ts —
 // same one-page/one-video technique, same narration/human-interaction helpers. The story this one
@@ -33,8 +40,9 @@ function tryConvertToMp4(webmPath: string): void {
 }
 
 // Not a CI test — a demo-recording tool. Run with:
-//   TTYD_PASSWORD=<password> npm run demo:record:licence-transfer
-// See tests/demo/README.md for the ttyd/tmux mechanics shared with the other demos, and
+//   npm run demo:record:licence-transfer
+// The terminal acts run in a plain tmux session mirrored into the recorded page as styled DOM
+// (see support/tmux-terminal.ts for why that replaced ttyd/xterm). See
 // docs/demos/licence-transfer-mcp-walkthrough.md for the full narrated storyboard this spec
 // follows act-for-act.
 //
@@ -56,8 +64,6 @@ const mcpClientId = 'prism-mcp-agent';
 const mcpClientSecret = 'prism-mcp-agent-demo-secret-2026';
 const prefixedMcpClientId = `umbraco-back-office-${mcpClientId}`;
 
-const ttydUrl = process.env.TTYD_URL ?? 'http://127.0.0.1:7681';
-const ttydPort = new URL(ttydUrl).port || '7681';
 const claudeSessionLogPath = '/tmp/claude-session.log';
 const scratchDir = path.join(process.env.HOME ?? '/tmp', 'prism-demo-scratch');
 
@@ -222,70 +228,66 @@ async function ensureMcpServiceAccount(page: Page, backofficeToken: string): Pro
 }
 
 /** Finds TestSite's real plain-HTTP MCP port — dynamic per Aspire run, distinct from the fixed HTTPS one. */
-function discoverCmsWorkflowMcpHttpPort(): number {
-  const pid = execFileSync('bash', ['-c', "ps aux | grep 'UmbracoPrism.TestSite/bin' | grep -v grep | awk '{print $2}'"])
+/**
+ * True only if this port hosts the *live* MCP endpoint AND accepts the given bearer token — a
+ * full authenticated `initialize` round trip, not a weaker liveness signal. A bare unauthenticated
+ * probe (does it answer 401?) once picked a stale, orphaned TestSite from an earlier boot: it
+ * happily answered 401 (any backoffice-auth'd ASP.NET app does), but rejected the freshly-minted
+ * token (different signing keys), so the agent's MCP client showed "Failed to connect" and the
+ * agent launched with no tools at all — hallucinating tool-call syntax as plain text.
+ */
+function probeMcpInitialize(port: number, bearerToken: string): boolean {
+  try {
+    const status = execFileSync('curl', [
+      '-s', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '3',
+      '-X', 'POST', `http://localhost:${port}/prism/workflow-authoring/mcp`,
+      '-H', `Authorization: Bearer ${bearerToken}`,
+      '-H', 'Content-Type: application/json',
+      '-H', 'Accept: application/json, text/event-stream',
+      '-d', '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo-probe","version":"1.0"}}}'
+    ]).toString();
+    return status === '200';
+  } catch {
+    return false;
+  }
+}
+
+function discoverCmsWorkflowMcpHttpPort(bearerToken: string): number {
+  // Every matching pid, not just the first — a stale orphaned TestSite from an earlier boot can
+  // legitimately coexist with the live one for a while, and which `ps` lists first is luck.
+  const pids = execFileSync('bash', ['-c', "ps aux | grep 'UmbracoPrism.TestSite/bin' | grep -v grep | awk '{print $2}'"])
     .toString()
     .trim()
-    .split('\n')[0];
-  if (!pid) throw new Error('Could not find the running TestSite process to discover its MCP port.');
+    .split('\n')
+    .filter(Boolean);
+  if (pids.length === 0) throw new Error('Could not find a running TestSite process to discover its MCP port.');
 
-  const lsofOutput = execFileSync('bash', ['-c', `lsof -p ${pid} -a -i -P 2>/dev/null | grep LISTEN`]).toString();
-  const ports = Array.from(lsofOutput.matchAll(/localhost:(\d+)/g)).map(m => Number(m[1]));
-  const uniquePorts = Array.from(new Set(ports));
-
-  for (const port of uniquePorts) {
+  const uniquePorts = new Set<number>();
+  for (const pid of pids) {
     try {
-      const status = execFileSync('curl', [
-        '-s', '-o', '/dev/null', '-w', '%{http_code}',
-        '--max-time', '3', `http://localhost:${port}/prism/workflow-authoring/mcp`
-      ]).toString();
-      if (status === '401') return port; // The real HTTP MCP endpoint answers 401 with no token.
+      const lsofOutput = execFileSync('bash', ['-c', `lsof -p ${pid} -a -i -P 2>/dev/null | grep LISTEN`]).toString();
+      for (const match of lsofOutput.matchAll(/localhost:(\d+)/g)) {
+        uniquePorts.add(Number(match[1]));
+      }
     } catch {
-      // Not this port — try the next.
+      // Process may have just exited — skip it.
     }
   }
-  throw new Error(`Could not find the CMS Workflow MCP HTTP port among: ${uniquePorts.join(', ')}`);
+
+  for (const port of uniquePorts) {
+    if (probeMcpInitialize(port, bearerToken)) return port;
+  }
+  throw new Error(
+    `No port among [${Array.from(uniquePorts).join(', ')}] completed an authenticated MCP initialize — ` +
+    'is the token valid against the currently-running TestSite?'
+  );
 }
 
 /**
- * Starts the ttyd/tmux terminal surface, wrapping a *plain shell* (not claude directly) — the
- * whole point is that Act 1's real auth setup (token exchange, `claude mcp add`) happens as real,
- * visible commands in this same terminal before claude itself ever launches, rather than
- * happening invisibly via network calls the audience never sees. `script` starts recording from
- * the very first command, so the eventual claude launch (and its one-time consent gate) is
- * captured in the log same as everything else. Stripping CLAUDECODE/CLAUDE_CODE_* env vars keeps
- * the later-launched claude a genuinely independent process, not a child of this one.
- */
-function startTtydTerminal(ttydPassword: string): void {
-  const strippedEnv = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => !/^(CLAUDECODE|CLAUDE_CODE_|AI_AGENT|CLAUDE_EFFORT)/.test(key))
-  );
-  const child = spawn(
-    'ttyd',
-    [
-      '--writable', '--interface', '127.0.0.1', '-p', ttydPort, '-c', `demo:${ttydPassword}`,
-      'tmux', 'new-session', '-A', '-s', 'prism-licence-transfer-demo', '--',
-      'script', '-q', '-F', claudeSessionLogPath, 'bash'
-    ],
-    { cwd: scratchDir, env: strippedEnv, detached: true, stdio: 'ignore' }
-  );
-  child.unref();
-}
-
-/** Connects (or reconnects) to the shared terminal page — no bypass-gate check here, since that
- * gate can only appear once claude has actually been launched (see handleBypassPermissionsGate). */
-async function connectToTerminal(page: Page): Promise<void> {
-  await page.goto(ttydUrl, { waitUntil: 'networkidle', timeout: 15_000 });
-  await page.waitForTimeout(2_000);
-  await humanClick(page, page.locator('.xterm-screen'));
-  await page.waitForTimeout(500);
-}
-
-/**
- * ttyd's xterm.js renders to canvas, not DOM text, so the only way to detect the one-time
- * BypassPermissions consent gate is via the tee'd session log, and only answer it if it's
- * actually showing (blindly sending "2"+Enter on a visit where the gate isn't showing types a
- * literal "2" into a live empty prompt and visibly confuses whatever's running).
+ * The one-time BypassPermissions consent gate can only be detected via the `script`-tee'd
+ * session log — and should only be answered if it's actually showing (blindly sending "2"+Enter
+ * on a visit where the gate isn't showing types a literal "2" into a live empty prompt and
+ * visibly confuses whatever's running).
  */
 async function handleBypassPermissionsGateIfShowing(page: Page): Promise<void> {
   let recentLog = '';
@@ -295,18 +297,17 @@ async function handleBypassPermissionsGateIfShowing(page: Page): Promise<void> {
     // No log yet — nothing to detect either way.
   }
   if (/Yes, I accept|No, exit/i.test(recentLog)) {
-    await page.keyboard.press('2');
-    await page.keyboard.press('Enter');
+    sendTerminalKey('2');
+    sendTerminalKey('Enter');
     await page.waitForTimeout(1_000);
   }
 }
 
-/** Types a real command into the currently-focused terminal, character by character (matching
- * the brief-typing pace elsewhere), then presses Enter. */
-async function typeInTerminal(page: Page, command: string, delay = 18): Promise<void> {
-  await page.keyboard.type(command, { delay });
+/** Types a real command into the tmux session, character by character, then presses Enter. */
+async function typeInTerminal(page: Page, command: string, delay = 10): Promise<void> {
+  await sendTerminalText(command, delay);
   await page.waitForTimeout(300);
-  await page.keyboard.press('Enter');
+  sendTerminalKey('Enter');
 }
 
 // ------------------------------------------------------------------ Act 5 helpers: generic form filling
@@ -515,39 +516,20 @@ async function answerEligibilityQuestion(page: Page, eligible: boolean): Promise
 test.describe.serial('licence transfer demo', () => {
   let page: Page;
   let mintedToken: string;
-  let ttydPassword: string;
+  let mcpPort: number;
 
   test.beforeAll(async ({ browser }) => {
-    if (!process.env.TTYD_PASSWORD) {
-      throw new Error('Set TTYD_PASSWORD to the password ttyd should use for this take — see README.md.');
-    }
-    ttydPassword = process.env.TTYD_PASSWORD;
-
     const recordingSize = { width: 1920, height: 1080 };
     const context = await browser.newContext({
       viewport: recordingSize,
-      recordVideo: { dir: footageDir, size: recordingSize },
-      httpCredentials: { username: 'demo', password: ttydPassword, origin: new URL(ttydUrl).origin }
+      recordVideo: { dir: footageDir, size: recordingSize }
     });
     page = await context.newPage();
     startNarrationTimeline();
-
-    // Bigger ttyd terminal text — same window.term hook as the other demos.
-    await page.addInitScript(ttydOrigin => {
-      if (window.location.origin !== ttydOrigin) return;
-      let liveTerm: { options: Record<string, unknown> } | undefined;
-      Object.defineProperty(window, 'term', {
-        configurable: true,
-        get: () => liveTerm,
-        set: (value: { options: Record<string, unknown> }) => {
-          liveTerm = value;
-          if (value?.options) value.options.fontSize = 26;
-        }
-      });
-    }, new URL(ttydUrl).origin);
   });
 
   test.afterAll(async () => {
+    stopTerminalMirror();
     const video = page?.video();
     await page?.close();
     if (video) {
@@ -605,11 +587,30 @@ test.describe.serial('licence transfer demo', () => {
 
     const backofficeToken = await captureBearerToken(page);
     await ensureMcpServiceAccount(page, backofficeToken);
-    const port = discoverCmsWorkflowMcpHttpPort();
+    // Discovery probes with a throwaway client-credentials token minted off-camera — the SAME
+    // grant the on-camera terminal command mints moments later. The browser session's own
+    // backoffice token does NOT pass the MCP endpoint's auth (confirmed live: UI token → 401,
+    // client-credentials token → 200), and probing with the exact token kind the agent will use
+    // is what proves the port belongs to the currently-running TestSite rather than a stale
+    // orphan from an earlier boot (see probeMcpInitialize).
+    const probeTokenJson = execFileSync('curl', [
+      '-sk', '-X', 'POST', `${testSiteOrigin}/umbraco/management/api/v1/security/back-office/token`,
+      '-d', 'grant_type=client_credentials',
+      '-d', `client_id=${prefixedMcpClientId}`,
+      '-d', `client_secret=${mcpClientSecret}`
+    ]).toString();
+    const probeToken = (JSON.parse(probeTokenJson) as { access_token?: string }).access_token;
+    if (!probeToken) throw new Error(`Off-camera client-credentials mint failed: ${probeTokenJson.slice(0, 200)}`);
+    const port = discoverCmsWorkflowMcpHttpPort(probeToken);
+    mcpPort = port;
 
-    startTtydTerminal(ttydPassword);
+    // The terminal is a plain tmux session wrapping `script` + bash — Act 1's real auth setup
+    // (token exchange, `claude mcp add`) happens as real, visible commands in it before claude
+    // itself ever launches, and `script` captures everything (including the later claude launch
+    // and its one-time consent gate) to the session log from the very first command.
+    startDemoTerminalSession(claudeSessionLogPath, scratchDir);
     await page.waitForTimeout(2_000);
-    await connectToTerminal(page);
+    await showTerminalMirror(page);
     await moveNarrationTo(page, 'top');
 
     await beat(
@@ -653,6 +654,13 @@ test.describe.serial('licence transfer demo', () => {
     const tokenFileContents = JSON.parse(readFileSync(tokenFilePath, 'utf8')) as { access_token: string };
     mintedToken = tokenFileContents.access_token;
 
+    // Fail the take in seconds, not after a 40-minute poll: the token the terminal just
+    // registered with claude must complete a real MCP initialize against the same port.
+    expect(
+      probeMcpInitialize(port, mintedToken),
+      `the minted token failed an MCP initialize against port ${port} — the agent would launch with no working tools`
+    ).toBe(true);
+
     await beat(
       page,
       'recap',
@@ -670,7 +678,14 @@ test.describe.serial('licence transfer demo', () => {
     // trigger-based routing, taking 26+ minutes; another took under 8. Budget generously.
     test.setTimeout(45 * 60_000);
 
-    await connectToTerminal(page);
+    // Same guard as Act 1's end — don't let the agent launch against a connection that has
+    // silently gone bad in between (expired token, restarted host).
+    expect(
+      probeMcpInitialize(mcpPort, mintedToken),
+      `MCP initialize against port ${mcpPort} stopped working between acts — aborting before wasting an agent run`
+    ).toBe(true);
+
+    await showTerminalMirror(page);
     await handleBypassPermissionsGateIfShowing(page);
     await moveNarrationTo(page, 'top');
 
@@ -682,7 +697,11 @@ test.describe.serial('licence transfer demo', () => {
     );
     await typeInTerminal(
       page,
-      'claude --tools "mcp__prism-cms-workflow__*,ListMcpResourcesTool,ReadMcpResourceDirTool,ReadMcpResourceTool" --permission-mode bypassPermissions'
+      // --model pinned explicitly: the spawned agent otherwise inherits whatever default the
+      // operator's own claude config happens to have at the time — a take died mid-build when a
+      // freshly-switched personal default model stalled after its first tool call. The demo's
+      // agent should behave identically regardless of who records it.
+      'claude --model sonnet --tools "mcp__prism-cms-workflow__*,ListMcpResourcesTool,ReadMcpResourceDirTool,ReadMcpResourceTool" --permission-mode bypassPermissions'
     );
     await page.waitForTimeout(3_000);
     await handleBypassPermissionsGateIfShowing(page);
@@ -694,9 +713,9 @@ test.describe.serial('licence transfer demo', () => {
       { position: 'top' }
     );
 
-    await page.keyboard.type(brief, { delay: 22 });
+    await sendTerminalText(brief, 10);
     await page.waitForTimeout(400);
-    await page.keyboard.press('Enter');
+    sendTerminalKey('Enter');
 
     await beat(
       page,
@@ -706,8 +725,8 @@ test.describe.serial('licence transfer demo', () => {
     );
 
     // The real completion signal is the saved definition itself, authenticated with the same
-    // token Act 1 minted — not anything printed in the terminal (ttyd's xterm.js renders to
-    // canvas, not DOM text, so there's nothing reliable to scrape there anyway).
+    // token Act 1 minted — not anything printed in the terminal (matching agent output text is
+    // inherently fragile; the saved definition is the fact that can only become true for real).
     await expect.poll(
       async () => {
         const response = await request.get(
@@ -735,6 +754,9 @@ test.describe.serial('licence transfer demo', () => {
       'And there it is — designed, validated, simulated, and saved to the live engine. No one wrote a line of this workflow by hand.',
       { position: 'top' }
     );
+
+    // The recording is done with the terminal from here on — later acts are all backoffice/site.
+    stopTerminalMirror();
   });
 
   const navLinkLabel = 'Transfer your licence';

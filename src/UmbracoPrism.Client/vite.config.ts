@@ -28,6 +28,11 @@ export default defineConfig({
         // Generic live-form runtime: re-evaluates a workflow's declarative
         // calculations client-side and updates bound components in place
         'prism-live-form': 'src/live-form/prism-live-form.ts',
+        // Generic file-upload runtime: uploads a chosen file immediately with a real progress
+        // bar, independent of prism-live-form (a stage can have file-upload fields with no
+        // calculations block at all) — see PrismWorkflowViewModel.HasFileUploadField for the
+        // matching server-side gate on whether this script is even included.
+        'prism-file-upload': 'src/file-upload/prism-file-upload.ts',
       },
       output: {
         format: 'es',

@@ -53,4 +53,20 @@ public sealed class CmsWorkflowEngine(
             ? WorkflowFileReference.FromFieldValue(raw)
             : null;
     }
+
+    /// <summary>
+    /// The same ownership check <see cref="TryGetOwnedFileReference"/> performs, for a caller
+    /// that needs to authorize against an instance before any file exists yet — the async
+    /// upload endpoint, which must verify the requester owns the instance it's about to write a
+    /// new file against.
+    /// </summary>
+    public bool IsOwnedInstance(
+        string instanceId,
+        string tenantId,
+        string userId,
+        WorkflowAccessProfile accessProfile)
+    {
+        return instanceStore.TryGet(instanceId, out var instance)
+            && CanAccessInstance(instance, tenantId, userId, accessProfile);
+    }
 }

@@ -21,6 +21,16 @@ public record PrismFieldContext
     public string InstanceId { get; init; } = string.Empty;
 
     /// <summary>
+    /// The current step's nonce — needed by a <c>file-upload</c> field's partial to authorize
+    /// its own async upload request against the same authoritative-fields check
+    /// <c>HandlePost</c> already performs for the whole-page submission.
+    /// </summary>
+    public string Nonce { get; init; } = string.Empty;
+
+    /// <summary>The current workflow key — needed by a <c>file-upload</c> field's async upload URL.</summary>
+    public string WorkflowKey { get; init; } = string.Empty;
+
+    /// <summary>
     /// The value to display in the field — resolved from submitted values,
     /// then DefaultValue, then the engine-provided Value.
     /// </summary>
@@ -73,7 +83,9 @@ public record PrismFieldContext
         FieldRenderPayload field,
         string? fieldError,
         IReadOnlyDictionary<string, string>? values,
-        string instanceId = "")
+        string instanceId = "",
+        string nonce = "",
+        string workflowKey = "")
     {
         var submittedValue = values?.GetValueOrDefault(field.FieldKey);
         var displayValue   = !string.IsNullOrWhiteSpace(field.DefaultValue)
@@ -117,6 +129,8 @@ public record PrismFieldContext
             WrapperClass = wrapperClass,
             WrapperAttrs = wrapperAttrs,
             InstanceId   = instanceId,
+            Nonce        = nonce,
+            WorkflowKey  = workflowKey,
         };
     }
 }

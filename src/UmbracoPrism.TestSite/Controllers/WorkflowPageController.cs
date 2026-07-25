@@ -29,7 +29,8 @@ public class WorkflowPageController(
     IAntiforgery antiforgery,
     IWorkflowStepNonceService nonceService,
     IWorkflowFieldValidator fieldValidator,
-    IWorkflowFileStorage fileStorage)
+    IWorkflowFileStorage fileStorage,
+    IUploadTokenService uploadTokenService)
     : PrismWorkflowPageController<WorkflowViewModel>(
         logger,
         compositeViewEngine,
@@ -39,7 +40,8 @@ public class WorkflowPageController(
         antiforgery,
         nonceService,
         fieldValidator,
-        fileStorage)
+        fileStorage,
+        uploadTokenService)
 {
     /// <summary>
     /// Pre-populates workflow fields from authenticated user claims.

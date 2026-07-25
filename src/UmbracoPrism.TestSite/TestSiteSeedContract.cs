@@ -48,9 +48,16 @@ public static class TestSiteSeedContract
     public const string JugglingLicencePageUrl = "/apply-for-a-juggling-licence";
     public const string JugglingLicenceWorkflowKey = "apply-for-a-juggling-licence";
 
-    // Built live via MCP (see tests/demo/licence-transfer-demo.spec.ts), not C#-seeded like the
-    // key above — kept here anyway so both juggling-licence workflow keys live in one place.
+    // Originally built live via MCP (see tests/demo/licence-transfer-demo.spec.ts) — that
+    // recording is the definition's real origin story and the reason it exists, but the result
+    // is good enough to also be C# seeded as a permanent "here's one we made earlier" reference,
+    // the same way JugglingLicenceWorkflowKey is (see LicenceTransferCmsWorkflowSeeder). The
+    // page name/URL/nav label below match exactly what the recording itself creates live, so a
+    // fresh Aspire boot and the recorded video agree on every visible detail.
     public const string JugglingLicenceTransferWorkflowKey = "transfer-a-juggling-licence";
+    public const string LicenceTransferPageName = "Transfer your existing juggling licence";
+    public const string LicenceTransferPageUrl = "/transfer-your-existing-juggling-licence";
+    public const string LicenceTransferNavLabel = "Transfer your licence";
 
     public static IContent? FindContentByAlias(IContentService contentService, string alias)
         => EnumerateContentTree(contentService)
@@ -60,6 +67,18 @@ public static class TestSiteSeedContract
         => EnumerateContentTree(contentService)
                .FirstOrDefault(content =>
                    content.ContentType.Alias == WorkflowPageAlias
+                   && string.Equals(content.GetValue<string>("workflowKey"), workflowKey, StringComparison.OrdinalIgnoreCase));
+
+    // cmsWorkflowPage is a distinct doc type from workflowPage above (Prism's newer,
+    // Umbraco-only-hosted CMS Workflow, not the older business-workflow demos) — and more than
+    // one cmsWorkflowPage instance can now exist (apply-for-a-juggling-licence,
+    // transfer-a-juggling-licence), so a seeder checking "does my page already exist" must
+    // filter by workflowKey, not just by alias (which would match whichever page happens to be
+    // first in the tree and wrongly skip creating the other one).
+    public static IContent? FindCmsWorkflowPageByKey(IContentService contentService, string workflowKey)
+        => EnumerateContentTree(contentService)
+               .FirstOrDefault(content =>
+                   content.ContentType.Alias == CmsWorkflowPageAlias
                    && string.Equals(content.GetValue<string>("workflowKey"), workflowKey, StringComparison.OrdinalIgnoreCase));
 
     public static IPublishedContent? FindPublishedByAlias(IEnumerable<IPublishedContent> roots, string alias)
