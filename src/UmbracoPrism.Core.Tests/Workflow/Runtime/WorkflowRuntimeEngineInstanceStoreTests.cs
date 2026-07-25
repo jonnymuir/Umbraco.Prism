@@ -86,6 +86,79 @@ public class WorkflowRuntimeEngineInstanceStoreTests
     }
 
     [Fact]
+    public void GetCurrent_StartNew_DefaultsIsAuthenticatedToFalse()
+    {
+        // The base engine has no identity model of its own — ResolveIsAuthenticated is only
+        // ever true when a host (e.g. CmsWorkflowEngine) overrides it.
+        var store = new RecordingWorkflowInstanceStore();
+        var engine = CreateEngine(store);
+
+        var envelope = engine.GetCurrent("test-workflow", Tenant, User, action: "start-new");
+
+        store.TryGet(envelope.InstanceId, out var stored).Should().BeTrue();
+        stored.IsAuthenticated.Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetCurrent_StartNew_HostOverridingResolveIsAuthenticated_StampsTheNewInstance()
+    {
+        var store = new RecordingWorkflowInstanceStore();
+        var sanitizer = new Mock<IWorkflowContentSanitizer>();
+        sanitizer.Setup(s => s.Sanitize(It.IsAny<string>())).Returns<string>(x => x);
+        var engine = new AlwaysAuthenticatedWorkflowRuntimeEngine(
+            NullLogger<AlwaysAuthenticatedWorkflowRuntimeEngine>.Instance,
+            new SingleDefinitionStore(BuildDefinition()),
+            sanitizer.Object,
+            store);
+
+        var envelope = engine.GetCurrent("test-workflow", Tenant, User, action: "start-new");
+
+        store.TryGet(envelope.InstanceId, out var stored).Should().BeTrue();
+        stored.IsAuthenticated.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ClaimInstances_AnonymousInstanceWithNoConflict_IsRekeyedAndMarkedAuthenticated()
+    {
+        var store = new RecordingWorkflowInstanceStore();
+        var engine = CreateEngine(store);
+        store.Save(CreateInstance("anon-instance", "start") with { UserId = "anon-cookie-1" });
+
+        var claimed = engine.ClaimInstances(Tenant, "anon-cookie-1", "member@example.test");
+
+        claimed.Should().ContainSingle().Which.Should().Be("anon-instance");
+        store.TryGet("anon-instance", out var stored).Should().BeTrue();
+        stored.UserId.Should().Be("member@example.test");
+        stored.IsAuthenticated.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ClaimInstances_MemberAlreadyOwnsAnInstanceOfThatWorkflow_LeavesTheAnonymousOneUnclaimed()
+    {
+        var store = new RecordingWorkflowInstanceStore();
+        var engine = CreateEngine(store);
+        store.Save(CreateInstance("anon-instance", "start") with { UserId = "anon-cookie-1" });
+        store.Save(CreateInstance("members-own-instance", "start") with { UserId = "member@example.test", IsAuthenticated = true });
+
+        var claimed = engine.ClaimInstances(Tenant, "anon-cookie-1", "member@example.test");
+
+        claimed.Should().BeEmpty();
+        store.TryGet("anon-instance", out var stillAnonymous).Should().BeTrue();
+        stillAnonymous.UserId.Should().Be("anon-cookie-1", "claiming must not overwrite the member's own existing instance");
+    }
+
+    [Fact]
+    public void ClaimInstances_NoAnonymousInstances_ReturnsEmptyWithoutError()
+    {
+        var store = new RecordingWorkflowInstanceStore();
+        var engine = CreateEngine(store);
+
+        var claimed = engine.ClaimInstances(Tenant, "anon-cookie-with-nothing", "member@example.test");
+
+        claimed.Should().BeEmpty();
+    }
+
+    [Fact]
     public void NoInstanceStoreSupplied_DefaultsToProcessLocalInMemoryBehaviour()
     {
         // Backward-compatibility guarantee: existing hosts that never pass an instanceStore
@@ -146,6 +219,22 @@ public class WorkflowRuntimeEngineInstanceStoreTests
             : base(logger, new SingleDefinitionStore(definition), sanitizer, instanceStore: instanceStore)
         {
         }
+    }
+
+    /// <summary>Proves a host can override ResolveIsAuthenticated to stamp new instances —
+    /// mirrors how CmsWorkflowEngine derives it from the live request's HttpContext.</summary>
+    private sealed class AlwaysAuthenticatedWorkflowRuntimeEngine : WorkflowRuntimeEngine
+    {
+        public AlwaysAuthenticatedWorkflowRuntimeEngine(
+            ILogger<AlwaysAuthenticatedWorkflowRuntimeEngine> logger,
+            IWorkflowDefinitionStore definitionStore,
+            IWorkflowContentSanitizer sanitizer,
+            IWorkflowInstanceStore instanceStore)
+            : base(logger, definitionStore, sanitizer, instanceStore: instanceStore)
+        {
+        }
+
+        protected override bool ResolveIsAuthenticated(string tenantId, string userId) => true;
     }
 
     private sealed class SingleDefinitionStore(WorkflowDefinitionFile definition) : IWorkflowDefinitionStore

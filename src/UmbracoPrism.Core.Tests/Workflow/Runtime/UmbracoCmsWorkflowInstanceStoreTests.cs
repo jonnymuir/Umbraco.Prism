@@ -129,6 +129,106 @@ public class UmbracoCmsWorkflowInstanceStoreTests
     }
 
     [Fact]
+    public void Save_AuthenticatedInstance_NewRow_InsertsWithNeverExpiresInsteadOfSlidingWindow()
+    {
+        var (store, db) = BuildStore();
+        db.Setup(d => d.Execute(
+                It.Is<string>(sql => sql.StartsWith("UPDATE prismCmsWorkflowInstance SET WorkflowKey")),
+                It.IsAny<object[]>()))
+            .Returns(0);
+
+        store.Save(new WorkflowInstanceState
+        {
+            InstanceId = "instance-1",
+            WorkflowKey = "apply-for-a-juggling-licence",
+            TenantId = "tenant-1",
+            UserId = "member@example.test",
+            IsAuthenticated = true,
+            CurrentState = "eligibility"
+        });
+
+        db.Verify(d => d.Insert(It.Is<PrismCmsWorkflowInstanceSchema>(r =>
+            r.InstanceId == "instance-1" && r.ExpiresUtc == DateTime.MaxValue)), Times.Once);
+    }
+
+    [Fact]
+    public void Save_AuthenticatedInstance_ExistingRow_UpdatesWithNeverExpires()
+    {
+        var (store, db) = BuildStore();
+        DateTime? capturedExpiresUtc = null;
+        db.Setup(d => d.Execute(
+                It.Is<string>(sql => sql.StartsWith("UPDATE prismCmsWorkflowInstance SET WorkflowKey")),
+                It.IsAny<object[]>()))
+            .Callback<string, object[]>((_, args) => capturedExpiresUtc = (DateTime)args[4])
+            .Returns(1);
+
+        store.Save(new WorkflowInstanceState
+        {
+            InstanceId = "instance-1",
+            WorkflowKey = "apply-for-a-juggling-licence",
+            TenantId = "tenant-1",
+            UserId = "member@example.test",
+            IsAuthenticated = true,
+            CurrentState = "check-answers"
+        });
+
+        capturedExpiresUtc.Should().Be(DateTime.MaxValue);
+    }
+
+    [Fact]
+    public void Save_AnonymousInstance_StillUsesTheSlidingWindow()
+    {
+        var (store, db) = BuildStore();
+        DateTime? capturedExpiresUtc = null;
+        db.Setup(d => d.Execute(
+                It.Is<string>(sql => sql.StartsWith("UPDATE prismCmsWorkflowInstance SET WorkflowKey")),
+                It.IsAny<object[]>()))
+            .Callback<string, object[]>((_, args) => capturedExpiresUtc = (DateTime)args[4])
+            .Returns(1);
+
+        store.Save(new WorkflowInstanceState
+        {
+            InstanceId = "instance-1",
+            WorkflowKey = "apply-for-a-juggling-licence",
+            TenantId = "tenant-1",
+            UserId = "anon-cookie-1",
+            IsAuthenticated = false,
+            CurrentState = "check-answers"
+        });
+
+        capturedExpiresUtc.Should().NotBe(DateTime.MaxValue);
+        capturedExpiresUtc.Should().BeCloseTo(DateTime.UtcNow.AddMinutes(30), TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void TryGet_AuthenticatedInstance_DoesNotRefreshTheAlreadyPermanentExpiry()
+    {
+        var (store, db) = BuildStore();
+        var row = BuildRow("instance-1", DateTime.MaxValue);
+        row.StateJson = JsonSerializer.Serialize(new WorkflowInstanceState
+        {
+            InstanceId = "instance-1",
+            WorkflowKey = "apply-for-a-juggling-licence",
+            TenantId = "tenant-1",
+            UserId = "member@example.test",
+            IsAuthenticated = true,
+            CurrentState = "eligibility"
+        });
+        db.Setup(d => d.FirstOrDefault<PrismCmsWorkflowInstanceSchema>(
+                It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns(row);
+
+        var found = store.TryGet("instance-1", out var instance);
+
+        found.Should().BeTrue();
+        instance.IsAuthenticated.Should().BeTrue();
+        db.Verify(d => d.Execute(
+            It.Is<string>(sql => sql.Contains("UPDATE prismCmsWorkflowInstance SET ExpiresUtc")),
+            It.IsAny<object[]>()), Times.Never,
+            "an already-permanent row needs no sliding-window refresh — that would just be a wasted write");
+    }
+
+    [Fact]
     public void Remove_DeletesByInstanceId()
     {
         var (store, db) = BuildStore();

@@ -25,7 +25,7 @@ public class CmsWorkflowFileDownloadController(
     [HttpGet("{instanceId}/{fieldKey}")]
     public async Task<IActionResult> Download(string instanceId, string fieldKey, CancellationToken cancellationToken)
     {
-        var (tenantId, userId) = identityResolver.Resolve();
+        var (tenantId, userId, _) = identityResolver.Resolve();
         var reference = engine.TryGetOwnedFileReference(
             instanceId, tenantId, userId, CmsWorkflowQueue.AccessProfile, fieldKey);
 

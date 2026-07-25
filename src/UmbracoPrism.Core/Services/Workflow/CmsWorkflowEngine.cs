@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Shared.Models.Workflow;
 using UmbracoPrism.Shared.Services.Sanitization;
@@ -21,9 +22,20 @@ public sealed class CmsWorkflowEngine(
     IWorkflowDefinitionStore definitionStore,
     IWorkflowContentSanitizer sanitizer,
     IWorkflowInstanceStore instanceStore,
+    IHttpContextAccessor httpContextAccessor,
     Func<WorkflowInstanceState, WorkflowDefinitionFile, StepDefinition, IReadOnlyDictionary<string, object?>?>? serviceInputsResolver = null)
     : WorkflowRuntimeEngine(logger, definitionStore, sanitizer, serviceInputsResolver, instanceStore)
 {
+    /// <summary>
+    /// A new instance is authenticated when the request creating it belongs to a signed-in
+    /// user — mirrors the same <c>User.Identity.IsAuthenticated</c> check <c>PrismUserContext</c>
+    /// makes, but read directly via <see cref="IHttpContextAccessor"/> rather than injecting
+    /// the scoped <c>IPrismUserContext</c> into this singleton engine (which would capture a
+    /// stale request the first time it resolved).
+    /// </summary>
+    protected override bool ResolveIsAuthenticated(string tenantId, string userId) =>
+        httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
+
     /// <summary>
     /// Resolves a <c>file-upload</c> field's stored reference for a download endpoint — reuses
     /// the exact same ownership check (<see cref="WorkflowRuntimeEngine.CanAccessInstance"/>)
