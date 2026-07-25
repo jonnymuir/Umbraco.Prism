@@ -14,10 +14,26 @@
 
 import type { AuthoredWorkflow } from './types.js';
 
+/**
+ * One save-error detail line, optionally locating the stage it came from — a server-side
+ * diagnostic's `path` (e.g. `states.licence-details.components[0].items[0].fieldKey`) names a
+ * real stage the editor can jump to, the way the Validation rail's structural issues already
+ * do. A diagnostic with no resolvable stage (e.g. a `calculations.fields.X` path) just has no
+ * `stageKey` — still shown, just not clickable.
+ */
+export interface WorkflowSaveErrorDetail {
+  message: string;
+  stageKey?: string;
+}
+
 export interface WorkflowSaveErrorOptions {
   title: string;
   summary: string;
   detailLines?: string[];
+  /** Rich detail entries for the save-error surface; defaults from detailLines when omitted. */
+  details?: WorkflowSaveErrorDetail[];
+  /** Stage the headline `summary` came from, when resolvable — see WorkflowSaveErrorDetail. */
+  summaryStageKey?: string;
   traceId?: string | null;
   statusCode?: number;
   /**
@@ -97,6 +113,8 @@ export class WorkflowSaveError extends Error {
   readonly title: string;
   readonly summary: string;
   readonly detailLines: string[];
+  readonly details: WorkflowSaveErrorDetail[];
+  readonly summaryStageKey?: string;
   readonly traceId: string | null;
   readonly statusCode?: number;
   readonly isConflict: boolean;
@@ -108,6 +126,8 @@ export class WorkflowSaveError extends Error {
     this.title = options.title;
     this.summary = options.summary;
     this.detailLines = options.detailLines ?? [];
+    this.details = options.details ?? this.detailLines.map(message => ({ message }));
+    this.summaryStageKey = options.summaryStageKey;
     this.traceId = options.traceId ?? null;
     this.statusCode = options.statusCode;
     this.isConflict = options.isConflict ?? false;

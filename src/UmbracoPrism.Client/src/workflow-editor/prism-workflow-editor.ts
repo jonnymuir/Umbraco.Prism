@@ -1594,6 +1594,24 @@ export class PrismWorkflowEditorElement extends LitElement {
     });
   }
 
+  /**
+   * Jumps the canvas to a stage named by a save-time diagnostic's path — the server-side
+   * counterpart to `_jumpToValidationIssue`'s stage branch, minus the `WorkflowValidationIssue`
+   * object those diagnostics don't have. Selecting the stage is enough to guide someone to the
+   * problem; the message itself (already shown in the save-error list) names the specific
+   * component and field.
+   */
+  private _jumpToStage(stageKey: string) {
+    if (!this._workflow) {
+      return;
+    }
+
+    this._activeConfidenceTab = 'canvas';
+    this._inspectorCollapsed = false;
+    this._applySelection({ kind: 'stage', stageKey }, this._workflow);
+    this._actionSelection = null;
+  }
+
   private _jumpToValidationIssue(issue: WorkflowValidationIssue) {
     if (!this._workflow) {
       return;
@@ -2444,13 +2462,43 @@ export class PrismWorkflowEditorElement extends LitElement {
         <div class="save-error-header">
           <p class="save-error-eyebrow">Save problem</p>
           <h2 id="workflow-save-error-title" class="save-error-title">${this._saveError.title}</h2>
-          <p class="save-error-summary" role="alert">${this._saveError.summary}</p>
+          ${this._saveError.summaryStageKey
+            ? html`
+                <p class="save-error-summary" role="alert">
+                  <button
+                    type="button"
+                    class="save-error-detail-link"
+                    data-prism-save-error-jump
+                    @click=${() => this._jumpToStage(this._saveError!.summaryStageKey!)}
+                  >
+                    ${this._saveError.summary}
+                    <span class="save-error-detail-link-hint">Go to stage</span>
+                  </button>
+                </p>
+              `
+            : html`<p class="save-error-summary" role="alert">${this._saveError.summary}</p>`}
         </div>
 
-        ${this._saveError.detailLines.length > 0
+        ${this._saveError.details.length > 0
           ? html`
               <ul class="save-error-list">
-                ${this._saveError.detailLines.map(line => html`<li>${line}</li>`)}
+                ${this._saveError.details.map(detail => html`
+                  <li>
+                    ${detail.stageKey
+                      ? html`
+                          <button
+                            type="button"
+                            class="save-error-detail-link"
+                            data-prism-save-error-jump
+                            @click=${() => this._jumpToStage(detail.stageKey!)}
+                          >
+                            ${detail.message}
+                            <span class="save-error-detail-link-hint">Go to stage</span>
+                          </button>
+                        `
+                      : detail.message}
+                  </li>
+                `)}
               </ul>
             `
           : nothing}
@@ -2618,6 +2666,36 @@ export class PrismWorkflowEditorElement extends LitElement {
       padding-left: 1.25rem;
       display: grid;
       gap: 0.375rem;
+    }
+
+    .save-error-detail-link {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      border: none;
+      background: none;
+      padding: 0;
+      color: #1d70b8;
+      text-decoration: underline;
+      text-align: left;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    .save-error-detail-link:hover {
+      color: #003078;
+    }
+
+    .save-error-detail-link:focus-visible {
+      outline: 3px solid #ffdd00;
+      outline-offset: 2px;
+    }
+
+    .save-error-detail-link-hint {
+      flex-shrink: 0;
+      font-size: 0.8125rem;
+      text-decoration: none;
+      color: #505a5f;
     }
 
     .save-error-copy-label {
