@@ -144,8 +144,12 @@ export function coerceParsedAuthoredWorkflow(parsed: unknown): AuthoredWorkflow 
     queues: Array.isArray(root.queues) ? (root.queues as AuthoredWorkflow['queues']) : [],
     states: Array.isArray(root.states) ? (root.states as AuthoredWorkflow['states']) : [],
     gateways: Array.isArray(root.gateways) ? (root.gateways as AuthoredWorkflow['gateways']) : [],
+    calculations: root.calculations
+      ? (root.calculations as AuthoredWorkflow['calculations'])
+      : undefined,
     parameterSchemas: Array.isArray(root.parameterSchemas)
       ? (root.parameterSchemas as AuthoredWorkflow['parameterSchemas'])
       : undefined,
+    layout: root.layout ? (root.layout as AuthoredWorkflow['layout']) : undefined,
   });
 }
