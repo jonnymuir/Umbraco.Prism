@@ -505,6 +505,46 @@ public record WorkflowDefinitionFile
         return diagnostics;
     }
 
+    /// <summary>
+    /// The only <see cref="StepDefinition.StageType"/> values the backoffice editor and the
+    /// <c>AuthoredWorkflow</c>→projector pipeline recognise. StageType has no runtime meaning on
+    /// its own — actual step-shell rendering is inferred from the state's components (see
+    /// <c>PrismComponentExtensions.InferStepType</c>) — but an unrecognised value passes every
+    /// other check here and only surfaces later as an editor-only rejection when someone opens the
+    /// workflow in the backoffice Definition tab, after it's already been saved by another
+    /// authoring surface (MCP, REST). Kept in sync by hand with
+    /// <c>UmbracoPrism.WorkflowEditor.Authoring.StageKind</c> and the client's
+    /// <c>workflow-definition-lint.ts</c> <c>ALLOWED_STAGE_KINDS</c>.
+    /// </summary>
+    public static readonly IReadOnlyCollection<string> KnownStageKinds =
+        ["Question", "CheckAnswers", "Confirmation", "TaskList"];
+
+    /// <summary>
+    /// Validates that every state's optional <see cref="StepDefinition.StageType"/>, when present,
+    /// is one of <see cref="KnownStageKinds"/>. StageType is optional — omitting it entirely and
+    /// relying on component-based shell inference remains valid — this only rejects a value that's
+    /// present but not recognised by any authoring surface.
+    /// Returns one diagnostic per state with an unrecognised stageType; empty list means every
+    /// declared stageType (if any) is known.
+    /// </summary>
+    public IReadOnlyList<WorkflowDiagnostic> ValidateStageVocabulary()
+    {
+        var diagnostics = new List<WorkflowDiagnostic>();
+
+        foreach (var state in States)
+        {
+            if (!string.IsNullOrWhiteSpace(state.StageType) && !KnownStageKinds.Contains(state.StageType))
+            {
+                diagnostics.Add(new WorkflowDiagnostic(
+                    "STATE_UNKNOWN_STAGE_TYPE",
+                    $"states.{state.StateKey}",
+                    $"State '{state.StateKey}' has unrecognised stageType '{state.StageType}'. Known kinds: " +
+                    $"{string.Join(", ", KnownStageKinds)}."));
+            }
+        }
+
+        return diagnostics;
+    }
 
     private IReadOnlyList<WorkflowQueueDefinition>? _queues;
     private IReadOnlyList<WorkflowTransitionFile>? _transitions;

@@ -112,6 +112,33 @@ public class WorkflowAuthoringServiceTests
         outcome.Diagnostics.Should().ContainSingle(d => d.Code == "CALC_FIELD_ERROR" && d.Message.Contains("Unknown name"));
     }
 
+    [Fact]
+    public async Task SaveAsync_StateWithUnrecognisedStageType_RejectsWithoutSaving()
+    {
+        // Regression coverage: an MCP-authored workflow once saved successfully with
+        // stageType "Outcome" — a value no authoring surface actually recognises — because
+        // nothing in this pipeline checked it. The backoffice editor's own client-side lint
+        // was the only thing that ever caught it, so the invalid save reached persistence
+        // first and only surfaced as a confusing error much later when someone opened the
+        // workflow in the editor.
+        var store = new InMemoryWorkflowSourceStore();
+        var service = new WorkflowAuthoringService(store);
+        var workflow = ProjectLinearWorkflow();
+        workflow = workflow with
+        {
+            States = workflow.States
+                .Select(s => s.StateKey == "done" ? s with { StageType = "Outcome" } : s)
+                .ToList()
+        };
+
+        var outcome = await service.SaveAsync(workflow, expectedVersion: 0);
+
+        outcome.Status.Should().Be(WorkflowSaveStatus.Invalid);
+        outcome.Diagnostics.Should().ContainSingle(d =>
+            d.Code == "STATE_UNKNOWN_STAGE_TYPE" && d.Message.Contains("'Outcome'"));
+        (await store.LoadAsync(workflow.DefinitionKey)).Should().BeNull();
+    }
+
     private static WorkflowDefinitionFile ProjectLinearWorkflow()
     {
         var authored = new AuthoredWorkflow

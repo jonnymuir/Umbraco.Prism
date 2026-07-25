@@ -8,6 +8,7 @@ import {
   WorkflowSaveError,
   sanitiseWorkflowSaveErrorLines,
   sanitiseWorkflowSaveErrorText,
+  type WorkflowSaveErrorDetail,
   type WorkflowSource,
   type WorkflowSummary,
 } from '../workflow-editor/workflow-source.js';
@@ -39,20 +40,48 @@ type WorkflowSaveOutcomePayload = {
   newVersion?: unknown;
 };
 
-function readStructuredErrorLines(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return sanitiseWorkflowSaveErrorLines(
-      value.map(entry =>
-        entry && typeof entry === 'object' && 'message' in entry && typeof (entry as { message?: unknown }).message === 'string'
-          ? (entry as { message: string }).message
-          : typeof entry === 'string'
-            ? entry
-            : null
-      )
-    );
+// A WorkflowDiagnostic's `path` names the offending element with stable keys, e.g.
+// "states.licence-details.components[0].items[0].fieldKey" or "calculations.fields.member".
+// Only the "states.<key>..." shape names something the canvas can actually jump to.
+function stageKeyFromDiagnosticPath(path: unknown): string | undefined {
+  if (typeof path !== 'string') {
+    return undefined;
   }
+  return /^states\.([^.]+)/.exec(path)?.[1];
+}
 
-  return typeof value === 'string' ? sanitiseWorkflowSaveErrorLines([value]) : [];
+function readStructuredDetails(value: unknown, workflow?: AuthoredWorkflow): WorkflowSaveErrorDetail[] {
+  const entries = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
+
+  return entries.flatMap((entry): WorkflowSaveErrorDetail[] => {
+    const rawMessage =
+      entry && typeof entry === 'object' && 'message' in entry && typeof (entry as { message?: unknown }).message === 'string'
+        ? (entry as { message: string }).message
+        : typeof entry === 'string'
+          ? entry
+          : null;
+    const [message] = sanitiseWorkflowSaveErrorLines([rawMessage]);
+    if (!message) {
+      return [];
+    }
+
+    const rawStageKey =
+      entry && typeof entry === 'object' && 'path' in entry
+        ? stageKeyFromDiagnosticPath((entry as { path?: unknown }).path)
+        : undefined;
+    const stage = rawStageKey ? workflow?.states.find(s => s.stateKey === rawStageKey) : undefined;
+
+    // Only offer a jump when the stage actually resolves — a dangling/renamed key isn't
+    // navigable, and showing a dead "jump" affordance would be worse than showing none.
+    return [{
+      message: stage ? `${stage.displayName}: ${message}` : message,
+      stageKey: stage ? rawStageKey : undefined,
+    }];
+  });
+}
+
+function readStructuredErrorLines(value: unknown): string[] {
+  return readStructuredDetails(value).map(detail => detail.message);
 }
 
 function parseConflictOutcome(payload: WorkflowSaveOutcomePayload, workflowKey: string): WorkflowSaveError {
@@ -68,6 +97,35 @@ function parseConflictOutcome(payload: WorkflowSaveOutcomePayload, workflowKey: 
     statusCode: 409,
     isConflict: true,
     currentVersion,
+  });
+}
+
+// UmbracoPrism.WorkflowRuntime.Services.WorkflowSaveOutcome for a real business-validation
+// failure (WorkflowAuthoringService.Validate rejected the workflow) — e.g. a stat-group bound
+// to a field that no longer exists, or a showWhen expression referencing an unknown name. This
+// is a genuinely different failure than a malformed request: the JSON was well-formed and
+// reached the server, but the workflow's own content is invalid. Distinguished from
+// ProblemDetails (a framework-level 400, e.g. a JSON deserialization failure) by payload shape,
+// not HTTP status — both currently arrive as a plain 400.
+function isWorkflowSaveOutcomePayload(payload: unknown): payload is WorkflowSaveOutcomePayload {
+  return !!payload && typeof payload === 'object' && Array.isArray((payload as WorkflowSaveOutcomePayload).diagnostics);
+}
+
+function parseValidationOutcome(
+  payload: WorkflowSaveOutcomePayload,
+  workflowKey: string,
+  workflow?: AuthoredWorkflow
+): WorkflowSaveError {
+  const details = readStructuredDetails(payload.diagnostics, workflow);
+  const summary = sanitiseWorkflowSaveErrorText(details[0]?.message)
+    ?? `“${workflowKey}” has a problem that must be fixed before it can be saved.`;
+
+  return new WorkflowSaveError({
+    title: 'This workflow can’t be saved yet',
+    summary,
+    details: details.filter(detail => detail.message !== summary),
+    summaryStageKey: details[0]?.message === summary ? details[0]?.stageKey : undefined,
+    statusCode: 400,
   });
 }
 
@@ -98,19 +156,35 @@ function parseProblemDetails(payload: ProblemDetailsPayload, statusCode: number,
   return new WorkflowSaveError({ title, summary, detailLines, traceId, statusCode });
 }
 
-async function buildSaveError(response: Response, workflowKey: string): Promise<WorkflowSaveError> {
-  const payloadText = await response.text().catch(() => '');
-  const contentType = response.headers.get('content-type') ?? '';
+/**
+ * The synchronous core of save-error parsing, factored out from `buildSaveError` so it's
+ * testable without mocking `fetch`/`Response` — every branch here is a pure function of the
+ * response body text.
+ */
+export function buildSaveErrorFromPayload(
+  payloadText: string,
+  status: number,
+  statusText: string,
+  contentType: string,
+  workflowKey: string,
+  workflow?: AuthoredWorkflow
+): WorkflowSaveError {
   const fallbackSummary = sanitiseWorkflowSaveErrorText(payloadText)
-    ?? `Save failed (${response.status} ${response.statusText}).`;
+    ?? `Save failed (${status} ${statusText}).`;
 
   if (contentType.includes('json') || payloadText.trim().startsWith('{')) {
     try {
-      if (response.status === 409) {
-        return parseConflictOutcome(JSON.parse(payloadText) as WorkflowSaveOutcomePayload, workflowKey);
+      const parsed = JSON.parse(payloadText) as WorkflowSaveOutcomePayload | ProblemDetailsPayload;
+
+      if (status === 409) {
+        return parseConflictOutcome(parsed as WorkflowSaveOutcomePayload, workflowKey);
       }
 
-      return parseProblemDetails(JSON.parse(payloadText) as ProblemDetailsPayload, response.status, workflowKey);
+      if (isWorkflowSaveOutcomePayload(parsed)) {
+        return parseValidationOutcome(parsed, workflowKey, workflow);
+      }
+
+      return parseProblemDetails(parsed as ProblemDetailsPayload, status, workflowKey);
     } catch {
       // Fall through to the plain-text fallback.
     }
@@ -119,8 +193,20 @@ async function buildSaveError(response: Response, workflowKey: string): Promise<
   return new WorkflowSaveError({
     title: 'We couldn’t save this workflow',
     summary: fallbackSummary,
-    statusCode: response.status,
+    statusCode: status,
   });
+}
+
+async function buildSaveError(response: Response, workflowKey: string, workflow?: AuthoredWorkflow): Promise<WorkflowSaveError> {
+  const payloadText = await response.text().catch(() => '');
+  return buildSaveErrorFromPayload(
+    payloadText,
+    response.status,
+    response.statusText,
+    response.headers.get('content-type') ?? '',
+    workflowKey,
+    workflow
+  );
 }
 
 export class UmbracoBackofficeWorkflowSource implements WorkflowSource {
@@ -171,7 +257,7 @@ export class UmbracoBackofficeWorkflowSource implements WorkflowSource {
       body,
     });
     if (!response.ok) {
-      throw await buildSaveError(response, workflowKey);
+      throw await buildSaveError(response, workflowKey, workflow);
     }
   }
 
