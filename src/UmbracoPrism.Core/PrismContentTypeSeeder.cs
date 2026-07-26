@@ -39,10 +39,10 @@ public class PrismContentTypeSeeder(
 
         await EnsureDocumentTypeAsync("homePage", "Home Page", allowedAsRoot: true);
         await EnsureDocumentTypeAsync("memberDashboard", "Member Dashboard", allowedAsRoot: false);
-        await EnsureWorkflowDemoPageAsync();
-        await EnsureWorkflowPageAsync();
-        await EnsureCmsWorkflowPageAsync();
-        await EnsureWorkflowHubAsync();
+        await EnsureServiceBlueprintDemoPageAsync();
+        await EnsureTouchpointPageAsync();
+        await EnsureCmsServiceRequestPageAsync();
+        await EnsureServiceRequestHubAsync();
         await EnsureSettingsDocumentTypeAsync();
         await EnsureHomeAllowedChildrenAsync();
 
@@ -77,7 +77,7 @@ public class PrismContentTypeSeeder(
 
     /// <summary>
     /// Lets the backoffice "Create" dialog under Home actually offer the content types the
-    /// seeded demo content already nests there (workflowPage, workflowHub, memberDashboard) —
+    /// seeded demo content already nests there (touchpointPage, serviceRequestHub, memberDashboard) —
     /// without this, those pages only ever exist because host seeders create them directly via
     /// <see cref="IContentService"/>, bypassing the same permission check a real backoffice user
     /// creating a new page under Home would hit.
@@ -87,7 +87,7 @@ public class PrismContentTypeSeeder(
         var homePage = contentTypeService.Get("homePage");
         if (homePage == null) return;
 
-        var childAliases = new[] { "workflowPage", "cmsWorkflowPage", "workflowHub", "memberDashboard" };
+        var childAliases = new[] { "touchpointPage", "cmsServiceRequestPage", "serviceRequestHub", "memberDashboard" };
         var existingAliases = (homePage.AllowedContentTypes ?? []).Select(sort => sort.Alias).ToHashSet();
         if (childAliases.All(existingAliases.Contains)) return;
 
@@ -104,14 +104,14 @@ public class PrismContentTypeSeeder(
         contentTypeService.Save(homePage);
 #pragma warning restore CS0618
 
-        logger.LogInformation("PRISM: homePage now allows workflowPage/cmsWorkflowPage/workflowHub/memberDashboard as children");
+        logger.LogInformation("PRISM: homePage now allows touchpointPage/cmsServiceRequestPage/serviceRequestHub/memberDashboard as children");
         await Task.CompletedTask;
     }
 
-    private async Task EnsureWorkflowPageAsync()
+    private async Task EnsureTouchpointPageAsync()
     {
-        const string alias = "workflowPage";
-        const string name = "Workflow Page";
+        const string alias = "touchpointPage";
+        const string name = "Touchpoint Page";
 
         var contentType = contentTypeService.Get(alias);
 
@@ -136,20 +136,21 @@ public class PrismContentTypeSeeder(
 #pragma warning restore CS0618
         }
 
-        await EnsureWorkflowKeyPropertyAsync(contentType);
+        await EnsureBlueprintKeyPropertyAsync(contentType);
         await EnsureTemplateAsync(contentType, name);
     }
 
     /// <summary>
-    /// The CMS Workflow implementation's own document type — distinct from <c>workflowPage</c>
-    /// (the business-workflow demo pattern, route-hijacked by a per-host controller) so Umbraco's
-    /// naming-convention routing dispatches to <c>CmsWorkflowPageController</c> instead, which
-    /// ships ready to use directly in Core with no host-side controller needed.
+    /// The CMS Service Blueprint implementation's own document type — distinct from
+    /// <c>touchpointPage</c> (the business-service-blueprint demo pattern, route-hijacked by a
+    /// per-host controller) so Umbraco's naming-convention routing dispatches to
+    /// <c>CmsServiceRequestPageController</c> instead, which ships ready to use directly in Core
+    /// with no host-side controller needed.
     /// </summary>
-    private async Task EnsureCmsWorkflowPageAsync()
+    private async Task EnsureCmsServiceRequestPageAsync()
     {
-        const string alias = "cmsWorkflowPage";
-        const string name = "CMS Workflow Page";
+        const string alias = "cmsServiceRequestPage";
+        const string name = "CMS Service Request Page";
 
         var contentType = contentTypeService.Get(alias);
 
@@ -174,14 +175,14 @@ public class PrismContentTypeSeeder(
 #pragma warning restore CS0618
         }
 
-        await EnsureWorkflowKeyPropertyAsync(contentType);
+        await EnsureBlueprintKeyPropertyAsync(contentType);
         await EnsureTemplateAsync(contentType, name);
     }
 
-    private async Task EnsureWorkflowHubAsync()
+    private async Task EnsureServiceRequestHubAsync()
     {
-        const string alias = "workflowHub";
-        const string name = "Workflow Hub";
+        const string alias = "serviceRequestHub";
+        const string name = "Service Request Hub";
 
         var contentType = contentTypeService.Get(alias);
 
@@ -209,27 +210,27 @@ public class PrismContentTypeSeeder(
         await EnsureTemplateAsync(contentType, name);
     }
 
-    private async Task EnsureWorkflowKeyPropertyAsync(IContentType contentType)
+    private async Task EnsureBlueprintKeyPropertyAsync(IContentType contentType)
     {
-        const string propertyAlias = "workflowKey";
+        const string propertyAlias = "blueprintKey";
         if (contentType.PropertyTypes.Any(p => p.Alias == propertyAlias)) return;
 
         var textboxDataType = await GetOrCreateTextboxDataTypeAsync();
         if (textboxDataType == null)
         {
-            logger.LogWarning("PRISM: Could not resolve textbox data type; skipping workflowKey property");
+            logger.LogWarning("PRISM: Could not resolve textbox data type; skipping blueprintKey property");
             return;
         }
 
-        const string groupName = "Workflow Configuration";
-        const string groupKey = "workflowConfiguration";
+        const string groupName = "Service Blueprint Configuration";
+        const string groupKey = "serviceBlueprintConfiguration";
         if (!contentType.PropertyGroups.Any(g => g.Name == groupName))
             contentType.AddPropertyGroup(groupName, groupKey);
 
         var propertyType = new PropertyType(shortStringHelper, textboxDataType, propertyAlias)
         {
-            Name = "Workflow Key",
-            Description = "The workflow definition key to run on this page (e.g. 'community-enquiry').",
+            Name = "Blueprint Key",
+            Description = "The service blueprint key to run on this page (e.g. 'community-enquiry').",
             Mandatory = false,
             SortOrder = 0
         };
@@ -239,13 +240,13 @@ public class PrismContentTypeSeeder(
 #pragma warning disable CS0618
         contentTypeService.Save(contentType);
 #pragma warning restore CS0618
-        logger.LogInformation("PRISM: workflowKey property added to workflowPage content type");
+        logger.LogInformation("PRISM: blueprintKey property added to touchpointPage content type");
     }
 
-    private async Task EnsureWorkflowDemoPageAsync()
+    private async Task EnsureServiceBlueprintDemoPageAsync()
     {
-        const string alias = "workflowDemoPage";
-        const string name = "Workflow Demo Page";
+        const string alias = "serviceBlueprintDemoPage";
+        const string name = "Service Blueprint Demo Page";
         
         var contentType = contentTypeService.Get(alias);
 
@@ -263,22 +264,22 @@ public class PrismContentTypeSeeder(
 #pragma warning restore CS0618
         }
 
-        // Add properties for workflow demo page
-        await EnsureWorkflowDemoPropertiesAsync(contentType);
+        // Add properties for service blueprint demo page
+        await EnsureServiceBlueprintDemoPropertiesAsync(contentType);
         await EnsureTemplateAsync(contentType, name);
     }
 
-    private async Task EnsureWorkflowDemoPropertiesAsync(IContentType contentType)
+    private async Task EnsureServiceBlueprintDemoPropertiesAsync(IContentType contentType)
     {
-        const string groupName = "Workflow Configuration";
-        const string groupKey = "workflowConfiguration";
-        
+        const string groupName = "Service Blueprint Configuration";
+        const string groupKey = "serviceBlueprintConfiguration";
+
         if (!contentType.PropertyGroups.Any(g => g.Name == groupName))
         {
             contentType.AddPropertyGroup(groupName, groupKey);
         }
 
-        // Create data types for workflow demo properties
+        // Create data types for service blueprint demo properties
         var textboxDataType = await GetOrCreateTextboxDataTypeAsync();
         var textareaDataType = await GetOrCreateTextareaDataTypeAsync();
 
@@ -290,13 +291,13 @@ public class PrismContentTypeSeeder(
 
         bool modified = false;
 
-        // Add workflowDefinitionKey property
-        if (!contentType.PropertyTypes.Any(p => p.Alias == "workflowDefinitionKey"))
+        // Add blueprintKey property
+        if (!contentType.PropertyTypes.Any(p => p.Alias == "blueprintKey"))
         {
-            var propertyType = new PropertyType(shortStringHelper, textboxDataType, "workflowDefinitionKey")
+            var propertyType = new PropertyType(shortStringHelper, textboxDataType, "blueprintKey")
             {
-                Name = "Workflow Definition Key",
-                Description = "The key of the workflow to render (e.g., 'information-request')",
+                Name = "Blueprint Key",
+                Description = "The key of the service blueprint to render (e.g., 'information-request')",
                 Mandatory = false,
                 SortOrder = 0
             };
@@ -324,7 +325,7 @@ public class PrismContentTypeSeeder(
             var propertyType = new PropertyType(shortStringHelper, textareaDataType, "pageIntro")
             {
                 Name = "Page Introduction",
-                Description = "Introductory text displayed above the workflow form",
+                Description = "Introductory text displayed above the service request form",
                 Mandatory = false,
                 SortOrder = 2
             };
@@ -337,7 +338,7 @@ public class PrismContentTypeSeeder(
 #pragma warning disable CS0618
             contentTypeService.Save(contentType);
 #pragma warning restore CS0618
-            logger.LogInformation("PRISM: Workflow demo page properties added");
+            logger.LogInformation("PRISM: Service blueprint demo page properties added");
         }
     }
 

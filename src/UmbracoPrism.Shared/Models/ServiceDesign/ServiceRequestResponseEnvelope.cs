@@ -1,10 +1,9 @@
-using UmbracoPrism.Shared.Models.ServiceDesign;
 using UmbracoPrism.Shared.Models.ServiceDesign.Components;
 
-namespace UmbracoPrism.Core.Models.Blueprint;
+namespace UmbracoPrism.Shared.Models.ServiceDesign;
 
 /// <summary>
-/// Standard API response envelope for blueprint operations.
+/// Standard API response envelope for service request operations.
 /// </summary>
 public record ServiceRequestResponseEnvelope
 {
@@ -368,7 +367,7 @@ public record FieldRenderPayload
 }
 
 /// <summary>
-/// Blueprint action available to the user.
+/// Action available to the user on the current service request.
 /// </summary>
 public record ServiceRequestAction
 {

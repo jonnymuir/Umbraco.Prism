@@ -1,6 +1,6 @@
-@model UmbracoPrism.Core.Models.Workflow.PrismComponentContext
+@model UmbracoPrism.Core.Models.ServiceDesign.PrismComponentContext
 @{
-    var stats = Model.Component.Stats ?? Array.Empty<UmbracoPrism.Core.Models.Workflow.PrismStatItem>();
+    var stats = Model.Component.Stats ?? Array.Empty<UmbracoPrism.Shared.Models.ServiceDesign.PrismStatItem>();
 }
 
 @if (!string.IsNullOrEmpty(Model.Component.Title))

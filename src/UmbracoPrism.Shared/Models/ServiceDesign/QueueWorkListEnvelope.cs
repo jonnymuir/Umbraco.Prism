@@ -1,5 +1,3 @@
-using UmbracoPrism.Core.Models.Blueprint;
-
 namespace UmbracoPrism.Shared.Models.ServiceDesign;
 
 public record QueueWorkListEnvelope

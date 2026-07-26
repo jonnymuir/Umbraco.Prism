@@ -1,6 +1,6 @@
 @* Fallback field renderer. To customise rendering for field type '@Model.Field.FieldType',
    create ~/Views/Partials/PrismFields/_Component-{TypeName}.cshtml with @model PrismFieldContext. *@
-@model UmbracoPrism.Core.Models.Workflow.PrismFieldContext
+@model UmbracoPrism.Core.Models.ServiceDesign.PrismFieldContext
 <div class="@Model.WrapperClass"@Html.Raw(Model.WrapperAttrs)>
     @await Html.PartialAsync("~/Views/Partials/PrismFields/_ComponentLabel.cshtml", Model)
     <input class="govuk-input@(Model.ReadOnlyCssClass)@(Model.HasFieldError ? " govuk-input--error" : "")"

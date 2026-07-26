@@ -734,34 +734,34 @@ public class DownstreamDemoController(
             TestSiteSeedContract.DashboardAlias,
             TestSiteSeedContract.DashboardName,
             TestSiteSeedContract.DashboardUrl);
-        var workflowPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.WorkflowKey),
-            TestSiteSeedContract.WorkflowPageAlias,
-            TestSiteSeedContract.WorkflowPageName,
-            TestSiteSeedContract.WorkflowPageUrl);
-        var workflowHub = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.WorkflowHubAlias),
-            TestSiteSeedContract.WorkflowHubAlias,
-            TestSiteSeedContract.WorkflowHubName,
-            TestSiteSeedContract.WorkflowHubUrl);
+        var touchpointPage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedTouchpointPage(roots, TestSiteSeedContract.BlueprintKey),
+            TestSiteSeedContract.TouchpointPageAlias,
+            TestSiteSeedContract.TouchpointPageName,
+            TestSiteSeedContract.ServiceRequestPageUrl);
+        var serviceRequestHub = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.ServiceRequestHubAlias),
+            TestSiteSeedContract.ServiceRequestHubAlias,
+            TestSiteSeedContract.ServiceRequestHubName,
+            TestSiteSeedContract.ServiceRequestHubUrl);
         var planningWorkflowPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.PlanningWorkflowKey),
-            TestSiteSeedContract.WorkflowPageAlias,
-            TestSiteSeedContract.PlanningWorkflowPageName,
-            TestSiteSeedContract.PlanningWorkflowPageUrl);
+            TestSiteSeedContract.FindPublishedTouchpointPage(roots, TestSiteSeedContract.PlanningBlueprintKey),
+            TestSiteSeedContract.TouchpointPageAlias,
+            TestSiteSeedContract.PlanningTouchpointPageName,
+            TestSiteSeedContract.PlanningTouchpointPageUrl);
         var paymentDemoPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.PaymentDemoWorkflowKey),
-            TestSiteSeedContract.WorkflowPageAlias,
+            TestSiteSeedContract.FindPublishedTouchpointPage(roots, TestSiteSeedContract.PaymentDemoBlueprintKey),
+            TestSiteSeedContract.TouchpointPageAlias,
             TestSiteSeedContract.PaymentDemoPageName,
             TestSiteSeedContract.PaymentDemoPageUrl);
         var informationRequestPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.InformationRequestWorkflowKey),
-            TestSiteSeedContract.WorkflowPageAlias,
+            TestSiteSeedContract.FindPublishedTouchpointPage(roots, TestSiteSeedContract.InformationRequestBlueprintKey),
+            TestSiteSeedContract.TouchpointPageAlias,
             TestSiteSeedContract.InformationRequestPageName,
             TestSiteSeedContract.InformationRequestPageUrl);
         var settings = TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.SettingsAlias);
         var mobileNav = BuildMobileNavStatus(settings);
-        var challengePath = $"/auth/login?ReturnUrl={Uri.EscapeDataString(TestSiteSeedContract.WorkflowHubUrl)}";
+        var challengePath = $"/auth/login?ReturnUrl={Uri.EscapeDataString(TestSiteSeedContract.ServiceRequestHubUrl)}";
         // routeContractReady waits for every authored URL the Playwright suite navigates to, so
         // the first request to any of them lands on a fully-warm Umbraco route + Razor view —
         // not a cold-start that returns 404 / Home / a half-rendered page (the symptom that
@@ -770,8 +770,8 @@ public class DownstreamDemoController(
         var routeContractReady =
             home.MatchesExpected &&
             dashboard.MatchesExpected &&
-            workflowPage.MatchesExpected &&
-            workflowHub.MatchesExpected &&
+            touchpointPage.MatchesExpected &&
+            serviceRequestHub.MatchesExpected &&
             planningWorkflowPage.MatchesExpected &&
             paymentDemoPage.MatchesExpected &&
             informationRequestPage.MatchesExpected &&
@@ -783,8 +783,8 @@ public class DownstreamDemoController(
             Auth: new SeedAuthStatus("/auth/login", "/auth/logout", challengePath),
             Home: home,
             Dashboard: dashboard,
-            WorkflowPage: workflowPage,
-            WorkflowHub: workflowHub,
+            WorkflowPage: touchpointPage,
+            WorkflowHub: serviceRequestHub,
             PlanningWorkflowPage: planningWorkflowPage,
             PaymentDemoPage: paymentDemoPage,
             InformationRequestPage: informationRequestPage,
@@ -816,7 +816,7 @@ public class DownstreamDemoController(
             ?? [];
         var hasHome = navUrls.Contains(NormalizePath(TestSiteSeedContract.HomePageUrl));
         var hasDashboard = navUrls.Contains(NormalizePath(TestSiteSeedContract.DashboardUrl));
-        var hasWorkflowHub = navUrls.Contains(NormalizePath(TestSiteSeedContract.WorkflowHubUrl));
+        var hasWorkflowHub = navUrls.Contains(NormalizePath(TestSiteSeedContract.ServiceRequestHubUrl));
         var ready =
             settings != null &&
             mobileNavLinks != null &&

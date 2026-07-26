@@ -6,7 +6,7 @@ namespace UmbracoPrism.TestSite.Services;
 /// non-member (anonymous visitor, or a logged-in Prism Member who just isn't a Society member) —
 /// deliberately never <see langword="null"/>, so the "apply-for-a-juggling-licence" definition's
 /// <c>member.tier</c> calculation field is always resolvable regardless of who's asking. See
-/// <c>CmsWorkflowEngine</c>'s <c>serviceInputsResolver</c> wiring in <c>TestSiteComposer</c>.
+/// <c>CmsProcessManager</c>'s <c>serviceInputsResolver</c> wiring in <c>TestSiteComposer</c>.
 /// </summary>
 public sealed record JugglingSocietyMembership(string Tier);
 

@@ -62,10 +62,10 @@
     <EmbeddedResource Include="Views\_ViewImports.cshtml" />
     <EmbeddedResource Include="Views\Partials\PrismFields\**\*.cshtml" />
     <EmbeddedResource Include="Views\Partials\PrismComponents\**\*.cshtml" />
-    <EmbeddedResource Include="Views\Partials\_WorkflowStep-*.cshtml" />
-    <EmbeddedResource Include="Views\Partials\_WorkflowHub-*.cshtml" />
-    <EmbeddedResource Include="Views\workflowPage.cshtml" />
-    <EmbeddedResource Include="Views\workflowHub.cshtml" />
+    <EmbeddedResource Include="Views\Partials\_Touchpoint-*.cshtml" />
+    <EmbeddedResource Include="Views\Partials\_ServiceRequestHub-*.cshtml" />
+    <EmbeddedResource Include="Views\touchpointPage.cshtml" />
+    <EmbeddedResource Include="Views\serviceRequestHub.cshtml" />
   </ItemGroup>
 
 </Project>

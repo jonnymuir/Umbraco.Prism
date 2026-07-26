@@ -1,4 +1,3 @@
-using UmbracoPrism.Core.Models.Blueprint;
 using UmbracoPrism.Shared.Models.ServiceDesign;
 using UmbracoPrism.ProcessManager.Models;
 

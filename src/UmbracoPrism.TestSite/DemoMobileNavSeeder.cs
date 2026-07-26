@@ -104,10 +104,10 @@ public class DemoMobileNavSeeder(
 
         var needsMobileUpdate = NeedsBlockListSeed(
             settings.GetValue<string>("mobileNavLinks"),
-            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.DashboardUrl, TestSiteSeedContract.WorkflowHubUrl);
+            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.DashboardUrl, TestSiteSeedContract.ServiceRequestHubUrl);
         var needsWebUpdate = settings.HasProperty("webNavLinks") && NeedsBlockListSeed(
             settings.GetValue<string>("webNavLinks"),
-            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.WorkflowPageUrl, TestSiteSeedContract.WorkflowHubUrl,
+            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.ServiceRequestPageUrl, TestSiteSeedContract.ServiceRequestHubUrl,
             TestSiteSeedContract.JugglingLicencePageUrl, TestSiteSeedContract.LicenceTransferPageUrl);
 
         if (!needsMobileUpdate && !needsWebUpdate)
@@ -325,7 +325,7 @@ public class DemoMobileNavSeeder(
             ["contentData"] = new JsonArray(
                 BuildBlockItem(homeKey,      "Home",         TestSiteSeedContract.HomePageUrl,   homeMediaKey),
                 BuildBlockItem(dashKey,      "Dashboard",    TestSiteSeedContract.DashboardUrl,  dashMediaKey),
-                BuildBlockItem(workflowsKey, "My Workflows", TestSiteSeedContract.WorkflowHubUrl, workflowsMediaKey)
+                BuildBlockItem(workflowsKey, "My Workflows", TestSiteSeedContract.ServiceRequestHubUrl, workflowsMediaKey)
             ),
             ["settingsData"] = new JsonArray(),
             ["expose"] = new JsonArray(
@@ -371,8 +371,8 @@ public class DemoMobileNavSeeder(
             },
             ["contentData"] = new JsonArray(
                 BuildBlockItem(homeKey, "Home", TestSiteSeedContract.HomePageUrl, mediaKey: null),
-                BuildBlockItem(getInTouchKey, "Get in Touch", TestSiteSeedContract.WorkflowPageUrl, mediaKey: null),
-                BuildBlockItem(workflowsKey, "My Workflows", TestSiteSeedContract.WorkflowHubUrl, mediaKey: null),
+                BuildBlockItem(getInTouchKey, "Get in Touch", TestSiteSeedContract.ServiceRequestPageUrl, mediaKey: null),
+                BuildBlockItem(workflowsKey, "My Workflows", TestSiteSeedContract.ServiceRequestHubUrl, mediaKey: null),
                 BuildBlockItem(jugglingLicenceKey, TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicencePageUrl, mediaKey: null),
                 BuildBlockItem(licenceTransferKey, TestSiteSeedContract.LicenceTransferNavLabel, TestSiteSeedContract.LicenceTransferPageUrl, mediaKey: null)
             ),

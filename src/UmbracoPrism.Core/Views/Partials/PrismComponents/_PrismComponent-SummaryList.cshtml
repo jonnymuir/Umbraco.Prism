@@ -1,4 +1,4 @@
-@model UmbracoPrism.Core.Models.Workflow.PrismComponentContext
+@model UmbracoPrism.Core.Models.ServiceDesign.PrismComponentContext
 @{
     var token = Html.AntiForgeryToken();
     var defaultSourceKey = Model.Component.SourceStateKey;
@@ -37,7 +37,7 @@
                         @token
                         <input type="hidden" name="InstanceId" value="@Model.InstanceId" />
                         <input type="hidden" name="StateVersion" value="@Model.StateVersion" />
-                        <input type="hidden" name="WorkflowKey" value="@Model.WorkflowKey" />
+                        <input type="hidden" name="BlueprintKey" value="@Model.BlueprintKey" />
                         <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
                         <input type="hidden" name="Nonce" value="@Model.Nonce" />
                         <button type="submit" name="Action" value="change:@sourceKey"

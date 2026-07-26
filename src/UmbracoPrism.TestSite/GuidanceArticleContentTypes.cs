@@ -11,9 +11,9 @@ namespace UmbracoPrism.TestSite;
 
 /// <summary>
 /// Creates the <c>guidanceArticle</c> document type on application startup — real, independently
-/// editable CMS content that the "Transfer a Professional Juggling Licence" CMS Workflow demo's
-/// <c>guidance-checklist</c> component links to. Seeded ahead of the workflow itself (which is
-/// authored live via the CMS Workflow MCP in a separate recorded walkthrough) so that build has
+/// editable CMS content that the "Transfer a Professional Juggling Licence" CMS Service Blueprint demo's
+/// <c>guidance-checklist</c> component links to. Seeded ahead of the service blueprint itself (which is
+/// authored live via the CMS Service Blueprint MCP in a separate recorded walkthrough) so that build has
 /// real content to reference rather than needing to author it on camera.
 /// </summary>
 public class GuidanceArticleContentTypes(
@@ -71,7 +71,7 @@ public class GuidanceArticleContentTypes(
             Icon = "icon-book-alt",
             AllowedAsRoot = false,
             IsElement = false,
-            Description = "A single CMS-managed guidance article, linked to from a workflow's guidance-checklist component."
+            Description = "A single CMS-managed guidance article, linked to from a service blueprint's guidance-checklist component."
         };
 
         const string groupName = "Content";

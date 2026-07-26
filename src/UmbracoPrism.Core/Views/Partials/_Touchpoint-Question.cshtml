@@ -1,0 +1,49 @@
+@model UmbracoPrism.Core.Models.ServiceDesign.PrismServiceRequestViewModel
+
+<prism-touchpoint-form instance-id="@Model.InstanceId"
+                     state-version="@Model.StateVersion"
+                     blueprint-key="@Model.BlueprintKey"
+                     return-url="@Model.ReturnUrl"
+                     nonce="@Model.Nonce">
+
+    <prism-error-summary problems="@Model.Problems" />
+
+    @foreach (var component in Model.Components)
+    {
+        <prism-component component="@component"
+                         errors="@Model.FieldErrors"
+                         values="@Model.FormValues"
+                         return-url="@Model.ReturnUrl"
+                         instance-id="@Model.InstanceId"
+                         state-version="@Model.StateVersion"
+                         blueprint-key="@Model.BlueprintKey"
+                         nonce="@Model.Nonce" />
+    }
+
+    @if (!string.IsNullOrEmpty(Model.LiveModelJson))
+    {
+        <script type="module" src="/App_Plugins/UmbracoPrism/dist/prism-live-form.js"></script>
+        <script type="application/json" data-prism-live-model>@Html.Raw(Model.LiveModelJson!.Replace("</", "<\\/"))</script>
+    }
+
+    @if (Model.HasFileUploadField)
+    {
+        <script type="module" src="/App_Plugins/UmbracoPrism/dist/prism-file-upload.js"></script>
+    }
+
+    <div class="govuk-button-group">
+        @foreach (var action in Model.AvailableActions)
+        {
+            var btnClass = action.Style switch
+            {
+                "primary" => "govuk-button",
+                "destructive" => "govuk-button govuk-button--warning",
+                _ => "govuk-button govuk-button--secondary"
+            };
+            <button type="submit" name="Action" value="@action.ActionKey" class="@btnClass" data-module="govuk-button">
+                @action.Label
+            </button>
+        }
+    </div>
+
+</prism-touchpoint-form>

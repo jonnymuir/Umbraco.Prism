@@ -1,8 +1,7 @@
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using UmbracoPrism.Core.Models.Blueprint;
-using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.ServiceDesign;
+using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.ServiceDesign.Components;
 using UmbracoPrism.Shared.Services.Calculations;
 using UmbracoPrism.ProcessManager.Abstractions;

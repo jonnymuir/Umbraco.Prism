@@ -1,4 +1,4 @@
-@model UmbracoPrism.Core.Models.Workflow.PrismFieldContext
+@model UmbracoPrism.Core.Models.ServiceDesign.PrismFieldContext
 @{
     var acceptAttr = Model.Field.AcceptedFileTypes is { Count: > 0 }
         ? $@" accept=""{string.Join(",", Model.Field.AcceptedFileTypes)}"""
@@ -6,8 +6,8 @@
     var acceptList = Model.Field.AcceptedFileTypes is { Count: > 0 }
         ? string.Join(",", Model.Field.AcceptedFileTypes)
         : string.Empty;
-    // Kept in sync with PrismWorkflowPageController.DefaultMaxFileSizeBytes by hand (10MB) —
-    // same tradeoff as CmsWorkflowFileUploadController's own local copy of this constant.
+    // Kept in sync with PrismServiceRequestPageController.DefaultMaxFileSizeBytes by hand (10MB) —
+    // same tradeoff as CmsServiceRequestFileUploadController's own local copy of this constant.
     var maxSizeBytes = Model.Field.MaxSizeBytes ?? 10 * 1024 * 1024;
     var alreadyUploaded = !string.IsNullOrEmpty(Model.DisplayValue);
     var downloadUrl = alreadyUploaded && !string.IsNullOrEmpty(Model.InstanceId)

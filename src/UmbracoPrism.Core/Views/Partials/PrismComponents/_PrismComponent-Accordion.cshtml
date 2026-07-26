@@ -1,5 +1,5 @@
-@model UmbracoPrism.Core.Models.Workflow.PrismComponentContext
-@inject UmbracoPrism.Shared.Services.Sanitization.IWorkflowContentSanitizer Sanitizer
+@model UmbracoPrism.Core.Models.ServiceDesign.PrismComponentContext
+@inject UmbracoPrism.Shared.Services.Sanitization.IServiceContentSanitizer Sanitizer
 @{
     var accordionId = $"accordion-{Guid.NewGuid():N}";
     var accordionSections = Model.Component.AccordionSections;
@@ -33,7 +33,7 @@
                     {
                         @foreach (var field in accordionSection.Fields)
                         {
-                            <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" nonce="@Model.Nonce" workflow-key="@Model.WorkflowKey" />
+                            <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" nonce="@Model.Nonce" blueprint-key="@Model.BlueprintKey" />
                         }
                     }
                     else if (!string.IsNullOrEmpty(accordionSection.Content))
