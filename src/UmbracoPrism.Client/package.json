@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && vite build --config vite.cms-workflow-manifests.config.ts && vite build --config vite.workflow-editor.config.ts",
+    "build": "tsc && vite build && vite build --config vite.cms-service-blueprint-manifests.config.ts && vite build --config vite.service-blueprint-editor.config.ts",
     "test:calc": "node scripts/run-calculation-golden.mjs",
     "test:editor-roundtrip": "node --import ./scripts/register-ts-js-resolve.mjs scripts/run-editor-roundtrip.mjs",
     "test:save-error-parsing": "node --experimental-transform-types --import ./scripts/register-ts-js-resolve.mjs scripts/run-save-error-parsing-tests.mjs",

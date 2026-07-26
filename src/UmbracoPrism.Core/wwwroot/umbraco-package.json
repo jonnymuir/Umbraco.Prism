@@ -40,10 +40,10 @@
     },
     {
       "type": "dashboard",
-      "alias": "Prism.CmsWorkflow.Dashboard",
-      "name": "Prism CMS Workflow Dashboard",
-      "elementName": "prism-cms-workflow-tab",
-      "js": "/App_Plugins/UmbracoPrism/dist/prism-cms-workflow-tab.js",
+      "alias": "Prism.CmsServiceBlueprint.Dashboard",
+      "name": "Prism CMS Service Blueprint Dashboard",
+      "elementName": "prism-cms-service-blueprint-tab",
+      "js": "/App_Plugins/UmbracoPrism/dist/prism-cms-service-blueprint-tab.js",
       "conditions": [
         {
           "alias": "Umb.Condition.SectionAlias",
@@ -51,15 +51,15 @@
         }
       ],
       "meta": {
-        "label": "CMS Workflow",
-        "pathname": "cms-workflow"
+        "label": "CMS Service Blueprint",
+        "pathname": "cms-service-blueprint"
       }
     },
     {
       "type": "bundle",
-      "alias": "Prism.CmsWorkflow.Bundle",
-      "name": "Prism CMS Workflow Management Bundle",
-      "js": "/App_Plugins/UmbracoPrism/dist/prism-cms-workflow-manifests.js"
+      "alias": "Prism.CmsServiceBlueprint.Bundle",
+      "name": "Prism CMS Service Blueprint Management Bundle",
+      "js": "/App_Plugins/UmbracoPrism/dist/prism-cms-service-blueprint-manifests.js"
     }
   ]
 }

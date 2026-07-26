@@ -1,17 +1,17 @@
 // ⚠️ MOBILE BOUNDARY: No @umbraco-cms imports allowed in this directory.
 //
 // Generic progressive enhancement for any file-upload field. Independent of prism-live-form.ts
-// (which only boots when a stage declares a calculations block) — a stage can have file-upload
-// fields with no calculations at all, so this boots on its own, gated purely on whether
-// [data-prism-file-upload] exists on the page (see PrismWorkflowViewModel.HasFileUploadField for
-// the server-side half of that gate).
+// (which only boots when a touchpoint declares a calculations block) — a touchpoint can have
+// file-upload fields with no calculations at all, so this boots on its own, gated purely on
+// whether [data-prism-file-upload] exists on the page (see PrismServiceRequestViewModel.HasFileUploadField
+// for the server-side half of that gate).
 //
 // On choosing a file, uploads it immediately via XMLHttpRequest (not fetch — upload.onprogress
-// is what makes a real, accessible progress bar possible) to CmsWorkflowFileUploadController,
-// ahead of the stage's own Continue button. A hidden input then carries the server-issued token
-// as the field's actual submitted value; PrismWorkflowPageController.HandlePost resolves it back
-// to the already-saved file. It contains no domain knowledge — the workflow JSON decides which
-// fields exist; this runtime only wires up whatever it finds.
+// is what makes a real, accessible progress bar possible) to CmsServiceRequestFileUploadController,
+// ahead of the touchpoint's own Continue button. A hidden input then carries the server-issued token
+// as the field's actual submitted value; PrismServiceRequestPageController.HandlePost resolves it back
+// to the already-saved file. It contains no domain knowledge — the service blueprint JSON decides
+// which fields exist; this runtime only wires up whatever it finds.
 
 const PROGRESS_ANNOUNCE_STEP = 10; // percentage points between aria-live progress announcements
 

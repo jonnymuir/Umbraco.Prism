@@ -1,0 +1,240 @@
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "definitionKey": "planning-application",
+  "displayName": "Planning Application",
+  "version": 1,
+  "description": "Standard planning application serviceBlueprint for submitting and tracking planning permission requests.",
+  "schemaVersion": "1.0",
+  "initialStageKey": "declaration",
+  "requestPolicy": "single",
+  "queues": [
+    {
+      "key": "applicant",
+      "title": "Applicant",
+      "actor": "applicant",
+      "roleGates": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "route-application-form",
+      "title": "Route to application form",
+      "type": "Split",
+      "queueKey": "applicant",
+      "source": "declaration",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "declaration--continue--application-form",
+          "target": "application-form",
+          "trigger": "continue",
+          "actions": []
+        }
+      ]
+    },
+    {
+      "key": "route-check-answers",
+      "title": "Route to check answers",
+      "type": "Split",
+      "queueKey": "applicant",
+      "source": "application-form",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "application-form--continue--check-answers",
+          "target": "check-answers",
+          "trigger": "continue",
+          "actions": []
+        }
+      ]
+    },
+    {
+      "key": "route-submitted",
+      "title": "Route to submitted",
+      "type": "Split",
+      "queueKey": "applicant",
+      "source": "check-answers",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "check-answers--submit--submitted",
+          "target": "submitted",
+          "trigger": "submit",
+          "condition": {
+            "kind": "expression",
+            "expression": "application.isComplete == true",
+            "description": "Prevent submission until the applicant has completed the form."
+          },
+          "actions": [
+            {
+              "type": "forms.submit",
+              "timing": "OnTransition",
+              "parameterSchemaKey": "forms-form-definition",
+              "params": {
+                "formDefinitionId": "planning-application"
+              },
+              "summary": "Submit the application form to the business app."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "key": "declaration",
+      "title": "Declaration",
+      "description": "Collects applicant and site identity before the full planning form.",
+      "type": "Question",
+      "actor": "applicant",
+      "queueKey": "applicant",
+      "actions": [
+        {
+          "type": "forms.load",
+          "timing": "OnEntry",
+          "parameterSchemaKey": "forms-form-definition",
+          "params": {
+            "formDefinitionId": "planning-declaration"
+          },
+          "summary": "Load the declaration form."
+        }
+      ],
+      "roleGates": [],
+      "editorComment": "Entry point — collects basic applicant and site identity.",
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Declaration",
+          "legendSize": "m",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "applicant-name",
+              "label": "Applicant name",
+              "required": true,
+              "hint": "Enter the full name of the person or organisation applying."
+            },
+            {
+              "type": "textarea",
+              "fieldKey": "site-address",
+              "label": "Site address",
+              "required": true,
+              "hint": "Enter the full address of the site where development is proposed."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "application-form",
+      "title": "Application Form",
+      "description": "Captures the substantive planning request.",
+      "type": "Question",
+      "actor": "applicant",
+      "queueKey": "applicant",
+      "actions": [
+        {
+          "type": "forms.save",
+          "timing": "OnExit",
+          "parameterSchemaKey": "forms-form-definition",
+          "params": {
+            "formDefinitionId": "planning-application"
+          },
+          "summary": "Persist the application form before moving on."
+        }
+      ],
+      "roleGates": [],
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Application Form",
+          "legendSize": "m",
+          "children": [
+            {
+              "type": "textarea",
+              "fieldKey": "description",
+              "label": "Description of proposed works",
+              "required": true,
+              "hint": "Provide a clear description of the development you are proposing."
+            },
+            {
+              "type": "select",
+              "fieldKey": "development-type",
+              "label": "Type of development",
+              "required": true,
+              "options": [
+                "New build",
+                "Extension",
+                "Change of use",
+                "Demolition",
+                "Other"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "check-answers",
+      "title": "Check your answers",
+      "description": "Summarises captured answers before final submission.",
+      "type": "CheckAnswers",
+      "actor": "applicant",
+      "queueKey": "applicant",
+      "actions": [],
+      "roleGates": [],
+      "editorComment": "Summary of all answers before final submission.",
+      "components": []
+    },
+    {
+      "key": "submitted",
+      "title": "Application submitted",
+      "description": "Confirms receipt and moves the case into reviewer handling.",
+      "type": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "applicant",
+      "actions": [],
+      "roleGates": [],
+      "components": []
+    }
+  ],
+  "handoffs": [
+    {
+      "id": "applicant-to-caseworker",
+      "fromStage": "check-answers",
+      "toStage": "submitted",
+      "label": "applicant-to-caseworker",
+      "actorChange": "caseworker"
+    }
+  ],
+  "parameterSchemas": [
+    {
+      "key": "forms-form-definition",
+      "title": "Forms engine definition reference",
+      "description": "Shared parameter contract for load/save/submit form actions.",
+      "appliesTo": [
+        "forms.load",
+        "forms.save",
+        "forms.submit"
+      ],
+      "valueKind": "Object",
+      "allowAdditionalProperties": false,
+      "properties": [
+        {
+          "key": "formDefinitionId",
+          "title": "Form definition id",
+          "description": "Stable forms-engine key to load or persist.",
+          "valueKind": "String",
+          "editor": "text"
+        }
+      ],
+      "required": [
+        "formDefinitionId"
+      ]
+    }
+  ],
+  "metadata": {
+    "serviceArea": "Planning",
+    "owner": "planning-team"
+  }
+}

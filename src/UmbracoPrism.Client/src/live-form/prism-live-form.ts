@@ -1,6 +1,6 @@
 // ⚠️ MOBILE BOUNDARY: No @umbraco-cms imports allowed in this directory.
 //
-// Generic live-form runtime. Progressive enhancement for any workflow stage whose
+// Generic live-form runtime. Progressive enhancement for any touchpoint whose
 // definition declares a calculations block:
 //
 //  - reads the embedded live model ([data-prism-live-model]): the calculation set,
@@ -11,7 +11,7 @@
 //    charts ([data-prism-chart]), slider value readouts ([data-prism-slider]), and
 //    visibility wrappers ([data-prism-show-when]).
 //
-// It contains no domain knowledge and no layout: the workflow JSON decides what exists
+// It contains no domain knowledge and no layout: the service blueprint JSON decides what exists
 // on the page; this runtime only keeps it live between (nonce-validated) POSTs. The
 // server re-evaluates the identical definitions authoritatively on every render.
 import {
@@ -61,7 +61,7 @@ function boot(): void {
     return;
   }
 
-  const form = modelScript.closest('form') ?? document.querySelector('form.prism-workflow-form') ?? document;
+  const form = modelScript.closest('form') ?? document.querySelector('form.prism-service-request-form') ?? document;
   const serviceScope = toScope(model.service ?? {});
 
   const readInput = (key: string): unknown => {
@@ -267,7 +267,7 @@ function rebuildChart(figure: HTMLElement, series: Record<string, Array<Record<s
 }
 
 // Guidance-checklist live progress text ("X of Y completed") — independent of the
-// calculations live model above (a workflow with a guidance checklist has no reason to also
+// calculations live model above (a service blueprint with a guidance checklist has no reason to also
 // declare a calculations block), so this runs unconditionally rather than being gated behind
 // boot()'s early return. The actual required-all-acknowledged gate is still server-side
 // validation on submit; this is purely a display nicety.
