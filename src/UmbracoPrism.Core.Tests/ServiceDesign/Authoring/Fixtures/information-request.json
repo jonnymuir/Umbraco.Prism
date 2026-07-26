@@ -1,0 +1,183 @@
+{
+  "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+  "definitionKey": "information-request",
+  "displayName": "Information Request",
+  "version": 1,
+  "schemaVersion": "1.0",
+  "initialTouchpointKey": "collecting-info",
+  "requestPolicy": "single",
+  "queues": [
+    {
+      "key": "applicant",
+      "title": "Applicant",
+      "actor": "applicant",
+      "roleGates": []
+    },
+    {
+      "key": "caseworker",
+      "title": "Caseworker",
+      "actor": "caseworker",
+      "roleGates": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "request-submitted",
+      "title": "Request submitted",
+      "type": "Split",
+      "queueKey": "applicant",
+      "source": "collecting-info",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "collecting-info--submit--review-complete",
+          "target": "review-complete",
+          "trigger": "submit",
+          "actions": []
+        },
+        {
+          "id": "collecting-info--submit--caseworker-review",
+          "target": "caseworker-review",
+          "trigger": "submit",
+          "actions": []
+        }
+      ]
+    },
+    {
+      "key": "caseworker-route",
+      "title": "Route from caseworker review",
+      "type": "Split",
+      "queueKey": "caseworker",
+      "source": "caseworker-review",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "caseworker-review--complete-review--review-complete",
+          "target": "review-complete",
+          "trigger": "complete-review",
+          "actions": []
+        }
+      ]
+    },
+    {
+      "key": "review-complete",
+      "title": "Review complete",
+      "type": "Join",
+      "queueKey": "applicant",
+      "roleGates": [],
+      "waitingInfo": {
+        "content": "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now.",
+        "expectedWaitSeconds": 30,
+        "pollIntervalMs": 5000,
+        "allowDefer": false
+      },
+      "requiredIncomingQueues": [
+        "applicant",
+        "caseworker"
+      ],
+      "routes": [
+        {
+          "id": "review-complete--release--complete",
+          "target": "complete",
+          "trigger": "release",
+          "actions": []
+        }
+      ]
+    }
+  ],
+  "touchpoints": [
+    {
+      "key": "collecting-info",
+      "title": "Tell us about yourself",
+      "type": "Question",
+      "queueKey": "applicant",
+      "actions": [],
+      "roleGates": [],
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Tell us about yourself",
+          "legendSize": "m",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "firstName",
+              "label": "First name",
+              "required": true,
+              "hint": "As it appears on your ID"
+            },
+            {
+              "type": "text",
+              "fieldKey": "lastName",
+              "label": "Last name",
+              "required": true
+            },
+            {
+              "type": "date",
+              "fieldKey": "dateOfBirth",
+              "label": "Date of birth",
+              "required": true,
+              "hint": "For example, 12 03 1985"
+            },
+            {
+              "type": "email",
+              "fieldKey": "email",
+              "label": "Email address",
+              "required": true,
+              "hint": "We'll only use this to contact you about your request"
+            },
+            {
+              "type": "select",
+              "fieldKey": "requestType",
+              "label": "What type of request is this?",
+              "required": true,
+              "options": [
+                "General enquiry",
+                "Data subject access request",
+                "Complaint",
+                "Technical support"
+              ]
+            },
+            {
+              "type": "textarea",
+              "fieldKey": "description",
+              "label": "Tell us more about your request",
+              "required": true,
+              "hint": "Include as much detail as possible. Maximum 1000 characters."
+            },
+            {
+              "type": "radio",
+              "fieldKey": "urgency",
+              "label": "How urgent is this?",
+              "required": true,
+              "options": [
+                "Standard (5-7 working days)",
+                "Urgent (2 working days)",
+                "Critical (same day)"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "caseworker-review",
+      "title": "Caseworker review",
+      "description": "Caseworker confirms the review outcome before the applicant sees the final status.",
+      "type": "Question",
+      "queueKey": "caseworker",
+      "actions": [],
+      "roleGates": [],
+      "components": []
+    },
+    {
+      "key": "complete",
+      "title": "Request Complete",
+      "type": "Confirmation",
+      "queueKey": "applicant",
+      "actions": [],
+      "roleGates": [],
+      "components": []
+    }
+  ]
+}

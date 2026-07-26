@@ -4,13 +4,13 @@ using FluentAssertions;
 namespace UmbracoPrism.Core.Tests;
 
 /// <summary>
-/// Guards the reference TestSite workflow views so they stay strongly typed and keep consuming
-/// the reusable Prism rendering surface from Core.
+/// Guards the reference TestSite service request views so they stay strongly typed and keep
+/// consuming the reusable Prism rendering surface from Core.
 ///
 /// When a route-hijacking controller returns a typed ViewModel, the matching Razor view must
 /// inherit that ViewModel type (or a compatible base), not the raw published model. The TestSite
-/// also acts as the reference Umbraco integration, so its workflow views should explicitly use the
-/// shared layout and Core workflow partials instead of remaining empty stubs.
+/// also acts as the reference Umbraco integration, so its service request views should explicitly
+/// use the shared layout and Core service request partials instead of remaining empty stubs.
 /// </summary>
 public class TestSiteViewModelBindingTests
 {
@@ -21,9 +21,9 @@ public class TestSiteViewModelBindingTests
         Path.Combine(RepoRoot, "src", "UmbracoPrism.TestSite", "Views");
 
     [Theory]
-    [InlineData("workflowPage")]
-    [InlineData("workflowHub")]
-    public void TestSite_WorkflowViews_MustExist(string documentTypeAlias)
+    [InlineData("touchpointPage")]
+    [InlineData("serviceRequestHub")]
+    public void TestSite_ServiceRequestViews_MustExist(string documentTypeAlias)
     {
         var viewPath = Path.Combine(TestSiteViewsPath, $"{documentTypeAlias}.cshtml");
 
@@ -32,9 +32,9 @@ public class TestSiteViewModelBindingTests
     }
 
     [Theory]
-    [InlineData("workflowPage", "WorkflowViewModel", "ContentModels.WorkflowPage")]
-    [InlineData("workflowHub", "WorkflowHubViewModel", "ContentModels.WorkflowHub")]
-    public void TestSite_WorkflowViews_MustUseTypedViewModels(string documentTypeAlias, string expectedType, string forbiddenType)
+    [InlineData("touchpointPage", "TouchpointViewModel", "ContentModels.TouchpointPage")]
+    [InlineData("serviceRequestHub", "ServiceRequestHubViewModel", "ContentModels.ServiceRequestHub")]
+    public void TestSite_ServiceRequestViews_MustUseTypedViewModels(string documentTypeAlias, string expectedType, string forbiddenType)
     {
         var viewPath = Path.Combine(TestSiteViewsPath, $"{documentTypeAlias}.cshtml");
         File.Exists(viewPath).Should().BeTrue();
@@ -51,40 +51,40 @@ public class TestSiteViewModelBindingTests
     }
 
     [Theory]
-    [InlineData("workflowPage")]
-    [InlineData("workflowHub")]
-    public void TestSite_WorkflowViews_MustUseSharedMasterLayout(string documentTypeAlias)
+    [InlineData("touchpointPage")]
+    [InlineData("serviceRequestHub")]
+    public void TestSite_ServiceRequestViews_MustUseSharedMasterLayout(string documentTypeAlias)
     {
         var viewPath = Path.Combine(TestSiteViewsPath, $"{documentTypeAlias}.cshtml");
         var content = File.ReadAllText(viewPath);
 
         content.Should().Contain("Layout = \"~/Views/Shared/Master.cshtml\"",
-            because: "workflow pages should render inside the authored Umbraco site shell");
+            because: "service request pages should render inside the authored Umbraco site shell");
     }
 
     [Fact]
-    public void WorkflowPageView_MustCompose_PrismWorkflowShells()
+    public void TouchpointPageView_MustCompose_PrismTouchpointShells()
     {
-        var viewPath = Path.Combine(TestSiteViewsPath, "workflowPage.cshtml");
+        var viewPath = Path.Combine(TestSiteViewsPath, "touchpointPage.cshtml");
         var content = File.ReadAllText(viewPath);
 
-        content.Should().Contain("WorkflowRenderShellResolver.ResolveShell",
-            because: "the TestSite workflow page should keep using the shared Core shell selection logic");
+        content.Should().Contain("ServiceRequestRenderShellResolver.ResolveShell",
+            because: "the TestSite touchpoint page should keep using the shared Core shell selection logic");
         content.Should().Contain("Html.PartialAsync(partialName, Model)",
-            because: "the TestSite workflow page should render the reusable Core shell partials");
-        content.Should().Contain("Html.PartialAsync(\"_WorkflowHub-InstancePicker\", Model)",
-            because: "prompt-style workflows should still offer the instance picker experience");
+            because: "the TestSite touchpoint page should render the reusable Core shell partials");
+        content.Should().Contain("Html.PartialAsync(\"_ServiceRequestHub-InstancePicker\", Model)",
+            because: "prompt-style touchpoints should still offer the instance picker experience");
     }
 
     [Fact]
-    public void WorkflowHubView_MustCompose_CoreInstanceListPartial()
+    public void ServiceRequestHubView_MustCompose_CoreInstanceListPartial()
     {
-        var viewPath = Path.Combine(TestSiteViewsPath, "workflowHub.cshtml");
+        var viewPath = Path.Combine(TestSiteViewsPath, "serviceRequestHub.cshtml");
         var content = File.ReadAllText(viewPath);
 
-        content.Should().Contain("Html.PartialAsync(\"_WorkflowHub-InstanceList\", Model.ActiveInstances)",
-            because: "the workflow hub should show the reusable instance list for active requests");
-        content.Should().Contain("Html.PartialAsync(\"_WorkflowHub-InstanceList\", Model.CompletedInstances)",
-            because: "the workflow hub should show the reusable instance list for completed requests");
+        content.Should().Contain("Html.PartialAsync(\"_ServiceRequestHub-InstanceList\", Model.ActiveInstances)",
+            because: "the service request hub should show the reusable instance list for active requests");
+        content.Should().Contain("Html.PartialAsync(\"_ServiceRequestHub-InstanceList\", Model.CompletedInstances)",
+            because: "the service request hub should show the reusable instance list for completed requests");
     }
 }

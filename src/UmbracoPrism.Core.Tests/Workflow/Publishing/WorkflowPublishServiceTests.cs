@@ -11,13 +11,13 @@ public sealed class WorkflowPublishServiceTests : IDisposable
 {
     private static readonly string FixturesPath = Path.Combine(
         AppContext.BaseDirectory,
-        "Workflow",
+        "ServiceDesign",
         "Authoring",
         "Fixtures");
 
     private readonly string _publishedPath = Path.Combine(
         AppContext.BaseDirectory,
-        "Workflow",
+        "ServiceDesign",
         "Authoring",
         "Published",
         Guid.NewGuid().ToString("N"));
@@ -197,13 +197,13 @@ public sealed class WorkflowPublishServiceTests : IDisposable
 
     private static async Task<AuthoredWorkflow> LoadPlanningFixture()
     {
-        return await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning")
+        return await AuthoredServiceBlueprintFixtureLoader.LoadAsync(FixturesPath, "planning")
             ?? throw new InvalidOperationException("planning fixture not found");
     }
 
     private static async Task<AuthoredWorkflow> LoadFixture(string workflowKey)
     {
-        return await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, workflowKey)
+        return await AuthoredServiceBlueprintFixtureLoader.LoadAsync(FixturesPath, workflowKey)
             ?? throw new InvalidOperationException($"{workflowKey} fixture not found");
     }
 }

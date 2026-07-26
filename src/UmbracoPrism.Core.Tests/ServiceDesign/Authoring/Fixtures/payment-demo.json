@@ -1,0 +1,181 @@
+{
+  "id": "d4e5f6a7-b8c9-0123-def0-123456789abc",
+  "definitionKey": "payment-demo",
+  "displayName": "Payment Demo",
+  "version": 1,
+  "schemaVersion": "1.0",
+  "initialTouchpointKey": "enter-details",
+  "requestPolicy": "single",
+  "queues": [
+    {
+      "key": "web-user",
+      "title": "Applicant",
+      "actor": "applicant",
+      "roleGates": []
+    },
+    {
+      "key": "business-user",
+      "title": "Payments team",
+      "actor": "reviewer",
+      "roleGates": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "await-payment-confirmation",
+      "title": "Awaiting payment confirmation",
+      "type": "Join",
+      "queueKey": "web-user",
+      "roleGates": [],
+      "waitingInfo": {
+        "content": "We're waiting for the payments team to confirm receipt of your payment.",
+        "expectedWaitSeconds": 60,
+        "pollIntervalMs": 5000,
+        "allowDefer": true,
+        "deferMessage": "You can leave this page and return later. We'll update this payment as soon as the confirmation arrives."
+      },
+      "requiredIncomingQueues": [
+        "business-user",
+        "web-user"
+      ],
+      "routes": [
+        {
+          "id": "await-payment-confirmation--release--payment-complete",
+          "target": "payment-complete",
+          "trigger": "release",
+          "actions": []
+        }
+      ]
+    },
+    {
+      "key": "submit-payment",
+      "title": "Submit payment → notify back-office",
+      "type": "Split",
+      "queueKey": "web-user",
+      "roleGates": [],
+      "routes": [
+        {
+          "id": "submit-payment--submit--await-payment-confirmation",
+          "target": "await-payment-confirmation",
+          "trigger": "submit",
+          "actions": []
+        },
+        {
+          "id": "submit-payment--submit--confirm-payment-received",
+          "target": "confirm-payment-received",
+          "trigger": "submit",
+          "actions": []
+        }
+      ]
+    }
+  ],
+  "touchpoints": [
+    {
+      "key": "enter-details",
+      "title": "Enter payment details",
+      "type": "Question",
+      "queueKey": "web-user",
+      "actions": [],
+      "roleGates": [],
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Payment details",
+          "legendSize": "m",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "cardholderName",
+              "label": "Cardholder name",
+              "required": true
+            },
+            {
+              "type": "text",
+              "fieldKey": "paymentReference",
+              "label": "Payment reference",
+              "required": true
+            },
+            {
+              "type": "email",
+              "fieldKey": "receiptEmail",
+              "label": "Email address for the receipt",
+              "required": true
+            },
+            {
+              "type": "decimal",
+              "fieldKey": "amount",
+              "label": "Amount (£)",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "enter-details--submit--submit-payment",
+          "target": "submit-payment",
+          "trigger": "submit",
+          "actions": []
+        }
+      ]
+    },
+    {
+      "key": "confirm-payment-received",
+      "title": "Confirm payment received",
+      "type": "Question",
+      "queueKey": "business-user",
+      "actions": [],
+      "roleGates": [],
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Confirmation details",
+          "legendSize": "m",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "confirmationReference",
+              "label": "Confirmation reference",
+              "required": true
+            },
+            {
+              "type": "decimal",
+              "fieldKey": "amountReceived",
+              "label": "Amount received (£)",
+              "required": true
+            },
+            {
+              "type": "textarea",
+              "fieldKey": "notes",
+              "label": "Notes",
+              "required": false
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "confirm-payment-received--confirm--await-payment-confirmation",
+          "target": "await-payment-confirmation",
+          "trigger": "confirm",
+          "actions": []
+        }
+      ]
+    },
+    {
+      "key": "payment-complete",
+      "title": "Payment complete",
+      "description": "Payment received. A receipt has been sent to your email address.",
+      "type": "Confirmation",
+      "queueKey": "web-user",
+      "actions": [],
+      "roleGates": [],
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Payment confirmed"
+        }
+      ]
+    }
+  ]
+}

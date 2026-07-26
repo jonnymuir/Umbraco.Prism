@@ -18,7 +18,7 @@ public sealed class StartupWorkflowPublishingTests
 {
     private static readonly string FixturesPath = Path.Combine(
         AppContext.BaseDirectory,
-        "Workflow",
+        "ServiceDesign",
         "Authoring",
         "Fixtures");
 
@@ -31,9 +31,9 @@ public sealed class StartupWorkflowPublishingTests
             new WorkflowProjector(),
             publishedStore);
 
-        foreach (var key in AuthoredWorkflowFixtureLoader.ListKeys(FixturesPath))
+        foreach (var key in AuthoredServiceBlueprintFixtureLoader.ListKeys(FixturesPath))
         {
-            var authored = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, key);
+            var authored = await AuthoredServiceBlueprintFixtureLoader.LoadAsync(FixturesPath, key);
             if (authored is null) continue;
 
             var result = await publishService.PublishAsync(authored);
@@ -41,7 +41,7 @@ public sealed class StartupWorkflowPublishingTests
                 "startup publishing should succeed for valid authored workflows");
         }
 
-        var planningWorkflow = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning");
+        var planningWorkflow = await AuthoredServiceBlueprintFixtureLoader.LoadAsync(FixturesPath, "planning");
         planningWorkflow.Should().NotBeNull();
 
         var runtimeDefinition = await publishedStore.LoadAsync(planningWorkflow!.DefinitionKey);
@@ -61,7 +61,7 @@ public sealed class StartupWorkflowPublishingTests
             new WorkflowProjector(),
             publishedStore);
 
-        var authored = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning");
+        var authored = await AuthoredServiceBlueprintFixtureLoader.LoadAsync(FixturesPath, "planning");
         authored.Should().NotBeNull();
 
         var result = await publishService.PublishAsync(authored!);
@@ -82,7 +82,7 @@ public sealed class StartupWorkflowPublishingTests
             new WorkflowProjector(),
             publishedStore);
 
-        var authored = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning");
+        var authored = await AuthoredServiceBlueprintFixtureLoader.LoadAsync(FixturesPath, "planning");
         var result = await publishService.PublishAsync(authored!);
 
         var runtimeDefinition = await publishedStore.LoadAsync(authored!.DefinitionKey);

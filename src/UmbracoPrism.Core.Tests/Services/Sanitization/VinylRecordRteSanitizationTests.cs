@@ -6,13 +6,13 @@ namespace UmbracoPrism.Core.Tests.Services.Sanitization;
 /// <summary>
 /// Regression tests for SEC-PT2-008: VinylRecord RTE <c>description</c> field sanitization.
 /// <c>VinylRecord.cshtml</c> now routes the Umbraco RTE value through
-/// <see cref="WorkflowContentSanitizer"/> before passing it to <c>@Html.Raw</c>.
+/// <see cref="ServiceContentSanitizer"/> before passing it to <c>@Html.Raw</c>.
 /// These tests prove that a hostile payload authored by a backoffice editor cannot
 /// survive that boundary and reach a member's browser.
 /// </summary>
 public class VinylRecordRteSanitizationTests
 {
-    private readonly WorkflowContentSanitizer _sut = new();
+    private readonly ServiceContentSanitizer _sut = new();
 
     [Fact]
     public void Sanitize_VinylRecordDescription_ScriptTag_IsStripped()
