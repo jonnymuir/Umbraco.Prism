@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>UmbracoPrism.ProcessManager.Mcp</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>UmbracoPrism.ProcessManager.Mcp</PackageId>
+    <Title>Umbraco Prism Blueprint Authoring MCP</Title>
+    <Version>0.1.0</Version>
+    <Authors>Jonny Muir</Authors>
+    <Company>Umbraco Prism</Company>
+    <Description>ASP.NET Core MCP-over-HTTP endpoint mapping that exposes Umbraco Prism service blueprint authoring (list/read/validate/save/simulate) as MCP tools — a single MapPrismServiceBlueprintAuthoringMcp() call any host adds to its own pipeline, alongside MapPrismServiceBlueprintAuthoringApi(), inheriting its own auth.</Description>
+    <PackageTags>Blueprint;MCP;Model-Context-Protocol;Umbraco-Prism</PackageTags>
+    <PackageProjectUrl>https://github.com/jonnymuir/Umbraco.Prism</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jonnymuir/Umbraco.Prism</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageIcon>assets/logo-vertical-lockup.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../UmbracoPrism.ProcessManager/UmbracoPrism.ProcessManager.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="../../docs/guides/calculation-language.md" LogicalName="UmbracoPrism.ProcessManager.Mcp.docs.calculation-language.md" />
+    <EmbeddedResource Include="../../docs/guides/reference-workflow-contract.md" LogicalName="UmbracoPrism.ProcessManager.Mcp.docs.reference-workflow-contract.md" />
+    <EmbeddedResource Include="../../docs/guides/service-design-principles.md" LogicalName="UmbracoPrism.ProcessManager.Mcp.docs.service-design-principles.md" />
+    <EmbeddedResource Include="../../docs/guides/ai-workflow-authoring.md" LogicalName="UmbracoPrism.ProcessManager.Mcp.docs.ai-service-blueprint-authoring.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../assets/logo-vertical-lockup.png" Pack="true" PackagePath="assets/" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

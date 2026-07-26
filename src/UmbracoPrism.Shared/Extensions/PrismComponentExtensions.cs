@@ -1,4 +1,4 @@
-using UmbracoPrism.Shared.Models.Workflow.Components;
+using UmbracoPrism.Shared.Models.ServiceDesign.Components;
 
 namespace UmbracoPrism.Shared.Extensions;
 
@@ -54,7 +54,7 @@ public static class PrismComponentExtensions
 
     /// <summary>
     /// Recursively walks the component tree like <see cref="Flatten"/>, but also yields each
-    /// component's document path (e.g. <c>states.review.components[2].children[0]</c>) rooted
+    /// component's document path (e.g. <c>touchpoints.review.components[2].children[0]</c>) rooted
     /// at <paramref name="basePath"/>, for callers that need to address a specific component in
     /// diagnostics.
     /// </summary>
@@ -110,8 +110,8 @@ public static class PrismComponentExtensions
         => components.Flatten().OfType<T>().FirstOrDefault();
 
     /// <summary>
-    /// Infers the GDS step type for a state based on the components it contains.
-    /// Replaces the V1 <c>EffectiveStepType</c> property which lived on the state record.
+    /// Infers the GDS step type for a touchpoint based on the components it contains.
+    /// Replaces the V1 <c>EffectiveStepType</c> property which lived on the touchpoint record.
     /// </summary>
     public static string InferStepType(this IEnumerable<PrismComponent> components)
     {

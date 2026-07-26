@@ -43,9 +43,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
-    <ProjectReference Include="..\UmbracoPrism.WorkflowEditor\UmbracoPrism.WorkflowEditor.csproj" />
-    <ProjectReference Include="..\UmbracoPrism.WorkflowRuntime\UmbracoPrism.WorkflowRuntime.csproj" />
-    <ProjectReference Include="..\UmbracoPrism.WorkflowRuntime.Mcp\UmbracoPrism.WorkflowRuntime.Mcp.csproj" />
+    <ProjectReference Include="..\UmbracoPrism.ServiceBlueprintEditor\UmbracoPrism.ServiceBlueprintEditor.csproj" />
+    <ProjectReference Include="..\UmbracoPrism.ProcessManager\UmbracoPrism.ProcessManager.csproj" />
+    <ProjectReference Include="..\UmbracoPrism.ProcessManager.Mcp\UmbracoPrism.ProcessManager.Mcp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

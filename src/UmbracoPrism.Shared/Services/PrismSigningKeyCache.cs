@@ -201,11 +201,11 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
     }
 
     /// <summary>
-    /// Returns cached signing-key state for a tenant.
+    /// Returns cached signing-key touchpoint for a tenant.
     /// </summary>
     /// <param name="entraTenantId">The Entra tenant identifier.</param>
     /// <param name="keyId">Optional signing-key identifier required by the current token.</param>
-    /// <returns>A snapshot describing the current cache state.</returns>
+    /// <returns>A snapshot describing the current cache touchpoint.</returns>
     public PrismSigningKeyCacheSnapshot GetSnapshot(string entraTenantId, string? keyId = null)
     {
         if (string.IsNullOrWhiteSpace(entraTenantId))
