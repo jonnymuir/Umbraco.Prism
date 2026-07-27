@@ -15,7 +15,7 @@ Both produce the same runtime shape: `ServiceBlueprint` with `StepDefinition` st
 
 ## Definition contract
 
-Source: `src/UmbracoPrism.Shared/Models/Service-Blueprint/ServiceBlueprint.cs`
+Source: `src/UmbracoPrism.Shared/Models/ServiceDesign/ServiceBlueprint.cs`
 
 | Property | Required | Notes |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ Step shell is inferred from `components`; it is not a separately-authored field 
 
 ## Component model
 
-The authored schema is the `PrismComponent` hierarchy declared in `src/UmbracoPrism.Shared/Models/Service-Blueprint/Components/PrismComponent.cs`.
+The authored schema is the `PrismComponent` hierarchy declared in `src/UmbracoPrism.Shared/Models/ServiceDesign/Components/PrismComponent.cs`.
 
 ### Container components
 
@@ -90,11 +90,11 @@ Source: `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppProcessManager.cs`
 | `multiple` | Always create a new instance |
 | `prompt` | If an active instance exists, return `instance_picker`; otherwise create a new one |
 
-The instance list contract used by the service request hub lives in `src/UmbracoPrism.Shared/Models/Service-Blueprint/WorkflowInstanceListEnvelope.cs`.
+The instance list contract used by the service request hub lives in `src/UmbracoPrism.Shared/Models/ServiceDesign/ServiceRequestListEnvelope.cs`.
 
 ## Response envelope
 
-Source: `src/UmbracoPrism.Shared/Models/Service-Blueprint/ServiceRequestResponseEnvelope.cs`
+Source: `src/UmbracoPrism.Shared/Models/ServiceDesign/ServiceRequestResponseEnvelope.cs`
 
 | Property | Meaning |
 | --- | --- |

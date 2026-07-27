@@ -2,7 +2,7 @@
 
 These documents explain how to build, integrate, and operate Prism service blueprints from a package consumer's point of view. They are grounded in the current implementation in:
 
-- `src/UmbracoPrism.Shared/Models/Service-Blueprint/*`
+- `src/UmbracoPrism.Shared/Models/ServiceDesign/*`
 - `src/UmbracoPrism.Shared/Builders/ServiceBlueprintBuilder.cs`
 - `src/UmbracoPrism.Core/Controllers/PrismServiceRequestPageController.cs`
 - `src/UmbracoPrism.Core/Views/*`

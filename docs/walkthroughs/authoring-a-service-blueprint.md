@@ -37,7 +37,7 @@ If you only need the **read-only viewer** for a published service blueprint on a
 
 ---
 
-## Step 2 — Register Prism services and the WorkflowAuthor policy
+## Step 2 — Register Prism services and the ServiceBlueprintAuthor policy
 
 In `Program.cs`, register Prism alongside Umbraco. The editor's authoring API is locked behind an authorization policy you own.
 
@@ -55,7 +55,7 @@ builder.Services.AddAuthorization(options =>
     // The editor's /api/service-blueprint-authoring/* routes require this policy.
     // Default: any authenticated principal. Tighten with your own claim or role gate.
     options.AddPolicy(
-        WorkflowAuthoringPolicies.WorkflowAuthor,
+        ServiceBlueprintAuthoringPolicies.ServiceBlueprintAuthor,
         policy => policy.RequireAuthenticatedUser());
 });
 
@@ -72,7 +72,7 @@ app.MapPrismWorkflowEditor();
 
 Two things to know:
 
-1. The `WorkflowAuthor` policy is required. If you skip it, every authoring request returns a 500 at startup. That is by design — the editor never trusts an unauthenticated caller.
+1. The `ServiceBlueprintAuthor` policy is required. If you skip it, every authoring request returns a 500 at startup. That is by design — the editor never trusts an unauthenticated caller.
 2. The approver on every change is taken from the authenticated principal. The request body cannot set or spoof the approver. (Blathers' Slice 3c.)
 
 ---
@@ -98,7 +98,7 @@ Subclass `PrismServiceRequestPageController<T>` for your service blueprint page 
 using UmbracoPrism.Core.Controllers;
 using UmbracoPrism.Core.Models.Service-Blueprint;
 
-public class WorkflowPageController(
+public class TouchpointPageController(
     ILogger<RenderController> logger,
     ICompositeViewEngine compositeViewEngine,
     IUmbracoContextAccessor umbracoContextAccessor,
@@ -107,7 +107,7 @@ public class WorkflowPageController(
     IAntiforgery antiforgery,
     ITouchpointNonceService nonceService,
     IServiceRequestFieldValidator fieldValidator)
-    : PrismServiceRequestPageController<WorkflowViewModel>(
+    : PrismServiceRequestPageController<PrismServiceRequestViewModel>(
         logger, compositeViewEngine, umbracoContextAccessor,
         workflowClient, publishedValueFallback, antiforgery,
         nonceService, fieldValidator)
@@ -116,13 +116,13 @@ public class WorkflowPageController(
 }
 ```
 
-TestSite's `WorkflowPageController` is the reference. It pre-populates a few fields from claims; everything else is base-class behaviour.
+TestSite's `TouchpointPageController` is the reference. It pre-populates a few fields from claims; everything else is base-class behaviour.
 
 ---
 
 ## Step 5 — Add the Razor templates
 
-Each service blueprint page doctype needs a template that renders the current stage. TestSite has working examples — `workflowDemoPage.cshtml` and `serviceRequestHub.cshtml` — that you can crib from. They use Prism's view helpers to render the stage shell, the field group, and the action buttons.
+Each service blueprint page doctype needs a template that renders the current stage. TestSite has working examples — `serviceBlueprintDemoPage.cshtml` and `serviceRequestHub.cshtml` — that you can crib from. They use Prism's view helpers to render the stage shell, the field group, and the action buttons.
 
 Keep templates thin. The base controller has already done the work; the template just renders the view model.
 

@@ -166,8 +166,8 @@ import { App, type URLOpenListenerEvent } from '@capacitor/app';
 App.addListener('appUrlOpen', (event: URLOpenListenerEvent) => {
   const url = new URL(event.url);
   // e.g., prism-portal://service-blueprint/planning-notification → navigate to /apply-for-planning-permission
-  const workflowSlug = url.pathname.replace('/service-blueprint/', '');
-  window.location.href = `/${workflowSlug}`;
+  const serviceBlueprintSlug = url.pathname.replace('/service-blueprint/', '');
+  window.location.href = `/${serviceBlueprintSlug}`;
 });
 ```
 

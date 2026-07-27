@@ -83,8 +83,8 @@ Prism is intentionally not your case-management engine. It is the web package th
 
 The demo app maps these in `src/UmbracoPrism.MockBusinessApp/Program.cs`:
 
-- `POST /api/service-blueprint/{workflowKey}/current`
-- `POST /api/service-blueprint/{workflowKey}/advance`
+- `POST /api/service-blueprint/{blueprintKey}/current`
+- `POST /api/service-blueprint/{blueprintKey}/advance`
 - `GET /api/service-blueprint/instances`
 
 The current endpoint contract is deliberately small:
@@ -100,24 +100,24 @@ In Umbraco, call `AddPrismWorkflowEngine()` so Prism can register:
 - `IBusinessAppWorkflowClient`
 - `ITouchpointNonceService`
 - `IServiceRequestFieldValidator`
-- `IWorkflowContentSanitizer`
+- `IServiceContentSanitizer`
 - `PrismServiceDesignOptions`
 
 Then configure the business-app base URL via `PrismBusinessApp:WorkflowApiBaseUrl`.
 
 ## 5. Create a service blueprint page
 
-Prism seeds a `workflowPage` document type with a `workflowKey` property. A page instance only needs to point at the service blueprint key you authored.
+Prism seeds a `touchpointPage` document type with a `blueprintKey` property. A page instance only needs to point at the service blueprint key you authored.
 
 On GET, the package controller:
 
-1. reads `workflowKey` from the current page,
+1. reads `blueprintKey` from the current page,
 2. requests the current envelope from the business app,
 3. optionally pre-populates fields,
 4. caches authoritative field definitions behind a nonce,
 5. renders the matching shell.
 
-`src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs` shows the common extension point: overriding `PrePopulateFields()` to set `DefaultValue` and `ReadOnly` from authenticated member claims.
+`src/UmbracoPrism.TestSite/Controllers/TouchpointPageController.cs` shows the common extension point: overriding `PrePopulateFields()` to set `DefaultValue` and `ReadOnly` from authenticated member claims.
 
 ## 6. Let the package handle the POST round-trip
 
@@ -138,7 +138,7 @@ After that, your business app can apply domain-specific rules. The mock business
 
 ## 7. Add the service request hub when your journey can be resumed
 
-`workflowHub` is the companion page for resumable service blueprints. It lists active and completed instances and resolves the correct `workflowPage` URL for each instance by matching `workflowKey`.
+`serviceRequestHub` is the companion page for resumable service blueprints. It lists active and completed instances and resolves the correct `touchpointPage` URL for each instance by matching `blueprintKey`.
 
 This matters most when you use:
 

@@ -21,31 +21,31 @@ The member surface lives in your Umbraco site. The business app is a separate AS
 
 Prism ships two document types for the member surface:
 
-- **`workflowPage`** — a single service blueprint entry point. Each service blueprint gets one `workflowPage` node in your content tree.
-- **`workflowHub`** — a dashboard showing all service blueprints the user has started. One hub node per site.
+- **`touchpointPage`** — a single service blueprint entry point. Each service blueprint gets one `touchpointPage` node in your content tree.
+- **`serviceRequestHub`** — a dashboard showing all service blueprints the user has started. One hub node per site.
 
 These document types are seeded automatically by `PrismContentTypeSeeder`. You do not create them manually.
 
 ### How It Works
 
-1. You create a `workflowPage` node in the Umbraco tree.
-2. You set the `workflowKey` property to match a blueprint key your business app knows about (e.g., `"planning"`, `"leave-request"`).
+1. You create a `touchpointPage` node in the Umbraco tree.
+2. You set the `blueprintKey` property to match a blueprint key your business app knows about (e.g., `"planning"`, `"leave-request"`).
 3. Users navigate to that page. Prism loads the service blueprint from your business app and renders the form.
 4. Users fill in the form. Prism saves their progress to an instance store.
 5. Users submit. Prism moves the instance to the next stage (or a waiting state if a reviewer is required).
 
 ### Route Hijacking
 
-Prism uses **route hijacking** to intercept requests to `workflowPage` and `workflowHub` nodes. You do not write Razor templates for these pages. Prism ships embedded templates.
+Prism uses **route hijacking** to intercept requests to `touchpointPage` and `serviceRequestHub` nodes. You do not write Razor templates for these pages. Prism ships embedded templates.
 
 The controllers:
 
-- **`WorkflowPageController`** (in your site) — extends `PrismServiceRequestPageController<TViewModel>` from Core.
+- **`TouchpointPageController`** (in your site) — extends `PrismServiceRequestPageController<TViewModel>` from Core.
 - **`ServiceRequestHubController`** (in Core) — already implemented.
 
 Both extend `RenderController`. Both require authentication via `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`.
 
-Your site can override `PrePopulateFields()` in `WorkflowPageController` to inject claims-based data (e.g., email, name) into read-only fields.
+Your site can override `PrePopulateFields()` in `TouchpointPageController` to inject claims-based data (e.g., email, name) into read-only fields.
 
 ---
 
@@ -60,7 +60,7 @@ MockBusinessApp (`src/UmbracoPrism.MockBusinessApp/`) is the reference implement
 - Seeds four reference service blueprints at startup.
 - Runs the service blueprint runtime engine (for reviewers to process submissions).
 
-Your business app follows the same pattern. You implement `WorkflowSource` to expose your service blueprints to the editor. See [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md) for details.
+Your business app follows the same pattern. You implement `ServiceBlueprintSource` to expose your service blueprints to the editor. See [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md) for details.
 
 ---
 
@@ -68,7 +68,7 @@ Your business app follows the same pattern. You implement `WorkflowSource` to ex
 
 The member surface and the business app communicate via:
 
-1. **Service Blueprints** — your business app projects an `AuthoredServiceBlueprint` into a `ServiceBlueprint` (via `IWorkflowProjector`). The member surface loads this runtime definition and renders it.
+1. **Service Blueprints** — your business app projects an `AuthoredServiceBlueprint` into a `ServiceBlueprint` (via `IServiceBlueprintProjector`). The member surface loads this runtime definition and renders it.
 2. **Service Requests** — the member surface persists instance state (which stage the user is on, which fields they have filled in). The business app reads this state when reviewers process submissions.
 
 The boundary is clean. The member surface never talks to the editor. The editor never talks to the member surface.
@@ -87,15 +87,15 @@ The business app uses its own authentication. MockBusinessApp has no authenticat
 
 ## Public Entry Points (Optional)
 
-Some service blueprints start from public pages (no login required). You create a public content node (any document type) with a link to the protected `workflowPage`. When an anonymous user clicks the link, they get a login challenge.
+Some service blueprints start from public pages (no login required). You create a public content node (any document type) with a link to the protected `touchpointPage`. When an anonymous user clicks the link, they get a login challenge.
 
 Example:
 
 ```html
-<a href="@linkedWorkflowPage.Url()">Start your application</a>
+<a href="@linkedTouchpointPage.Url()">Start your application</a>
 ```
 
-The `linkedWorkflowPage` is a content picker property pointing at a `workflowPage` node. Umbraco resolves the URL. The challenge redirect happens automatically.
+The `linkedTouchpointPage` is a content picker property pointing at a `touchpointPage` node. Umbraco resolves the URL. The challenge redirect happens automatically.
 
 ---
 

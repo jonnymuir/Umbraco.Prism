@@ -25,10 +25,10 @@ Your business app owns all that.
 
 ## What You Write
 
-You write a class that implements `WorkflowSource`:
+You write a class that implements `ServiceBlueprintSource`:
 
 ```typescript
-export interface WorkflowSource {
+export interface ServiceBlueprintSource {
   /** Returns every service-blueprint the editor should let the author pick. */
   list(): Promise<WorkflowSummary[]>;
 
@@ -45,10 +45,10 @@ export interface WorkflowSource {
 
 The interface has three required methods, plus one optional one:
 
-- **`list()`** — return a list of service blueprints. Each entry has a `workflowKey`, `definitionKey`, and `displayName`.
+- **`list()`** — return a list of service blueprints. Each entry has a `blueprintKey`, `definitionKey`, and `displayName`.
 - **`load(key)`** — load one service blueprint by key. Return an `AuthoredServiceBlueprint` object.
 - **`save(key, service-blueprint)`** — save the service blueprint. Your implementation enforces permissions. Reject the promise if the user cannot save. If your host also exposes this service blueprint to AI agents (see the
-  [AI-Ready Service Blueprint Authoring guide](./ai-service-blueprint-authoring.md)), a human and an agent can edit the same service blueprint at once — `save` should reject with a `WorkflowSaveError` whose `isConflict: true` when `service-blueprint.version` no longer matches what's persisted, so the editor can show its built-in "changed elsewhere, reload" affordance instead of silently overwriting the other side's change.
+  [AI-Ready Service Blueprint Authoring guide](./ai-service-blueprint-authoring.md)), a human and an agent can edit the same service blueprint at once — `save` should reject with a `ServiceBlueprintSaveError` whose `isConflict: true` when `service-blueprint.version` no longer matches what's persisted, so the editor can show its built-in "changed elsewhere, reload" affordance instead of silently overwriting the other side's change.
 - **`checkVersion(key)`** *(optional)* — return the currently-persisted version. If you implement it, the editor polls every 15s while a service blueprint is open and toasts a heads-up (with its own Reload action) before the author even tries to save. Skip it and you just don't get proactive detection — `save`'s conflict handling still works either way.
 
 Your implementation can talk to memory, a file system, a database, a blob store, or any HTTP API you want. The editor does not care.
@@ -58,10 +58,10 @@ Your implementation can talk to memory, a file system, a database, a blob store,
 Here is a source that keeps service blueprints in a JavaScript `Map`:
 
 ```typescript
-import type { WorkflowSource, WorkflowSummary } from '@umbraco-prism/client/service-blueprint-editor';
+import type { ServiceBlueprintSource, WorkflowSummary } from '@umbraco-prism/client/service-blueprint-editor';
 import type { AuthoredServiceBlueprint } from '@umbraco-prism/client/service-blueprint-editor';
 
-export class MapBackedWorkflowSource implements WorkflowSource {
+export class MapBackedServiceBlueprintSource implements ServiceBlueprintSource {
   private readonly service-blueprints = new Map<string, AuthoredServiceBlueprint>();
 
   constructor(seed: AuthoredServiceBlueprint[] = []) {
@@ -71,8 +71,8 @@ export class MapBackedWorkflowSource implements WorkflowSource {
   }
 
   async list(): Promise<WorkflowSummary[]> {
-    return Array.from(this.service-blueprints.entries()).map(([workflowKey, service-blueprint]) => ({
-      workflowKey,
+    return Array.from(this.service-blueprints.entries()).map(([blueprintKey, service-blueprint]) => ({
+      blueprintKey,
       definitionKey: service-blueprint.definitionKey,
       displayName: service-blueprint.displayName,
     }));
@@ -104,9 +104,9 @@ Create an instance of your source. Assign it to the editor element:
 
 ```javascript
 import '@umbraco-prism/client/service-blueprint-editor/prism-service-blueprint-editor.js';
-import { MapBackedWorkflowSource } from './map-backed-service-blueprint-source.js';
+import { MapBackedServiceBlueprintSource } from './map-backed-service-blueprint-source.js';
 
-const source = new MapBackedWorkflowSource([
+const source = new MapBackedServiceBlueprintSource([
   // seed with your service-blueprints here
 ]);
 
@@ -130,9 +130,9 @@ That is all you need.
 
   <script type="module">
     import '@umbraco-prism/client/service-blueprint-editor/prism-service-blueprint-editor.js';
-    import { MapBackedWorkflowSource } from './map-backed-service-blueprint-source.js';
+    import { MapBackedServiceBlueprintSource } from './map-backed-service-blueprint-source.js';
 
-    const source = new MapBackedWorkflowSource();
+    const source = new MapBackedServiceBlueprintSource();
     const editor = document.querySelector('prism-service-blueprint-editor');
     editor.workflowSource = source;
   </script>
@@ -153,7 +153,7 @@ The source code lives here:
 - **Frontend:** `src/UmbracoPrism.Client/src/service-blueprint-editor/integrations/mockapp-service-blueprint-source.ts`
 - **Backend:** `src/UmbracoPrism.MockBusinessApp/Program.cs` (endpoints at `/mockapp/service-blueprints/*`)
 
-The `MockBusinessAppWorkflowSource` class is an HTTP-backed implementation of `WorkflowSource`. It calls three endpoints:
+The `MockBusinessAppServiceBlueprintSource` class is an HTTP-backed implementation of `ServiceBlueprintSource`. It calls three endpoints:
 
 - `GET /mockapp/service-blueprints` — list
 - `GET /mockapp/service-blueprints/{key}` — load
@@ -176,10 +176,10 @@ Those service blueprints persist in memory until the server restarts. This is a 
 
 The editor ships a default catalog of generic actions (Send Email, Assign Case, etc.). Your business app can extend it.
 
-Implement `WorkflowActionCatalog`:
+Implement `ServiceBlueprintActionCatalog`:
 
 ```typescript
-export interface WorkflowActionCatalog {
+export interface ServiceBlueprintActionCatalog {
   entries(): Promise<ActionCatalogEntry[]>;
 }
 ```
@@ -196,9 +196,9 @@ Each `ActionCatalogEntry` has:
 Example:
 
 ```typescript
-import { BuiltInWorkflowActionCatalog, type ActionCatalogEntry } from '@umbraco-prism/client/service-blueprint-editor';
+import { BuiltInServiceBlueprintActionCatalog, type ActionCatalogEntry } from '@umbraco-prism/client/service-blueprint-editor';
 
-export class MyAppActionCatalog extends BuiltInWorkflowActionCatalog {
+export class MyAppActionCatalog extends BuiltInServiceBlueprintActionCatalog {
   async entries(): Promise<ActionCatalogEntry[]> {
     const builtIn = await super.entries();
     return [
@@ -237,10 +237,10 @@ The editor will show your custom action in the dropdown. The editor validates pa
 
 ## Author Context (Optional UX Hint)
 
-The `WorkflowAuthorContext` interface lets you hint at save permissions:
+The `ServiceBlueprintAuthorContext` interface lets you hint at save permissions:
 
 ```typescript
-export interface WorkflowAuthorContext {
+export interface ServiceBlueprintAuthorContext {
   /** When `false`, the editor disables the Save button. Defaults to enabled. */
   canSave?: boolean;
 
@@ -249,7 +249,7 @@ export interface WorkflowAuthorContext {
 }
 ```
 
-This is a **UX hint only**. It is not enforcement. Your `WorkflowSource.save()` method is the only enforcement point. The editor just uses this to grey out the Save button early, so authors get a clear signal before they try to save.
+This is a **UX hint only**. It is not enforcement. Your `ServiceBlueprintSource.save()` method is the only enforcement point. The editor just uses this to grey out the Save button early, so authors get a clear signal before they try to save.
 
 Example:
 
@@ -275,7 +275,7 @@ Different business apps have different needs:
 - **Audit:** One app logs every save to a compliance system. Another does not care.
 - **Multi-tenancy:** One app partitions service blueprints by tenant. Another does not have tenants.
 
-Prism does not pick for you. It gives you `WorkflowSource`. You implement it. Your implementation knows your storage, your identity, your audit, your multi-tenancy.
+Prism does not pick for you. It gives you `ServiceBlueprintSource`. You implement it. Your implementation knows your storage, your identity, your audit, your multi-tenancy.
 
 That keeps Prism simple. That keeps your business logic where it belongs.
 
@@ -315,9 +315,9 @@ Your app ships its own backend code. Your app ships its own frontend code. Your 
 
 The interfaces are the boundary:
 
-- **`WorkflowSource`** — the editor reads and writes service blueprints through this.
-- **`WorkflowActionCatalog`** — the editor shows available actions through this.
-- **`WorkflowAuthorContext`** — the editor reads save permissions through this.
+- **`ServiceBlueprintSource`** — the editor reads and writes service blueprints through this.
+- **`ServiceBlueprintActionCatalog`** — the editor shows available actions through this.
+- **`ServiceBlueprintAuthorContext`** — the editor reads save permissions through this.
 
 Those three interfaces keep the domains separate. Prism never crosses into your business logic. Your business logic never crosses into Prism's service-design concerns.
 
@@ -325,7 +325,7 @@ Those three interfaces keep the domains separate. Prism never crosses into your 
 
 ## Next Steps
 
-1. **Implement `WorkflowSource`** for your business app. Start with the `MapBackedWorkflowSource` example above, then replace the `Map` with your real storage.
+1. **Implement `ServiceBlueprintSource`** for your business app. Start with the `MapBackedServiceBlueprintSource` example above, then replace the `Map` with your real storage.
 2. **Mount the editor** in your host page. Use the HTML example above.
 3. **Read the reference implementation** at `src/UmbracoPrism.Client/src/service-blueprint-editor/integrations/mockapp-service-blueprint-source.ts` and `src/UmbracoPrism.MockBusinessApp/Program.cs`.
 4. **Extend the action catalog** if you have custom actions (SMS, API calls, etc.).

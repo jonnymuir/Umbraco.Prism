@@ -11,7 +11,7 @@ That call registers:
 - `IBusinessAppWorkflowClient`
 - `ITouchpointNonceService`
 - `IServiceRequestFieldValidator`
-- `IWorkflowContentSanitizer`
+- `IServiceContentSanitizer`
 - `PrismServiceDesignOptions`
 - `IDistributedCache` (memory-backed by default)
 
@@ -30,10 +30,10 @@ For production, replace the default in-memory distributed cache with a shared ba
 
 | Document type | Purpose |
 | --- | --- |
-| `workflowPage` | Hosts a single service blueprint journey |
-| `workflowHub` | Lists active and completed service requests |
+| `touchpointPage` | Hosts a single service blueprint journey |
+| `serviceRequestHub` | Lists active and completed service requests |
 
-`workflowPage` also gets a `workflowKey` property. That key is the bridge between an Umbraco content node and a service blueprint in the business app.
+`touchpointPage` also gets a `blueprintKey` property. That key is the bridge between an Umbraco content node and a service blueprint in the business app.
 
 ## Route hijacking controller
 
@@ -41,12 +41,12 @@ For production, replace the default in-memory distributed cache with a shared ba
 
 Responsibilities on GET:
 
-1. read `workflowKey` from the current content node,
+1. read `blueprintKey` from the current content node,
 2. call `GetCurrentAsync()`,
 3. support prompt-mode `instance_picker`,
 4. allow optional field pre-population,
 5. generate the nonce bound to the rendered field definitions,
-6. populate `PrismWorkflowViewModel`.
+6. populate `PrismPrismServiceRequestViewModel`.
 
 Responsibilities on POST:
 
@@ -68,7 +68,7 @@ protected override ServiceRequestResponseEnvelope PrePopulateFields(ServiceReque
 }
 ```
 
-See `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs` for the real implementation.
+See `src/UmbracoPrism.TestSite/Controllers/TouchpointPageController.cs` for the real implementation.
 
 ## Service Blueprint form tag helper
 
@@ -77,7 +77,7 @@ See `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs` for the re
 - the antiforgery token,
 - `InstanceId`,
 - `StateVersion`,
-- `WorkflowKey`,
+- `BlueprintKey`,
 - `ReturnUrl`,
 - `Nonce`.
 
@@ -85,11 +85,11 @@ That means partial views can focus on fields and actions instead of rebuilding h
 
 ## Service Request Hub
 
-`ServiceRequestHubController` powers the `workflowHub` page. It:
+`ServiceRequestHubController` powers the `serviceRequestHub` page. It:
 
 - calls `GetInstancesAsync()`,
 - splits active vs completed instances,
-- resolves the matching `workflowPage` by `workflowKey`,
+- resolves the matching `touchpointPage` by `blueprintKey`,
 - appends `instanceId` for resumable journeys.
 
 This is the piece that makes `multiple` and `prompt` instance policies user-friendly rather than purely technical.
@@ -99,14 +99,14 @@ This is the piece that makes `multiple` and `prompt` instance policies user-frie
 ```mermaid
 sequenceDiagram
     participant Member as Authenticated member
-    participant Page as workflowPage
+    participant Page as touchpointPage
     participant Controller as PrismServiceRequestPageController
     participant Client as IBusinessAppWorkflowClient
     participant API as Business app API
 
     Member->>Page: GET /service-blueprint page
     Page->>Controller: Route hijack
-    Controller->>Client: GetCurrentAsync(workflowKey)
+    Controller->>Client: GetCurrentAsync(blueprintKey)
     Client->>API: POST /api/service-blueprint/{key}/current
     API-->>Client: Envelope
     Controller-->>Page: ViewModel + nonce

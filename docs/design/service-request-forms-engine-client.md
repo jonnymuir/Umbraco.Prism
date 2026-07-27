@@ -4,14 +4,14 @@ Prism's client story is intentionally server-rendered: the business app returns 
 
 ## Rendering flow
 
-1. `PrismServiceRequestPageController` populates `PrismWorkflowViewModel`.
+1. `PrismServiceRequestPageController` populates `PrismPrismServiceRequestViewModel`.
 2. `Views/touchpointPage.cshtml` decides which shell to use.
 3. The chosen partial renders top-level components and action buttons.
 4. Field values and validation errors are taken from the view model, not from browser-authored metadata.
 
 ## Shell selection
 
-`src/UmbracoPrism.Core/Views/touchpointPage.cshtml` and `src/UmbracoPrism.Core/Models/Service-Blueprint/ServiceRequestRenderShellResolver.cs` are the main routing points.
+`src/UmbracoPrism.Core/Views/touchpointPage.cshtml` and `src/UmbracoPrism.Core/Models/ServiceDesign/ServiceRequestRenderShellResolver.cs` are the main routing points.
 
 Current shell mapping:
 
@@ -63,7 +63,7 @@ The views for these live under `src/UmbracoPrism.Core/Views/Partials/PrismCompon
 
 ## Actions
 
-`WorkflowAction` keeps action rendering deliberately simple:
+`ServiceBlueprintAction` keeps action rendering deliberately simple:
 
 - `ActionKey`
 - `Label`
@@ -95,7 +95,7 @@ Prism uses POST-Redirect-Get rather than rendering validation errors directly fr
 - preserved values via `TempData`,
 - `ServiceBlueprintProblem` values available both inline and in summaries.
 
-`PrismWorkflowViewModel` exposes:
+`PrismPrismServiceRequestViewModel` exposes:
 
 - `Problems`
 - `FormValues`
@@ -106,7 +106,7 @@ Prism uses POST-Redirect-Get rather than rendering validation errors directly fr
 
 Pre-population happens before nonce creation, so the rendered field definition and the later POST validation still agree.
 
-The example override in `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs` sets claim-derived defaults for `full-name` and `email-address`, then marks them read-only.
+The example override in `src/UmbracoPrism.TestSite/Controllers/TouchpointPageController.cs` sets claim-derived defaults for `full-name` and `email-address`, then marks them read-only.
 
 ## Practical guidance
 

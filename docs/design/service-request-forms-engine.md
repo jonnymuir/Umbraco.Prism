@@ -28,9 +28,9 @@ flowchart LR
 ## The implementation story
 
 1. **Author a definition** using `ServiceBlueprint` JSON or `ServiceBlueprintBuilder`.
-2. **Expose service blueprint endpoints** in the business app (`/api/service-blueprint/{workflowKey}/current`, `/advance`, `/instances`).
+2. **Expose service blueprint endpoints** in the business app (`/api/service-blueprint/{blueprintKey}/current`, `/advance`, `/instances`).
 3. **Register Prism service blueprint services** in Umbraco with `AddPrismWorkflowEngine()`.
-4. **Create a `workflowPage` node** and set its `workflowKey` property.
+4. **Create a `touchpointPage` node** and set its `blueprintKey` property.
 5. **Let Prism do the web work**: GET current state, render components, validate POSTs, then round-trip back to the business app.
 
 The rest of this doc set expands each step in order.

@@ -143,11 +143,11 @@ Renders a `question` step — form fields for data collection.
 
 **Model:**
 ```csharp
-public class WorkflowViewModel
+public class PrismServiceRequestViewModel
 {
     public string StateDisplayName { get; set; }      // e.g., "Tell us about your enquiry"
     public IEnumerable<FormSection> FieldGroups { get; set; }  // Field groups to render
-    public IEnumerable<WorkflowAction> AvailableActions { get; set; }  // Submit, Save Draft, etc.
+    public IEnumerable<ServiceBlueprintAction> AvailableActions { get; set; }  // Submit, Save Draft, etc.
     public IReadOnlyList<ServiceBlueprintProblem> Problems { get; set; }  // Validation errors
     public IReadOnlyDictionary<string, string> FormValues { get; set; }  // Submitted values for repopulation
 }
@@ -155,7 +155,7 @@ public class WorkflowViewModel
 
 **Example override:**
 ```cshtml
-@model WorkflowViewModel
+@model PrismServiceRequestViewModel
 
 <div class="govuk-width-container">
     <div class="govuk-main-wrapper">
@@ -218,7 +218,7 @@ Renders a `check-answers` step — read-only review of all submitted data with "
 
 **Example override:**
 ```cshtml
-@model WorkflowViewModel
+@model PrismServiceRequestViewModel
 
 <div class="govuk-width-container">
     <div class="govuk-main-wrapper">
@@ -280,7 +280,7 @@ Renders a `confirmation` step — success message, reference number, next steps.
 
 **Example override:**
 ```cshtml
-@model WorkflowViewModel
+@model PrismServiceRequestViewModel
 
 <div class="govuk-width-container">
     <div class="govuk-main-wrapper">
@@ -366,12 +366,12 @@ Each field type has its own partial template. Override these to customize how sp
 
 ## Advanced: Custom Styling for Specific Step Types
 
-You can apply custom CSS based on the step type currently displayed. The `WorkflowViewModel` includes the `StepType` property, allowing you to apply conditional styling based on which step is active.
+You can apply custom CSS based on the step type currently displayed. The `PrismServiceRequestViewModel` includes the `StepType` property, allowing you to apply conditional styling based on which step is active.
 
 **File:** `Views/Partials/_WorkflowStep-question.cshtml`
 
 ```cshtml
-@model WorkflowViewModel
+@model PrismServiceRequestViewModel
 
 <div class="govuk-width-container service-blueprint-step service-blueprint-step--@Model.StepType.ToLower()">
     <!-- Step content -->

@@ -4,8 +4,8 @@ Step-by-step guides for common service blueprints and customizations in Umbraco.
 
 ## Getting Started
 
-- **[Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md)** — **Primary integrator recipe.** Build a business app on top of Prism. Implement `WorkflowSource`, wire the editor, extend the action catalog.
-- **[AI-Ready Service Blueprint Authoring](./ai-service-blueprint-authoring.md)** — Let an AI agent (Claude Code or any MCP client) list, read, validate, simulate, and save your service blueprints. Implement `IWorkflowSourceStore`, add `MapPrismWorkflowAuthoringApi()`/`MapPrismWorkflowAuthoringMcp()`.
+- **[Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md)** — **Primary integrator recipe.** Build a business app on top of Prism. Implement `ServiceBlueprintSource`, wire the editor, extend the action catalog.
+- **[AI-Ready Service Blueprint Authoring](./ai-service-blueprint-authoring.md)** — Let an AI agent (Claude Code or any MCP client) list, read, validate, simulate, and save your service blueprints. Implement `IServiceBlueprintSourceStore`, add `MapPrismServiceBlueprintAuthoringApi()`/`MapPrismServiceBlueprintAuthoringMcp()`.
 - **[Service Blueprint Editor Composition](./service-blueprint-editor-composition.md)** — Advanced patterns for custom hosts. Custom canonical JSON helpers, custom action catalogs, building your own host wrapper.
 - **[Umbraco Integration](./umbraco-integration.md)** — Embed Prism service blueprints in your Umbraco site. Member surface, business app, authentication, roles.
 - **[Setting Up a Prism Service Blueprint](./service-blueprint-setup.md)** — Create and configure a service blueprint in Umbraco.Prism, from definition to runtime.

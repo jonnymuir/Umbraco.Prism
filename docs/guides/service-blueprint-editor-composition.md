@@ -2,7 +2,7 @@
 
 > **Note:** For the integration recipe (how to embed the editor in your business app), see [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md). This document covers advanced composition patterns for custom hosts.
 
-This guide shows advanced patterns for composing the service blueprint editor into your own application. It assumes you have already implemented `WorkflowSource` and understand the basic integration flow.
+This guide shows advanced patterns for composing the service blueprint editor into your own application. It assumes you have already implemented `ServiceBlueprintSource` and understand the basic integration flow.
 
 **For context:**
 - **Component API reference (public elements, attributes, events)?** See [`src/UmbracoPrism.Client/src/service-blueprint-editor/README.md`](../../src/UmbracoPrism.Client/src/service blueprint-editor/README.md)
@@ -22,26 +22,26 @@ The service blueprint editor ships two elements:
 - **`<prism-service-blueprint-editor>`** — the visual editor (canvas, inspector, validation, history, simulation).
 - **`<prism-service-blueprint-editor-shell>`** — a wrapper that adds service blueprint selection and displays.
 
-Both require a `WorkflowSource` to be wired via JavaScript. See [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md) for the basic integration pattern.
+Both require a `ServiceBlueprintSource` to be wired via JavaScript. See [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md) for the basic integration pattern.
 
 ---
 
 ## Host Responsibility Model
 
-The host keeps one clear responsibility: **mount the editor and wire the `WorkflowSource`**. Everything else belongs to your application.
+The host keeps one clear responsibility: **mount the editor and wire the `ServiceBlueprintSource`**. Everything else belongs to your application.
 
 ### What the Host Owns
 
 ✅ **Host responsibilities:**
 - Service Blueprint selection UI (if needed)
-- `WorkflowSource` implementation wiring
+- `ServiceBlueprintSource` implementation wiring
 - Page layout and branding
 - Editor mounting and initialization
 
 ### What Your Application Owns
 
 ✅ **Application responsibilities:**
-- Service Blueprint storage and versioning (your `WorkflowSource` implementation)
+- Service Blueprint storage and versioning (your `ServiceBlueprintSource` implementation)
 - Authentication and authorization (who can edit what?)
 - Action handlers and runtime execution
 - Business logic and domain validation
@@ -60,7 +60,7 @@ The editor ships a default catalog of generic actions. Your business app can ext
 
 Key points:
 
-- Extend `BuiltInWorkflowActionCatalog` to add your custom actions.
+- Extend `BuiltInServiceBlueprintActionCatalog` to add your custom actions.
 - Each action has a `type`, `label`, `summary`, `appliesTo`, `paramsSchema`, and `defaultParams`.
 - The editor validates parameters against the schema at design time.
 - Your runtime executes the action at runtime.
@@ -82,12 +82,12 @@ Keep runtime policies, secrets, analytics, and feature flags out of the editor U
 
 ## Custom Canonical JSON Helpers
 
-The editor uses `normaliseWorkflow` and `serialiseWorkflow` from `service-blueprint-wire-format.ts` to convert between wire JSON and `AuthoredServiceBlueprint` objects. If you need custom field normalization or serialization (e.g., for backward compatibility with a legacy format), you can wrap these helpers in your own functions.
+The editor uses `normaliseServiceBlueprint` and `serialiseServiceBlueprint` from `service-blueprint-wire-format.ts` to convert between wire JSON and `AuthoredServiceBlueprint` objects. If you need custom field normalization or serialization (e.g., for backward compatibility with a legacy format), you can wrap these helpers in your own functions.
 
 Example:
 
 ```typescript
-import { normaliseWorkflow, serialiseWorkflow } from '@umbraco-prism/client/service-blueprint-editor';
+import { normaliseServiceBlueprint, serialiseServiceBlueprint } from '@umbraco-prism/client/service-blueprint-editor';
 import type { AuthoredServiceBlueprint } from '@umbraco-prism/client/service-blueprint-editor';
 
 export function loadLegacyWorkflow(json: Record<string, unknown>): AuthoredServiceBlueprint {
@@ -97,11 +97,11 @@ export function loadLegacyWorkflow(json: Record<string, unknown>): AuthoredServi
     migrated['newFieldName'] = migrated['oldFieldName'];
     delete migrated['oldFieldName'];
   }
-  return normaliseWorkflow(migrated);
+  return normaliseServiceBlueprint(migrated);
 }
 
 export function saveLegacyWorkflow(service-blueprint: AuthoredServiceBlueprint): Record<string, unknown> {
-  const json = serialiseWorkflow(service-blueprint);
+  const json = serialiseServiceBlueprint(service-blueprint);
   // Apply legacy field migrations after serialising
   if ('newFieldName' in json) {
     json['oldFieldName'] = json['newFieldName'];
@@ -111,7 +111,7 @@ export function saveLegacyWorkflow(service-blueprint: AuthoredServiceBlueprint):
 }
 ```
 
-Use these in your `WorkflowSource` implementation instead of calling `normaliseWorkflow` / `serialiseWorkflow` directly.
+Use these in your `ServiceBlueprintSource` implementation instead of calling `normaliseServiceBlueprint` / `serialiseServiceBlueprint` directly.
 
 ---
 
@@ -125,11 +125,11 @@ If you need a custom host (for branding, custom service blueprints, or integrati
 import { LitElement, html } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import '@umbraco-prism/client/service-blueprint-editor/prism-service-blueprint-editor.js';
-import type { WorkflowSource } from '@umbraco-prism/client/service-blueprint-editor';
+import type { ServiceBlueprintSource } from '@umbraco-prism/client/service-blueprint-editor';
 
 @customElement('my-service-blueprint-host')
 export class MyWorkflowHost extends LitElement {
-  @property({ attribute: false }) workflowSource?: WorkflowSource;
+  @property({ attribute: false }) workflowSource?: ServiceBlueprintSource;
 
   render() {
     return html`
@@ -162,7 +162,7 @@ render() {
     </section>
     <prism-service-blueprint-editor
       .workflowSource=${this.workflowSource}
-      .workflowKey=${this.selectedKey}>
+      .blueprintKey=${this.selectedKey}>
     </prism-service-blueprint-editor>
   `;
 }
@@ -191,10 +191,10 @@ Two attributes do all the work:
 A one-line Razor embed for a published service blueprint:
 
 ```razor
-<prism-service-blueprint-graph read-only service-blueprint-json='@Html.Raw(workflowJson)'></prism-service-blueprint-graph>
+<prism-service-blueprint-graph read-only service-blueprint-json='@Html.Raw(serviceBlueprintJson)'></prism-service-blueprint-graph>
 ```
 
-`workflowJson` is the canonical JSON of the service blueprint you want to show. Render the service blueprint-editor bundle on the same page so the element is defined.
+`serviceBlueprintJson` is the canonical JSON of the service blueprint you want to show. Render the service blueprint-editor bundle on the same page so the element is defined.
 
 **Boundary reminder.** This Razor pattern is **only** for the read-only viewer. Do **not** mount `<prism-service-blueprint-editor>` or `<prism-service-blueprint-editor-shell>` from Razor or the Umbraco backoffice — the authoring editor belongs in your business app (MockBusinessApp is the reference), not in the Umbraco runtime.
 
@@ -218,7 +218,7 @@ See [`docs/testing/service-blueprint-editor-visual-tests.md`](../testing/service
 
 ## Next Steps
 
-1. **Implement `WorkflowSource`:** See [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md)
+1. **Implement `ServiceBlueprintSource`:** See [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md)
 2. **Review the editor design:** Understand what the editor can do and what it can't in [Service Blueprint Editor V1 Design](../design/service-blueprint-editor-v1/README.md)
 3. **Configure actions and forms:** Document your action catalog and forms engine integration for authors
 4. **Test the service blueprint:** Use the editor's built-in validation and simulation features to verify your definitions

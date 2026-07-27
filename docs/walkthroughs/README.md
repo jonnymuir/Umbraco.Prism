@@ -66,6 +66,6 @@ Building a Capacitor iOS/Android app from a Prism service blueprint. Covers the 
 - **community-enquiry** — Get in Touch contact form
 - **information-request** — Information Request form
 
-All four are available to the editor, front-end journey, and runtime engine. Downstream applications replace the reference repository with their own authored service blueprint store (filesystem, database, etc.) by implementing `WorkflowSource`. See [Embedding the Service Blueprint Editor](../guides/embedding-the-service-blueprint-editor.md) for details.
+All four are available to the editor, front-end journey, and runtime engine. Downstream applications replace the reference repository with their own authored service blueprint store (filesystem, database, etc.) by implementing `ServiceBlueprintSource`. See [Embedding the Service Blueprint Editor](../guides/embedding-the-service-blueprint-editor.md) for details.
 
 **Authoring:** All service blueprints use the gateway-and-route model. Every move from one stage to another happens through a gateway. See [Gateway-First Authoring](gateway-first-authoring.md) for the structural consequences and the fan-in pattern.

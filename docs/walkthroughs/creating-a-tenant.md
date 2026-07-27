@@ -169,7 +169,7 @@ If no tenant matches the host, `CurrentTenant` is `null` and a `LogWarning` is e
    | Tenant resolved correctly | Open browser DevTools → Network → reload → find any API call; its response headers should include `X-Prism-Tenant: Tenant 2` (if you added this debug header in your implementation) |
    | Branding applied | Check that the page colours match what you configured |
    | OIDC login works | Click **Sign In** — you should be redirected to the correct Keycloak realm |
-   | Service Blueprint isolation | Start a service blueprint as `demo@prism.local` on `tenant2.localhost` — the service request should be isolated from the same user's instance on `localhost` (they share a user ID but have different tenant IDs, so the engine keys instances as `{tenantId}:{userId}:{workflowKey}`) |
+   | Service Blueprint isolation | Start a service blueprint as `demo@prism.local` on `tenant2.localhost` — the service request should be isolated from the same user's instance on `localhost` (they share a user ID but have different tenant IDs, so the engine keys instances as `{tenantId}:{userId}:{blueprintKey}`) |
 
 5. 💡 **Tenant isolation in practice:**
    - **Content:** Umbraco serves the same content tree to all tenants. Tenant-specific content can be achieved by creating tenant-specific Umbraco content nodes (not covered in this walkthrough).

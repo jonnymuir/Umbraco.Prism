@@ -300,9 +300,9 @@ The first movement slice should stay simple and accessible:
 Pin the service blueprint contract while the merged gateway/runtime slice lands:
 
 - `dotnet test UmbracoPrism.sln`
-- `src/UmbracoPrism.Core.Tests/Service-Blueprint/Authoring/AuthoredServiceBlueprintSchemaValidationTests.cs`
-- `src/UmbracoPrism.Core.Tests/Service-Blueprint/Authoring/AuthoredServiceBlueprintSerializationTests.cs`
-- `src/UmbracoPrism.Core.Tests/Service-Blueprint/Authoring/WorkflowPublishServiceTests.cs`
+- `src/UmbracoPrism.Core.Tests/ServiceDesign/Authoring/AuthoredServiceBlueprintSchemaValidationTests.cs`
+- `src/UmbracoPrism.Core.Tests/ServiceDesign/Authoring/AuthoredServiceBlueprintSerializationTests.cs`
+- `src/UmbracoPrism.Core.Tests/ServiceDesign/Authoring/ServiceBlueprintPublishServiceTests.cs`
 - `src/UmbracoPrism.Client/tests/service-blueprint-editor/service-blueprint-graph-visual.spec.ts`
 - `src/UmbracoPrism.Client/tests/service-blueprint-editor/service-blueprint-graph-keyboard.spec.ts`
 - `src/UmbracoPrism.Client/tests/service-blueprint-editor/service-blueprint-editor-stage-preview.spec.ts`

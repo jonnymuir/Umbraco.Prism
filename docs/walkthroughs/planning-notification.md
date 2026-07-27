@@ -332,7 +332,7 @@ public class ServiceRequestResponseEnvelope
 **Location:** `src/UmbracoPrism.TestSite/Views/WorkflowPage.cshtml`
 
 1. The TestSite controller fetches the current state via `BusinessAppWorkflowClient.GetCurrentAsync()`.
-2. It passes the `ServiceRequestResponseEnvelope` to `WorkflowPage.cshtml`.
+2. It passes the `ServiceRequestResponseEnvelope` to `touchpointPage.cshtml`.
 3. The view maps the `StepType` to a partial view:
    - `question` → `_WorkflowStep-Question.cshtml` (renders form inputs)
    - `check-answers` → `_WorkflowStep-Review.cshtml` (renders read-only summary)

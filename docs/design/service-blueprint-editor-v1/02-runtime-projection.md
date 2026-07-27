@@ -11,15 +11,15 @@
 
 This document explains the service blueprint engine architecture and the projection boundary between Prism's service-design domain and the host's business domain.
 
-The editor owns the **design-time service blueprint** (the `AuthoredServiceBlueprint` model). The runtime owns **execution** (the `ServiceBlueprint` model that drives the service blueprint engine). To maintain compatibility with existing runtimes, the Prism projector (`IWorkflowProjector`) transforms the richer authored model into the runtime shape that the engine already understands.
+The editor owns the **design-time service blueprint** (the `AuthoredServiceBlueprint` model). The runtime owns **execution** (the `ServiceBlueprint` model that drives the service blueprint engine). To maintain compatibility with existing runtimes, the Prism projector (`IServiceBlueprintProjector`) transforms the richer authored model into the runtime shape that the engine already understands.
 
 This document explains:
 
 1. the **service blueprint** the editor saves (`AuthoredServiceBlueprint`)
-2. the **action catalog** the editor reads (`WorkflowActionCatalog`)
+2. the **action catalog** the editor reads (`ServiceBlueprintActionCatalog`)
 3. the **service blueprint engine** that executes the definition (Prism runtime)
 4. the **action handlers** that perform business work (host-specific)
-5. the **projection** from authored to runtime model (`IWorkflowProjector`)
+5. the **projection** from authored to runtime model (`IServiceBlueprintProjector`)
 6. the **publishing** boundary (host concern, not editor concern)
 
 ---
@@ -56,12 +56,12 @@ The runtime model is **flatter** and **simpler** than the authored model. It is 
 
 ## 3. The Projection Boundary
 
-The `IWorkflowProjector` interface (in `UmbracoPrism.Core`) is the Prism API for converting authored service blueprints into runtime definitions.
+The `IServiceBlueprintProjector` interface (in `UmbracoPrism.Core`) is the Prism API for converting authored service blueprints into runtime definitions.
 
 ### Interface
 
 ```csharp
-public interface IWorkflowProjector
+public interface IServiceBlueprintProjector
 {
     /// <summary>
     /// Projects an authored service-blueprint into the runtime definition shape.
@@ -83,12 +83,12 @@ The projector:
 
 | Authored | Runtime |
 |----------|---------|
-| `AuthoredTouchpoint` | `WorkflowState` |
-| `AuthoredGateway.routes[]` | `WorkflowTransition[]` (one per route, `from = gateway.source`, `to = route.target`) |
-| `AuthoredRoute.trigger` | `WorkflowTransition.action` |
-| `AuthoredRoute.condition` | `WorkflowTransition.condition` |
-| `AuthoredRoute.requiresRole` | `WorkflowTransition.requiresRole` |
-| `AuthoredRoute.actions` | `WorkflowTransition.actions` (typed actions for handlers) |
+| `AuthoredTouchpoint` | `StepDefinition` |
+| `AuthoredGateway.routes[]` | `ServiceBlueprintRouteDefinition[]` (one per route, `from = gateway.source`, `to = route.target`) |
+| `AuthoredRoute.trigger` | `ServiceBlueprintRouteDefinition.Trigger` |
+| `AuthoredRoute.condition` | `ServiceBlueprintRouteDefinition.condition` |
+| `AuthoredRoute.requiresRole` | `ServiceBlueprintRouteDefinition.requiresRole` |
+| `AuthoredRoute.actions` | `ServiceBlueprintRouteDefinition.actions` (typed actions for handlers) |
 
 **Key point:** Gateways do not appear in the runtime model as first-class entities. They are expanded into a flat list of transitions. The runtime engine does not need to understand gateway semantics — it just walks transitions.
 
@@ -112,7 +112,7 @@ Example:
 }
 ```
 
-The editor validates the `params` shape against the action's schema (provided by the `WorkflowActionCatalog`). The runtime resolves the `type` to a handler and executes the action.
+The editor validates the `params` shape against the action's schema (provided by the `ServiceBlueprintActionCatalog`). The runtime resolves the `type` to a handler and executes the action.
 
 This split keeps service blueprints **declarative**. No callbacks, no source code, no app-specific method names. Just stable keys and serializable params.
 
@@ -120,10 +120,10 @@ This split keeps service blueprints **declarative**. No callbacks, no source cod
 
 ## 5. Action Catalog
 
-The `WorkflowActionCatalog` interface (in `UmbracoPrism.Client`) is the boundary contract for listing available actions at design time.
+The `ServiceBlueprintActionCatalog` interface (in `UmbracoPrism.Client`) is the boundary contract for listing available actions at design time.
 
 ```typescript
-export interface WorkflowActionCatalog {
+export interface ServiceBlueprintActionCatalog {
   entries(): Promise<ActionCatalogEntry[]>;
 }
 ```
@@ -140,7 +140,7 @@ Each `ActionCatalogEntry` includes:
 - `status` — `available`, `planned`, or `internal`
 - `implementation` — whether the reference business app has a handler
 
-Prism ships `BuiltInWorkflowActionCatalog` with generic actions (Send Email, Assign Case, etc.). Hosts extend it to add domain-specific actions.
+Prism ships `BuiltInServiceBlueprintActionCatalog` with generic actions (Send Email, Assign Case, etc.). Hosts extend it to add domain-specific actions.
 
 ---
 
@@ -159,20 +159,20 @@ The engine does **not** execute typed actions itself. It delegates to a handler 
 ### Recommended Handler Interface
 
 ```csharp
-public interface IWorkflowActionHandler
+public interface IServiceBlueprintActionHandler
 {
     string ActionType { get; }
     Task<ActionExecutionResult> ExecuteAsync(
-        WorkflowActionDefinition action,
+        ServiceBlueprintActionDefinition action,
         WorkflowExecutionContext context,
         CancellationToken cancellationToken);
 }
 ```
 
 ```csharp
-public interface IWorkflowActionRegistry
+public interface IServiceBlueprintActionRegistry
 {
-    IWorkflowActionHandler? Resolve(string actionType);
+    IServiceBlueprintActionHandler? Resolve(string actionType);
     IReadOnlyList<ActionCatalogEntry> GetCatalog();
 }
 ```
@@ -194,7 +194,7 @@ This pattern keeps action execution **out of the engine**. The engine stays gene
 
 **Publishing** is the act of snapshotting an authored service blueprint into a runtime store so that the runtime engine can load it and execute instances.
 
-This is a **host concern**, not an editor concern. The editor never publishes service blueprints itself. The editor only saves `AuthoredServiceBlueprint` objects through the host's `WorkflowSource`.
+This is a **host concern**, not an editor concern. The editor never publishes service blueprints itself. The editor only saves `AuthoredServiceBlueprint` objects through the host's `ServiceBlueprintSource`.
 
 The host decides:
 
@@ -209,10 +209,10 @@ MockBusinessApp demonstrates the pattern:
 
 1. The editor saves an `AuthoredServiceBlueprint` via `PUT /mockapp/service-blueprints/{key}`.
 2. MockBusinessApp stores the authored service blueprint in memory (its `ReferenceAuthoredServiceBlueprintStore`).
-3. Separately, MockBusinessApp has a `WorkflowPublishService` (in `MockBusinessApp/Services/Publishing/`).
-4. When the host calls `publishService.PublishAsync(workflowKey)`, the service:
+3. Separately, MockBusinessApp has a `ServiceBlueprintPublishService` (in `MockBusinessApp/Services/Publishing/`).
+4. When the host calls `publishService.PublishAsync(blueprintKey)`, the service:
    - Loads the authored service blueprint from the store.
-   - Calls `IWorkflowProjector.Project(authoredWorkflow)` to get the runtime definition.
+   - Calls `IServiceBlueprintProjector.Project(authoredWorkflow)` to get the runtime definition.
    - Validates the projection result.
    - Saves the runtime definition to the published store (`IPublishedWorkflowStore`).
 5. The runtime engine (in `UmbracoPrism.ProcessManager`) loads definitions from the published store, never from the authored store.
@@ -236,8 +236,8 @@ Keeping publishing out of the editor keeps the editor simple and flexible.
 
 The service blueprint editor and runtime are separated by two boundaries:
 
-1. **Authored ↔ Runtime** — `IWorkflowProjector` converts the rich authored model into the flat runtime model.
-2. **Editor ↔ Host** — `WorkflowSource` gives the editor access to authored service blueprints without coupling to the host's storage, identity, or publishing logic.
+1. **Authored ↔ Runtime** — `IServiceBlueprintProjector` converts the rich authored model into the flat runtime model.
+2. **Editor ↔ Host** — `ServiceBlueprintSource` gives the editor access to authored service blueprints without coupling to the host's storage, identity, or publishing logic.
 
 The editor describes service blueprints in business terms: stages, gateways, routes, typed actions.
 
@@ -423,20 +423,20 @@ The service blueprint engine stays responsible for the generic service blueprint
 The business app then handles typed actions through a registry:
 
 ```csharp
-public interface IWorkflowActionHandler
+public interface IServiceBlueprintActionHandler
 {
     string ActionType { get; }
     Task<ActionExecutionResult> ExecuteAsync(
-        WorkflowActionDefinition action,
+        ServiceBlueprintActionDefinition action,
         WorkflowExecutionContext context,
         CancellationToken cancellationToken);
 }
 ```
 
 ```csharp
-public interface IWorkflowActionRegistry
+public interface IServiceBlueprintActionRegistry
 {
-    IWorkflowActionHandler? Resolve(string actionType);
+    IServiceBlueprintActionHandler? Resolve(string actionType);
     IReadOnlyList<ActionCatalogEntry> GetCatalog();
 }
 ```
