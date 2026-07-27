@@ -7,7 +7,7 @@ const demoCredentials = {
   username: 'demo@prism.local',
   password: 'password'
 };
-const expectedWorkflowDemos = [
+const expectedServiceBlueprintDemos = [
   { title: 'Get in Touch', path: /\/get-in-touch$/ },
   { title: 'Apply for Planning Permission', path: /\/apply-for-planning-permission$/ },
   { title: 'Payment Demo', path: /\/payment-demo$/ },
@@ -37,19 +37,19 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await callBusinessAppApi(page);
   });
 
-  test('signed-in member can open My Workflows', async ({ page }) => {
+  test('signed-in member can open My ServiceBlueprints', async ({ page }) => {
     await signIn(page);
-    await page.goto('/my-workflows');
+    await page.goto('/my-service-blueprints');
 
-    await expect(page.getByRole('heading', { name: 'My Workflows' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
     await expectAnyVisible(
-      page.getByText("You don't have any active workflows yet."),
+      page.getByText("You don't have any active service blueprints yet."),
       page.getByRole('heading', { name: 'In Progress' }),
       page.getByRole('heading', { name: 'Completed' })
     );
   });
 
-  test('anonymous CMS Workflow instance is claimed and resumable after signing in', async ({ page }) => {
+  test('anonymous CMS ServiceBlueprint instance is claimed and resumable after signing in', async ({ page }) => {
     // Start "Apply for a juggling licence" anonymously — no sign-in yet.
     await page.goto('/apply-for-a-juggling-licence');
     await page.getByLabel('I confirm I am aged 16 or over').check();
@@ -57,8 +57,8 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await page.getByRole('button', { name: 'Continue' }).click();
     await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
 
-    const anonymousCookie = (await page.context().cookies()).find(c => c.name === 'PrismCmsWorkflowVisitor');
-    expect(anonymousCookie, 'starting a CMS Workflow anonymously must set the visitor correlation cookie').toBeTruthy();
+    const anonymousCookie = (await page.context().cookies()).find(c => c.name === 'PrismCmsServiceBlueprintVisitor');
+    expect(anonymousCookie, 'starting a CMS ServiceBlueprint anonymously must set the visitor correlation cookie').toBeTruthy();
 
     // Sign in — same browser context, so the anonymous cookie rides along with the sign-in
     // request and the server-side claim hook can see both identities together.
@@ -67,9 +67,9 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     // The claim succeeded: the anonymous cookie is gone (nothing left to correlate against —
     // the instance now belongs to the signed-in member) and it shows up as resumable.
     const cookiesAfterSignIn = await page.context().cookies();
-    expect(cookiesAfterSignIn.some(c => c.name === 'PrismCmsWorkflowVisitor')).toBe(false);
+    expect(cookiesAfterSignIn.some(c => c.name === 'PrismCmsServiceBlueprintVisitor')).toBe(false);
 
-    await page.goto('/my-workflows');
+    await page.goto('/my-service-blueprints');
     await expect(page.getByRole('heading', { name: 'In Progress' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Apply for a juggling licence', level: 3 })).toBeVisible();
     await expect(page.getByText('Your details')).toBeVisible();
@@ -80,7 +80,7 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
   });
 
-  test('signed-in member can open the seeded workflow start page', async ({ page }) => {
+  test('signed-in member can open the seeded service blueprint start page', async ({ page }) => {
     await signIn(page);
     await page.goto('/get-in-touch');
 
@@ -88,24 +88,24 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await expect(page.getByRole('button', { name: 'Submit' })).toBeVisible();
   });
 
-  test('signed-in member can reach seeded workflow pages from the dashboard', async ({ page }) => {
+  test('signed-in member can reach seeded service blueprint pages from the dashboard', async ({ page }) => {
     await signIn(page);
     await openDashboard(page);
 
-    await page.getByRole('link', { name: 'View Workflows' }).click();
-    await expect(page).toHaveURL(/\/my-workflows$/);
+    await page.getByRole('link', { name: 'View ServiceBlueprints' }).click();
+    await expect(page).toHaveURL(/\/my-service-blueprints$/);
 
     await openDashboard(page);
-    for (const workflow of expectedWorkflowDemos) {
-      await expect(workflowDemoCard(page, workflow.title)).toBeVisible();
-      await expect(workflowDemoCard(page, workflow.title).getByRole('link', { name: 'Start' })).toHaveAttribute(
+    for (const serviceBlueprint of expectedServiceBlueprintDemos) {
+      await expect(serviceBlueprintDemoCard(page, serviceBlueprint.title)).toBeVisible();
+      await expect(serviceBlueprintDemoCard(page, serviceBlueprint.title).getByRole('link', { name: 'Start' })).toHaveAttribute(
         'href',
-        workflow.path
+        serviceBlueprint.path
       );
     }
 
-    await workflowDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
-    await expect(page).toHaveURL(expectedWorkflowDemos[0].path);
+    await serviceBlueprintDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
+    await expect(page).toHaveURL(expectedServiceBlueprintDemos[0].path);
     await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
   });
 
@@ -240,12 +240,12 @@ async function openDashboard(page: Page): Promise<void> {
     capture.dispose();
   }
 
-  await expect(page.getByRole('link', { name: 'View Workflows' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'View ServiceBlueprints' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Call Mock Business App API' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Workflow Demos' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ServiceBlueprint Demos' })).toBeVisible();
 }
 
-function workflowDemoCard(page: Page, title: string): Locator {
+function serviceBlueprintDemoCard(page: Page, title: string): Locator {
   return page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first();
 }
 
@@ -256,7 +256,7 @@ async function expectAnyVisible(...locators: Locator[]): Promise<void> {
     }
   }
 
-  throw new Error('Expected at least one workflow state indicator to be visible.');
+  throw new Error('Expected at least one service blueprint state indicator to be visible.');
 }
 
 type ResponseCapture = {

@@ -18,7 +18,7 @@ import {
 // tells is deliberately generic and GDS-precedented (see the project-generic-examples-only
 // decision this repo follows): an AI agent designs and builds "Transfer a Professional Juggling
 // Licence" — branching eligibility, a guidance checklist you must acknowledge, real document
-// upload — against Prism's **CMS Workflow** MCP surface, which (unlike MockBusinessApp's open
+// upload — against Prism's **CMS ServiceBlueprint** MCP surface, which (unlike MockBusinessApp's open
 // one) requires real backoffice client-credentials auth. That auth setup is genuinely new
 // territory versus the other two demos and gets its own act.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,7 +52,7 @@ function tryConvertToMp4(webmPath: string): void {
 //   PRISM_TESTSITE_RESET_RUNTIME=true Umbraco__CMS__Global__TimeOut=02:00:00 \
 //     dotnet run --project src/UmbracoPrism.AppHost
 
-const workflowKey = 'transfer-a-juggling-licence';
+const serviceBlueprintKey = 'transfer-a-juggling-licence';
 const testSiteOrigin = 'https://localhost:44345';
 const adminCredentials = { username: 'admin@prism.local', password: 'PrismLocal!12345' };
 
@@ -67,29 +67,29 @@ const prefixedMcpClientId = `umbraco-back-office-${mcpClientId}`;
 const claudeSessionLogPath = '/tmp/claude-session.log';
 const scratchDir = path.join(process.env.HOME ?? '/tmp', 'prism-demo-scratch');
 
-interface WorkflowComponentNode {
+interface ServiceBlueprintComponentNode {
   type?: string;
-  children?: WorkflowComponentNode[];
+  children?: ServiceBlueprintComponentNode[];
 }
 
-interface WorkflowStateDefinition {
+interface ServiceBlueprintStateDefinition {
   stateKey: string;
   displayName?: string;
   queueKey?: string;
-  components?: WorkflowComponentNode[];
+  components?: ServiceBlueprintComponentNode[];
 }
 
-interface WorkflowDefinition {
+interface ServiceBlueprintDefinition {
   definitionKey: string;
   displayName?: string;
   version?: number;
-  states?: WorkflowStateDefinition[];
+  states?: ServiceBlueprintStateDefinition[];
   queues?: Array<{ key?: string }>;
 }
 
 /** Wrapper components (fieldset, accordion) nest their real fields under `children` — a flat
  * per-state scan misses anything grouped inside one, so this walks the whole tree. */
-function collectComponentTypes(nodes: WorkflowComponentNode[] | undefined): Set<string> {
+function collectComponentTypes(nodes: ServiceBlueprintComponentNode[] | undefined): Set<string> {
   const types = new Set<string>();
   for (const node of nodes ?? []) {
     if (node.type) types.add(node.type);
@@ -102,13 +102,13 @@ function collectComponentTypes(nodes: WorkflowComponentNode[] | undefined): Set<
 // written (see the project-juggling-licence-transfer-demo memory). Deliberately fictional-but-
 // GDS-precedented, industry-agnostic: no live research needed, unlike the removed pensions demo.
 const brief = [
-  'You\'re acting as a service designer with access to Umbraco Prism\'s CMS Workflow authoring',
-  'MCP toolkit (server name "prism-cms-workflow"). Your task: design and build "Transfer a',
+  'You\'re acting as a service designer with access to Umbraco Prism\'s CMS ServiceBlueprint authoring',
+  'MCP toolkit (server name "prism-cms-service-blueprint"). Your task: design and build "Transfer a',
   'Professional Juggling Licence" — a fictional but structurally real GDS-style public service',
   'for someone who already holds a professional juggling licence from another juggling authority',
   'and wants to transfer it to the National Juggling Authority.',
-  'Read workflow-docs://authoring-guide for the contract shape, and use',
-  'list_workflows/read_workflow to look at the existing apply-for-a-juggling-licence definition as',
+  'Read service-blueprint-docs://authoring-guide for the contract shape, and use',
+  'list_service_blueprints/read_service_blueprint to look at the existing apply-for-a-juggling-licence definition as',
   'your style reference for this host\'s conventions (it\'s the same fictional domain, a simpler',
   'application rather than a transfer) — including how it defaults a field from the visitor\'s real',
   'membership data via a service input and a calculated pass-through field; do the same here.',
@@ -128,7 +128,7 @@ const brief = [
   '3. Existing licence details — current authority, licence reference, issue date, expiry date,',
   'professional category. Default professional category from the visitor\'s real Juggling Society',
   'membership tier, exactly the way apply-for-a-juggling-licence defaults its own licence-type',
-  'field — a visitor who isn\'t a member simply gets no default, same as that reference workflow.',
+  'field — a visitor who isn\'t a member simply gets no default, same as that reference service blueprint.',
   '4. Upload evidence — file-upload fields: current licence, proof of identity, proof of address,',
   'and a professional portfolio (all required: true), plus optional video evidence (required:',
   'false).',
@@ -139,8 +139,8 @@ const brief = [
   'information may cause rejection).',
   '7. Confirmation — a simple submitted panel. Don\'t build any post-submission case tracking —',
   'that\'s explicitly out of scope for this version.',
-  'Validate with validate_workflow, dry-run the eligibility branches and the full happy path with',
-  'simulate_workflow, fix anything it flags, then save_workflow. Finish with a short summary of',
+  'Validate with validate_service_blueprint, dry-run the eligibility branches and the full happy path with',
+  'simulate_service_blueprint, fix anything it flags, then save_service_blueprint. Finish with a short summary of',
   'the design decisions you made.'
 ].join(' ');
 
@@ -240,7 +240,7 @@ function probeMcpInitialize(port: number, bearerToken: string): boolean {
   try {
     const status = execFileSync('curl', [
       '-s', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '3',
-      '-X', 'POST', `http://localhost:${port}/prism/workflow-authoring/mcp`,
+      '-X', 'POST', `http://localhost:${port}/prism/service-blueprint-authoring/mcp`,
       '-H', `Authorization: Bearer ${bearerToken}`,
       '-H', 'Content-Type: application/json',
       '-H', 'Accept: application/json, text/event-stream',
@@ -252,7 +252,7 @@ function probeMcpInitialize(port: number, bearerToken: string): boolean {
   }
 }
 
-function discoverCmsWorkflowMcpHttpPort(bearerToken: string): number {
+function discoverCmsServiceBlueprintMcpHttpPort(bearerToken: string): number {
   // Every matching pid, not just the first — a stale orphaned TestSite from an earlier boot can
   // legitimately coexist with the live one for a while, and which `ps` lists first is luck.
   const pids = execFileSync('bash', ['-c', "ps aux | grep 'UmbracoPrism.TestSite/bin' | grep -v grep | awk '{print $2}'"])
@@ -316,7 +316,7 @@ async function typeInTerminal(page: Page, command: string, delay = 10): Promise<
  * The agent designs its own field keys each run — these can't be hardcoded the way a fixed-schema
  * spec could. Fills every ordinary text-like input/select/date-group generically by label
  * heuristics, exactly like the removed pension-bereavement demo's fillGdsFormGenerically, plus two
- * things this workflow specifically needs that no prior demo did: real file uploads, and
+ * things this service blueprint specifically needs that no prior demo did: real file uploads, and
  * acknowledging every checkbox inside a guidance-checklist container (not just one).
  */
 async function fillGdsFormGenerically(page: Page, testFilesDir: string): Promise<void> {
@@ -344,7 +344,7 @@ async function fillGdsFormGenerically(page: Page, testFilesDir: string): Promise
   }
 
   // Real file uploads for every file-upload field on the page — this is the one thing this
-  // workflow needs that no prior demo's generic filler handled.
+  // service blueprint needs that no prior demo's generic filler handled.
   //
   // A bare, un-paced loop of setInputFiles calls (like an equally bare loop of .check() calls
   // below) executes in a handful of milliseconds — on a 25fps recording, ticking 4 checkboxes or
@@ -547,9 +547,9 @@ test.describe.serial('licence transfer demo', () => {
   test('Cold open — introduce the demo', async () => {
     await showSlate(page, {
       eyebrow: 'UMBRACO PRISM',
-      title: 'CMS Workflow: wiring up a complex service, simply',
+      title: 'CMS ServiceBlueprint: wiring up a complex service, simply',
       body:
-        "This is Prism's CMS Workflow — a backoffice-hosted, single-actor workflow engine built " +
+        "This is Prism's CMS ServiceBlueprint — a backoffice-hosted, single-actor service blueprint engine built " +
         "entirely inside Umbraco. To show how it really works, we'll hand an AI agent one brief " +
         "— design and build a real GDS-style transfer service, with branching eligibility, a " +
         "guidance checklist, and real document upload — using nothing but Prism's documented MCP " +
@@ -567,7 +567,7 @@ test.describe.serial('licence transfer demo', () => {
     await beat(
       page,
       'setup',
-      "We need real backoffice authentication for this. Prism's CMS Workflow MCP talks to the " +
+      "We need real backoffice authentication for this. Prism's CMS ServiceBlueprint MCP talks to the " +
         "same live engine a human editor uses, not an open sandbox endpoint — so an agent needs " +
         "to log in exactly the way a new team member would. Let's show you exactly how that works."
     );
@@ -601,7 +601,7 @@ test.describe.serial('licence transfer demo', () => {
     ]).toString();
     const probeToken = (JSON.parse(probeTokenJson) as { access_token?: string }).access_token;
     if (!probeToken) throw new Error(`Off-camera client-credentials mint failed: ${probeTokenJson.slice(0, 200)}`);
-    const port = discoverCmsWorkflowMcpHttpPort(probeToken);
+    const port = discoverCmsServiceBlueprintMcpHttpPort(probeToken);
     mcpPort = port;
 
     // The terminal is a plain tmux session wrapping `script` + bash — Act 1's real auth setup
@@ -634,14 +634,14 @@ test.describe.serial('licence transfer demo', () => {
       page,
       'note',
       "That's a real, short-lived token. Now register it with the agent's own MCP client — one " +
-        "command, and it's connected to nothing but this workflow authoring surface.",
+        "command, and it's connected to nothing but this service blueprint authoring surface.",
       { position: 'top' }
     );
 
     await typeInTerminal(
       page,
-      'claude mcp remove prism-cms-workflow 2>/dev/null; claude mcp add --transport http prism-cms-workflow ' +
-        `http://localhost:${port}/prism/workflow-authoring/mcp ` +
+      'claude mcp remove prism-cms-service-blueprint 2>/dev/null; claude mcp add --transport http prism-cms-service-blueprint ' +
+        `http://localhost:${port}/prism/service-blueprint-authoring/mcp ` +
         `--header "Authorization: Bearer $(jq -r .access_token ${tokenFilePath})"`
     );
     await page.waitForTimeout(2_000);
@@ -701,7 +701,7 @@ test.describe.serial('licence transfer demo', () => {
       // operator's own claude config happens to have at the time — a take died mid-build when a
       // freshly-switched personal default model stalled after its first tool call. The demo's
       // agent should behave identically regardless of who records it.
-      'claude --model sonnet --tools "mcp__prism-cms-workflow__*,ListMcpResourcesTool,ReadMcpResourceDirTool,ReadMcpResourceTool" --permission-mode bypassPermissions'
+      'claude --model sonnet --tools "mcp__prism-cms-service-blueprint__*,ListMcpResourcesTool,ReadMcpResourceDirTool,ReadMcpResourceTool" --permission-mode bypassPermissions'
     );
     await page.waitForTimeout(3_000);
     await handleBypassPermissionsGateIfShowing(page);
@@ -720,7 +720,7 @@ test.describe.serial('licence transfer demo', () => {
     await beat(
       page,
       'note',
-      "It's checking what this host can actually render, reading the existing juggling-licence workflow as a style guide, then designing against the real contract.",
+      "It's checking what this host can actually render, reading the existing juggling-licence service blueprint as a style guide, then designing against the real contract.",
       { position: 'top', holdMs: 5_000 }
     );
 
@@ -730,11 +730,11 @@ test.describe.serial('licence transfer demo', () => {
     await expect.poll(
       async () => {
         const response = await request.get(
-          `${testSiteOrigin}/umbraco/management/api/v1/prism/cms-workflows/${workflowKey}`,
+          `${testSiteOrigin}/umbraco/management/api/v1/prism/cms-service-blueprints/${serviceBlueprintKey}`,
           { ignoreHTTPSErrors: true, headers: { Authorization: `Bearer ${mintedToken}` } }
         );
         if (!response.ok()) return false;
-        const definition = (await response.json()) as WorkflowDefinition;
+        const definition = (await response.json()) as ServiceBlueprintDefinition;
         const componentTypes = collectComponentTypes(
           (definition.states ?? []).flatMap(s => s.components ?? [])
         );
@@ -751,7 +751,7 @@ test.describe.serial('licence transfer demo', () => {
     await beat(
       page,
       'recap',
-      'And there it is — designed, validated, simulated, and saved to the live engine. No one wrote a line of this workflow by hand.',
+      'And there it is — designed, validated, simulated, and saved to the live engine. No one wrote a line of this service blueprint by hand.',
       { position: 'top' }
     );
 
@@ -775,15 +775,15 @@ test.describe.serial('licence transfer demo', () => {
     await expect(page.getByText('Home', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
 
     await beat(page, 'setup', "Here's the Umbraco back office — this is where a service designer wires a new service into the real site.");
-    await beat(page, 'intent', 'A page with a Workflow Key connects it to the engine — the same one property every CMS Workflow page uses.');
+    await beat(page, 'intent', 'A page with a ServiceBlueprint Key connects it to the engine — the same one property every CMS ServiceBlueprint page uses.');
 
     await page.getByText('Home', { exact: true }).first().hover();
     await humanClick(page, page.getByRole('button', { name: 'Create item for Home' }));
-    await humanClick(page, page.locator('uui-ref-node-document-type').filter({ hasText: 'CMS Workflow Page' }));
+    await humanClick(page, page.locator('uui-ref-node-document-type').filter({ hasText: 'CMS ServiceBlueprint Page' }));
     await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
 
     await humanType(page, page.getByRole('textbox', { name: 'Enter a name...' }), 'Transfer your existing juggling licence');
-    await humanType(page, page.getByLabel('Workflow Key'), workflowKey);
+    await humanType(page, page.getByLabel('ServiceBlueprint Key'), serviceBlueprintKey);
 
     await humanClick(page, page.getByRole('button', { name: 'Save and publish', exact: true }));
     await expect(page.getByRole('alert').getByText('Document published')).toBeVisible({ timeout: 15_000 });
@@ -824,12 +824,12 @@ test.describe.serial('licence transfer demo', () => {
     test.setTimeout(120_000);
     await beat(page, 'intent', "Let's open the editor and look at what it actually designed — the same editor a human would use to adjust any of this by hand.");
 
-    // CMS Workflow's editor is a backoffice workspace, not a standalone public route — unlike
-    // MockBusinessApp's /workflow-editor page, it lives under the Prism section
-    // (UMB_CMS_WORKFLOW_EDIT_PATH_PREFIX in src/backoffice/cms-workflow/entity.ts), keyed by the
-    // workflow's own definitionKey rather than a separate entity id.
-    await page.goto(`${testSiteOrigin}/umbraco/section/prism/workspace/prism-cms-workflow/edit/${workflowKey}`);
-    await page.locator('prism-workflow-editor').waitFor({ state: 'attached', timeout: 30_000 });
+    // CMS ServiceBlueprint's editor is a backoffice workspace, not a standalone public route — unlike
+    // MockBusinessApp's /service-blueprint-editor page, it lives under the Prism section
+    // (UMB_CMS_SERVICE_BLUEPRINT_EDIT_PATH_PREFIX in src/backoffice/cms-service-blueprint/entity.ts), keyed by the
+    // service blueprint's own definitionKey rather than a separate entity id.
+    await page.goto(`${testSiteOrigin}/umbraco/section/prism/workspace/prism-cms-service-blueprint/edit/${serviceBlueprintKey}`);
+    await page.locator('prism-service-blueprint-editor').waitFor({ state: 'attached', timeout: 30_000 });
     await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
 
     await beat(page, 'note', "First the canvas — let's zoom to fit so we can see the whole graph.", { position: 'top' });
@@ -861,7 +861,7 @@ test.describe.serial('licence transfer demo', () => {
     await beat(
       page,
       'note',
-      "This is the exact WorkflowDefinitionFile JSON the agent saved — states, routes, and each " +
+      "This is the exact ServiceBlueprintDefinitionFile JSON the agent saved — states, routes, and each " +
         "component's own properties. Notice the upload-evidence state's fields: file-upload " +
         "components with acceptedFileTypes and required flags, nothing bespoke. And the existing-" +
         "licence-details state's professional-category field carries a defaultFrom pointing at a " +
@@ -893,7 +893,7 @@ test.describe.serial('licence transfer demo', () => {
     await beat(
       page,
       'note',
-      "And a real \"Start again\" link — this workflow only ever keeps one active instance per visitor, so without this, a dead end here would be permanent. It genuinely creates a fresh instance, not just a page reload.",
+      "And a real \"Start again\" link — this service blueprint only ever keeps one active instance per visitor, so without this, a dead end here would be permanent. It genuinely creates a fresh instance, not just a page reload.",
       { holdMs: 5_000 }
     );
     await clickAndWaitForNavigation(page, page.locator('[data-prism-start-again]'));
@@ -904,10 +904,10 @@ test.describe.serial('licence transfer demo', () => {
       "Now let's sign in as a real member and go through it properly — that also proves this same service works just as well for a signed-in visitor as an anonymous one.",
       { position: 'top' }
     );
-    // No need to clear cookies here: CmsWorkflowVisitorIdentityResolver.Resolve() keys a
+    // No need to clear cookies here: CmsServiceBlueprintVisitorIdentityResolver.Resolve() keys a
     // logged-in visitor's instance by their real member email, entirely independent of the
-    // anonymous PrismCmsWorkflowVisitor cookie — signing in below already gives this a genuinely
-    // fresh identity (and so a fresh instancePolicy: "single" instance), exactly the way a real
+    // anonymous PrismCmsServiceBlueprintVisitor cookie — signing in below already gives this a genuinely
+    // fresh identity (and so a fresh requestPolicy: "single" instance), exactly the way a real
     // visitor moving from anonymous browsing to a real account would.
     await page.goto('/');
     await humanClick(page, page.getByRole('link', { name: 'Sign In' }));

@@ -1,7 +1,7 @@
 // Executable counterpart of docs/walkthroughs/push-notifications.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { test } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
-import { resetWorkflows } from './support/walkthrough';
+import { resetServiceBlueprints } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
 
@@ -18,7 +18,7 @@ test.describe('Push notifications walkthrough', () => {
   });
 
   test.beforeEach(async ({ request }) => {
-    await resetWorkflows(request);
+    await resetServiceBlueprints(request);
   });
 
   // Browser permission prompts and OS notification toasts cannot be automated.

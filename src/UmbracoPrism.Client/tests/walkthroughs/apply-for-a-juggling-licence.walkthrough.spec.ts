@@ -1,8 +1,8 @@
-// Executable counterpart proving Prism CMS Workflow's core promise: the workflow editor is
+// Executable counterpart proving Prism CMS ServiceBlueprint's core promise: the service blueprint editor is
 // mounted natively in the Umbraco backoffice, definitions are authored/persisted entirely
 // inside Umbraco (no separate business app), and one declarative definition serves both an
 // anonymous visitor and a logged-in Prism Member — the member's Juggling Society membership
-// (resolved via CmsWorkflowEngine's serviceInputsResolver extension point) defaults part of the
+// (resolved via CmsServiceBlueprintEngine's serviceInputsResolver extension point) defaults part of the
 // form and applies a fee discount, purely from calc-scope wiring, with zero special-casing in
 // the definition's JSON.
 import { test, expect } from '@playwright/test';
@@ -11,7 +11,7 @@ import { step, signIn } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
 
-test.describe('Apply for a juggling licence (CMS Workflow) walkthrough', () => {
+test.describe('Apply for a juggling licence (CMS ServiceBlueprint) walkthrough', () => {
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(12 * 60_000);
 
@@ -24,7 +24,7 @@ test.describe('Apply for a juggling licence (CMS Workflow) walkthrough', () => {
   });
 
   test('anonymous visitor completes the application with the undiscounted fee', async ({ page }) => {
-    // No signIn() — this is the whole point: a CMS Workflow journey is anonymous-first.
+    // No signIn() — this is the whole point: a CMS ServiceBlueprint journey is anonymous-first.
     await page.goto('/apply-for-a-juggling-licence');
 
     await step(page, '01-eligibility.png', {
@@ -101,7 +101,7 @@ test.describe('Apply for a juggling licence (CMS Workflow) walkthrough', () => {
 
     // demo@prism.local is seeded as a Competitive-tier Juggling Society member — the same
     // definition that showed nothing for the anonymous visitor now shows this, driven entirely
-    // by CmsWorkflowEngine's serviceInputsResolver resolving real membership data for a
+    // by CmsServiceBlueprintEngine's serviceInputsResolver resolving real membership data for a
     // logged-in member.
     await expect(page.getByRole('heading', { name: 'Licence type' })).toBeVisible({ timeout: 30_000 });
     const membershipStat = page.getByText('Your Juggling Society membership').locator('..');
@@ -130,19 +130,19 @@ test.describe('Apply for a juggling licence (CMS Workflow) walkthrough', () => {
     await expect(page.getByRole('heading', { name: 'Application submitted' })).toBeVisible({ timeout: 30_000 });
   });
 
-  test('backoffice CMS Workflow authoring API requires admin auth', async ({ request }) => {
+  test('backoffice CMS ServiceBlueprint authoring API requires admin auth', async ({ request }) => {
     const response = await request.get(
-      'https://localhost:44345/umbraco/management/api/v1/prism/cms-workflows/queues',
+      'https://localhost:44345/umbraco/management/api/v1/prism/cms-service-blueprints/queues',
       { ignoreHTTPSErrors: true } as never
     );
     expect(response.status()).toBe(401);
   });
 
-  test('CMS Workflow AI-authoring MCP endpoint requires the same admin auth', async ({ request }) => {
-    // MapPrismCmsWorkflowAuthoringMcp() chains RequireAuthorization(BackOfficeAccess,
+  test('CMS ServiceBlueprint AI-authoring MCP endpoint requires the same admin auth', async ({ request }) => {
+    // MapPrismCmsServiceBlueprintAuthoringMcp() chains RequireAuthorization(BackOfficeAccess,
     // PrismAdmins) — same policy stack as the REST controller above and the backoffice
     // editor itself. No separate auth story for the MCP surface.
-    const response = await request.post('https://localhost:44345/prism/workflow-authoring/mcp', {
+    const response = await request.post('https://localhost:44345/prism/service-blueprint-authoring/mcp', {
       ignoreHTTPSErrors: true,
       headers: { 'Content-Type': 'application/json' },
       data: {},

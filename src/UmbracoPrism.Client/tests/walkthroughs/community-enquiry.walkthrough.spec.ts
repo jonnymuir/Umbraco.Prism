@@ -1,7 +1,7 @@
 // Executable counterpart of docs/walkthroughs/community-enquiry.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { test, expect } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
-import { assertHealthyPage, openDashboard, step, signIn, resetWorkflows } from './support/walkthrough';
+import { assertHealthyPage, openDashboard, step, signIn, resetServiceBlueprints } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
 
@@ -18,7 +18,7 @@ test.describe('Community enquiry walkthrough', () => {
   });
 
   test.beforeEach(async ({ request }) => {
-    await resetWorkflows(request);
+    await resetServiceBlueprints(request);
   });
 
   test('happy path: user opens the authored community enquiry start state and submits it', async ({ page }) => {
@@ -46,7 +46,7 @@ test.describe('Community enquiry walkthrough', () => {
     }, 'community-enquiry');
   });
 
-  test('dashboard entry stays aligned with the four-workflow demo contract', async ({ page }) => {
+  test('dashboard entry stays aligned with the four-service-blueprint demo contract', async ({ page }) => {
     await signIn(page);
     await openDashboard(page);
 
@@ -54,7 +54,7 @@ test.describe('Community enquiry walkthrough', () => {
       await expect(page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first()).toBeVisible();
     }
 
-    await workflowDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
+    await serviceBlueprintDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
     await assertHealthyPage(page, { url: /\/get-in-touch/, heading: 'Your details' });
   });
 
@@ -69,15 +69,15 @@ test.describe('Community enquiry walkthrough', () => {
     await page.getByRole('button', { name: 'Submit' }).click();
     await expect(page.getByRole('heading', { name: 'Thank you' })).toBeVisible({ timeout: 30_000 });
 
-    await page.goto('/my-workflows');
-    await expect(page.getByRole('heading', { name: 'My Workflows' })).toBeVisible();
-    await expect(page.locator('[data-workflow-key="community-enquiry"]')).toContainText('Thank you');
+    await page.goto('/my-service-blueprints');
+    await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
+    await expect(page.locator('[data-service-blueprint-key="community-enquiry"]')).toContainText('Thank you');
 
     await page.goto('/get-in-touch');
     await expect(page.getByRole('heading', { name: 'Thank you' })).toBeVisible({ timeout: 30_000 });
   });
 
-  test('workflow hub lists the completed community enquiry for the signed-in member', async ({ page }) => {
+  test('service blueprint hub lists the completed community enquiry for the signed-in member', async ({ page }) => {
     await signIn(page);
     await page.goto('/get-in-touch');
     await page.getByRole('combobox', { name: 'Your role' }).selectOption('Developer');
@@ -86,16 +86,16 @@ test.describe('Community enquiry walkthrough', () => {
     
     await page.getByRole('button', { name: 'Submit' }).click();
 
-    await page.goto('/my-workflows');
-    await expect(page.getByRole('heading', { name: 'My Workflows' })).toBeVisible();
+    await page.goto('/my-service-blueprints');
+    await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
 
-    const workflowCard = page.locator('[data-workflow-key="community-enquiry"]').first();
-    await expect(workflowCard).toContainText('Get in Touch');
-    await expect(workflowCard).toContainText('Thank you');
-    await expect(workflowCard.getByRole('link', { name: 'View' })).toBeVisible();
+    const serviceBlueprintCard = page.locator('[data-service-blueprint-key="community-enquiry"]').first();
+    await expect(serviceBlueprintCard).toContainText('Get in Touch');
+    await expect(serviceBlueprintCard).toContainText('Thank you');
+    await expect(serviceBlueprintCard.getByRole('link', { name: 'View' })).toBeVisible();
   });
 });
 
-function workflowDemoCard(page: import('@playwright/test').Page, title: string) {
+function serviceBlueprintDemoCard(page: import('@playwright/test').Page, title: string) {
   return page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first();
 }

@@ -2,16 +2,16 @@
  * Shared LiveAppHost fixture for localhost-auth tests.
  * 
  * Strategy: Playwright worker fixture starts the Aspire stack once per worker and tears it down after all tests.
- * Specs get fresh browser contexts (Playwright's default) + explicit server-side reset (resetWorkflows).
+ * Specs get fresh browser contexts (Playwright's default) + explicit server-side reset (resetServiceBlueprints).
  * 
  * Isolation discipline:
  * - Fresh browser context per test (Playwright's default)
- * - Explicit server-side reset via resetWorkflows() in beforeEach
+ * - Explicit server-side reset via resetServiceBlueprints() in beforeEach
  * - TestSite runtime reset happens only once at worker startup, not per-test
  * 
  * Contract:
  * - Use the `appHost` fixture in your test (destructure from test params)
- * - Call resetWorkflows(request) in beforeEach for test isolation
+ * - Call resetServiceBlueprints(request) in beforeEach for test isolation
  */
 
 import { test as base } from '@playwright/test';

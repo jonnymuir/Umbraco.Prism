@@ -4,7 +4,7 @@ import { LiveAppHost } from '../support/live-app-host';
 import { assertHealthyPage, step, signIn } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
-const expectedWorkflowDemos = [
+const expectedServiceBlueprintDemos = [
   'Get in Touch',
   'Apply for Planning Permission',
   'Payment Demo',
@@ -33,7 +33,7 @@ test.describe('Home entry walkthrough', () => {
     }, 'home-entry');
 
     await expect(page.getByRole('link', { name: 'Sign In' })).toBeVisible();
-    // Dashboard and workflow links should not be present for unauthenticated users
+    // Dashboard and service blueprint links should not be present for unauthenticated users
     await expect(page.getByRole('link', { name: 'Go to Dashboard' })).toHaveCount(0);
   });
 
@@ -54,7 +54,7 @@ test.describe('Home entry walkthrough', () => {
     await expect(page.getByRole('link', { name: 'Sign In' })).toHaveCount(0);
   });
 
-  test('authenticated user navigates from homepage to dashboard and workflow hub', async ({ page }) => {
+  test('authenticated user navigates from homepage to dashboard and service blueprint hub', async ({ page }) => {
     await signIn(page);
 
     // Start from home
@@ -76,35 +76,35 @@ test.describe('Home entry walkthrough', () => {
       screenshotSelector: '.dash-section'
     }, 'home-entry');
 
-    await expect(page.getByRole('link', { name: 'View Workflows' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Workflow Demos' })).toBeVisible();
-    for (const workflowTitle of expectedWorkflowDemos) {
-      await expect(workflowDemoCard(page, workflowTitle)).toBeVisible();
-      await expect(workflowDemoCard(page, workflowTitle).getByRole('link', { name: 'Start' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'View ServiceBlueprints' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'ServiceBlueprint Demos' })).toBeVisible();
+    for (const serviceBlueprintTitle of expectedServiceBlueprintDemos) {
+      await expect(serviceBlueprintDemoCard(page, serviceBlueprintTitle)).toBeVisible();
+      await expect(serviceBlueprintDemoCard(page, serviceBlueprintTitle).getByRole('link', { name: 'Start' })).toBeVisible();
     }
 
-    // Navigate to the seeded workflow demo entry point first.
-    await workflowDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
+    // Navigate to the seeded service blueprint demo entry point first.
+    await serviceBlueprintDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
     await page.waitForURL(/\/get-in-touch\/?$/, { timeout: 30_000 });
 
-    await step(page, '04-start-workflow.png', {
+    await step(page, '04-start-service-blueprint.png', {
       url: /\/get-in-touch\/?$/,
       heading: 'Your details'
     }, 'home-entry');
 
-    // Return to dashboard and navigate to workflow hub via View Workflows.
+    // Return to dashboard and navigate to service blueprint hub via View ServiceBlueprints.
     await page.goto('/dashboard');
-    await expect(page.getByRole('link', { name: 'View Workflows' })).toBeVisible();
-    await page.getByRole('link', { name: 'View Workflows' }).click();
-    await page.waitForURL(/\/my-workflows\/?$/, { timeout: 30_000 });
+    await expect(page.getByRole('link', { name: 'View ServiceBlueprints' })).toBeVisible();
+    await page.getByRole('link', { name: 'View ServiceBlueprints' }).click();
+    await page.waitForURL(/\/my-service-blueprints\/?$/, { timeout: 30_000 });
 
-    await step(page, '05-workflow-hub.png', {
-      url: /\/my-workflows\/?$/,
-      heading: 'My Workflows'
+    await step(page, '05-service-blueprint-hub.png', {
+      url: /\/my-service-blueprints\/?$/,
+      heading: 'My ServiceBlueprints'
     }, 'home-entry');
   });
 });
 
-function workflowDemoCard(page: import('@playwright/test').Page, title: string) {
+function serviceBlueprintDemoCard(page: import('@playwright/test').Page, title: string) {
   return page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first();
 }

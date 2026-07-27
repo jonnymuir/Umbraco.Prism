@@ -4,8 +4,8 @@ import { LiveAppHost } from '../support/live-app-host';
 import {
   assertHealthyPage,
   openDashboard,
-  openWorkflowAdminFromDashboard,
-  resetWorkflows,
+  openServiceBlueprintAdminFromDashboard,
+  resetServiceBlueprints,
   signIn,
   step
 } from './support/walkthrough';
@@ -26,14 +26,14 @@ test.describe('Payment demo walkthrough', () => {
   });
 
   test.beforeEach(async ({ request }) => {
-    await resetWorkflows(request);
+    await resetServiceBlueprints(request);
   });
 
   test('happy path: member submits payment, reviewer completes it, and the waiting page advances automatically', async ({ page }) => {
     await signIn(page);
     await openDashboard(page);
 
-    const paymentCard = workflowDemoCard(page, 'Payment Demo');
+    const paymentCard = serviceBlueprintDemoCard(page, 'Payment Demo');
     await expect(paymentCard.getByRole('link', { name: 'Start' })).toBeVisible();
     await paymentCard.scrollIntoViewIfNeeded();
     await step(page, '01-dashboard-payment-demo-start.png', {
@@ -65,39 +65,39 @@ test.describe('Payment demo walkthrough', () => {
     }, 'payment-demo');
     await expect(page.locator('body')).toContainText('You can leave this page', { timeout: 10_000 });
 
-    const workflowHubPage = await page.context().newPage();
-    await workflowHubPage.goto('/my-workflows');
-    await step(workflowHubPage, '05-workflow-hub-processing.png', {
-      url: /\/my-workflows\/?$/,
-      heading: 'My Workflows'
+    const serviceBlueprintHubPage = await page.context().newPage();
+    await serviceBlueprintHubPage.goto('/my-service-blueprints');
+    await step(serviceBlueprintHubPage, '05-service-blueprint-hub-processing.png', {
+      url: /\/my-service-blueprints\/?$/,
+      heading: 'My ServiceBlueprints'
     }, 'payment-demo');
 
-    const hubCard = workflowHubCard(workflowHubPage, 'Payment Demo');
+    const hubCard = serviceBlueprintHubCard(serviceBlueprintHubPage, 'Payment Demo');
     await expect(hubCard).toContainText('Awaiting payment confirmation');
     await expect(hubCard.getByRole('link', { name: 'Continue' })).toBeVisible();
 
     const reviewerJourneyPage = await page.context().newPage();
     await openDashboard(reviewerJourneyPage);
 
-    const adminCard = dashboardCard(reviewerJourneyPage, 'Workflow Admin');
+    const adminCard = dashboardCard(reviewerJourneyPage, 'ServiceBlueprint Admin');
     await expect(adminCard.getByRole('link', { name: 'Open Admin' })).toBeVisible();
     await adminCard.scrollIntoViewIfNeeded();
     await step(reviewerJourneyPage, '06-dashboard-admin-link.png', {
       url: /\/dashboard\/?$/,
       heading: /dashboard/i,
       skipHeading: true,
-      screenshotSelector: '.dash-section:has(a[href*="/admin/workflow"])'
+      screenshotSelector: '.dash-section:has(a[href*="/admin/service-desk"])'
     }, 'payment-demo');
 
-    const adminPage = await openWorkflowAdminFromDashboard(reviewerJourneyPage);
-    const instanceRow = workflowInstanceRow(adminPage, 'payment-demo');
+    const adminPage = await openServiceBlueprintAdminFromDashboard(reviewerJourneyPage);
+    const instanceRow = serviceBlueprintInstanceRow(adminPage, 'payment-demo');
     await expect(instanceRow).toContainText('Awaiting payment confirmation');
     await expect(instanceRow).toContainText('processing-payment');
     await expect(instanceRow.getByRole('button', { name: 'Complete' })).toBeVisible();
     await step(adminPage, '07-admin-processing-instance.png', {
-      url: /https:\/\/localhost:7245\/admin\/workflow\/?$/,
-      heading: /workflow admin/i,
-      screenshotSelector: 'tbody tr[data-workflow-key="payment-demo"]'
+      url: /https:\/\/localhost:7245\/admin\/service-blueprint\/?$/,
+      heading: /service-blueprint admin/i,
+      screenshotSelector: 'tbody tr[data-service-blueprint-key="payment-demo"]'
     }, 'payment-demo');
 
     const definitionCard = adminPage.locator('[data-definition-key="payment-demo"]').first();
@@ -109,14 +109,14 @@ test.describe('Payment demo walkthrough', () => {
     await expect(definitionCard).toContainText('complete');
     await definitionCard.scrollIntoViewIfNeeded();
     await step(adminPage, '08-admin-payment-definition.png', {
-      url: /https:\/\/localhost:7245\/admin\/workflow\/?$/,
-      heading: /workflow admin/i,
+      url: /https:\/\/localhost:7245\/admin\/service-blueprint\/?$/,
+      heading: /service-blueprint admin/i,
       screenshotSelector: '[data-definition-key="payment-demo"]'
     }, 'payment-demo');
 
     await instanceRow.getByRole('button', { name: 'Complete' }).click();
-    await expect(workflowInstanceRow(adminPage, 'payment-demo')).toContainText('Payment Complete', { timeout: 30_000 });
-    await expect(workflowInstanceRow(adminPage, 'payment-demo')).toContainText('payment-complete');
+    await expect(serviceBlueprintInstanceRow(adminPage, 'payment-demo')).toContainText('Payment Complete', { timeout: 30_000 });
+    await expect(serviceBlueprintInstanceRow(adminPage, 'payment-demo')).toContainText('payment-complete');
 
     await page.bringToFront();
     await expect(page.getByText('Payment received')).toBeVisible({ timeout: 20_000 });
@@ -127,9 +127,9 @@ test.describe('Payment demo walkthrough', () => {
       skipHeading: true
     }, 'payment-demo');
 
-    await page.getByRole('link', { name: 'My Workflows' }).click();
-    await assertHealthyPage(page, { url: /\/my-workflows\/?$/, heading: 'My Workflows' });
-    const completedCard = workflowHubCard(page, 'Payment Demo');
+    await page.getByRole('link', { name: 'My ServiceBlueprints' }).click();
+    await assertHealthyPage(page, { url: /\/my-service-blueprints\/?$/, heading: 'My ServiceBlueprints' });
+    const completedCard = serviceBlueprintHubCard(page, 'Payment Demo');
     await expect(page.getByRole('heading', { name: 'Completed' })).toBeVisible();
     await expect(completedCard).toContainText('Payment Complete');
     await expect(completedCard.getByRole('link', { name: 'View' })).toBeVisible();
@@ -165,8 +165,8 @@ test.describe('Payment demo walkthrough', () => {
     await expect(page.getByRole('heading', { name: 'Awaiting payment confirmation' })).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('body')).toContainText('You can leave this page', { timeout: 10_000 });
 
-    await page.goto('/my-workflows');
-    await expect(page.getByRole('heading', { name: 'My Workflows' })).toBeVisible();
+    await page.goto('/my-service-blueprints');
+    await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
 
     await page.goto('/payment-demo');
     await expect(page.getByRole('heading', { name: 'Awaiting payment confirmation' })).toBeVisible({ timeout: 30_000 });
@@ -174,7 +174,7 @@ test.describe('Payment demo walkthrough', () => {
   });
 });
 
-function workflowDemoCard(page: Page, title: string) {
+function serviceBlueprintDemoCard(page: Page, title: string) {
   return page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first();
 }
 
@@ -182,12 +182,12 @@ function dashboardCard(page: Page, title: string) {
   return page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first();
 }
 
-function workflowHubCard(page: Page, title: string) {
-  return page.locator(`.prism-instance-card[data-workflow-key="payment-demo"]`).filter({
+function serviceBlueprintHubCard(page: Page, title: string) {
+  return page.locator(`.prism-instance-card[data-service-blueprint-key="payment-demo"]`).filter({
     has: page.getByRole('heading', { name: title })
   }).first();
 }
 
-function workflowInstanceRow(page: Page, workflowKey: string) {
-  return page.locator(`tbody tr[data-workflow-key="${workflowKey}"]`).first();
+function serviceBlueprintInstanceRow(page: Page, serviceBlueprintKey: string) {
+  return page.locator(`tbody tr[data-service-blueprint-key="${serviceBlueprintKey}"]`).first();
 }
