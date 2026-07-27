@@ -869,7 +869,7 @@ public class Phase1SecurityRegressionTests : IDisposable
     {
         var testSeedDir = Path.Combine(Directory.GetCurrentDirectory(), $"sec003-test-{Guid.NewGuid()}");
         Directory.CreateDirectory(testSeedDir);
-        Directory.CreateDirectory(Path.Combine(testSeedDir, "workflow-seeds"));
+        Directory.CreateDirectory(Path.Combine(testSeedDir, "service-blueprints"));
 
         try
         {
@@ -896,17 +896,17 @@ public class Phase1SecurityRegressionTests : IDisposable
             };
 
             File.WriteAllText(
-                Path.Combine(testSeedDir, "workflow-seeds", "sec003-test.json"),
+                Path.Combine(testSeedDir, "service-blueprints", "sec003-test.json"),
                 JsonSerializer.Serialize(workflow, new JsonSerializerOptions { WriteIndented = true }));
 
             var mockEnv = new Mock<IWebHostEnvironment>();
             mockEnv.Setup(e => e.ContentRootPath).Returns(testSeedDir);
 
-            var logger = new Mock<ILogger<BusinessAppWorkflowEngine>>();
+            var logger = new Mock<ILogger<BusinessAppProcessManager>>();
             // Real sanitizer — exercises the GDS allowlist security boundary.
             var sanitizer = new UmbracoPrism.Core.Services.Sanitization.ServiceContentSanitizer();
 
-            var engine = new BusinessAppWorkflowEngine(logger.Object, mockEnv.Object, sanitizer);
+            var engine = new BusinessAppProcessManager(logger.Object, mockEnv.Object, sanitizer);
             var result = engine.GetCurrent("sec003-test", "tenant1", "user1");
 
             var bodyComponent = result.Render!.Components.FirstOrDefault(c =>

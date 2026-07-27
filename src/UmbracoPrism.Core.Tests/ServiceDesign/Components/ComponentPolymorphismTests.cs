@@ -278,7 +278,7 @@ public class ComponentPolymorphismTests
                         Heading = "Before you start",
                         Tasks = new List<TaskItem>
                         {
-                            new() { Label = "Check eligibility", StateKey = "eligibility" },
+                            new() { Label = "Check eligibility", TouchpointKey = "eligibility" },
                             new() { Label = "Read guidance", Href = "/guidance" }
                         }
                     }
@@ -331,11 +331,11 @@ public class ComponentPolymorphismTests
             Version = 1,
             InitialTouchpoint = "start",
             RequestPolicy = "single",
-            States = new List<StepDefinition>
+            Touchpoints = new List<StepDefinition>
             {
                 new()
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Components = new List<PrismComponent>
                     {
@@ -354,7 +354,7 @@ public class ComponentPolymorphismTests
                 },
                 new()
                 {
-                    StateKey = "check",
+                    TouchpointKey = "check",
                     DisplayName = "Check your answers",
                     Components = new List<PrismComponent>
                     {
@@ -372,7 +372,7 @@ public class ComponentPolymorphismTests
                 },
                 new()
                 {
-                    StateKey = "complete",
+                    TouchpointKey = "complete",
                     DisplayName = "Complete",
                     Components = new List<PrismComponent>
                     {
@@ -381,14 +381,14 @@ public class ComponentPolymorphismTests
                     }
                 }
             },
-            Transitions = new List<WorkflowTransitionFile>
+            Transitions = new List<RouteFile>
             {
                 new() { FromState = "start", ToState = "check", Action = "continue" },
                 new() { FromState = "check", ToState = "complete", Action = "confirm" }
             },
-            Layout = new WorkflowLayoutDefinition
+            Layout = new ServiceBlueprintLayoutDefinition
             {
-                Nodes = new Dictionary<string, WorkflowNodePosition>
+                Nodes = new Dictionary<string, NodePosition>
                 {
                     ["stage:start"] = new() { X = 312, Y = 168 },
                     ["stage:check"] = new() { X = 312, Y = 472 },
@@ -405,7 +405,7 @@ public class ComponentPolymorphismTests
         deserialized.Should().NotBeNull();
         deserialized.Should().BeEquivalentTo(definition);
         deserialized!.Layout!.Nodes.Should().ContainKey("gateway:route-from-start")
-            .WhoseValue.Should().BeEquivalentTo(new WorkflowNodePosition { X = 356, Y = 320 });
+            .WhoseValue.Should().BeEquivalentTo(new NodePosition { X = 356, Y = 320 });
         json.Should().Contain("\"type\": \"heading\"");
         json.Should().Contain("\"type\": \"body\"");
         json.Should().Contain("\"type\": \"fieldset\"");

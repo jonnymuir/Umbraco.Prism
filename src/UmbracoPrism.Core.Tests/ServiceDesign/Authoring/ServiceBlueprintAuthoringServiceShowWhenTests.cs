@@ -28,11 +28,10 @@ public class ServiceBlueprintAuthoringServiceShowWhenTests
             DefinitionKey = "showwhen-test",
             DisplayName = "ShowWhen Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Components =
                     [
@@ -60,11 +59,10 @@ public class ServiceBlueprintAuthoringServiceShowWhenTests
             DefinitionKey = "showwhen-ok",
             DisplayName = "ShowWhen OK",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Components =
                     [
@@ -94,7 +92,7 @@ public class ServiceBlueprintAuthoringServiceShowWhenTests
         outcome.Diagnostics.Should().ContainSingle(d =>
             d.Code == "CALC_SERVICE_FIELD_UNVERIFIED"
             && d.Path == "calculations.fields.member"
-            && d.Severity == WorkflowDiagnosticSeverity.Warning);
+            && d.Severity == ServiceBlueprintDiagnosticSeverity.Warning);
     }
 
     [Fact]
@@ -129,7 +127,7 @@ public class ServiceBlueprintAuthoringServiceShowWhenTests
         {
             var candidate = Path.Combine(
                 directory.FullName,
-                "src", "UmbracoPrism.MockBusinessApp", "workflow-seeds", "money-modeller.json");
+                "src", "UmbracoPrism.MockBusinessApp", "service-blueprints", "money-modeller.json");
             if (File.Exists(candidate))
             {
                 return JsonSerializer.Deserialize<ServiceBlueprint>(

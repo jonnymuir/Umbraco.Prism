@@ -101,14 +101,14 @@ public class ServiceBlueprintAuthoringServiceQueueCapabilitiesTests
             DefinitionKey = "queue-capabilities-test",
             DisplayName = "Queue Capabilities Test",
             Version = 1,
-            InitialStageKey = "review",
+            InitialTouchpointKey = "review",
             RequestPolicy = "single",
             Queues = [new AuthoredQueue { Key = "business-user", DisplayName = "Business User", Actor = "reviewer" }],
-            Stages =
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = "review",
+                    TouchpointKey = "review",
                     DisplayName = "Review",
                     Kind = TouchpointKind.Question,
                     QueueKey = "business-user",

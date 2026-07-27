@@ -16,7 +16,7 @@ public class ServiceBlueprintSimulationRunnerTests
 
         var result = new ServiceBlueprintSimulationRunner().Run(
             projection.File,
-            [new WorkflowRuntimeSimulationStep("submit")]);
+            [new ProcessManagerSimulationStep("submit")]);
 
         result.Trace.Should().HaveCount(2, "the initial GetCurrent plus one Advance step should each produce an envelope");
         result.Trace[0].ResponseState.Should().Be("render", "the workflow starts on the question stage");
@@ -45,7 +45,7 @@ public class ServiceBlueprintSimulationRunnerTests
 
         var result = new ServiceBlueprintSimulationRunner().Run(
             definition,
-            [new WorkflowRuntimeSimulationStep("start-modelling")],
+            [new ProcessManagerSimulationStep("start-modelling")],
             mockServiceInputs);
 
         result.Trace.Should().HaveCount(2);
@@ -64,7 +64,7 @@ public class ServiceBlueprintSimulationRunnerTests
 
         var act = () => new ServiceBlueprintSimulationRunner().Run(
             definition,
-            [new WorkflowRuntimeSimulationStep("start-modelling")]);
+            [new ProcessManagerSimulationStep("start-modelling")]);
 
         act.Should().NotThrow(
             "an unresolved service-sourced field should fail calculations cleanly, not blow up the whole simulation");
@@ -80,7 +80,7 @@ public class ServiceBlueprintSimulationRunnerTests
         DefinitionKey = "simulation-smoke-test",
         DisplayName = "Simulation Smoke Test",
         Version = 1,
-        InitialStageKey = "start",
+        InitialTouchpointKey = "start",
         RequestPolicy = "single",
         Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" }],
         Gateways =
@@ -94,11 +94,11 @@ public class ServiceBlueprintSimulationRunnerTests
                 Routes = [new AuthoredRoute { Id = "release", Target = "done", Trigger = "submit" }]
             }
         ],
-        Stages =
+        Touchpoints =
         [
             new AuthoredTouchpoint
             {
-                StageKey = "start",
+                TouchpointKey = "start",
                 DisplayName = "Start",
                 Kind = TouchpointKind.Question,
                 QueueKey = "applicant",
@@ -106,7 +106,7 @@ public class ServiceBlueprintSimulationRunnerTests
             },
             new AuthoredTouchpoint
             {
-                StageKey = "done",
+                TouchpointKey = "done",
                 DisplayName = "Done",
                 Kind = TouchpointKind.Confirmation,
                 QueueKey = "applicant"
@@ -121,7 +121,7 @@ public class ServiceBlueprintSimulationRunnerTests
         {
             var candidate = Path.Combine(
                 directory.FullName,
-                "src", "UmbracoPrism.MockBusinessApp", "workflow-seeds", "money-modeller.json");
+                "src", "UmbracoPrism.MockBusinessApp", "service-blueprints", "money-modeller.json");
             if (File.Exists(candidate))
             {
                 return JsonSerializer.Deserialize<ServiceBlueprint>(

@@ -11,7 +11,7 @@ namespace UmbracoPrism.Core.Tests.ServiceDesign.Authoring;
 /// </summary>
 public class ServiceBlueprintPatchServiceFailureTests
 {
-    private static readonly string FixturesPath = WorkflowAuthoringFixtureLocator.GetFixturesPath();
+    private static readonly string FixturesPath = ServiceBlueprintAuthoringFixtureLocator.GetFixturesPath();
 
     private readonly ServiceBlueprintProjector _projector = new();
     private readonly ServiceBlueprintPatchService _sut;
@@ -142,7 +142,7 @@ public class ServiceBlueprintPatchServiceFailureTests
             Id               = Guid.NewGuid(),
             CreatedAt        = DateTimeOffset.UtcNow,
             Agent            = new PatchAgent { Kind = "human-assisted", Identity = "test" },
-            TargetWorkflowId = "planning-application",
+            TargetServiceBlueprintId = "planning-application",
             Rationale        = "Malformed value test",
             Ops              = malformedOps
         };
@@ -155,7 +155,7 @@ public class ServiceBlueprintPatchServiceFailureTests
 
     private static async Task<AuthoredServiceBlueprint> LoadPlanningFixture()
     {
-        var wf = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "planning");
+        var wf = await AuthoredServiceBlueprintFixtureLoader.LoadAsync(FixturesPath, "planning");
         return wf ?? throw new InvalidOperationException("planning fixture not found");
     }
 
@@ -165,7 +165,7 @@ public class ServiceBlueprintPatchServiceFailureTests
             Id               = Guid.NewGuid(),
             CreatedAt        = DateTimeOffset.UtcNow,
             Agent            = new PatchAgent { Kind = "human-assisted", Identity = "test" },
-            TargetWorkflowId = "planning-application",
+            TargetServiceBlueprintId = "planning-application",
             Rationale        = "Failure test",
             Ops              = [new PatchOp { Op = op, Path = path }]
         };
@@ -176,7 +176,7 @@ public class ServiceBlueprintPatchServiceFailureTests
             Id               = Guid.NewGuid(),
             CreatedAt        = DateTimeOffset.UtcNow,
             Agent            = new PatchAgent { Kind = "human-assisted", Identity = "test" },
-            TargetWorkflowId = "planning-application",
+            TargetServiceBlueprintId = "planning-application",
             Rationale        = "Failure test",
             Ops              = [new PatchOp { Op = op }]
         };
@@ -195,7 +195,7 @@ public class ServiceBlueprintPatchServiceFailureTests
             Id               = Guid.NewGuid(),
             CreatedAt        = DateTimeOffset.UtcNow,
             Agent            = new PatchAgent { Kind = "human-assisted", Identity = "test" },
-            TargetWorkflowId = "planning-application",
+            TargetServiceBlueprintId = "planning-application",
             Rationale        = "Failure test",
             Ops              = [new PatchOp { Op = op, Path = path, Before = before, Value = valueElement }]
         };

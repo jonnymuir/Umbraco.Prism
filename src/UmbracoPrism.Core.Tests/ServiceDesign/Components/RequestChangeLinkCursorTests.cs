@@ -121,25 +121,24 @@ public class RequestChangeLinkCursorTests
         InitialTouchpoint = "how-many-bins",
         RequestPolicy = "single",
         Queues = [new QueueDefinition { Key = "web-user", DisplayName = "Member", Actor = "member" }],
-        States =
-        [
+        Touchpoints = [
             new StepDefinition
             {
-                StateKey = "how-many-bins",
+                TouchpointKey = "how-many-bins",
                 DisplayName = "How many bins do you have?",
                 QueueKey = "web-user",
                 Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins", Required = true }]
             },
             new StepDefinition
             {
-                StateKey = "property-address",
+                TouchpointKey = "property-address",
                 DisplayName = "What's the property address?",
                 QueueKey = "web-user",
                 Components = [new TextInputComponent { FieldKey = "propertyAddress", Label = "Address", Required = true }]
             },
             new StepDefinition
             {
-                StateKey = "collection-fee",
+                TouchpointKey = "collection-fee",
                 DisplayName = "Collection Fee",
                 QueueKey = "web-user",
                 Components =
@@ -163,17 +162,17 @@ public class RequestChangeLinkCursorTests
         ],
         Transitions =
         [
-            new WorkflowTransitionFile { FromState = "how-many-bins", ToState = "gateway-1", Action = "continue" },
-            new WorkflowTransitionFile { FromState = "gateway-1", ToState = "property-address", Action = "" },
-            new WorkflowTransitionFile { FromState = "property-address", ToState = "gateway-2", Action = "continue" },
-            new WorkflowTransitionFile { FromState = "gateway-2", ToState = "collection-fee", Action = "" }
+            new RouteFile { FromState = "how-many-bins", ToState = "gateway-1", Action = "continue" },
+            new RouteFile { FromState = "gateway-1", ToState = "property-address", Action = "" },
+            new RouteFile { FromState = "property-address", ToState = "gateway-2", Action = "continue" },
+            new RouteFile { FromState = "gateway-2", ToState = "collection-fee", Action = "" }
         ],
-        Metadata = new WorkflowDefinitionMetadata
+        Metadata = new ServiceBlueprintMetadata
         {
-            AuthoredWorkflowId = new Guid("aaaabbbb-cccc-dddd-eeee-000000000090"),
+            AuthoredServiceBlueprintId = new Guid("aaaabbbb-cccc-dddd-eeee-000000000090"),
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "gateway-1",
                     DisplayName = "Gateway 1",
@@ -181,7 +180,7 @@ public class RequestChangeLinkCursorTests
                     QueueKey = "web-user",
                     RequiredIncomingQueues = ["web-user"]
                 },
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "gateway-2",
                     DisplayName = "Gateway 2",

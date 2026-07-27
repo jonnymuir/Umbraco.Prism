@@ -18,14 +18,14 @@ namespace UmbracoPrism.Core.Tests.ServiceDesign.Authoring;
 /// <summary>
 /// Validates the reference workflow contract: exactly 5 demo workflows
 /// seeded at runtime, in memory, and consistently available through the
-/// MockBusinessApp's <c>/mockapp/workflows/*</c> source endpoints, the admin
+/// MockBusinessApp's <c>/mockapp/service-blueprints/*</c> source endpoints, the admin
 /// screen, and the runtime catalog.
 /// </summary>
-public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowReferenceContractTests.MockBusinessAppWebFactory>
+public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServiceBlueprintReferenceContractTests.MockBusinessAppWebFactory>
 {
     private readonly HttpClient _client;
 
-    private static readonly string[] ExpectedWorkflowKeys =
+    private static readonly string[] ExpectedServiceBlueprintKeys =
     [
         "community-enquiry",
         "information-request",
@@ -34,34 +34,34 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         "planning"
     ];
 
-    public FourWorkflowReferenceContractTests(MockBusinessAppWebFactory factory)
+    public FourServiceBlueprintReferenceContractTests(MockBusinessAppWebFactory factory)
     {
         _client = factory.CreateClient();
     }
 
     [Fact]
-    public async Task SourceApi_ListsExactlyFourWorkflows()
+    public async Task SourceApi_ListsExactlyFourServiceBlueprints()
     {
-        var response = await _client.GetAsync("/mockapp/workflows");
+        var response = await _client.GetAsync("/mockapp/service-blueprints");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var workflows = await response.Content.ReadFromJsonAsync<List<MockAppWorkflowSummary>>();
+        var workflows = await response.Content.ReadFromJsonAsync<List<MockAppServiceBlueprintSummary>>();
 
         workflows.Should().NotBeNull();
         workflows.Should().HaveCount(5,
             because: "the reference contract specifies exactly 5 demo workflows");
 
         var actualKeys = workflows!.Select(w => w.DefinitionKey).OrderBy(k => k).ToList();
-        actualKeys.Should().BeEquivalentTo(ExpectedWorkflowKeys.OrderBy(k => k),
+        actualKeys.Should().BeEquivalentTo(ExpectedServiceBlueprintKeys.OrderBy(k => k),
             because: "the source API should list exactly the canonical workflows");
     }
 
     [Fact]
-    public async Task SourceApi_AllFourWorkflowsAreLoadable()
+    public async Task SourceApi_AllFourServiceBlueprintsAreLoadable()
     {
-        foreach (var workflowKey in ExpectedWorkflowKeys)
+        foreach (var workflowKey in ExpectedServiceBlueprintKeys)
         {
-            var response = await _client.GetAsync($"/mockapp/workflows/{workflowKey}");
+            var response = await _client.GetAsync($"/mockapp/service-blueprints/{workflowKey}");
 
             response.StatusCode.Should().Be(HttpStatusCode.OK,
                 because: $"workflow '{workflowKey}' must be loadable via the source API");
@@ -73,9 +73,9 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     }
 
     [Fact]
-    public async Task RuntimeStore_PublishesExactlyFourWorkflowsAtStartup()
+    public async Task RuntimeStore_PublishesExactlyFourServiceBlueprintsAtStartup()
     {
-        var response = await _client.GetAsync("/api/workflow/catalog");
+        var response = await _client.GetAsync("/api/service-request/catalog");
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
@@ -91,35 +91,35 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     }
 
     [Fact]
-    public async Task AdminScreen_ShowsExactlyFourWorkflowDefinitions()
+    public async Task AdminScreen_ShowsExactlyFourServiceBlueprintDefinitions()
     {
-        var response = await _client.GetAsync("/admin/workflow");
+        var response = await _client.GetAsync("/admin/service-desk");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var body = await response.Content.ReadAsStringAsync();
 
-        foreach (var workflowKey in ExpectedWorkflowKeys)
+        foreach (var workflowKey in ExpectedServiceBlueprintKeys)
         {
-            body.Should().Contain($"data-workflow-key=\"{workflowKey}\"",
+            body.Should().Contain($"data-blueprint-key=\"{workflowKey}\"",
                 because: $"workflow '{workflowKey}' should appear in the admin screen");
         }
 
-        var cardCount = body.Split("data-workflow-key=").Length - 1;
+        var cardCount = body.Split("data-blueprint-key=").Length - 1;
         cardCount.Should().Be(5,
             because: "the admin screen should show exactly the canonical workflows, no more");
     }
 
     [Fact]
-    public async Task AdminScreen_AllFourWorkflowsHaveEditorLinks()
+    public async Task AdminScreen_AllFourServiceBlueprintsHaveEditorLinks()
     {
-        var response = await _client.GetAsync("/admin/workflow");
+        var response = await _client.GetAsync("/admin/service-desk");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var body = await response.Content.ReadAsStringAsync();
 
-        foreach (var workflowKey in ExpectedWorkflowKeys)
+        foreach (var workflowKey in ExpectedServiceBlueprintKeys)
         {
-            body.Should().Contain($"href=\"/workflow-editor?workflow={workflowKey}\"",
+            body.Should().Contain($"href=\"/service-blueprint-editor?serviceBlueprint={workflowKey}\"",
                 because: $"workflow '{workflowKey}' should have an editor link since it has an authored source");
         }
 
@@ -128,19 +128,19 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     }
 
     [Fact]
-    public async Task WorkflowKeys_MatchAcrossSourceAndAdminSurfaces()
+    public async Task ServiceBlueprintKeys_MatchAcrossSourceAndAdminSurfaces()
     {
-        var sourceResponse = await _client.GetAsync("/mockapp/workflows");
-        var workflows = await sourceResponse.Content.ReadFromJsonAsync<List<MockAppWorkflowSummary>>();
+        var sourceResponse = await _client.GetAsync("/mockapp/service-blueprints");
+        var workflows = await sourceResponse.Content.ReadFromJsonAsync<List<MockAppServiceBlueprintSummary>>();
         var sourceKeys = workflows!.Select(w => w.DefinitionKey).OrderBy(k => k).ToList();
 
-        var adminResponse = await _client.GetAsync("/admin/workflow");
+        var adminResponse = await _client.GetAsync("/admin/service-desk");
         var adminBody = await adminResponse.Content.ReadAsStringAsync();
 
         var adminKeys = new List<string>();
-        foreach (var key in ExpectedWorkflowKeys)
+        foreach (var key in ExpectedServiceBlueprintKeys)
         {
-            if (adminBody.Contains($"data-workflow-key=\"{key}\""))
+            if (adminBody.Contains($"data-blueprint-key=\"{key}\""))
             {
                 adminKeys.Add(key);
             }
@@ -150,14 +150,14 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         sourceKeys.Should().BeEquivalentTo(adminKeys,
             because: "the same workflow keys must appear in both source API and admin screen");
 
-        sourceKeys.Should().BeEquivalentTo(ExpectedWorkflowKeys.OrderBy(k => k),
+        sourceKeys.Should().BeEquivalentTo(ExpectedServiceBlueprintKeys.OrderBy(k => k),
             because: "both surfaces must show exactly the canonical workflows");
     }
 
     [Fact]
-    public async Task SourceApi_SaveAcceptsClientShapedWorkflowPayload()
+    public async Task SourceApi_SaveAcceptsClientShapedServiceBlueprintPayload()
     {
-        var existingJson = await _client.GetStringAsync("/mockapp/workflows/payment-demo");
+        var existingJson = await _client.GetStringAsync("/mockapp/service-blueprints/payment-demo");
         var payload = JsonNode.Parse(existingJson)!.AsObject();
         var states = payload["states"]!.AsArray();
         var stage = states
@@ -179,29 +179,29 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         try
         {
             using var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
-            var save = await _client.PutAsync("/mockapp/workflows/payment-demo", content);
+            var save = await _client.PutAsync("/mockapp/service-blueprints/payment-demo", content);
 
             save.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-            var reloaded = await _client.GetFromJsonAsync<ServiceBlueprint>("/mockapp/workflows/payment-demo");
+            var reloaded = await _client.GetFromJsonAsync<ServiceBlueprint>("/mockapp/service-blueprints/payment-demo");
             reloaded.Should().NotBeNull();
-            reloaded!.States.Single(state => state.StateKey == "confirm-payment-received")
+            reloaded!.Touchpoints.Single(state => state.TouchpointKey == "confirm-payment-received")
                 .DisplayName.Should().Be("Confirm payment received (saved)");
             reloaded.Layout.Should().NotBeNull();
             reloaded.Layout!.Nodes.Should().ContainKey("stage:confirm-payment-received")
-                .WhoseValue.Should().BeEquivalentTo(new WorkflowNodePosition { X = 620, Y = 480 });
+                .WhoseValue.Should().BeEquivalentTo(new NodePosition { X = 620, Y = 480 });
         }
         finally
         {
             // The save above bumped the version, so replaying the pre-save payload verbatim would
             // now (correctly) hit a 409 conflict. Restore the original content but with the
             // version bumped to whatever's current, same as a real client re-reading before saving.
-            var currentVersion = await _client.GetFromJsonAsync<ServiceBlueprint>("/mockapp/workflows/payment-demo");
+            var currentVersion = await _client.GetFromJsonAsync<ServiceBlueprint>("/mockapp/service-blueprints/payment-demo");
             var restorePayload = JsonNode.Parse(existingJson)!.AsObject();
             restorePayload["version"] = currentVersion!.Version;
 
             using var restore = new StringContent(restorePayload.ToJsonString(), Encoding.UTF8, "application/json");
-            var restored = await _client.PutAsync("/mockapp/workflows/payment-demo", restore);
+            var restored = await _client.PutAsync("/mockapp/service-blueprints/payment-demo", restore);
             restored.StatusCode.Should().Be(HttpStatusCode.NoContent);
         }
     }
@@ -209,14 +209,14 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     [Fact]
     public async Task SourceApi_SaveReturnsStructuredProblemWhenAComponentTypeIsMissing()
     {
-        var existingJson = await _client.GetStringAsync("/mockapp/workflows/payment-demo");
+        var existingJson = await _client.GetStringAsync("/mockapp/service-blueprints/payment-demo");
         var payload = JsonNode.Parse(existingJson)!.AsObject();
         var firstState = payload["states"]!.AsArray()[0]!.AsObject();
         var firstComponent = firstState["components"]!.AsArray()[0]!.AsObject();
         firstComponent.Remove("type");
 
         using var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
-        var response = await _client.PutAsync("/mockapp/workflows/payment-demo", content);
+        var response = await _client.PutAsync("/mockapp/service-blueprints/payment-demo", content);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         response.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
@@ -238,7 +238,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     }
 
     /// <summary>
-    /// Validation parity: the editor's save path (WorkflowSourceSaveRequestParser, via
+    /// Validation parity: the editor's save path (ServiceBlueprintSourceSaveRequestParser, via
     /// this endpoint) and the AI toolkit's save path (ServiceBlueprintAuthoringService.Validate,
     /// via /prism/workflow-authoring/*) must reject the exact same malformed definition —
     /// a state route that targets another state directly instead of a gateway.
@@ -246,7 +246,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
     [Fact]
     public async Task SourceApi_SaveRejectsStateRouteThatBypassesAGateway_SameAsAiToolkit()
     {
-        var existingJson = await _client.GetStringAsync("/mockapp/workflows/planning");
+        var existingJson = await _client.GetStringAsync("/mockapp/service-blueprints/planning");
         var payload = JsonNode.Parse(existingJson)!.AsObject();
         var states = payload["states"]!.AsArray();
         var declaration = states.Select(n => n!.AsObject())
@@ -255,7 +255,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         route["target"] = "application-form"; // a state key, not a gateway key
 
         using var content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
-        var response = await _client.PutAsync("/mockapp/workflows/planning", content);
+        var response = await _client.PutAsync("/mockapp/service-blueprints/planning", content);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
             because: "this is the exact ServiceBlueprint.ValidateGatewayRouting() violation the AI toolkit's save_workflow/validate_workflow also reject");
@@ -274,7 +274,7 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
 
     /// <summary>
     /// Anonymous test factory for the MockBusinessApp. The Slice B
-    /// <c>/mockapp/workflows/*</c> endpoints are deliberately unauthenticated
+    /// <c>/mockapp/service-blueprints/*</c> endpoints are deliberately unauthenticated
     /// in the reference app — real downstream apps add their own auth.
     /// </summary>
     public sealed class MockBusinessAppWebFactory : WebApplicationFactory<MockProgram>
@@ -295,5 +295,5 @@ public class FourWorkflowReferenceContractTests : IClassFixture<FourWorkflowRefe
         }
     }
 
-    private sealed record MockAppWorkflowSummary(string DefinitionKey, string DisplayName);
+    private sealed record MockAppServiceBlueprintSummary(string DefinitionKey, string DisplayName);
 }

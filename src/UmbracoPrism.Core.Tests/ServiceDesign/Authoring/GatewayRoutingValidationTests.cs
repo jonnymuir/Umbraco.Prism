@@ -18,22 +18,21 @@ public class GatewayRoutingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "start-to-gw", Target = "my-gateway", Trigger = "continue" }
+                        new ServiceBlueprintRouteDefinition { Id = "start-to-gw", Target = "my-gateway", Trigger = "continue" }
                     ]
                 },
-                new StepDefinition { StateKey = "end", DisplayName = "End", Routes = [] }
+                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "my-gateway",
                     DisplayName = "My Gateway",
@@ -41,7 +40,7 @@ public class GatewayRoutingValidationTests
                     QueueKey = "web-user",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }
+                        new ServiceBlueprintRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }
                     ]
                 }
             ]
@@ -64,21 +63,20 @@ public class GatewayRoutingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "start-to-gw", Target = "dead-end-gateway", Trigger = "continue" }
+                        new ServiceBlueprintRouteDefinition { Id = "start-to-gw", Target = "dead-end-gateway", Trigger = "continue" }
                     ]
                 }
             ],
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "dead-end-gateway",
                     DisplayName = "Dead End",
@@ -103,18 +101,17 @@ public class GatewayRoutingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "start-to-end", Target = "end", Trigger = "continue" }
+                        new ServiceBlueprintRouteDefinition { Id = "start-to-end", Target = "end", Trigger = "continue" }
                     ]
                 },
-                new StepDefinition { StateKey = "end", DisplayName = "End", Routes = [] }
+                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways = []
         };
@@ -133,22 +130,21 @@ public class GatewayRoutingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "to-gw", Target = "gw", Trigger = "continue" }
+                        new ServiceBlueprintRouteDefinition { Id = "to-gw", Target = "gw", Trigger = "continue" }
                     ]
                 },
-                new StepDefinition { StateKey = "end", DisplayName = "End", Routes = [] }
+                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "gw",
                     DisplayName = "GW",
@@ -156,7 +152,7 @@ public class GatewayRoutingValidationTests
                     QueueKey = "web-user",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }
+                        new ServiceBlueprintRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }
                     ]
                 }
             ]
@@ -176,22 +172,21 @@ public class GatewayRoutingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "to-split", Target = "split", Trigger = "submit" }
+                        new ServiceBlueprintRouteDefinition { Id = "to-split", Target = "split", Trigger = "submit" }
                     ]
                 },
-                new StepDefinition { StateKey = "end", DisplayName = "End", Routes = [] }
+                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "split",
                     DisplayName = "Split",
@@ -199,11 +194,11 @@ public class GatewayRoutingValidationTests
                     QueueKey = "web-user",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "split-to-join", Target = "join", Trigger = "submit" },
-                        new WorkflowRouteDefinition { Id = "split-to-end", Target = "end", Trigger = "submit" }
+                        new ServiceBlueprintRouteDefinition { Id = "split-to-join", Target = "join", Trigger = "submit" },
+                        new ServiceBlueprintRouteDefinition { Id = "split-to-end", Target = "end", Trigger = "submit" }
                     ]
                 },
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "join",
                     DisplayName = "Join",
@@ -211,7 +206,7 @@ public class GatewayRoutingValidationTests
                     QueueKey = "web-user",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "join-to-end", Target = "end", Trigger = "release" }
+                        new ServiceBlueprintRouteDefinition { Id = "join-to-end", Target = "end", Trigger = "release" }
                     ]
                 }
             ]
@@ -230,27 +225,26 @@ public class GatewayRoutingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "a",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "a",
+                    TouchpointKey = "a",
                     DisplayName = "A",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "a-to-b", Target = "b", Trigger = "continue" }
+                        new ServiceBlueprintRouteDefinition { Id = "a-to-b", Target = "b", Trigger = "continue" }
                     ]
                 },
                 new StepDefinition
                 {
-                    StateKey = "b",
+                    TouchpointKey = "b",
                     DisplayName = "B",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "b-to-c", Target = "c", Trigger = "continue" }
+                        new ServiceBlueprintRouteDefinition { Id = "b-to-c", Target = "c", Trigger = "continue" }
                     ]
                 },
-                new StepDefinition { StateKey = "c", DisplayName = "C", Routes = [] }
+                new StepDefinition { TouchpointKey = "c", DisplayName = "C", Routes = [] }
             ],
             Gateways = []
         };
@@ -270,9 +264,8 @@ public class GatewayRoutingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "only",
-            States =
-            [
-                new StepDefinition { StateKey = "only", DisplayName = "Only State", Routes = [] }
+            Touchpoints = [
+                new StepDefinition { TouchpointKey = "only", DisplayName = "Only State", Routes = [] }
             ],
             Gateways = []
         };
@@ -292,24 +285,23 @@ public class GatewayRoutingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
-                    Routes = [new WorkflowRouteDefinition { Id = "to-gw", Target = "gw", Trigger = "continue" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "to-gw", Target = "gw", Trigger = "continue" }]
                 },
-                new StepDefinition { StateKey = "end", DisplayName = "End", Routes = [] }
+                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "",
                     DisplayName = "Unnamed gateway",
                     GatewayType = "Split",
-                    Routes = [new WorkflowRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
                 }
             ]
         };
@@ -327,13 +319,12 @@ public class GatewayRoutingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
-                    Routes = [new WorkflowRouteDefinition { Id = "to-gw", Target = "no-such-gateway", Trigger = "continue" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "to-gw", Target = "no-such-gateway", Trigger = "continue" }]
                 }
             ],
             Gateways = []
@@ -353,23 +344,22 @@ public class GatewayRoutingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
-                    Routes = [new WorkflowRouteDefinition { Id = "to-gw", Target = "gw", Trigger = "continue" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "to-gw", Target = "gw", Trigger = "continue" }]
                 }
             ],
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "gw",
                     DisplayName = "GW",
                     GatewayType = "Split",
-                    Routes = [new WorkflowRouteDefinition { Id = "gw-to-nowhere", Target = "ghost", Trigger = "continue" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "gw-to-nowhere", Target = "ghost", Trigger = "continue" }]
                 }
             ]
         };
@@ -391,13 +381,12 @@ public class GatewayRoutingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
-                    Routes = [new WorkflowRouteDefinition { Id = "unwired", Target = "", Trigger = "" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "unwired", Target = "", Trigger = "" }]
                 }
             ],
             Gateways = []
@@ -406,6 +395,6 @@ public class GatewayRoutingValidationTests
         var errors = workflow.ValidateGatewayRouting();
 
         errors.Should().ContainSingle(d =>
-            d.Code == "ROUTE_TARGET_EMPTY" && d.Severity == WorkflowDiagnosticSeverity.Warning);
+            d.Code == "ROUTE_TARGET_EMPTY" && d.Severity == ServiceBlueprintDiagnosticSeverity.Warning);
     }
 }

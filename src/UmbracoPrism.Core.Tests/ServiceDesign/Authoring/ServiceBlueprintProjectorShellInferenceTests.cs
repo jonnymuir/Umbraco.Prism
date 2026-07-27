@@ -34,7 +34,7 @@ public class ServiceBlueprintProjectorShellInferenceTests
 
         var result = _projector.Project(authored);
 
-        var state = result.File.States.Single(s => s.StateKey == "details");
+        var state = result.File.Touchpoints.Single(s => s.TouchpointKey == "details");
         state.Components.InferStepType().Should().Be("question",
             "a stage with a FieldsetComponent should infer as 'question'");
 
@@ -50,12 +50,12 @@ public class ServiceBlueprintProjectorShellInferenceTests
             DefinitionKey = "check-answers-test",
             DisplayName = "Check Answers Test",
             Version = 1,
-            InitialStageKey = "collect",
-            Stages =
+            InitialTouchpointKey = "collect",
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = "collect",
+                    TouchpointKey = "collect",
                     DisplayName = "Collect",
                     Kind = TouchpointKind.Question,
                     Components =
@@ -71,7 +71,7 @@ public class ServiceBlueprintProjectorShellInferenceTests
                 },
                 new AuthoredTouchpoint
                 {
-                    StageKey = "review",
+                    TouchpointKey = "review",
                     DisplayName = "Review",
                     Kind = TouchpointKind.CheckAnswers,
                     Components =
@@ -91,7 +91,7 @@ public class ServiceBlueprintProjectorShellInferenceTests
 
         var result = _projector.Project(authored);
 
-        var reviewState = result.File.States.Single(s => s.StateKey == "review");
+        var reviewState = result.File.Touchpoints.Single(s => s.TouchpointKey == "review");
         reviewState.Components.InferStepType().Should().Be("check-answers",
             "a stage with a SummaryListComponent should infer as 'check-answers'");
 
@@ -109,7 +109,7 @@ public class ServiceBlueprintProjectorShellInferenceTests
 
         var result = _projector.Project(authored);
 
-        var state = result.File.States.Single(s => s.StateKey == "done");
+        var state = result.File.Touchpoints.Single(s => s.TouchpointKey == "done");
         state.Components.InferStepType().Should().Be("confirmation",
             "an empty Confirmation stage should fall back to a PanelComponent");
 
@@ -123,7 +123,7 @@ public class ServiceBlueprintProjectorShellInferenceTests
 
         var result = _projector.Project(authored);
 
-        var state = result.File.States.Single(s => s.StateKey == "tasks");
+        var state = result.File.Touchpoints.Single(s => s.TouchpointKey == "tasks");
         state.Components.InferStepType().Should().Be("task-list",
             "an empty TaskList stage should fall back to a TaskListComponent");
 
@@ -139,12 +139,12 @@ public class ServiceBlueprintProjectorShellInferenceTests
             DefinitionKey = "summary-fields-test",
             DisplayName = "Summary Fields Test",
             Version = 1,
-            InitialStageKey = "step1",
-            Stages =
+            InitialTouchpointKey = "step1",
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = "step1",
+                    TouchpointKey = "step1",
                     DisplayName = "Step 1",
                     Kind = TouchpointKind.Question,
                     Components =
@@ -160,7 +160,7 @@ public class ServiceBlueprintProjectorShellInferenceTests
                 },
                 new AuthoredTouchpoint
                 {
-                    StageKey = "step2",
+                    TouchpointKey = "step2",
                     DisplayName = "Step 2",
                     Kind = TouchpointKind.Question,
                     Components =
@@ -176,7 +176,7 @@ public class ServiceBlueprintProjectorShellInferenceTests
                 },
                 new AuthoredTouchpoint
                 {
-                    StageKey = "review",
+                    TouchpointKey = "review",
                     DisplayName = "Check answers",
                     Kind = TouchpointKind.CheckAnswers
                     // No Components: projector falls back to a harvested SummaryListComponent.
@@ -186,7 +186,7 @@ public class ServiceBlueprintProjectorShellInferenceTests
 
         var result = _projector.Project(authored);
 
-        var reviewState = result.File.States.Single(s => s.StateKey == "review");
+        var reviewState = result.File.Touchpoints.Single(s => s.TouchpointKey == "review");
         var summaryList = reviewState.Components.Should().ContainSingle()
             .Which.Should().BeOfType<SummaryListComponent>().Subject;
 
@@ -199,13 +199,13 @@ public class ServiceBlueprintProjectorShellInferenceTests
     public async Task PlanningFixture_AllStages_HaveCorrectInferredShells()
     {
         var fixturesPath = Path.Combine(AppContext.BaseDirectory, "ServiceDesign", "Authoring", "Fixtures");
-        var authored = await AuthoredWorkflowFixtureLoader.LoadAsync(fixturesPath, "planning");
+        var authored = await AuthoredServiceBlueprintFixtureLoader.LoadAsync(fixturesPath, "planning");
 
         var result = _projector.Project(authored!);
 
         result.HasErrors.Should().BeFalse("planning fixture must project without errors");
 
-        var shells = result.File.States.ToDictionary(s => s.StateKey, s => s.Components.InferStepType());
+        var shells = result.File.Touchpoints.ToDictionary(s => s.TouchpointKey, s => s.Components.InferStepType());
         shells["declaration"].Should().Be("question");
         shells["application-form"].Should().Be("question");
         shells["check-answers"].Should().Be("check-answers");
@@ -225,12 +225,12 @@ public class ServiceBlueprintProjectorShellInferenceTests
             DefinitionKey = $"{stageKey}-shell-test",
             DisplayName = "Shell Test",
             Version = 1,
-            InitialStageKey = stageKey,
-            Stages =
+            InitialTouchpointKey = stageKey,
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = stageKey,
+                    TouchpointKey = stageKey,
                     DisplayName = stageKey,
                     Kind = kind,
                     Components = components ?? []

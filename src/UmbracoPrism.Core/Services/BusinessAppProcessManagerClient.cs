@@ -40,7 +40,7 @@ public class BusinessAppProcessManagerClient(
         string? action = null,
         CancellationToken cancellationToken = default)
     {
-        var url = $"{BaseUrl}/api/workflow/{blueprintKey}/current";
+        var url = $"{BaseUrl}/api/service-request/{blueprintKey}/current";
 
         logger.LogDebug("BusinessAppProcessManagerClient: GET current {BlueprintKey} instanceId={InstanceId} action={Action}", 
             blueprintKey, instanceId ?? "(none)", action ?? "(none)");
@@ -78,7 +78,7 @@ public class BusinessAppProcessManagerClient(
         Dictionary<string, object?>? fieldValues = null,
         CancellationToken cancellationToken = default)
     {
-        var url = $"{BaseUrl}/api/workflow/{blueprintKey}/advance";
+        var url = $"{BaseUrl}/api/service-request/{blueprintKey}/advance";
         var payload = new
         {
             InstanceId = instanceId,
@@ -109,7 +109,7 @@ public class BusinessAppProcessManagerClient(
         bool allowRefreshRetry = true,
         CancellationToken cancellationToken = default)
     {
-        var url = $"{BaseUrl}/api/workflow/instances";
+        var url = $"{BaseUrl}/api/service-request/instances";
 
         logger.LogDebug("BusinessAppProcessManagerClient: GET instances");
 

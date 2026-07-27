@@ -26,9 +26,8 @@ public class CmsServiceBlueprintAuthoringControllerTests
         DisplayName = "Apply for a Juggling Licence",
         Version = version,
         InitialTouchpoint = "eligibility",
-        States =
-        [
-            new StepDefinition { StateKey = "eligibility", DisplayName = "Eligibility", StageType = "Question" }
+        Touchpoints = [
+            new StepDefinition { TouchpointKey = "eligibility", DisplayName = "Eligibility", TouchpointType = "Question" }
         ]
     };
 
@@ -50,7 +49,7 @@ public class CmsServiceBlueprintAuthoringControllerTests
         store.Setup(s => s.LoadAsync("missing", It.IsAny<CancellationToken>()))
             .ReturnsAsync((ServiceBlueprint?)null);
 
-        var result = await BuildController(store).ReadWorkflow("missing", CancellationToken.None);
+        var result = await BuildController(store).ReadServiceBlueprint("missing", CancellationToken.None);
 
         result.Should().BeOfType<NotFoundResult>();
     }
@@ -62,7 +61,7 @@ public class CmsServiceBlueprintAuthoringControllerTests
         store.Setup(s => s.LoadAsync("apply-for-a-juggling-licence", It.IsAny<CancellationToken>()))
             .ReturnsAsync(BuildWorkflow(version: 3));
 
-        var result = await BuildController(store).ReadWorkflow("apply-for-a-juggling-licence", CancellationToken.None);
+        var result = await BuildController(store).ReadServiceBlueprint("apply-for-a-juggling-licence", CancellationToken.None);
 
         var ok = result.Should().BeOfType<OkObjectResult>().Subject;
         ok.Value.Should().BeOfType<ServiceBlueprint>()
@@ -74,7 +73,7 @@ public class CmsServiceBlueprintAuthoringControllerTests
     {
         var store = new Mock<IServiceBlueprintSourceStore>();
 
-        var result = await BuildController(store).SaveWorkflow(
+        var result = await BuildController(store).SaveServiceBlueprint(
             "some-other-key", BuildWorkflow(), CancellationToken.None);
 
         result.Should().BeOfType<BadRequestObjectResult>();
@@ -86,9 +85,9 @@ public class CmsServiceBlueprintAuthoringControllerTests
     {
         var store = new Mock<IServiceBlueprintSourceStore>();
         store.Setup(s => s.SaveAsync(It.IsAny<ServiceBlueprint>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new WorkflowSaveResult(Saved: false, CurrentVersion: 5, Location: "prismCmsServiceBlueprint"));
+            .ReturnsAsync(new ServiceBlueprintSaveResult(Saved: false, CurrentVersion: 5, Location: "prismCmsServiceBlueprint"));
 
-        var result = await BuildController(store).SaveWorkflow(
+        var result = await BuildController(store).SaveServiceBlueprint(
             "apply-for-a-juggling-licence", BuildWorkflow(version: 2), CancellationToken.None);
 
         result.Should().BeOfType<ConflictObjectResult>();
@@ -99,9 +98,9 @@ public class CmsServiceBlueprintAuthoringControllerTests
     {
         var store = new Mock<IServiceBlueprintSourceStore>();
         store.Setup(s => s.SaveAsync(It.IsAny<ServiceBlueprint>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new WorkflowSaveResult(Saved: true, CurrentVersion: 1, Location: "prismCmsServiceBlueprint"));
+            .ReturnsAsync(new ServiceBlueprintSaveResult(Saved: true, CurrentVersion: 1, Location: "prismCmsServiceBlueprint"));
 
-        var result = await BuildController(store).SaveWorkflow(
+        var result = await BuildController(store).SaveServiceBlueprint(
             "apply-for-a-juggling-licence", BuildWorkflow(version: 0), CancellationToken.None);
 
         result.Should().BeOfType<OkObjectResult>();

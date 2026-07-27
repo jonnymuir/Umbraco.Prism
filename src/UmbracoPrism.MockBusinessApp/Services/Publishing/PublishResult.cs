@@ -1,4 +1,4 @@
-using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Shared.Models.ServiceDesign;
 
 namespace UmbracoPrism.MockBusinessApp.Services.Publishing;
 
@@ -11,7 +11,7 @@ public record PublishResult : PublishPreviewResult
 
     public string? PublishedPath { get; init; }
 
-    public WorkflowDefinitionFile? VerifiedFile { get; init; }
+    public ServiceBlueprint? VerifiedFile { get; init; }
 
     public string? VerifiedChecksum { get; init; }
 

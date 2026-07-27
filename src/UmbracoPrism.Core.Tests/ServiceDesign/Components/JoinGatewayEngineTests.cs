@@ -208,57 +208,56 @@ public class JoinGatewayEngineTests
             new QueueDefinition { Key = "finance", DisplayName = "Finance", Actor = "finance-officer" },
             new QueueDefinition { Key = "planning", DisplayName = "Planning", Actor = "planning-officer" }
         ],
-        States =
-        [
+        Touchpoints = [
             new StepDefinition
             {
-                StateKey = "submit",
+                TouchpointKey = "submit",
                 DisplayName = "Submit",
                 Components = [new FieldsetComponent()]
             },
             new StepDefinition
             {
-                StateKey = "finance-review",
+                TouchpointKey = "finance-review",
                 DisplayName = "Finance Review",
                 Components = [new FieldsetComponent()],
                 QueueKey = "finance"
             },
             new StepDefinition
             {
-                StateKey = "planning-review",
+                TouchpointKey = "planning-review",
                 DisplayName = "Planning Review",
                 Components = [new FieldsetComponent()],
                 QueueKey = "planning"
             },
             new StepDefinition
             {
-                StateKey = "decision",
+                TouchpointKey = "decision",
                 DisplayName = "Decision",
                 Components = [new PanelComponent { Heading = "Approved" }]
             }
         ],
         Transitions =
         [
-            new WorkflowTransitionFile { FromState = "submit", ToState = "split-review", Action = "submit" },
-            new WorkflowTransitionFile { FromState = "split-review", ToState = "finance-review", Action = "split-auto" },
-            new WorkflowTransitionFile { FromState = "split-review", ToState = "planning-review", Action = "split-auto" },
-            new WorkflowTransitionFile { FromState = "finance-review", ToState = "join-reviews", Action = "approve" },
-            new WorkflowTransitionFile { FromState = "planning-review", ToState = "join-reviews", Action = "approve" },
-            new WorkflowTransitionFile { FromState = "join-reviews", ToState = "decision", Action = "release" }
+            new RouteFile { FromState = "submit", ToState = "split-review", Action = "submit" },
+            new RouteFile { FromState = "split-review", ToState = "finance-review", Action = "split-auto" },
+            new RouteFile { FromState = "split-review", ToState = "planning-review", Action = "split-auto" },
+            new RouteFile { FromState = "finance-review", ToState = "join-reviews", Action = "approve" },
+            new RouteFile { FromState = "planning-review", ToState = "join-reviews", Action = "approve" },
+            new RouteFile { FromState = "join-reviews", ToState = "decision", Action = "release" }
         ],
-        Metadata = new WorkflowDefinitionMetadata
+        Metadata = new ServiceBlueprintMetadata
         {
-            AuthoredWorkflowId = new Guid("aaaabbbb-cccc-dddd-eeee-000000000085"),
+            AuthoredServiceBlueprintId = new Guid("aaaabbbb-cccc-dddd-eeee-000000000085"),
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "split-review",
                     DisplayName = "Start parallel reviews",
                     GatewayType = "Split",
                     QueueKey = "applicant"
                 },
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "join-reviews",
                     DisplayName = "All reviews done",

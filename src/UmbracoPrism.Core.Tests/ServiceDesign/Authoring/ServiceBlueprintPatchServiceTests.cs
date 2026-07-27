@@ -10,7 +10,7 @@ namespace UmbracoPrism.Core.Tests.ServiceDesign.Authoring;
 /// </summary>
 public class ServiceBlueprintPatchServiceTests
 {
-    private static readonly string FixturesPath = WorkflowAuthoringFixtureLocator.GetFixturesPath();
+    private static readonly string FixturesPath = ServiceBlueprintAuthoringFixtureLocator.GetFixturesPath();
 
     private readonly ServiceBlueprintProjector _projector = new();
     private readonly ServiceBlueprintPatchService _sut;
@@ -24,7 +24,7 @@ public class ServiceBlueprintPatchServiceTests
     public async Task Apply_InsertStage_AppendsByDefault()
     {
         var original = await LoadReferenceFixture();
-        var originalStageCount = original.Stages.Count;
+        var originalStageCount = original.Touchpoints.Count;
 
         var envelope = BuildEnvelope("insert-stage", value: new
         {
@@ -40,8 +40,8 @@ public class ServiceBlueprintPatchServiceTests
         var result = _sut.Apply(envelope, original);
 
         result.HasErrors.Should().BeFalse(because: "inserting a valid stage should succeed");
-        result.Updated.Stages.Should().HaveCount(originalStageCount + 1);
-        result.Updated.Stages.Last().StageKey.Should().Be("site-notice");
+        result.Updated.Touchpoints.Should().HaveCount(originalStageCount + 1);
+        result.Updated.Touchpoints.Last().TouchpointKey.Should().Be("site-notice");
 
         AssertOriginalUnmutated(original, originalStageCount);
     }
@@ -67,7 +67,7 @@ public class ServiceBlueprintPatchServiceTests
         var result = _sut.Apply(envelope, original);
 
         result.HasErrors.Should().BeFalse();
-        var keys = result.Updated.Stages.Select(s => s.StageKey).ToList();
+        var keys = result.Updated.Touchpoints.Select(s => s.TouchpointKey).ToList();
         var newIdx     = keys.IndexOf("supporting-docs");
         var submittedIdx = keys.IndexOf("submitted");
         newIdx.Should().BeLessThan(submittedIdx, because: "supporting-docs should precede submitted");
@@ -94,7 +94,7 @@ public class ServiceBlueprintPatchServiceTests
         var result = _sut.Apply(envelope, original);
 
         result.HasErrors.Should().BeFalse();
-        var keys = result.Updated.Stages.Select(s => s.StageKey).ToList();
+        var keys = result.Updated.Touchpoints.Select(s => s.TouchpointKey).ToList();
         var newIdx  = keys.IndexOf("eligibility-check");
         var prevIdx = keys.IndexOf("collecting-details");
         newIdx.Should().Be(prevIdx + 1);
@@ -123,11 +123,11 @@ public class ServiceBlueprintPatchServiceTests
         var result = _sut.Apply(removeEnvelope, withOrphan.Updated);
 
         result.HasErrors.Should().BeFalse();
-        result.Updated.Stages.Should().NotContain(s => s.StageKey == "orphan-stage",
+        result.Updated.Touchpoints.Should().NotContain(s => s.TouchpointKey == "orphan-stage",
             because: "remove-stage should eliminate the target stage");
-        result.Updated.Stages.Count.Should().Be(original.Stages.Count);
+        result.Updated.Touchpoints.Count.Should().Be(original.Touchpoints.Count);
 
-        original.Stages.Should().HaveCount(original.Stages.Count,
+        original.Touchpoints.Should().HaveCount(original.Touchpoints.Count,
             because: "original must not be mutated");
     }
 
@@ -135,7 +135,7 @@ public class ServiceBlueprintPatchServiceTests
     public async Task Apply_UpdateStage_ReplacesStageInPlace()
     {
         var original = await LoadReferenceFixture();
-        var originalDetailsStage = original.Stages.Single(s => s.StageKey == "collecting-details");
+        var originalDetailsStage = original.Touchpoints.Single(s => s.TouchpointKey == "collecting-details");
 
         var envelope = BuildEnvelope("update-stage", path: "/stages/collecting-details", value: new
         {
@@ -151,7 +151,7 @@ public class ServiceBlueprintPatchServiceTests
         var result = _sut.Apply(envelope, original);
 
         result.HasErrors.Should().BeFalse();
-        var updated = result.Updated.Stages.Single(s => s.StageKey == "collecting-details");
+        var updated = result.Updated.Touchpoints.Single(s => s.TouchpointKey == "collecting-details");
         updated.DisplayName.Should().Be("Updated Details");
 
         // Original unchanged
@@ -186,7 +186,7 @@ public class ServiceBlueprintPatchServiceTests
         var original = await LoadReferenceFixture();
         var snapshot = new
         {
-            StageCount   = original.Stages.Count,
+            StageCount   = original.Touchpoints.Count,
             GatewayCount = original.Gateways.Count,
             HandoffCount = original.Handoffs.Count,
             Version      = original.Version
@@ -205,7 +205,7 @@ public class ServiceBlueprintPatchServiceTests
 
         _sut.Apply(envelope, original);
 
-        original.Stages.Count.Should().Be(snapshot.StageCount);
+        original.Touchpoints.Count.Should().Be(snapshot.StageCount);
         original.Gateways.Count.Should().Be(snapshot.GatewayCount);
         original.Handoffs.Count.Should().Be(snapshot.HandoffCount);
         original.Version.Should().Be(snapshot.Version);
@@ -215,7 +215,7 @@ public class ServiceBlueprintPatchServiceTests
 
     private static async Task<AuthoredServiceBlueprint> LoadReferenceFixture()
     {
-        var wf = await AuthoredWorkflowFixtureLoader.LoadAsync(FixturesPath, "community-enquiry");
+        var wf = await AuthoredServiceBlueprintFixtureLoader.LoadAsync(FixturesPath, "community-enquiry");
         return wf ?? throw new InvalidOperationException("community-enquiry fixture not found");
     }
 
@@ -246,13 +246,13 @@ public class ServiceBlueprintPatchServiceTests
             Id               = Guid.NewGuid(),
             CreatedAt        = DateTimeOffset.UtcNow,
             Agent            = new PatchAgent { Kind = "human-assisted", Identity = "test" },
-            TargetWorkflowId = "community-enquiry",
+            TargetServiceBlueprintId = "community-enquiry",
             Rationale        = "Test patch",
             Ops              = ops
         };
     }
 
     private static void AssertOriginalUnmutated(AuthoredServiceBlueprint original, int originalStageCount) =>
-        original.Stages.Should().HaveCount(originalStageCount,
+        original.Touchpoints.Should().HaveCount(originalStageCount,
             because: "the original AuthoredServiceBlueprint must never be mutated");
 }

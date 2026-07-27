@@ -16,12 +16,12 @@ public class ServiceBlueprintSimulationServiceTests
         {
             DefinitionKey = "split-walk",
             DisplayName = "Split walk",
-            InitialStageKey = "start",
+            InitialTouchpointKey = "start",
             Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant" }],
-            Stages =
+            Touchpoints =
             [
-                new AuthoredTouchpoint { StageKey = "start", DisplayName = "Start", QueueKey = "applicant" },
-                new AuthoredTouchpoint { StageKey = "end", DisplayName = "End", Kind = TouchpointKind.Confirmation, QueueKey = "applicant" }
+                new AuthoredTouchpoint { TouchpointKey = "start", DisplayName = "Start", QueueKey = "applicant" },
+                new AuthoredTouchpoint { TouchpointKey = "end", DisplayName = "End", Kind = TouchpointKind.Confirmation, QueueKey = "applicant" }
             ],
             Gateways =
             [
@@ -39,12 +39,12 @@ public class ServiceBlueprintSimulationServiceTests
 
         var result = _service.Simulate(workflow, actions: new[] { "continue" });
 
-        result.CurrentStageKey.Should().Be("end",
+        result.CurrentTouchpointKey.Should().Be("end",
             "simulating from the first stage should walk through the gateway and arrive at the route target");
         result.Steps.Should().ContainSingle()
-            .Which.Should().Match<WorkflowSimulationStep>(step =>
-                step.FromStageKey == "start" &&
-                step.ToStageKey == "end" &&
+            .Which.Should().Match<ServiceBlueprintSimulationStep>(step =>
+                step.FromTouchpointKey == "start" &&
+                step.ToTouchpointKey == "end" &&
                 step.Action == "continue");
         result.StopReason.Should().Be("terminal-stage");
         result.Completed.Should().BeTrue();
@@ -59,12 +59,12 @@ public class ServiceBlueprintSimulationServiceTests
         {
             DefinitionKey = "join-pause",
             DisplayName = "Join pause",
-            InitialStageKey = "start",
+            InitialTouchpointKey = "start",
             Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant" }],
-            Stages =
+            Touchpoints =
             [
-                new AuthoredTouchpoint { StageKey = "start", DisplayName = "Start", QueueKey = "applicant" },
-                new AuthoredTouchpoint { StageKey = "end", DisplayName = "End", Kind = TouchpointKind.Confirmation, QueueKey = "applicant" }
+                new AuthoredTouchpoint { TouchpointKey = "start", DisplayName = "Start", QueueKey = "applicant" },
+                new AuthoredTouchpoint { TouchpointKey = "end", DisplayName = "End", Kind = TouchpointKind.Confirmation, QueueKey = "applicant" }
             ],
             Gateways =
             [
@@ -93,7 +93,7 @@ public class ServiceBlueprintSimulationServiceTests
         var result = _service.Simulate(workflow, actions: new[] { "continue" });
 
         result.StopReason.Should().Be("waiting-gateway");
-        result.CurrentStageKey.Should().Be("join-here");
+        result.CurrentTouchpointKey.Should().Be("join-here");
         result.Completed.Should().BeFalse();
     }
 }

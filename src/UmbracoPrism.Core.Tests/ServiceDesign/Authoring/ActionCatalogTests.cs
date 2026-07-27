@@ -93,14 +93,14 @@ public class ActionCatalogTests
         var result = projector.Project(BuildWorkflow(new JsonObject()));
 
         result.HasErrors.Should().BeTrue();
-        result.Diagnostics.Should().Contain(d => d.Code == "PROJ120" && d.StageKey == "details");
+        result.Diagnostics.Should().Contain(d => d.Code == "PROJ120" && d.TouchpointKey == "details");
     }
 
     private static AuthoredServiceBlueprint BuildWorkflow(JsonObject parameters) => new()
     {
         DefinitionKey = "catalog-validation",
         DisplayName = "Catalog Validation",
-        InitialStageKey = "details",
+        InitialTouchpointKey = "details",
         Queues =
         [
             new AuthoredQueue
@@ -110,11 +110,11 @@ public class ActionCatalogTests
                 Actor = "applicant"
             }
         ],
-        Stages =
+        Touchpoints =
         [
             new AuthoredTouchpoint
             {
-                StageKey = "details",
+                TouchpointKey = "details",
                 DisplayName = "Details",
                 QueueKey = "web-user",
                 Actions =

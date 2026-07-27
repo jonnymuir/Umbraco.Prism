@@ -1,5 +1,6 @@
 using FluentAssertions;
 using UmbracoPrism.Core.Models.ServiceDesign;
+using UmbracoPrism.Shared.Models.ServiceDesign;
 using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Tests.Services.Workflow;

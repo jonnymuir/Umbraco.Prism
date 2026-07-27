@@ -26,9 +26,9 @@ public class AuthoredServiceBlueprintSerializationTests
         restored.Queues.Should().ContainSingle();
         restored.Queues[0].Key.Should().Be("web-user");
 
-        restored.Stages.Should().HaveCount(2);
-        restored.Stages[0].QueueKey.Should().Be("web-user");
-        restored.Stages[0].Routes.Should().ContainSingle(route =>
+        restored.Touchpoints.Should().HaveCount(2);
+        restored.Touchpoints[0].QueueKey.Should().Be("web-user");
+        restored.Touchpoints[0].Routes.Should().ContainSingle(route =>
             route.Target == "route-submit" && route.Trigger == "submit");
 
         restored.Gateways.Should().ContainSingle();
@@ -67,7 +67,7 @@ public class AuthoredServiceBlueprintSerializationTests
     {
         var stage = new AuthoredTouchpoint
         {
-            StageKey = "details",
+            TouchpointKey = "details",
             DisplayName = "Your details",
             Kind = TouchpointKind.Question,
             QueueKey = "web-user",
@@ -97,13 +97,13 @@ public class AuthoredServiceBlueprintSerializationTests
     [Fact]
     public async Task FilesystemStore_LoadsFixtureDocument()
     {
-        var fixturesPath = WorkflowAuthoringFixtureLocator.GetFixturesPath();
-        var workflow = await AuthoredWorkflowFixtureLoader.LoadAsync(fixturesPath, "planning");
+        var fixturesPath = ServiceBlueprintAuthoringFixtureLocator.GetFixturesPath();
+        var workflow = await AuthoredServiceBlueprintFixtureLoader.LoadAsync(fixturesPath, "planning");
 
         workflow.Should().NotBeNull();
         workflow!.DefinitionKey.Should().Be("planning-application");
         workflow.Queues.Should().NotBeEmpty();
-        workflow.Stages.Should().HaveCount(4);
+        workflow.Touchpoints.Should().HaveCount(4);
     }
 
     private static AuthoredServiceBlueprint BuildTestWorkflow() => new()
@@ -114,7 +114,7 @@ public class AuthoredServiceBlueprintSerializationTests
         Version = 1,
         Description = "A minimal workflow for serialization tests.",
         SchemaVersion = "1.0",
-        InitialStageKey = "details",
+        InitialTouchpointKey = "details",
         RequestPolicy = "single",
         Queues =
         [
@@ -162,11 +162,11 @@ public class AuthoredServiceBlueprintSerializationTests
                 ]
             }
         ],
-        Stages =
+        Touchpoints =
         [
             new AuthoredTouchpoint
             {
-                StageKey = "details",
+                TouchpointKey = "details",
                 DisplayName = "Your details",
                 Kind = TouchpointKind.Question,
                 QueueKey = "web-user",
@@ -210,7 +210,7 @@ public class AuthoredServiceBlueprintSerializationTests
             },
             new AuthoredTouchpoint
             {
-                StageKey = "done",
+                TouchpointKey = "done",
                 DisplayName = "Complete",
                 Kind = TouchpointKind.Confirmation,
                 QueueKey = "web-user"

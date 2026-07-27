@@ -1,0 +1,222 @@
+{
+  "definitionKey": "information-request",
+  "displayName": "Information Request",
+  "version": 1,
+  "initialTouchpoint": "collecting-info",
+  "requestPolicy": "single",
+  "schemaVersion": "1.0",
+  "queues": [
+    {
+      "actor": "applicant",
+      "description": "Web user submitting and tracking an information request.",
+      "displayName": "Requestor",
+      "key": "web-user",
+      "queueName": "web-user",
+      "roleGates": [],
+      "tags": {}
+    },
+    {
+      "actor": "reviewer",
+      "description": "Back-office team reviewing and responding to requests.",
+      "displayName": "Review team",
+      "key": "business-user",
+      "queueName": "business-user",
+      "roleGates": [],
+      "tags": {}
+    }
+  ],
+  "touchpoints": [
+    {
+      "actions": [],
+      "actor": "applicant",
+      "components": [
+        {
+          "children": [
+            {
+              "fieldKey": "firstName",
+              "hint": "As it appears on your ID",
+              "label": "First name",
+              "required": true,
+              "type": "text"
+            },
+            {
+              "fieldKey": "lastName",
+              "label": "Last name",
+              "required": true,
+              "type": "text"
+            },
+            {
+              "fieldKey": "dateOfBirth",
+              "hint": "For example, 12 03 1985",
+              "label": "Date of birth",
+              "required": true,
+              "type": "date"
+            },
+            {
+              "fieldKey": "email",
+              "hint": "We'll only use this to contact you about your request",
+              "label": "Email address",
+              "required": true,
+              "type": "email"
+            }
+          ],
+          "legend": "Your details",
+          "type": "fieldset"
+        },
+        {
+          "children": [
+            {
+              "fieldKey": "requestType",
+              "label": "What type of request is this?",
+              "options": [
+                "General enquiry",
+                "Data subject access request",
+                "Complaint",
+                "Technical support"
+              ],
+              "required": true,
+              "type": "select"
+            },
+            {
+              "fieldKey": "description",
+              "hint": "Include as much detail as possible. Maximum 1000 characters.",
+              "label": "Tell us more about your request",
+              "required": true,
+              "type": "textarea"
+            },
+            {
+              "fieldKey": "urgency",
+              "label": "How urgent is this?",
+              "options": [
+                "Standard (5-7 working days)",
+                "Urgent (2 working days)",
+                "Critical (same day)"
+              ],
+              "required": true,
+              "type": "radio"
+            }
+          ],
+          "legend": "Your request",
+          "type": "fieldset"
+        }
+      ],
+      "displayName": "Tell us about yourself",
+      "queueKey": "web-user",
+      "roleGates": [],
+      "routes": [
+        {
+          "actions": [],
+          "id": "collecting-info--submit--route-from-collecting-info",
+          "target": "route-from-collecting-info",
+          "trigger": "submit"
+        }
+      ],
+      "touchpointType": "Question",
+      "touchpointKey": "collecting-info"
+    },
+    {
+      "actions": [],
+      "actor": "reviewer",
+      "components": [
+        {
+          "content": "This is a review",
+          "type": "body"
+        }
+      ],
+      "displayName": "Under Review",
+      "queueKey": "business-user",
+      "roleGates": [
+        "reviewer"
+      ],
+      "routes": [
+        {
+          "actions": [],
+          "id": "under-review--approve--await-review",
+          "requiresRole": "reviewer",
+          "target": "await-review",
+          "trigger": "approve"
+        }
+      ],
+      "touchpointType": "Question",
+      "touchpointKey": "under-review"
+    },
+    {
+      "actions": [],
+      "actor": "applicant",
+      "components": [
+        {
+          "heading": "Application complete",
+          "type": "panel"
+        },
+        {
+          "content": "What happens next",
+          "level": 2,
+          "type": "heading"
+        },
+        {
+          "content": "We've sent you a confirmation email.",
+          "type": "body"
+        },
+        {
+          "content": "A member of our team will be in touch shortly.",
+          "type": "body"
+        }
+      ],
+      "displayName": "Request Complete",
+      "queueKey": "web-user",
+      "roleGates": [],
+      "routes": [],
+      "touchpointType": "Confirmation",
+      "touchpointKey": "complete"
+    }
+  ],
+  "gateways": [
+    {
+      "displayName": "Submit Request",
+      "gatewayType": "Split",
+      "key": "route-from-collecting-info",
+      "queueKey": "web-user",
+      "requiredIncomingQueues": [],
+      "roleGates": [],
+      "routes": [
+        {
+          "actions": [],
+          "id": "route-from-collecting-info--submit--under-review",
+          "target": "under-review",
+          "trigger": "submit"
+        },
+        {
+          "actions": [],
+          "id": "route-from-collecting-info--wait--await-review",
+          "target": "await-review",
+          "trigger": "submit"
+        }
+      ]
+    },
+    {
+      "displayName": "Your request is being reviewed",
+      "gatewayType": "Join",
+      "key": "await-review",
+      "queueKey": "web-user",
+      "requiredIncomingQueues": [
+        "web-user",
+        "business-user"
+      ],
+      "roleGates": [],
+      "routes": [
+        {
+          "actions": [],
+          "id": "await-review--release--complete",
+          "target": "complete",
+          "trigger": "release"
+        }
+      ],
+      "waitingAllowDefer": true,
+      "waitingContent": "We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now.",
+      "waitingDeferMessage": "You can leave this page and return later.",
+      "waitingExpectedSeconds": 60,
+      "waitingPollIntervalMs": 5000
+    }
+  ],
+  "parameterSchemas": []
+}

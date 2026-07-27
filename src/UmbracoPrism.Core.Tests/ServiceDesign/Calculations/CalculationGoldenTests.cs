@@ -119,9 +119,9 @@ public class CalculationGoldenTests
             return new ServiceBlueprintCalculationSet
             {
                 Tables = testCase.TryGetProperty("tables", out var sugarTables)
-                    ? JsonSerializer.Deserialize<Dictionary<string, WorkflowCalculationTable>>(sugarTables.GetRawText(), JsonOptions)
+                    ? JsonSerializer.Deserialize<Dictionary<string, ServiceBlueprintCalculationTable>>(sugarTables.GetRawText(), JsonOptions)
                     : null,
-                Fields = new Dictionary<string, WorkflowCalculationField>
+                Fields = new Dictionary<string, ServiceBlueprintCalculationField>
                 {
                     ["result"] = new() { Expr = expr.GetString() }
                 }
@@ -131,13 +131,13 @@ public class CalculationGoldenTests
         return new ServiceBlueprintCalculationSet
         {
             Tables = testCase.TryGetProperty("tables", out var tables)
-                ? JsonSerializer.Deserialize<Dictionary<string, WorkflowCalculationTable>>(tables.GetRawText(), JsonOptions)
+                ? JsonSerializer.Deserialize<Dictionary<string, ServiceBlueprintCalculationTable>>(tables.GetRawText(), JsonOptions)
                 : null,
             Fields = testCase.TryGetProperty("fields", out var fields)
-                ? JsonSerializer.Deserialize<Dictionary<string, WorkflowCalculationField>>(fields.GetRawText(), JsonOptions)!
-                : new Dictionary<string, WorkflowCalculationField>(),
+                ? JsonSerializer.Deserialize<Dictionary<string, ServiceBlueprintCalculationField>>(fields.GetRawText(), JsonOptions)!
+                : new Dictionary<string, ServiceBlueprintCalculationField>(),
             Series = testCase.TryGetProperty("series", out var series)
-                ? JsonSerializer.Deserialize<Dictionary<string, WorkflowCalculationSeries>>(series.GetRawText(), JsonOptions)
+                ? JsonSerializer.Deserialize<Dictionary<string, ServiceBlueprintCalculationSeries>>(series.GetRawText(), JsonOptions)
                 : null
         };
     }

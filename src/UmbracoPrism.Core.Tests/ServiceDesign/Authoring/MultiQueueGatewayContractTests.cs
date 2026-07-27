@@ -17,7 +17,7 @@ public class MultiQueueGatewayContractTests
         result.HasErrors.Should().BeFalse();
         result.File.Queues.Should().Contain(queue => queue.Key == "applicant");
         result.File.Queues.Should().Contain(queue => queue.Key == "caseworker");
-        result.File.States.Should().Contain(state => state.StateKey == "applicant-details" && state.QueueKey == "applicant");
+        result.File.Touchpoints.Should().Contain(state => state.TouchpointKey == "applicant-details" && state.QueueKey == "applicant");
         result.File.Gateways.Should().Contain(gateway => gateway.Key == "review-split" && gateway.QueueKey == "applicant");
     }
 
@@ -47,7 +47,7 @@ public class MultiQueueGatewayContractTests
     {
         DefinitionKey = "multi-queue-test",
         DisplayName = "Multi-Queue Test Workflow",
-        InitialStageKey = "applicant-details",
+        InitialTouchpointKey = "applicant-details",
         Queues =
         [
             new AuthoredQueue { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" },
@@ -80,11 +80,11 @@ public class MultiQueueGatewayContractTests
                 Routes = [new AuthoredRoute { Id = "release", Target = "caseworker-review", Trigger = "release-review" }]
             }
         ],
-        Stages =
+        Touchpoints =
         [
             new AuthoredTouchpoint
             {
-                StageKey = "applicant-details",
+                TouchpointKey = "applicant-details",
                 DisplayName = "Your details",
                 Kind = TouchpointKind.Question,
                 QueueKey = "applicant",
@@ -112,7 +112,7 @@ public class MultiQueueGatewayContractTests
             },
             new AuthoredTouchpoint
             {
-                StageKey = "caseworker-review",
+                TouchpointKey = "caseworker-review",
                 DisplayName = "Caseworker review",
                 Kind = TouchpointKind.Question,
                 QueueKey = "caseworker"

@@ -16,8 +16,8 @@ public class AuthoredServiceBlueprintValidationTests
         {
             DefinitionKey = "validation-test",
             DisplayName = "Validation Test",
-            InitialStageKey = "start",
-            Stages = [new AuthoredTouchpoint { StageKey = "", DisplayName = "Start" }]
+            InitialTouchpointKey = "start",
+            Touchpoints = [new AuthoredTouchpoint { TouchpointKey = "", DisplayName = "Start" }]
         });
 
         result.Diagnostics.Should().ContainSingle(d => d.Code == "PROJ001");
@@ -30,13 +30,13 @@ public class AuthoredServiceBlueprintValidationTests
         {
             DefinitionKey = "validation-test",
             DisplayName = "Validation Test",
-            InitialStageKey = "start",
+            InitialTouchpointKey = "start",
             Queues = [new AuthoredQueue { Key = "web-user", DisplayName = "Applicant" }],
-            Stages =
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     QueueKey = "web-user",
                     Routes =
@@ -62,13 +62,13 @@ public class AuthoredServiceBlueprintValidationTests
         {
             DefinitionKey = "validation-test",
             DisplayName = "Validation Test",
-            InitialStageKey = "start",
+            InitialTouchpointKey = "start",
             Queues = [new AuthoredQueue { Key = "web-user", DisplayName = "Applicant" }],
-            Stages =
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     QueueKey = "web-user",
                     Routes = [new AuthoredRoute { Id = "to-gateway", Target = "route", Trigger = "continue" }]
@@ -97,20 +97,20 @@ public class AuthoredServiceBlueprintValidationTests
         {
             DefinitionKey = "validation-test",
             DisplayName = "Validation Test",
-            InitialStageKey = "start",
+            InitialTouchpointKey = "start",
             Queues = [new AuthoredQueue { Key = "web-user", DisplayName = "Applicant" }],
-            Stages =
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     QueueKey = "web-user",
                     Routes = [new AuthoredRoute { Id = "to-join", Target = "join", Trigger = "continue" }]
                 },
                 new AuthoredTouchpoint
                 {
-                    StageKey = "end",
+                    TouchpointKey = "end",
                     DisplayName = "End",
                     QueueKey = "web-user"
                 }
@@ -165,7 +165,7 @@ public class AuthoredServiceBlueprintValidationTests
         {
             DefinitionKey = "validation-test",
             DisplayName = "Validation Test",
-            InitialStageKey = "start",
+            InitialTouchpointKey = "start",
             ParameterSchemas =
             [
                 new AuthoredParameterSchema
@@ -184,11 +184,11 @@ public class AuthoredServiceBlueprintValidationTests
                     Required = ["formDefinitionId"]
                 }
             ],
-            Stages =
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Actions =
                     [
@@ -214,7 +214,7 @@ public class AuthoredServiceBlueprintValidationTests
         {
             DefinitionKey = "payment-validation-test",
             DisplayName = "Payment Validation Test",
-            InitialStageKey = "enter-details",
+            InitialTouchpointKey = "enter-details",
             Queues =
             [
                 new AuthoredQueue { Key = "web-user", DisplayName = "Applicant" },
@@ -245,25 +245,25 @@ public class AuthoredServiceBlueprintValidationTests
                     Routes = [new AuthoredRoute { Id = "release", Target = "payment-complete", Trigger = "release" }]
                 }
             ],
-            Stages =
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = "enter-details",
+                    TouchpointKey = "enter-details",
                     DisplayName = "Enter details",
                     QueueKey = "web-user",
                     Routes = [new AuthoredRoute { Id = "enter-submit", Target = "submit-payment", Trigger = "submit" }]
                 },
                 new AuthoredTouchpoint
                 {
-                    StageKey = "confirm-payment-received",
+                    TouchpointKey = "confirm-payment-received",
                     DisplayName = "Confirm payment received",
                     QueueKey = "business-user",
                     Routes = [new AuthoredRoute { Id = "confirm-join", Target = "await-payment-confirmation", Trigger = "confirm" }]
                 },
                 new AuthoredTouchpoint
                 {
-                    StageKey = "payment-complete",
+                    TouchpointKey = "payment-complete",
                     DisplayName = "Payment complete",
                     QueueKey = "web-user"
                 }

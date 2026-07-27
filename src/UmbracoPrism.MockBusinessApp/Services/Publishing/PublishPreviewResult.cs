@@ -1,5 +1,5 @@
-using UmbracoPrism.Shared.Models.Workflow;
-using UmbracoPrism.WorkflowEditor.Authoring;
+using UmbracoPrism.Shared.Models.ServiceDesign;
+using UmbracoPrism.ServiceBlueprintEditor.Authoring;
 
 namespace UmbracoPrism.MockBusinessApp.Services.Publishing;
 
@@ -8,7 +8,7 @@ namespace UmbracoPrism.MockBusinessApp.Services.Publishing;
 /// </summary>
 public record PublishPreviewResult : ProjectionResult
 {
-    public WorkflowDefinitionFile? CurrentPublishedFile { get; init; }
+    public ServiceBlueprint? CurrentPublishedFile { get; init; }
 
     public string? CurrentPublishedChecksum { get; init; }
 

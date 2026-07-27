@@ -44,7 +44,7 @@ public class ServiceBlueprintProjectorDeterminismTests
     public async Task Project_PlanningFixture_IsDeterministic()
     {
         var fixturesPath = GetFixturesPath();
-        var authored = await AuthoredWorkflowFixtureLoader.LoadAsync(fixturesPath, "planning");
+        var authored = await AuthoredServiceBlueprintFixtureLoader.LoadAsync(fixturesPath, "planning");
         authored.Should().NotBeNull("planning fixture must exist");
 
         var result1 = _projector.Project(authored!);
@@ -62,17 +62,17 @@ public class ServiceBlueprintProjectorDeterminismTests
             DefinitionKey = "order-test",
             DisplayName = "Order Test",
             Version = 1,
-            InitialStageKey = "alpha",
-            Stages =
+            InitialTouchpointKey = "alpha",
+            Touchpoints =
             [
-                new AuthoredTouchpoint { StageKey = "zeta", DisplayName = "Zeta", Kind = TouchpointKind.Confirmation },
-                new AuthoredTouchpoint { StageKey = "alpha", DisplayName = "Alpha", Kind = TouchpointKind.Question }
+                new AuthoredTouchpoint { TouchpointKey = "zeta", DisplayName = "Zeta", Kind = TouchpointKind.Confirmation },
+                new AuthoredTouchpoint { TouchpointKey = "alpha", DisplayName = "Alpha", Kind = TouchpointKind.Question }
             ]
         };
 
         var result = _projector.Project(authored);
 
-        result.File.States.Select(s => s.StateKey)
+        result.File.Touchpoints.Select(s => s.TouchpointKey)
             .Should().ContainInOrder(new[] { "alpha", "zeta" },
                 because: "stages must be emitted in ordinal StageKey order regardless of authored order");
     }
@@ -88,13 +88,13 @@ public class ServiceBlueprintProjectorDeterminismTests
             DefinitionKey = "transition-order-test",
             DisplayName = "Transition Order Test",
             Version = 1,
-            InitialStageKey = "a",
+            InitialTouchpointKey = "a",
             Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant" }],
-            Stages =
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = "a",
+                    TouchpointKey = "a",
                     DisplayName = "A",
                     Kind = TouchpointKind.Question,
                     QueueKey = "applicant",
@@ -103,8 +103,8 @@ public class ServiceBlueprintProjectorDeterminismTests
                         new AuthoredRoute { Id = "route-a", Target = "out-of-a", Trigger = "continue" }
                     ]
                 },
-                new AuthoredTouchpoint { StageKey = "b", DisplayName = "B", Kind = TouchpointKind.Confirmation, QueueKey = "applicant" },
-                new AuthoredTouchpoint { StageKey = "c", DisplayName = "C", Kind = TouchpointKind.Confirmation, QueueKey = "applicant" }
+                new AuthoredTouchpoint { TouchpointKey = "b", DisplayName = "B", Kind = TouchpointKind.Confirmation, QueueKey = "applicant" },
+                new AuthoredTouchpoint { TouchpointKey = "c", DisplayName = "C", Kind = TouchpointKind.Confirmation, QueueKey = "applicant" }
             ],
             Gateways =
             [
@@ -138,14 +138,14 @@ public class ServiceBlueprintProjectorDeterminismTests
         Version = 1,
         Description = "Stable workflow used by determinism tests.",
         SchemaVersion = "1.0",
-        InitialStageKey = "collect",
+        InitialTouchpointKey = "collect",
         RequestPolicy = "single",
         Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant" }],
-        Stages =
+        Touchpoints =
         [
             new AuthoredTouchpoint
             {
-                StageKey = "collect",
+                TouchpointKey = "collect",
                 DisplayName = "Collect details",
                 Kind = TouchpointKind.Question,
                 QueueKey = "applicant",
@@ -164,7 +164,7 @@ public class ServiceBlueprintProjectorDeterminismTests
             },
             new AuthoredTouchpoint
             {
-                StageKey = "review",
+                TouchpointKey = "review",
                 DisplayName = "Check your answers",
                 Kind = TouchpointKind.CheckAnswers,
                 QueueKey = "applicant",
@@ -172,7 +172,7 @@ public class ServiceBlueprintProjectorDeterminismTests
             },
             new AuthoredTouchpoint
             {
-                StageKey = "done",
+                TouchpointKey = "done",
                 DisplayName = "Application submitted",
                 Kind = TouchpointKind.Confirmation,
                 QueueKey = "applicant"

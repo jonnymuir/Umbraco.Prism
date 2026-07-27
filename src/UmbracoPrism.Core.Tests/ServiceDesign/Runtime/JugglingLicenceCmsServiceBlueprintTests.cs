@@ -25,7 +25,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
         definition.DefinitionKey.Should().Be("apply-for-a-juggling-licence");
         definition.Queues.Should().ContainSingle(q => q.Key == "cms-visitor",
             "a CMS Workflow definition runs on exactly the one well-known queue");
-        definition.States.Should().HaveCount(5);
+        definition.Touchpoints.Should().HaveCount(5);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
         {
             var candidate = Path.Combine(
                 directory.FullName,
-                "src", "UmbracoPrism.TestSite", "cms-workflow-seeds", "apply-for-a-juggling-licence.json");
+                "src", "UmbracoPrism.TestSite", "cms-service-blueprints", "apply-for-a-juggling-licence.json");
             if (File.Exists(candidate))
             {
                 var workflow = JsonSerializer.Deserialize<ServiceBlueprint>(

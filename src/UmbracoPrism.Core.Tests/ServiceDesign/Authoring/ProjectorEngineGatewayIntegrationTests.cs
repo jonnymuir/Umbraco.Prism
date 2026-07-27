@@ -70,7 +70,7 @@ public class ProjectorEngineGatewayIntegrationTests
         DefinitionKey = "gateway-integration",
         DisplayName = "Gateway Integration Workflow",
         Version = 1,
-        InitialStageKey = "submit",
+        InitialTouchpointKey = "submit",
         RequestPolicy = "single",
         Queues =
         [
@@ -124,11 +124,11 @@ public class ProjectorEngineGatewayIntegrationTests
                 Routes = [new AuthoredRoute { Id = "release", Target = "decision", Trigger = "release" }]
             }
         ],
-        Stages =
+        Touchpoints =
         [
             new AuthoredTouchpoint
             {
-                StageKey = "submit",
+                TouchpointKey = "submit",
                 DisplayName = "Submit application",
                 Kind = TouchpointKind.Question,
                 QueueKey = "applicant",
@@ -136,7 +136,7 @@ public class ProjectorEngineGatewayIntegrationTests
             },
             new AuthoredTouchpoint
             {
-                StageKey = "finance-review",
+                TouchpointKey = "finance-review",
                 DisplayName = "Finance review",
                 Kind = TouchpointKind.Question,
                 QueueKey = "finance",
@@ -144,7 +144,7 @@ public class ProjectorEngineGatewayIntegrationTests
             },
             new AuthoredTouchpoint
             {
-                StageKey = "planning-review",
+                TouchpointKey = "planning-review",
                 DisplayName = "Planning review",
                 Kind = TouchpointKind.Question,
                 QueueKey = "planning",
@@ -152,7 +152,7 @@ public class ProjectorEngineGatewayIntegrationTests
             },
             new AuthoredTouchpoint
             {
-                StageKey = "decision",
+                TouchpointKey = "decision",
                 DisplayName = "Final decision",
                 Kind = TouchpointKind.Confirmation,
                 QueueKey = "applicant"

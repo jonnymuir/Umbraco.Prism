@@ -38,7 +38,7 @@ public class PlanningServiceBlueprintFixtureTests
         var workflow = JsonSerializer.Deserialize<AuthoredServiceBlueprint>(File.ReadAllText(FixturePath), RoundTripOptions);
 
         workflow.Should().NotBeNull();
-        workflow!.Stages.Select(stage => stage.StageKey).Should().Contain([
+        workflow!.Touchpoints.Select(stage => stage.TouchpointKey).Should().Contain([
             "declaration",
             "application-form",
             "check-answers",
@@ -57,9 +57,9 @@ public class PlanningServiceBlueprintFixtureTests
         var restored = JsonSerializer.Deserialize<AuthoredServiceBlueprint>(json, RoundTripOptions)!;
 
         restored.ParameterSchemas.Should().BeEquivalentTo(original.ParameterSchemas);
-        restored.Stages.Select(stage => stage.StageKey).Should().Equal(original.Stages.Select(stage => stage.StageKey));
-        restored.Stages.SelectMany(stage => stage.Actions).Select(action => action.Type)
-            .Should().Equal(original.Stages.SelectMany(stage => stage.Actions).Select(action => action.Type));
+        restored.Touchpoints.Select(stage => stage.TouchpointKey).Should().Equal(original.Touchpoints.Select(stage => stage.TouchpointKey));
+        restored.Touchpoints.SelectMany(stage => stage.Actions).Select(action => action.Type)
+            .Should().Equal(original.Touchpoints.SelectMany(stage => stage.Actions).Select(action => action.Type));
         restored.Gateways.SelectMany(g => g.Routes).Select(r => r.Trigger)
             .Should().Equal(original.Gateways.SelectMany(g => g.Routes).Select(r => r.Trigger));
         restored.Gateways.SelectMany(g => g.Routes)

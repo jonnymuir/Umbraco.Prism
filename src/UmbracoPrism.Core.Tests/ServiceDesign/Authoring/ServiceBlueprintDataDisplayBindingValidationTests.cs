@@ -19,11 +19,10 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "result",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -34,11 +33,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
                     ]
                 }
             ],
-            Calculations = new WorkflowCalculationSet
+            Calculations = new ServiceBlueprintCalculationSet
             {
-                Fields = new Dictionary<string, WorkflowCalculationField>
+                Fields = new Dictionary<string, ServiceBlueprintCalculationField>
                 {
-                    ["fee"] = new WorkflowCalculationField { Expr = "40" }
+                    ["fee"] = new ServiceBlueprintCalculationField { Expr = "40" }
                 }
             }
         };
@@ -55,17 +54,16 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "capture",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "capture",
+                    TouchpointKey = "capture",
                     DisplayName = "Capture",
                     Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins" }]
                 },
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -90,11 +88,10 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "result",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -123,11 +120,10 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "result",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components = [new ChartComponent { Title = "Projection", Series = "projection" }]
                 }
@@ -149,20 +145,19 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "result",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components = [new ChartComponent { Title = "Projection", Series = "projection" }]
                 }
             ],
-            Calculations = new WorkflowCalculationSet
+            Calculations = new ServiceBlueprintCalculationSet
             {
-                Series = new Dictionary<string, WorkflowCalculationSeries>
+                Series = new Dictionary<string, ServiceBlueprintCalculationSeries>
                 {
-                    ["projection"] = new WorkflowCalculationSeries()
+                    ["projection"] = new ServiceBlueprintCalculationSeries()
                 }
             }
         };
@@ -182,11 +177,10 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "result",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components = [new TextInputComponent { FieldKey = "feeDisplay", Label = "Your fee" }]
                 }
@@ -206,11 +200,10 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "result",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components = [new StatGroupComponent { Title = "Fee", Items = [] }]
                 }
@@ -232,11 +225,10 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "result",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components = [new SummaryListComponent { Title = "Fee", Children = [] }]
                 }
@@ -254,11 +246,10 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "result",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -288,11 +279,10 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "result",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -304,11 +294,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
                     ]
                 }
             ],
-            Calculations = new WorkflowCalculationSet
+            Calculations = new ServiceBlueprintCalculationSet
             {
-                Fields = new Dictionary<string, WorkflowCalculationField>
+                Fields = new Dictionary<string, ServiceBlueprintCalculationField>
                 {
-                    ["fee"] = new WorkflowCalculationField { Expr = "40" }
+                    ["fee"] = new ServiceBlueprintCalculationField { Expr = "40" }
                 }
             }
         };
@@ -325,12 +315,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "capture",
-            States =
-            [
-                new StepDefinition { StateKey = "capture", DisplayName = "Capture" },
+            Touchpoints = [
+                new StepDefinition { TouchpointKey = "capture", DisplayName = "Capture" },
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -364,13 +353,12 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "how-many-bins",
-            States =
-            [
-                new StepDefinition { StateKey = "how-many-bins", DisplayName = "Bins" },
-                new StepDefinition { StateKey = "property-address", DisplayName = "Address" },
+            Touchpoints = [
+                new StepDefinition { TouchpointKey = "how-many-bins", DisplayName = "Bins" },
+                new StepDefinition { TouchpointKey = "property-address", DisplayName = "Address" },
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -409,23 +397,22 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "how-many-bins",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "how-many-bins",
+                    TouchpointKey = "how-many-bins",
                     DisplayName = "Bins",
                     Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins" }]
                 },
                 new StepDefinition
                 {
-                    StateKey = "property-address",
+                    TouchpointKey = "property-address",
                     DisplayName = "Address",
                     Components = [new TextInputComponent { FieldKey = "propertyAddress", Label = "Address" }]
                 },
                 new StepDefinition
                 {
-                    StateKey = "result",
+                    TouchpointKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -464,20 +451,19 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "capture",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "capture",
+                    TouchpointKey = "capture",
                     DisplayName = "Capture",
                     Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins" }]
                 }
             ],
-            Calculations = new WorkflowCalculationSet
+            Calculations = new ServiceBlueprintCalculationSet
             {
-                Fields = new Dictionary<string, WorkflowCalculationField>
+                Fields = new Dictionary<string, ServiceBlueprintCalculationField>
                 {
-                    ["binCount"] = new WorkflowCalculationField { Source = "service" }
+                    ["binCount"] = new ServiceBlueprintCalculationField { Source = "service" }
                 }
             }
         };
@@ -498,12 +484,12 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "result",
-            States = [new StepDefinition { StateKey = "result", DisplayName = "Result" }],
-            Calculations = new WorkflowCalculationSet
+            Touchpoints = [new StepDefinition { TouchpointKey = "result", DisplayName = "Result" }],
+            Calculations = new ServiceBlueprintCalculationSet
             {
-                Fields = new Dictionary<string, WorkflowCalculationField>
+                Fields = new Dictionary<string, ServiceBlueprintCalculationField>
                 {
-                    ["member"] = new WorkflowCalculationField { Source = "service" }
+                    ["member"] = new ServiceBlueprintCalculationField { Source = "service" }
                 }
             }
         };

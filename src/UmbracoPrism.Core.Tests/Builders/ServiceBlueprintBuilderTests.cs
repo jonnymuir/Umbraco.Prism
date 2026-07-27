@@ -60,7 +60,7 @@ public class ServiceBlueprintBuilderTests
                     .TextInput("name", "Name", required: true)))
             .Build();
 
-        var state = result.States.Single();
+        var state = result.Touchpoints.Single();
         state.Components.Should().ContainSingle();
         state.Components[0].Should().BeOfType<FieldsetComponent>();
         state.Components.InferStepType().Should().Be("question");
@@ -76,7 +76,7 @@ public class ServiceBlueprintBuilderTests
                 .SummaryList(sl => sl.Children(c => c.TextInput("name", "Name"))))
             .Build();
 
-        var state = result.States.Single();
+        var state = result.Touchpoints.Single();
         state.Components.Should().ContainSingle();
         state.Components[0].Should().BeOfType<SummaryListComponent>();
         state.Components.InferStepType().Should().Be("check-answers");
@@ -92,7 +92,7 @@ public class ServiceBlueprintBuilderTests
                 .Panel("Your application has been submitted."))
             .Build();
 
-        var state = result.States.Single();
+        var state = result.Touchpoints.Single();
         state.Components.Should().ContainSingle();
         state.Components[0].Should().BeOfType<PanelComponent>();
         state.Components.InferStepType().Should().Be("confirmation");
@@ -108,7 +108,7 @@ public class ServiceBlueprintBuilderTests
                 .Waiting("Processing...", expectedWaitSeconds: 30))
             .Build();
 
-        var state = result.States.Single();
+        var state = result.Touchpoints.Single();
         state.Components.Should().ContainSingle();
         state.Components[0].Should().BeOfType<WaitingComponent>();
         state.Components.InferStepType().Should().Be("status-timeline");
@@ -124,7 +124,7 @@ public class ServiceBlueprintBuilderTests
                 .Add(new TaskListComponent()))
             .Build();
 
-        var state = result.States.Single();
+        var state = result.Touchpoints.Single();
         state.Components.Should().ContainSingle();
         state.Components[0].Should().BeOfType<TaskListComponent>();
         state.Components.InferStepType().Should().Be("task-list");
@@ -140,10 +140,10 @@ public class ServiceBlueprintBuilderTests
             .AddState("step3", s => s.DisplayName("Third"))
             .Build();
 
-        result.States.Should().HaveCount(3);
-        result.States[0].StateKey.Should().Be("step1");
-        result.States[1].StateKey.Should().Be("step2");
-        result.States[2].StateKey.Should().Be("step3");
+        result.Touchpoints.Should().HaveCount(3);
+        result.Touchpoints[0].TouchpointKey.Should().Be("step1");
+        result.Touchpoints[1].TouchpointKey.Should().Be("step2");
+        result.Touchpoints[2].TouchpointKey.Should().Be("step3");
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class ServiceBlueprintBuilderTests
                 .Fieldset(f => f.Legend("Preferences")))
             .Build();
 
-        var state = result.States.Single();
+        var state = result.Touchpoints.Single();
         state.Components.Should().HaveCount(3);
         state.Components.All(c => c is FieldsetComponent).Should().BeTrue();
         state.Components.OfType<FieldsetComponent>().Select(f => f.Legend)
@@ -178,7 +178,7 @@ public class ServiceBlueprintBuilderTests
                     .Email("email-address", "Email address", required: true)))
             .Build();
 
-        var component = result.States.Single().Components.Single();
+        var component = result.Touchpoints.Single().Components.Single();
         component.Should().BeOfType<FieldsetComponent>();
         var fieldset = (FieldsetComponent)component;
         fieldset.Legend.Should().Be("About you");
@@ -256,9 +256,9 @@ public class ServiceBlueprintBuilderTests
             .Build();
 
         result.DefinitionKey.Should().Be("complex-workflow");
-        result.States.Should().HaveCount(3);
+        result.Touchpoints.Should().HaveCount(3);
         result.Transitions.Should().HaveCount(2);
-        result.States[0].Components.Should().HaveCount(2);
+        result.Touchpoints[0].Components.Should().HaveCount(2);
         result.Transitions![1].RequiresRole.Should().Be("admin");
     }
 
@@ -315,7 +315,7 @@ public class ServiceBlueprintBuilderTests
                 .Heading(2, "Title text"))
             .Build();
 
-        var state = result.States.Single();
+        var state = result.Touchpoints.Single();
         state.Components.Should().HaveCount(2);
         state.Components[0].Should().BeOfType<BodyComponent>();
         ((BodyComponent)state.Components[0]).Content.Should().Be("Some paragraph text");

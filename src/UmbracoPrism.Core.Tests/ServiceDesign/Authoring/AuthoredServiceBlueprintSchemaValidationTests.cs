@@ -20,9 +20,9 @@ public class AuthoredServiceBlueprintSchemaValidationTests
     {
         var workflow = BuildValidWorkflow() with
         {
-            Stages =
+            Touchpoints =
             [
-                BuildValidWorkflow().Stages[0] with
+                BuildValidWorkflow().Touchpoints[0] with
                 {
                     Routes =
                     [
@@ -34,7 +34,7 @@ public class AuthoredServiceBlueprintSchemaValidationTests
                         }
                     ]
                 },
-                BuildValidWorkflow().Stages[1]
+                BuildValidWorkflow().Touchpoints[1]
             ]
         };
 
@@ -68,13 +68,13 @@ public class AuthoredServiceBlueprintSchemaValidationTests
         var baseline = BuildValidWorkflow();
         var workflow = baseline with
         {
-            Stages =
+            Touchpoints =
             [
-                baseline.Stages[0] with
+                baseline.Touchpoints[0] with
                 {
                     QueueKey = "missing-queue"
                 },
-                baseline.Stages[1]
+                baseline.Touchpoints[1]
             ]
         };
 
@@ -93,7 +93,7 @@ public class AuthoredServiceBlueprintSchemaValidationTests
             gateway.Key == "review-split"
             && gateway.QueueKey == "web-user"
             && gateway.Actor == "applicant");
-        result.File.States.Should().ContainSingle(state => state.StateKey == "details")
+        result.File.Touchpoints.Should().ContainSingle(state => state.TouchpointKey == "details")
             .Which.QueueKey.Should().Be("web-user");
     }
 
@@ -101,7 +101,7 @@ public class AuthoredServiceBlueprintSchemaValidationTests
     {
         DefinitionKey = "schema-validation",
         DisplayName = "Schema Validation",
-        InitialStageKey = "details",
+        InitialTouchpointKey = "details",
         Queues =
         [
             new AuthoredQueue
@@ -122,11 +122,11 @@ public class AuthoredServiceBlueprintSchemaValidationTests
                 Routes = [new AuthoredRoute { Id = "to-done", Target = "done", Trigger = "continue" }]
             }
         ],
-        Stages =
+        Touchpoints =
         [
             new AuthoredTouchpoint
             {
-                StageKey = "details",
+                TouchpointKey = "details",
                 DisplayName = "Details",
                 Kind = TouchpointKind.Question,
                 QueueKey = "web-user",
@@ -162,7 +162,7 @@ public class AuthoredServiceBlueprintSchemaValidationTests
             },
             new AuthoredTouchpoint
             {
-                StageKey = "done",
+                TouchpointKey = "done",
                 DisplayName = "Done",
                 Kind = TouchpointKind.Confirmation,
                 QueueKey = "web-user"

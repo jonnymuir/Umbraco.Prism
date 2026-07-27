@@ -19,25 +19,24 @@ public class ReachabilityValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
-                    Routes = [new WorkflowRouteDefinition { Id = "start-to-gw", Target = "gw", Trigger = "continue" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "start-to-gw", Target = "gw", Trigger = "continue" }]
                 },
-                new StepDefinition { StateKey = "end", DisplayName = "End", Routes = [] }
+                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "gw",
                     DisplayName = "Gateway",
                     GatewayType = "Split",
                     QueueKey = "web-user",
-                    Routes = [new WorkflowRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
                 }
             ]
         };
@@ -56,37 +55,36 @@ public class ReachabilityValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "model",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "model",
+                    TouchpointKey = "model",
                     DisplayName = "Model",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "recalculate", Target = "recalculate-loop", Trigger = "recalculate" },
-                        new WorkflowRouteDefinition { Id = "finish", Target = "to-end", Trigger = "finish" }
+                        new ServiceBlueprintRouteDefinition { Id = "recalculate", Target = "recalculate-loop", Trigger = "recalculate" },
+                        new ServiceBlueprintRouteDefinition { Id = "finish", Target = "to-end", Trigger = "finish" }
                     ]
                 },
-                new StepDefinition { StateKey = "end", DisplayName = "End", Routes = [] }
+                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "recalculate-loop",
                     DisplayName = "Recalculate",
                     GatewayType = "Split",
                     QueueKey = "web-user",
-                    Routes = [new WorkflowRouteDefinition { Id = "back-to-model", Target = "model", Trigger = "continue" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "back-to-model", Target = "model", Trigger = "continue" }]
                 },
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "to-end",
                     DisplayName = "To End",
                     GatewayType = "Split",
                     QueueKey = "web-user",
-                    Routes = [new WorkflowRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
                 }
             ]
         };
@@ -108,28 +106,27 @@ public class ReachabilityValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "assess",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "assess",
+                    TouchpointKey = "assess",
                     DisplayName = "Assess evidence and record the decision",
                     QueueKey = "business-user",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "request-more-info", Target = "still-gathering", Trigger = "request-more-info" }
+                        new ServiceBlueprintRouteDefinition { Id = "request-more-info", Target = "still-gathering", Trigger = "request-more-info" }
                     ]
                 }
             ],
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "still-gathering",
                     DisplayName = "Still gathering evidence",
                     GatewayType = "Split",
                     QueueKey = "business-user",
-                    Routes = [new WorkflowRouteDefinition { Id = "back-to-assess", Target = "assess", Trigger = "continue" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "back-to-assess", Target = "assess", Trigger = "continue" }]
                 }
             ]
         };
@@ -152,29 +149,28 @@ public class ReachabilityValidationTests
             DefinitionKey = "test",
             DisplayName = "Test",
             InitialTouchpoint = "start",
-            States =
-            [
+            Touchpoints = [
                 new StepDefinition
                 {
-                    StateKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
-                        new WorkflowRouteDefinition { Id = "start-to-nowhere", Target = "does-not-exist", Trigger = "abandon" },
-                        new WorkflowRouteDefinition { Id = "start-to-gw", Target = "gw", Trigger = "continue" }
+                        new ServiceBlueprintRouteDefinition { Id = "start-to-nowhere", Target = "does-not-exist", Trigger = "abandon" },
+                        new ServiceBlueprintRouteDefinition { Id = "start-to-gw", Target = "gw", Trigger = "continue" }
                     ]
                 },
-                new StepDefinition { StateKey = "end", DisplayName = "End", Routes = [] }
+                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
-                new WorkflowGatewayDefinition
+                new ServiceBlueprintGatewayDefinition
                 {
                     Key = "gw",
                     DisplayName = "Gateway",
                     GatewayType = "Split",
                     QueueKey = "web-user",
-                    Routes = [new WorkflowRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
                 }
             ]
         };

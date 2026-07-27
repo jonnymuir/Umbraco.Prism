@@ -18,7 +18,7 @@ public class ServiceBlueprintAuthoringServiceTests
 
         var outcome = await service.SaveAsync(workflow, expectedVersion: 0);
 
-        outcome.Status.Should().Be(WorkflowSaveStatus.Saved);
+        outcome.Status.Should().Be(ServiceBlueprintSaveStatus.Saved);
         outcome.IsSaved.Should().BeTrue();
         outcome.NewVersion.Should().Be(1);
         (await store.LoadAsync(workflow.DefinitionKey))!.Version.Should().Be(1);
@@ -34,7 +34,7 @@ public class ServiceBlueprintAuthoringServiceTests
 
         var outcome = await service.SaveAsync(workflow, expectedVersion: 0);
 
-        outcome.Status.Should().Be(WorkflowSaveStatus.Invalid);
+        outcome.Status.Should().Be(ServiceBlueprintSaveStatus.Invalid);
         outcome.Diagnostics.Should().ContainSingle(d => d.Code == "TEST_HOST_RULE");
         (await store.LoadAsync(workflow.DefinitionKey)).Should().BeNull();
     }
@@ -67,7 +67,7 @@ public class ServiceBlueprintAuthoringServiceTests
 
         var outcome = await service.SaveAsync(workflow, expectedVersion: 0);
 
-        outcome.Status.Should().Be(WorkflowSaveStatus.Invalid);
+        outcome.Status.Should().Be(ServiceBlueprintSaveStatus.Invalid);
         outcome.Diagnostics.Should().ContainSingle(d => d.Message.Contains("must always target a gateway"));
         (await store.LoadAsync(workflow.DefinitionKey)).Should().BeNull();
     }
@@ -80,12 +80,12 @@ public class ServiceBlueprintAuthoringServiceTests
         var workflow = ProjectLinearWorkflow();
 
         var first = await service.SaveAsync(workflow, expectedVersion: 0);
-        first.Status.Should().Be(WorkflowSaveStatus.Saved);
+        first.Status.Should().Be(ServiceBlueprintSaveStatus.Saved);
 
         // Someone else already saved (version is now 1) — this caller still thinks it's 0.
         var conflicted = await service.SaveAsync(workflow, expectedVersion: 0);
 
-        conflicted.Status.Should().Be(WorkflowSaveStatus.Conflict);
+        conflicted.Status.Should().Be(ServiceBlueprintSaveStatus.Conflict);
         conflicted.CurrentVersion.Should().Be(1);
         (await store.LoadAsync(workflow.DefinitionKey))!.Version.Should().Be(1,
             because: "the conflicting save must not have overwritten the successful one");
@@ -99,9 +99,9 @@ public class ServiceBlueprintAuthoringServiceTests
         {
             Calculations = new ServiceBlueprintCalculationSet
             {
-                Fields = new Dictionary<string, WorkflowCalculationField>
+                Fields = new Dictionary<string, ServiceBlueprintCalculationField>
                 {
-                    ["broken"] = new WorkflowCalculationField { Expr = "nonExistentInput + 1" }
+                    ["broken"] = new ServiceBlueprintCalculationField { Expr = "nonExistentInput + 1" }
                 }
             }
         };
@@ -126,14 +126,14 @@ public class ServiceBlueprintAuthoringServiceTests
         var workflow = ProjectLinearWorkflow();
         workflow = workflow with
         {
-            States = workflow.States
-                .Select(s => s.StateKey == "done" ? s with { StageType = "Outcome" } : s)
+            Touchpoints = workflow.Touchpoints
+                .Select(s => s.TouchpointKey == "done" ? s with { TouchpointType = "Outcome" } : s)
                 .ToList()
         };
 
         var outcome = await service.SaveAsync(workflow, expectedVersion: 0);
 
-        outcome.Status.Should().Be(WorkflowSaveStatus.Invalid);
+        outcome.Status.Should().Be(ServiceBlueprintSaveStatus.Invalid);
         outcome.Diagnostics.Should().ContainSingle(d =>
             d.Code == "STATE_UNKNOWN_STAGE_TYPE" && d.Message.Contains("'Outcome'"));
         (await store.LoadAsync(workflow.DefinitionKey)).Should().BeNull();
@@ -147,7 +147,7 @@ public class ServiceBlueprintAuthoringServiceTests
             DefinitionKey = "authoring-service-valid",
             DisplayName = "Authoring Service Valid",
             Version = 1,
-            InitialStageKey = "start",
+            InitialTouchpointKey = "start",
             RequestPolicy = "single",
             Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" }],
             Gateways =
@@ -161,11 +161,11 @@ public class ServiceBlueprintAuthoringServiceTests
                     Routes = [new AuthoredRoute { Id = "release", Target = "done", Trigger = "submit" }]
                 }
             ],
-            Stages =
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Kind = TouchpointKind.Question,
                     QueueKey = "applicant",
@@ -173,7 +173,7 @@ public class ServiceBlueprintAuthoringServiceTests
                 },
                 new AuthoredTouchpoint
                 {
-                    StageKey = "done",
+                    TouchpointKey = "done",
                     DisplayName = "Done",
                     Kind = TouchpointKind.Confirmation,
                     QueueKey = "applicant"
@@ -192,14 +192,14 @@ public class ServiceBlueprintAuthoringServiceTests
             DefinitionKey = "authoring-service-invalid",
             DisplayName = "Authoring Service Invalid",
             Version = 1,
-            InitialStageKey = "start",
+            InitialTouchpointKey = "start",
             RequestPolicy = "single",
             Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" }],
-            Stages =
+            Touchpoints =
             [
                 new AuthoredTouchpoint
                 {
-                    StageKey = "start",
+                    TouchpointKey = "start",
                     DisplayName = "Start",
                     Kind = TouchpointKind.Question,
                     QueueKey = "applicant",
@@ -207,7 +207,7 @@ public class ServiceBlueprintAuthoringServiceTests
                 },
                 new AuthoredTouchpoint
                 {
-                    StageKey = "done",
+                    TouchpointKey = "done",
                     DisplayName = "Done",
                     Kind = TouchpointKind.Confirmation,
                     QueueKey = "applicant"
