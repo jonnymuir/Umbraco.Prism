@@ -98,7 +98,7 @@ test.describe('Information request walkthrough', () => {
 
     // Navigate away
     await page.goto('/my-service-requests');
-    await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'My Service Requests' })).toBeVisible();
 
     // Navigate back — instance policy means the under-review state persists
     await page.goto('/request-information');

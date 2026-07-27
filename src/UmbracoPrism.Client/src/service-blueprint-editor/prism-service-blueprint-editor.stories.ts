@@ -177,7 +177,7 @@ export const PlanningServiceBlueprint: Story = {
 
     const root = el.shadowRoot!;
 
-    const container = root.querySelector('[data-prism-component="serviceBlueprint-editor"]');
+    const container = root.querySelector('[data-prism-component="service-blueprint-editor"]');
     await expect(container).not.toBeNull();
 
     const title = root.querySelector('.editor-title');

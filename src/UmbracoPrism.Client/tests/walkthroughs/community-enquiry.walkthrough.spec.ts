@@ -70,8 +70,8 @@ test.describe('Community enquiry walkthrough', () => {
     await expect(page.getByRole('heading', { name: 'Thank you' })).toBeVisible({ timeout: 30_000 });
 
     await page.goto('/my-service-requests');
-    await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
-    await expect(page.locator('[data-service-blueprint-key="community-enquiry"]')).toContainText('Thank you');
+    await expect(page.getByRole('heading', { name: 'My Service Requests' })).toBeVisible();
+    await expect(page.locator('[data-blueprint-key="community-enquiry"]')).toContainText('Thank you');
 
     await page.goto('/get-in-touch');
     await expect(page.getByRole('heading', { name: 'Thank you' })).toBeVisible({ timeout: 30_000 });
@@ -87,9 +87,9 @@ test.describe('Community enquiry walkthrough', () => {
     await page.getByRole('button', { name: 'Submit' }).click();
 
     await page.goto('/my-service-requests');
-    await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'My Service Requests' })).toBeVisible();
 
-    const serviceBlueprintCard = page.locator('[data-service-blueprint-key="community-enquiry"]').first();
+    const serviceBlueprintCard = page.locator('[data-blueprint-key="community-enquiry"]').first();
     await expect(serviceBlueprintCard).toContainText('Get in Touch');
     await expect(serviceBlueprintCard).toContainText('Thank you');
     await expect(serviceBlueprintCard.getByRole('link', { name: 'View' })).toBeVisible();

@@ -9,7 +9,7 @@
  * `ServiceBlueprintAuthorContext` if you want the editor to grey out the Save button.
  *
  * Reference implementation: `InMemoryServiceBlueprintSource` (this package).
- * Integrator examples: `MockBusinessApp/wwwroot/dist/serviceBlueprint-editor-bootstrap.js`.
+ * Integrator examples: `MockBusinessApp/wwwroot/dist/service-blueprint-editor-bootstrap.js`.
  */
 
 import type { AuthoredServiceBlueprint } from './types.js';

@@ -76,8 +76,8 @@ test.describe('Home entry walkthrough', () => {
       screenshotSelector: '.dash-section'
     }, 'home-entry');
 
-    await expect(page.getByRole('link', { name: 'View ServiceBlueprints' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'ServiceBlueprint Demos' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'View Service Requests' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Service Blueprint Demos' })).toBeVisible();
     for (const serviceBlueprintTitle of expectedServiceBlueprintDemos) {
       await expect(serviceBlueprintDemoCard(page, serviceBlueprintTitle)).toBeVisible();
       await expect(serviceBlueprintDemoCard(page, serviceBlueprintTitle).getByRole('link', { name: 'Start' })).toBeVisible();
@@ -94,13 +94,13 @@ test.describe('Home entry walkthrough', () => {
 
     // Return to dashboard and navigate to service blueprint hub via View ServiceBlueprints.
     await page.goto('/dashboard');
-    await expect(page.getByRole('link', { name: 'View ServiceBlueprints' })).toBeVisible();
-    await page.getByRole('link', { name: 'View ServiceBlueprints' }).click();
+    await expect(page.getByRole('link', { name: 'View Service Requests' })).toBeVisible();
+    await page.getByRole('link', { name: 'View Service Requests' }).click();
     await page.waitForURL(/\/my-service-requests\/?$/, { timeout: 30_000 });
 
     await step(page, '05-service-blueprint-hub.png', {
       url: /\/my-service-requests\/?$/,
-      heading: 'My ServiceBlueprints'
+      heading: 'My Service Requests'
     }, 'home-entry');
   });
 });

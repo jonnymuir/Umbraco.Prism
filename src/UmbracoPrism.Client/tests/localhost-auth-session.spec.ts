@@ -37,11 +37,11 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await callBusinessAppApi(page);
   });
 
-  test('signed-in member can open My ServiceBlueprints', async ({ page }) => {
+  test('signed-in member can open My Service Requests', async ({ page }) => {
     await signIn(page);
     await page.goto('/my-service-requests');
 
-    await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'My Service Requests' })).toBeVisible();
     await expectAnyVisible(
       page.getByText("You don't have any active service requests yet."),
       page.getByRole('heading', { name: 'In Progress' }),

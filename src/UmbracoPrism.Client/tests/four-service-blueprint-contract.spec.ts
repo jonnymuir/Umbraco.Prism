@@ -33,18 +33,18 @@ test.describe('Four-service-blueprint reference contract', () => {
   test('admin screen lists exactly 4 service blueprints', async ({ page }) => {
     await page.goto('https://localhost:7245/admin/service-desk');
 
-    await expect(page.getByRole('heading', { name: /service desk admin/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /service desk/i })).toBeVisible();
 
-    // Each service blueprint should appear as a card with data-service-blueprint-key attribute
+    // Each service blueprint should appear as a card with data-blueprint-key attribute
     for (const serviceBlueprintKey of expectedServiceBlueprints) {
-      const serviceBlueprintCard = page.locator(`[data-service-blueprint-key="${serviceBlueprintKey}"]`);
+      const serviceBlueprintCard = page.locator(`[data-blueprint-key="${serviceBlueprintKey}"]`);
       await expect(serviceBlueprintCard).toBeVisible({
         timeout: 5000
       });
     }
 
     // Count service blueprint cards to ensure no unexpected service blueprints
-    const allServiceBlueprintCards = page.locator('[data-service-blueprint-key]');
+    const allServiceBlueprintCards = page.locator('[data-blueprint-key]');
     await expect(allServiceBlueprintCards).toHaveCount(4, {
       timeout: 5000
     });
@@ -53,11 +53,11 @@ test.describe('Four-service-blueprint reference contract', () => {
   test('all 4 service blueprints have editor links', async ({ page }) => {
     await page.goto('https://localhost:7245/admin/service-desk');
 
-    await expect(page.getByRole('heading', { name: /service desk admin/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /service desk/i })).toBeVisible();
 
     // Each service blueprint should have an "Edit service blueprint" link
     for (const serviceBlueprintKey of expectedServiceBlueprints) {
-      const serviceBlueprintCard = page.locator(`[data-service-blueprint-key="${serviceBlueprintKey}"]`);
+      const serviceBlueprintCard = page.locator(`[data-blueprint-key="${serviceBlueprintKey}"]`);
       await expect(serviceBlueprintCard).toBeVisible();
 
       const editLink = serviceBlueprintCard.locator(`a[href="/service-blueprint-editor?serviceBlueprint=${serviceBlueprintKey}"]`);
@@ -82,7 +82,7 @@ test.describe('Four-service-blueprint reference contract', () => {
     expect(Array.isArray(serviceBlueprints)).toBeTruthy();
     expect(serviceBlueprints).toHaveLength(4);
 
-    const serviceBlueprintKeys = serviceBlueprints.map((w: any) => w.serviceBlueprintKey).sort();
+    const serviceBlueprintKeys = serviceBlueprints.map((w: any) => w.definitionKey).sort();
     expect(serviceBlueprintKeys).toEqual(expectedServiceBlueprints.sort());
   });
 

@@ -167,7 +167,7 @@ export const Empty: Story = {
   play: async ({ canvasElement }) => {
     const el = await waitForGraphReady(canvasElement);
 
-    const container = el.shadowRoot?.querySelector('[data-prism-component="serviceBlueprint-graph"]');
+    const container = el.shadowRoot?.querySelector('[data-prism-component="service-blueprint-graph"]');
     await expect(container).not.toBeNull();
   },
 };
@@ -352,7 +352,7 @@ export const GraphReadOnly: Story = {
 /**
  * Large serviceBlueprint — wide enough and tall enough to exceed a 1440x900 canvas
  * viewport on both axes. Used by the visual regression suite's scroll specs
- * (see docs/testing/serviceBlueprint-editor-visual-tests.md) and by lane-fit /
+ * (see docs/testing/service-blueprint-editor-visual-tests.md) and by lane-fit /
  * no-overlap assertions that need a non-trivial number of nodes per lane.
  *
  * Shape: five lanes, each carrying eight stages in a linear sequence, with
