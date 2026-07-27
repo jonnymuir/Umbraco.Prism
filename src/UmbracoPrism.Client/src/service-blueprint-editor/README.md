@@ -49,7 +49,7 @@ Full authoring experience.
 
 | Attribute | Type | Default | Notes |
 |-----------|------|---------|-------|
-| `serviceBlueprint-key` | string | `"planning"` | ServiceBlueprint to load. Also reads `?serviceBlueprint=` URL param. |
+| `blueprint-key` | string | `"planning"` | ServiceBlueprint to load. Also reads `?serviceBlueprint=` URL param. |
 
 **JS-only properties**
 
@@ -85,8 +85,8 @@ implementation detail.
 * **Visual → Definition sync:** every visual edit (stage add/rename/move,
   gateway add/edit, route change, undo, redo) re-serializes the serviceBlueprint in
   canonical form (top-level key order: `definitionKey`, `displayName`,
-  `version`, `schemaVersion`, `requestPolicy`, `initialStageKey`, `roles`,
-  `stages`, `gateways`, `transitions`; nested keys alphabetical; 2-space
+  `version`, `schemaVersion`, `requestPolicy`, `initialTouchpointKey`, `roles`,
+  `touchpoints`, `gateways`, `transitions`; nested keys alphabetical; 2-space
   indent) and pushes the new text into the editor.
 * **Definition → Visual sync:** typing is debounced by **250 ms**. On
   settling:
@@ -133,7 +133,7 @@ shell.
 
 | Attribute | Type | Default | Notes |
 |-----------|------|---------|-------|
-| `serviceBlueprint-key` | string | `"planning"` | Initial serviceBlueprint selection. Synced to `?serviceBlueprint=` URL param. |
+| `blueprint-key` | string | `"planning"` | Initial serviceBlueprint selection. Synced to `?serviceBlueprint=` URL param. |
 
 **JS-only properties**
 
@@ -157,13 +157,13 @@ the cards.
 | Attribute | Type | Default | Notes |
 |-----------|------|---------|-------|
 | `read-only` | boolean | `false` | Viewer mode — hides Add stage / Add gateway HUD buttons, all dialogs, and the canvas context menu. Selection and zoom remain available. Reflected to the DOM, so CSS can target `[read-only]`. |
-| `serviceBlueprint-json` | string | `null` | Declarative form of the `serviceBlueprint` property. Parsed in `updated()` and assigned to `serviceBlueprint`. Invalid JSON is logged via `console.error`. Lets Razor / static HTML embed a graph with no JS wiring: `<prism-service-blueprint-graph read-only serviceBlueprint-json='...'>`. |
+| `service-blueprint-json` | string | `null` | Declarative form of the `serviceBlueprint` property. Parsed in `updated()` and assigned to `serviceBlueprint`. Invalid JSON is logged via `console.error`. Lets Razor / static HTML embed a graph with no JS wiring: `<prism-service-blueprint-graph read-only service-blueprint-json='...'>`. |
 
 **JS-only properties**
 
 | Property | Type | Notes |
 |----------|------|-------|
-| `serviceBlueprint` | `AuthoredServiceBlueprint \| null` | Programmatic form of `serviceBlueprint-json`. |
+| `serviceBlueprint` | `AuthoredServiceBlueprint \| null` | Programmatic form of `service-blueprint-json`. |
 | `selectedStageKey` | `string \| null` | Inbound selection — host sets this to drive the graph's highlight. |
 | `selectedGatewayKey` | `string \| null` | Inbound selection. |
 | `selectedTransitionIndex` | `number \| null` | Inbound transition highlight. |
@@ -199,7 +199,7 @@ A typical read-only embed:
 ```html
 <prism-service-blueprint-graph
   read-only
-  serviceBlueprint-json='{"blueprintKey":"planning","stages":[...],"transitions":[...],"gateways":[...]}'>
+  service-blueprint-json='{"blueprintKey":"planning","touchpoints":[...],"transitions":[...],"gateways":[...]}'>
 </prism-service-blueprint-graph>
 ```
 

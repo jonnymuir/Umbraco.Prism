@@ -10,12 +10,8 @@ import type { QueueDefinition } from './touchpoint-assignment.js';
 
 @customElement('prism-service-blueprint-editor-shell')
 export class PrismServiceBlueprintEditorShellElement extends LitElement {
-  /** No implicit default — a hardcoded demo serviceBlueprint name doesn't make sense across every
-   * possible host. An empty key means "let the serviceBlueprint list decide": _loadServiceBlueprintOptions()
-   * auto-selects the first entry once serviceBlueprintSource.list() resolves (see
-   * _renderEditorOrPlaceholder's loading/empty-state handling for that gap). */
   @property({ type: String, attribute: 'blueprint-key' })
-  blueprintKey = '';
+  blueprintKey = 'planning';
 
   /**
    * Host-supplied source of authored serviceBlueprints. The shell lists serviceBlueprints
@@ -40,7 +36,6 @@ export class PrismServiceBlueprintEditorShellElement extends LitElement {
   @state() private _draftBlueprintKey = '';
   @state() private _serviceBlueprintOptions: ServiceBlueprintSummary[] = [];
   @state() private _sourceError: string | null = null;
-  @state() private _optionsLoading = true;
 
   protected updated(changed: Map<string, unknown>): void {
     if (changed.has('blueprintKey')) {
@@ -71,7 +66,6 @@ export class PrismServiceBlueprintEditorShellElement extends LitElement {
     if (!this.serviceBlueprintSource) {
       this._serviceBlueprintOptions = [];
       this._sourceError = null;
-      this._optionsLoading = false;
       return;
     }
 
@@ -79,16 +73,9 @@ export class PrismServiceBlueprintEditorShellElement extends LitElement {
       const options = await this.serviceBlueprintSource.list();
       this._serviceBlueprintOptions = options;
       this._sourceError = null;
-
-      if (!this._draftBlueprintKey.trim() && options.length > 0) {
-        this._draftBlueprintKey = options[0].blueprintKey;
-        this.blueprintKey = this._draftBlueprintKey;
-      }
     } catch (error) {
       this._serviceBlueprintOptions = [];
       this._sourceError = error instanceof Error ? error.message : String(error);
-    } finally {
-      this._optionsLoading = false;
     }
   }
 
@@ -147,34 +134,11 @@ export class PrismServiceBlueprintEditorShellElement extends LitElement {
       `;
     }
 
-    // A host that starts with no known serviceBlueprint key (e.g. the Umbraco backoffice, which
-    // hands us serviceBlueprint-key="" so it can drive selection from the list itself) must not
-    // mount <prism-service-blueprint-editor> with an empty key — that element immediately tries to
-    // load it, 404s, and (worse) can leave a stale empty-key version-poll running. Wait for
-    // _loadServiceBlueprintOptions() to either auto-select the first serviceBlueprint (setting a real key)
-    // or confirm there genuinely are none.
-    if (!this.blueprintKey.trim()) {
-      if (this._optionsLoading) {
-        return html`
-          <div class="empty-state" role="status" data-prism-shell-empty="loading">
-            <p>Loading serviceBlueprints…</p>
-          </div>
-        `;
-      }
-
-      return html`
-        <div class="empty-state" role="status" data-prism-shell-empty="no-serviceBlueprints">
-          <h2>No serviceBlueprints yet</h2>
-          <p>This host has no serviceBlueprints to author yet.</p>
-        </div>
-      `;
-    }
-
     return keyed(
       this.blueprintKey,
       html`
         <prism-service-blueprint-editor
-          serviceBlueprint-key="${this.blueprintKey}"
+          blueprint-key="${this.blueprintKey}"
           .serviceBlueprintSource=${this.serviceBlueprintSource}
           .actionCatalog=${this.actionCatalog}
           .authorContext=${this.authorContext}

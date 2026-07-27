@@ -233,8 +233,8 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
         var errors = root.GetProperty("errors");
         errors.GetArrayLength().Should().BeGreaterThan(0);
         errors[0].GetProperty("code").GetString().Should().Be("component-type-missing");
-        errors[0].GetProperty("path").GetString().Should().Be("$.states[0].components[0]");
-        errors[0].GetProperty("message").GetString().Should().Be("Workflow components must declare a supported 'type' value.");
+        errors[0].GetProperty("path").GetString().Should().Be("$.touchpoints[0].components[0]");
+        errors[0].GetProperty("message").GetString().Should().Be("Service blueprint components must declare a supported 'type' value.");
     }
 
     /// <summary>

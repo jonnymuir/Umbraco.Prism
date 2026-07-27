@@ -171,8 +171,7 @@ internal static class ServiceBlueprintSourceSaveRequestParser
     private static IReadOnlyList<ServiceBlueprintSourceSaveError> ValidateComponents(JsonElement root)
     {
         var errors = new List<ServiceBlueprintSourceSaveError>();
-        ValidateStateComponents(root, "states", errors);
-        ValidateStateComponents(root, "stages", errors);
+        ValidateStateComponents(root, "touchpoints", errors);
         return errors;
     }
 

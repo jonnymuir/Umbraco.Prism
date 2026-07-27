@@ -114,7 +114,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
   /**
    * Declarative JSON form of {@link serviceBlueprint}. Lets the element be initialised
    * from HTML/Razor markup without JS wiring — Razor authors can write
-   * `<prism-service-blueprint-graph read-only serviceBlueprint-json='...'>` and skip the prop
+   * `<prism-service-blueprint-graph read-only service-blueprint-json='...'>` and skip the prop
    * assignment. When set, this attribute is parsed and assigned to `serviceBlueprint`.
    */
   @property({ type: String, attribute: 'service-blueprint-json' })
@@ -189,7 +189,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
         const parsed = JSON.parse(this.serviceBlueprintJson) as AuthoredServiceBlueprint;
         this.serviceBlueprint = parsed;
       } catch (error) {
-        console.error('prism-service-blueprint-graph: serviceBlueprint-json could not be parsed.', error);
+        console.error('prism-service-blueprint-graph: service-blueprint-json could not be parsed.', error);
       }
     }
 

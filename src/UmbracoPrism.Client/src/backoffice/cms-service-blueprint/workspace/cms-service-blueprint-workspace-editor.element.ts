@@ -70,7 +70,7 @@ export class PrismCmsServiceBlueprintWorkspaceEditorElement extends UmbElementMi
 
     return html`
       <prism-service-blueprint-editor
-        serviceBlueprint-key=${this._definitionKey}
+        blueprint-key=${this._definitionKey}
         .serviceBlueprintSource=${this._source}
         .availableQueues=${this._availableQueues}
       ></prism-service-blueprint-editor>

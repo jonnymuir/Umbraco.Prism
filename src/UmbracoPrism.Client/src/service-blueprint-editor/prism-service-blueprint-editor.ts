@@ -247,7 +247,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const keyParam = params.get('serviceBlueprint');
-      if (keyParam && !this.hasAttribute('serviceBlueprint-key')) {
+      if (keyParam && !this.hasAttribute('blueprint-key')) {
         this.blueprintKey = keyParam;
       }
     }

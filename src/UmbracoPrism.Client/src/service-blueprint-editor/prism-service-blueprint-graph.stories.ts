@@ -311,7 +311,7 @@ export const GraphReadOnly: Story = {
       description: {
         story:
           'Renders a published serviceBlueprint purely from HTML attributes — no JS plumbing. ' +
-          'Demonstrates the `<prism-service-blueprint-graph read-only serviceBlueprint-json="...">` recipe an ' +
+          'Demonstrates the `<prism-service-blueprint-graph read-only service-blueprint-json="...">` recipe an ' +
           'integrator can drop into a Razor view to show a serviceBlueprint diagram on a public page.',
       },
     },
@@ -321,7 +321,7 @@ export const GraphReadOnly: Story = {
     container.style.cssText = 'display:block;height:560px;';
     const json = JSON.stringify(GATEWAY_SERVICE_BLUEPRINT).replaceAll('"', '&quot;');
     container.innerHTML =
-      `<prism-service-blueprint-graph read-only serviceBlueprint-json="${json}" style="display:block;height:100%;"></prism-service-blueprint-graph>`;
+      `<prism-service-blueprint-graph read-only service-blueprint-json="${json}" style="display:block;height:100%;"></prism-service-blueprint-graph>`;
     return container;
   },
   play: async ({ canvasElement }) => {
