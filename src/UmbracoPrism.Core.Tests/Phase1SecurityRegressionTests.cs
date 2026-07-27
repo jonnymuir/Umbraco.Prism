@@ -260,7 +260,7 @@ public class Phase1SecurityRegressionTests : IDisposable
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Prism:EnableDownstreamDemo"] = "false",
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://api.example.com"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://api.example.com"
             })
             .Build();
 
@@ -283,7 +283,7 @@ public class Phase1SecurityRegressionTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             })
             .Build();
 
@@ -309,7 +309,7 @@ public class Phase1SecurityRegressionTests : IDisposable
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Prism:EnableDownstreamDemo"] = "true",
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://api.example.com"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://api.example.com"
             })
             .Build();
 
@@ -336,7 +336,7 @@ public class Phase1SecurityRegressionTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             })
             .Build();
 
@@ -358,7 +358,7 @@ public class Phase1SecurityRegressionTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             })
             .Build();
 

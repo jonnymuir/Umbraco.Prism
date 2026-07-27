@@ -9,7 +9,7 @@ namespace UmbracoPrism.TestSite;
 
 /// <summary>
 /// Seeds the four guidance articles referenced by the (separately, live-authored) "Transfer a
-/// Professional Juggling Licence" CMS Workflow demo's guidance-checklist component. Runs after
+/// Professional Juggling Licence" CMS Service Blueprint demo's guidance-checklist component. Runs after
 /// <see cref="GuidanceArticleContentTypes"/> has created the <c>guidanceArticle</c> content type.
 /// Idempotent — skips if the articles already exist. Development-only, like every other
 /// TestSite demo seeder.

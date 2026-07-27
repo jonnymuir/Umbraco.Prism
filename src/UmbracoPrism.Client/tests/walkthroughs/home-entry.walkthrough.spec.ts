@@ -96,10 +96,10 @@ test.describe('Home entry walkthrough', () => {
     await page.goto('/dashboard');
     await expect(page.getByRole('link', { name: 'View ServiceBlueprints' })).toBeVisible();
     await page.getByRole('link', { name: 'View ServiceBlueprints' }).click();
-    await page.waitForURL(/\/my-service-blueprints\/?$/, { timeout: 30_000 });
+    await page.waitForURL(/\/my-service-requests\/?$/, { timeout: 30_000 });
 
     await step(page, '05-service-blueprint-hub.png', {
-      url: /\/my-service-blueprints\/?$/,
+      url: /\/my-service-requests\/?$/,
       heading: 'My ServiceBlueprints'
     }, 'home-entry');
   });

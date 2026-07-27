@@ -11,9 +11,9 @@ namespace UmbracoPrism.TestSite.Services;
 public sealed record JugglingSocietyMembership(string Tier);
 
 /// <summary>
-/// Mock membership lookup demonstrating the extension point a real CMS Workflow implementation
+/// Mock membership lookup demonstrating the extension point a real CMS Service Blueprint implementation
 /// uses to default form data from an external system of record for a logged-in member — the same
-/// role <c>MemberRecordService</c> plays for Money Modeller's business-workflow demo, just a
+/// role <c>MemberRecordService</c> plays for Money Modeller's business-service-blueprint demo, just a
 /// simpler shape (one field, not six).
 /// </summary>
 public class JugglingSocietyMembershipClient : IJugglingSocietyMembershipClient

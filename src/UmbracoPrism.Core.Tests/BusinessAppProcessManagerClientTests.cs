@@ -40,7 +40,7 @@ public class BusinessAppProcessManagerClientTests : IDisposable
         var client = BuildClient(
             config: new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://codespace-7245.app.github.dev"
             },
             requestCapture: req => captured = req);
 
@@ -63,7 +63,7 @@ public class BusinessAppProcessManagerClientTests : IDisposable
         var client = BuildClient(
             config: new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             requestCapture: req => captured = req);
 
@@ -86,7 +86,7 @@ public class BusinessAppProcessManagerClientTests : IDisposable
         var client = BuildClient(
             config: new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://codespace-7245.app.github.dev"
             },
             requestCapture: req => captured = req);
 
@@ -116,7 +116,7 @@ public class BusinessAppProcessManagerClientTests : IDisposable
         var client = BuildClientWithContextMock(
             config: new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "http://localhost:7001"
+                ["PrismBusinessApp:ApiBaseUrl"] = "http://localhost:7001"
             },
             prismContext: prismContext,
             requestCapture: req => capturedAuthHeaders.Add(req.Headers.Authorization?.ToString()),
@@ -151,7 +151,7 @@ public class BusinessAppProcessManagerClientTests : IDisposable
         var client = BuildClientWithContextMock(
             config: new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "http://localhost:7001"
+                ["PrismBusinessApp:ApiBaseUrl"] = "http://localhost:7001"
             },
             prismContext: prismContext,
             responseStatus: HttpStatusCode.Unauthorized);
@@ -176,7 +176,7 @@ public class BusinessAppProcessManagerClientTests : IDisposable
         var client = BuildClient(
             config: new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "http://localhost:7001"
+                ["PrismBusinessApp:ApiBaseUrl"] = "http://localhost:7001"
             },
             requestCapture: _ => Interlocked.Increment(ref requestCount),
             responseStatus: HttpStatusCode.Unauthorized);

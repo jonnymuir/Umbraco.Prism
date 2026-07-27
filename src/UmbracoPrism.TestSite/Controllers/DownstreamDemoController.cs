@@ -379,7 +379,7 @@ public class DownstreamDemoController(
         }
         else
         {
-            var publicUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+            var publicUrl = configuration["PrismBusinessApp:ApiBaseUrl"]?.TrimEnd('/');
             transport = IsCodespacesUrl(publicUrl ?? "") ? "public-tunnel" : "public-url";
             transportBaseUrl = MaskPublicUrl(publicUrl ?? "");
         }
@@ -457,18 +457,18 @@ public class DownstreamDemoController(
         if (!string.IsNullOrWhiteSpace(backchannelUrl))
             return backchannelUrl;
 
-        var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        var baseUrl = configuration["PrismBusinessApp:ApiBaseUrl"]?.TrimEnd('/');
         if (string.IsNullOrWhiteSpace(baseUrl))
-            throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
+            throw new InvalidOperationException("PrismBusinessApp:ApiBaseUrl is not configured.");
 
         return baseUrl;
     }
 
     private string ResolveBusinessAppDisplayBaseUrl()
     {
-        var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        var baseUrl = configuration["PrismBusinessApp:ApiBaseUrl"]?.TrimEnd('/');
         if (string.IsNullOrWhiteSpace(baseUrl))
-            throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
+            throw new InvalidOperationException("PrismBusinessApp:ApiBaseUrl is not configured.");
 
         return baseUrl;
     }
@@ -503,7 +503,7 @@ public class DownstreamDemoController(
             }
         }
 
-        var defaultBaseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        var defaultBaseUrl = configuration["PrismBusinessApp:ApiBaseUrl"]?.TrimEnd('/');
         if (!string.IsNullOrWhiteSpace(defaultBaseUrl) && UrlStartsWithAllowed(url, defaultBaseUrl))
             return true;
 
@@ -744,7 +744,7 @@ public class DownstreamDemoController(
             TestSiteSeedContract.ServiceRequestHubAlias,
             TestSiteSeedContract.ServiceRequestHubName,
             TestSiteSeedContract.ServiceRequestHubUrl);
-        var planningWorkflowPage = BuildSeededRoute(
+        var planningTouchpointPage = BuildSeededRoute(
             TestSiteSeedContract.FindPublishedTouchpointPage(roots, TestSiteSeedContract.PlanningBlueprintKey),
             TestSiteSeedContract.TouchpointPageAlias,
             TestSiteSeedContract.PlanningTouchpointPageName,
@@ -772,7 +772,7 @@ public class DownstreamDemoController(
             dashboard.MatchesExpected &&
             touchpointPage.MatchesExpected &&
             serviceRequestHub.MatchesExpected &&
-            planningWorkflowPage.MatchesExpected &&
+            planningTouchpointPage.MatchesExpected &&
             paymentDemoPage.MatchesExpected &&
             informationRequestPage.MatchesExpected &&
             mobileNav.Ready;
@@ -783,9 +783,9 @@ public class DownstreamDemoController(
             Auth: new SeedAuthStatus("/auth/login", "/auth/logout", challengePath),
             Home: home,
             Dashboard: dashboard,
-            WorkflowPage: touchpointPage,
-            WorkflowHub: serviceRequestHub,
-            PlanningWorkflowPage: planningWorkflowPage,
+            TouchpointPage: touchpointPage,
+            ServiceRequestHub: serviceRequestHub,
+            PlanningTouchpointPage: planningTouchpointPage,
             PaymentDemoPage: paymentDemoPage,
             InformationRequestPage: informationRequestPage,
             MobileNav: mobileNav);
@@ -816,16 +816,16 @@ public class DownstreamDemoController(
             ?? [];
         var hasHome = navUrls.Contains(NormalizePath(TestSiteSeedContract.HomePageUrl));
         var hasDashboard = navUrls.Contains(NormalizePath(TestSiteSeedContract.DashboardUrl));
-        var hasWorkflowHub = navUrls.Contains(NormalizePath(TestSiteSeedContract.ServiceRequestHubUrl));
+        var hasServiceRequestHub = navUrls.Contains(NormalizePath(TestSiteSeedContract.ServiceRequestHubUrl));
         var ready =
             settings != null &&
             mobileNavLinks != null &&
             mobileNavLinks.Any() &&
             hasHome &&
             hasDashboard &&
-            hasWorkflowHub;
+            hasServiceRequestHub;
 
-        return new MobileNavStatus(settings != null, mobileNavLinks?.Count ?? 0, hasHome, hasDashboard, hasWorkflowHub, ready);
+        return new MobileNavStatus(settings != null, mobileNavLinks?.Count ?? 0, hasHome, hasDashboard, hasServiceRequestHub, ready);
     }
 
     private sealed record SeedContractStatus(
@@ -834,9 +834,9 @@ public class DownstreamDemoController(
         SeedAuthStatus Auth,
         SeededRouteStatus Home,
         SeededRouteStatus Dashboard,
-        SeededRouteStatus WorkflowPage,
-        SeededRouteStatus WorkflowHub,
-        SeededRouteStatus PlanningWorkflowPage,
+        SeededRouteStatus TouchpointPage,
+        SeededRouteStatus ServiceRequestHub,
+        SeededRouteStatus PlanningTouchpointPage,
         SeededRouteStatus PaymentDemoPage,
         SeededRouteStatus InformationRequestPage,
         MobileNavStatus MobileNav);
@@ -856,7 +856,7 @@ public class DownstreamDemoController(
         int ItemCount,
         bool HasHome,
         bool HasDashboard,
-        bool HasWorkflowHub,
+        bool HasServiceRequestHub,
         bool Ready);
 
     private static string NormalizePath(string? path)

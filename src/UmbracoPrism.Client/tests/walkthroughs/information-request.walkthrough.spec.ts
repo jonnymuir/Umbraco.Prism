@@ -97,7 +97,7 @@ test.describe('Information request walkthrough', () => {
     await expect(page.getByRole('heading', { name: 'Your request is being reviewed' })).toBeVisible({ timeout: 30_000 });
 
     // Navigate away
-    await page.goto('/my-service-blueprints');
+    await page.goto('/my-service-requests');
     await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
 
     // Navigate back — instance policy means the under-review state persists

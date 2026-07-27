@@ -47,16 +47,16 @@ const readinessChecks = [
     bodyIncludes: [
       '"ready":true',
       '"routeContractReady":true',
-      '"challengePath":"/auth/login?ReturnUrl=%2Fmy-service-blueprints"'
+      '"challengePath":"/auth/login?ReturnUrl=%2Fmy-service-requests"'
     ]
   },
   {
     // Behavioural confirmation: the protected authored URL now challenges with the expected return target.
     // Doubles as a Razor view-compilation warmup so the first test doesn't pay the cold-render cost.
     name: 'ServiceBlueprint hub seed',
-    url: 'https://localhost:44345/my-service-blueprints',
+    url: 'https://localhost:44345/my-service-requests',
     allowedStatuses: [302],
-    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fmy-service-blueprints' }]
+    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fmy-service-requests' }]
   },
   {
     // Dashboard route warmup. MemberDashboardController has [Authorize]; the cookie auth

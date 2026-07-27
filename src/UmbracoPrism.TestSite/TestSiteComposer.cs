@@ -45,10 +45,10 @@ public class TestSiteComposer : IComposer
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, VinylVaultSeeder>();
         builder.Services.AddHostedService<LimitedEditionDropNotifier>();
 
-        // Workflow Page demo — runs after PrismContentTypeSeeder has created the touchpointPage doc type
+        // Touchpoint Page demo — runs after PrismContentTypeSeeder has created the touchpointPage doc type
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, TouchpointPageSeeder>();
 
-        // Prism CMS Workflow demos ("Apply for a juggling licence" and "Transfer a professional
+        // Prism CMS Service Blueprint demos ("Apply for a juggling licence" and "Transfer a professional
         // juggling licence") — demonstrates the service-sourced field extension point for a
         // logged-in member, shared across both since they're the same fictional membership
         // scheme. Re-registering
@@ -68,10 +68,10 @@ public class TestSiteComposer : IComposer
                 sp.GetRequiredService<IHttpContextAccessor>(),
                 (instance, definition, _) =>
                 {
-                    var isJugglingLicenceWorkflow =
+                    var isJugglingLicenceServiceBlueprint =
                         string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceBlueprintKey, StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceTransferBlueprintKey, StringComparison.OrdinalIgnoreCase);
-                    if (!isJugglingLicenceWorkflow)
+                    if (!isJugglingLicenceServiceBlueprint)
                     {
                         return null;
                     }

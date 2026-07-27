@@ -11,7 +11,7 @@ namespace UmbracoPrism.Core.Services;
 
 /// <summary>
 /// HTTP client that calls the external Business Application's workflow API.
-/// Configured via <c>PrismBusinessApp:WorkflowApiBaseUrl</c>.
+/// Configured via <c>PrismBusinessApp:ApiBaseUrl</c>.
 /// </summary>
 /// <remarks>
 /// This is the primary integration point between Umbraco and the Business App.
@@ -152,7 +152,7 @@ public class BusinessAppProcessManagerClient(
     /// <remarks>
     /// In Codespaces, <c>BUSINESSAPP_BACKCHANNEL_URL</c> is injected by AppHost so server-to-server
     /// calls bypass the GitHub forwarded-port proxy (which blocks unauthenticated requests with 401).
-    /// <c>PrismBusinessApp:WorkflowApiBaseUrl</c> remains the browser-facing public URL.
+    /// <c>PrismBusinessApp:ApiBaseUrl</c> remains the browser-facing public URL.
     /// </remarks>
     private string BaseUrl
     {
@@ -162,10 +162,10 @@ public class BusinessAppProcessManagerClient(
             if (!string.IsNullOrWhiteSpace(backchannelUrl))
                 return backchannelUrl;
 
-            var url = configuration["PrismBusinessApp:WorkflowApiBaseUrl"];
+            var url = configuration["PrismBusinessApp:ApiBaseUrl"];
             if (string.IsNullOrWhiteSpace(url))
                 throw new InvalidOperationException(
-                    "PrismBusinessApp:WorkflowApiBaseUrl is not configured. " +
+                    "PrismBusinessApp:ApiBaseUrl is not configured. " +
                     "Add it to appsettings.Development.json pointing at the running Mock Business App.");
             return url.TrimEnd('/');
         }

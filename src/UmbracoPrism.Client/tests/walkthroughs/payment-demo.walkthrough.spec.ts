@@ -66,9 +66,9 @@ test.describe('Payment demo walkthrough', () => {
     await expect(page.locator('body')).toContainText('You can leave this page', { timeout: 10_000 });
 
     const serviceBlueprintHubPage = await page.context().newPage();
-    await serviceBlueprintHubPage.goto('/my-service-blueprints');
+    await serviceBlueprintHubPage.goto('/my-service-requests');
     await step(serviceBlueprintHubPage, '05-service-blueprint-hub-processing.png', {
-      url: /\/my-service-blueprints\/?$/,
+      url: /\/my-service-requests\/?$/,
       heading: 'My ServiceBlueprints'
     }, 'payment-demo');
 
@@ -128,7 +128,7 @@ test.describe('Payment demo walkthrough', () => {
     }, 'payment-demo');
 
     await page.getByRole('link', { name: 'My ServiceBlueprints' }).click();
-    await assertHealthyPage(page, { url: /\/my-service-blueprints\/?$/, heading: 'My ServiceBlueprints' });
+    await assertHealthyPage(page, { url: /\/my-service-requests\/?$/, heading: 'My ServiceBlueprints' });
     const completedCard = serviceBlueprintHubCard(page, 'Payment Demo');
     await expect(page.getByRole('heading', { name: 'Completed' })).toBeVisible();
     await expect(completedCard).toContainText('Payment Complete');
@@ -165,7 +165,7 @@ test.describe('Payment demo walkthrough', () => {
     await expect(page.getByRole('heading', { name: 'Awaiting payment confirmation' })).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('body')).toContainText('You can leave this page', { timeout: 10_000 });
 
-    await page.goto('/my-service-blueprints');
+    await page.goto('/my-service-requests');
     await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
 
     await page.goto('/payment-demo');

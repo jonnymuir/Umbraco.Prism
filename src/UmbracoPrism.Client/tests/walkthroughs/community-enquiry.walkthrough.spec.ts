@@ -69,7 +69,7 @@ test.describe('Community enquiry walkthrough', () => {
     await page.getByRole('button', { name: 'Submit' }).click();
     await expect(page.getByRole('heading', { name: 'Thank you' })).toBeVisible({ timeout: 30_000 });
 
-    await page.goto('/my-service-blueprints');
+    await page.goto('/my-service-requests');
     await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
     await expect(page.locator('[data-service-blueprint-key="community-enquiry"]')).toContainText('Thank you');
 
@@ -86,7 +86,7 @@ test.describe('Community enquiry walkthrough', () => {
     
     await page.getByRole('button', { name: 'Submit' }).click();
 
-    await page.goto('/my-service-blueprints');
+    await page.goto('/my-service-requests');
     await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
 
     const serviceBlueprintCard = page.locator('[data-service-blueprint-key="community-enquiry"]').first();

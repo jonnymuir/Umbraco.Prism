@@ -6,8 +6,8 @@
     var displayName = ViewBag.DisplayName as string ?? "Member";
     var email = ViewBag.Email as string ?? "";
     var userOid = ViewBag.UserOid as string ?? "";
-    var workflowAdminUrl = ViewBag.WorkflowAdminUrl as string;
-    var workflowEditorUrl = ViewBag.WorkflowEditorUrl as string;
+    var serviceDeskUrl = ViewBag.ServiceDeskUrl as string;
+    var serviceBlueprintEditorUrl = ViewBag.ServiceBlueprintEditorUrl as string;
     var rootContent = Umbraco.ContentAtRoot().ToList();
     var serviceRequestHubUrl = TestSiteSeedContract.ResolveUrl(
         TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.ServiceRequestHubAlias),
@@ -397,31 +397,31 @@
             }
         </script>
 
-        @if (!string.IsNullOrWhiteSpace(workflowAdminUrl) ||
-             !string.IsNullOrWhiteSpace(workflowEditorUrl))
+        @if (!string.IsNullOrWhiteSpace(serviceDeskUrl) ||
+             !string.IsNullOrWhiteSpace(serviceBlueprintEditorUrl))
         {
             <!-- Developer tools — showcase shortcuts into the MockBusinessApp service blueprint surfaces -->
             <div class="dash-section">
                 <h2>Developer Tools</h2>
                 <p>Jump straight into the Prism service blueprint showcase surfaces without hunting through routes.</p>
                 <div class="dash-grid" style="margin-top: 16px;">
-                    @if (!string.IsNullOrWhiteSpace(workflowAdminUrl))
+                    @if (!string.IsNullOrWhiteSpace(serviceDeskUrl))
                     {
                         <div class="dash-card dash-card--cta">
                             <div class="dash-card__icon dash-card__icon--service-request">⚙️</div>
                             <h3>Service Desk</h3>
                             <p>Inspect and manage service requests from the MockBusinessApp Service Desk screen.</p>
-                            <a href="@workflowAdminUrl" class="btn btn-primary" style="margin-top: 12px;" target="_blank" rel="noopener">Open Admin</a>
+                            <a href="@serviceDeskUrl" class="btn btn-primary" style="margin-top: 12px;" target="_blank" rel="noopener">Open Admin</a>
                         </div>
                     }
 
-                    @if (!string.IsNullOrWhiteSpace(workflowEditorUrl))
+                    @if (!string.IsNullOrWhiteSpace(serviceBlueprintEditorUrl))
                     {
                         <div class="dash-card dash-card--cta">
                             <div class="dash-card__icon dash-card__icon--service-request">🧭</div>
                             <h3>Service Blueprint Editor</h3>
                             <p>Open the reference shell for Prism service blueprint authoring; it lands on the planning service blueprint by default.</p>
-                            <a href="@workflowEditorUrl" class="btn btn-primary" style="margin-top: 12px;" target="_blank" rel="noopener">Open Editor</a>
+                            <a href="@serviceBlueprintEditorUrl" class="btn btn-primary" style="margin-top: 12px;" target="_blank" rel="noopener">Open Editor</a>
                         </div>
                     }
                 </div>

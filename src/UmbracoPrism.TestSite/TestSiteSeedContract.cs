@@ -40,8 +40,8 @@ public static class TestSiteSeedContract
     public const string MoneyModellerBlueprintKey = "money-modeller";
 
     public const string ServiceRequestHubAlias = "serviceRequestHub";
-    public const string ServiceRequestHubName = "My Workflows";
-    public const string ServiceRequestHubUrl = "/my-workflows";
+    public const string ServiceRequestHubName = "My Service Requests";
+    public const string ServiceRequestHubUrl = "/my-service-requests";
 
     public const string CmsServiceRequestPageAlias = "cmsServiceRequestPage";
     public const string JugglingLicencePageName = "Apply for a juggling licence";
@@ -70,7 +70,7 @@ public static class TestSiteSeedContract
                    && string.Equals(content.GetValue<string>("blueprintKey"), blueprintKey, StringComparison.OrdinalIgnoreCase));
 
     // cmsServiceRequestPage is a distinct doc type from touchpointPage above (Prism's newer,
-    // Umbraco-only-hosted CMS Workflow, not the older business-workflow demos) — and more than
+    // Umbraco-only-hosted CMS Service Blueprint, not the older business-service-blueprint demos) — and more than
     // one cmsServiceRequestPage instance can now exist (apply-for-a-juggling-licence,
     // transfer-a-juggling-licence), so a seeder checking "does my page already exist" must
     // filter by blueprintKey, not just by alias (which would match whichever page happens to be

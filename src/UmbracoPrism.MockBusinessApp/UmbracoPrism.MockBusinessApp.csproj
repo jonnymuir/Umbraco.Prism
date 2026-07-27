@@ -7,10 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Update="workflow-seeds\**\*">
+    <Content Update="service-blueprints\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Update="workflow-authored\**\*">
+    <Content Update="service-blueprints-authored\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

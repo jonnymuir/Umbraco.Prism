@@ -54,13 +54,13 @@ public class MemberDashboardController(
 
         // Derive the MockBusinessApp service-desk admin URL from the configured public base URL.
         // In Codespaces this resolves to the forwarded port URL; locally it is https://localhost:7245.
-        var workflowApiBase = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
-        ViewBag.WorkflowAdminUrl = string.IsNullOrWhiteSpace(workflowApiBase)
+        var businessAppApiBase = configuration["PrismBusinessApp:ApiBaseUrl"]?.TrimEnd('/');
+        ViewBag.ServiceDeskUrl = string.IsNullOrWhiteSpace(businessAppApiBase)
             ? null
-            : $"{workflowApiBase}/admin/service-desk";
-        ViewBag.WorkflowEditorUrl = string.IsNullOrWhiteSpace(workflowApiBase)
+            : $"{businessAppApiBase}/admin/service-desk";
+        ViewBag.ServiceBlueprintEditorUrl = string.IsNullOrWhiteSpace(businessAppApiBase)
             ? null
-            : $"{workflowApiBase}/service-blueprint-editor";
+            : $"{businessAppApiBase}/service-blueprint-editor";
 
         // Render the authored dashboard view directly. On the first authenticated
         // navigation after /signin-oidc, CurrentTemplate(CurrentPage!) can settle

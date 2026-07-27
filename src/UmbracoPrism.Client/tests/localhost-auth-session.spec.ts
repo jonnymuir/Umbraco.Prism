@@ -39,11 +39,11 @@ test.describe('Localhost auth/session behavioural contracts', () => {
 
   test('signed-in member can open My ServiceBlueprints', async ({ page }) => {
     await signIn(page);
-    await page.goto('/my-service-blueprints');
+    await page.goto('/my-service-requests');
 
     await expect(page.getByRole('heading', { name: 'My ServiceBlueprints' })).toBeVisible();
     await expectAnyVisible(
-      page.getByText("You don't have any active service blueprints yet."),
+      page.getByText("You don't have any active service requests yet."),
       page.getByRole('heading', { name: 'In Progress' }),
       page.getByRole('heading', { name: 'Completed' })
     );
@@ -69,7 +69,7 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     const cookiesAfterSignIn = await page.context().cookies();
     expect(cookiesAfterSignIn.some(c => c.name === 'PrismCmsServiceBlueprintVisitor')).toBe(false);
 
-    await page.goto('/my-service-blueprints');
+    await page.goto('/my-service-requests');
     await expect(page.getByRole('heading', { name: 'In Progress' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Apply for a juggling licence', level: 3 })).toBeVisible();
     await expect(page.getByText('Your details')).toBeVisible();
@@ -93,7 +93,7 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await openDashboard(page);
 
     await page.getByRole('link', { name: 'View ServiceBlueprints' }).click();
-    await expect(page).toHaveURL(/\/my-service-blueprints$/);
+    await expect(page).toHaveURL(/\/my-service-requests$/);
 
     await openDashboard(page);
     for (const serviceBlueprint of expectedServiceBlueprintDemos) {

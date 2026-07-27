@@ -14,7 +14,7 @@ namespace UmbracoPrism.TestSite;
 
 /// <summary>
 /// Seeds the TestSite Settings node with the stable auth-flow mobile nav items
-/// (Home, Dashboard, My Workflows),
+/// (Home, Dashboard, My Service Requests),
 /// each backed by an SVG icon written to /media/prism-nav-icons/ and registered in the
 /// Umbraco media library under a "Prism Navigation Icons" folder.
 ///
@@ -34,13 +34,13 @@ public class DemoMobileNavSeeder(
     private static readonly Guid MediaFolderKey = new("b5c6d7e8-f9a0-1234-efab-345678901234");
     private static readonly Guid HomeElementKey = new("f3a4b5c6-d7e8-4012-cdef-123456789012");
     private static readonly Guid DashElementKey = new("a4b5c6d7-e8f9-4123-defa-234567890123");
-    private static readonly Guid WorkflowsElementKey = new("b5c6d7e8-f9a0-4234-efab-456789012345");
+    private static readonly Guid ServiceRequestsElementKey = new("b5c6d7e8-f9a0-4234-efab-456789012345");
 
     // Web nav uses its own element keys — distinct Block List instances from the mobile items above,
     // even though both point at the same mobileNavItem element type.
     private static readonly Guid WebHomeElementKey = new("c6d7e8f9-a0b1-4345-fabc-567890123456");
     private static readonly Guid WebGetInTouchElementKey = new("d7e8f9a0-b1c2-4456-abcd-678901234567");
-    private static readonly Guid WebWorkflowsElementKey = new("e8f9a0b1-c2d3-4567-bcde-789012345678");
+    private static readonly Guid WebServiceRequestsElementKey = new("e8f9a0b1-c2d3-4567-bcde-789012345678");
     private static readonly Guid WebJugglingLicenceElementKey = new("f9a0b1c2-d3e4-4678-cdef-890123456789");
     private static readonly Guid WebLicenceTransferElementKey = new("0a1b2c3d-4e5f-4789-def0-901234567890");
 
@@ -62,7 +62,7 @@ public class DemoMobileNavSeeder(
         </svg>
         """;
 
-    private const string WorkflowsSvg = """
+    private const string ServiceRequestsSvg = """
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
           <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/>
         </svg>
@@ -100,7 +100,7 @@ public class DemoMobileNavSeeder(
         var folderId = EnsureIconsFolder();
         var homeKey = EnsureIconMedia("Nav Icon - Home",      folderId, "home.svg");
         var dashKey = EnsureIconMedia("Nav Icon - Dashboard", folderId, "dashboard.svg");
-        var workflowsKey = EnsureIconMedia("Nav Icon - Workflows", folderId, "workflows.svg");
+        var serviceRequestsKey = EnsureIconMedia("Nav Icon - Service Requests", folderId, "service-requests.svg");
 
         var needsMobileUpdate = NeedsBlockListSeed(
             settings.GetValue<string>("mobileNavLinks"),
@@ -119,13 +119,13 @@ public class DemoMobileNavSeeder(
         if (needsMobileUpdate)
         {
             logger.LogInformation("DEMO SEEDER: Replacing mobileNavLinks to restore the seeded auth-flow contract.");
-            var mobileBlockListJson = BuildBlockListJson(homeKey, dashKey, workflowsKey);
+            var mobileBlockListJson = BuildBlockListJson(homeKey, dashKey, serviceRequestsKey);
             settings.SetValue("mobileNavLinks", mobileBlockListJson);
         }
 
         if (needsWebUpdate)
         {
-            logger.LogInformation("DEMO SEEDER: Seeding webNavLinks with Home, Get in Touch, My Workflows, Apply for a juggling licence, and Transfer your licence items.");
+            logger.LogInformation("DEMO SEEDER: Seeding webNavLinks with Home, Get in Touch, My Service Requests, Apply for a juggling licence, and Transfer your licence items.");
             var webBlockListJson = BuildWebNavBlockListJson();
             settings.SetValue("webNavLinks", webBlockListJson);
         }
@@ -203,8 +203,8 @@ public class DemoMobileNavSeeder(
         if (!System.IO.File.Exists(homePath))  System.IO.File.WriteAllText(homePath,  HomeSvg,       Encoding.UTF8);
         if (!System.IO.File.Exists(dashPath))  System.IO.File.WriteAllText(dashPath,  DashboardSvg,  Encoding.UTF8);
 
-        var workflowsPath = Path.Combine(iconDir, "workflows.svg");
-        if (!System.IO.File.Exists(workflowsPath)) System.IO.File.WriteAllText(workflowsPath, WorkflowsSvg, Encoding.UTF8);
+        var serviceRequestsPath = Path.Combine(iconDir, "service-requests.svg");
+        if (!System.IO.File.Exists(serviceRequestsPath)) System.IO.File.WriteAllText(serviceRequestsPath, ServiceRequestsSvg, Encoding.UTF8);
 
         logger.LogDebug("DEMO SEEDER: SVG icon files written to {Path}.", iconDir);
     }
@@ -306,11 +306,11 @@ public class DemoMobileNavSeeder(
     /// instead of flat properties. This allows the backoffice label template (e.g. <c>{{ navLabel }}</c>)
     /// to resolve correctly, since the TypeScript interpolation reads from the <c>values</c> array.
     /// </summary>
-    private static string BuildBlockListJson(Guid? homeMediaKey, Guid? dashMediaKey, Guid? workflowsMediaKey)
+    private static string BuildBlockListJson(Guid? homeMediaKey, Guid? dashMediaKey, Guid? serviceRequestsMediaKey)
     {
         var homeKey      = HomeElementKey.ToString();
         var dashKey      = DashElementKey.ToString();
-        var workflowsKey = WorkflowsElementKey.ToString();
+        var serviceRequestsKey = ServiceRequestsElementKey.ToString();
 
         var root = new JsonObject
         {
@@ -319,19 +319,19 @@ public class DemoMobileNavSeeder(
                 ["Umbraco.BlockList"] = new JsonArray(
                     new JsonObject { ["contentKey"] = homeKey },
                     new JsonObject { ["contentKey"] = dashKey },
-                    new JsonObject { ["contentKey"] = workflowsKey }
+                    new JsonObject { ["contentKey"] = serviceRequestsKey }
                 )
             },
             ["contentData"] = new JsonArray(
                 BuildBlockItem(homeKey,      "Home",         TestSiteSeedContract.HomePageUrl,   homeMediaKey),
                 BuildBlockItem(dashKey,      "Dashboard",    TestSiteSeedContract.DashboardUrl,  dashMediaKey),
-                BuildBlockItem(workflowsKey, "My Workflows", TestSiteSeedContract.ServiceRequestHubUrl, workflowsMediaKey)
+                BuildBlockItem(serviceRequestsKey, "My Service Requests", TestSiteSeedContract.ServiceRequestHubUrl, serviceRequestsMediaKey)
             ),
             ["settingsData"] = new JsonArray(),
             ["expose"] = new JsonArray(
                 new JsonObject { ["contentKey"] = homeKey,      ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = dashKey,      ["culture"] = null, ["segment"] = null },
-                new JsonObject { ["contentKey"] = workflowsKey, ["culture"] = null, ["segment"] = null }
+                new JsonObject { ["contentKey"] = serviceRequestsKey, ["culture"] = null, ["segment"] = null }
             )
         };
 
@@ -341,19 +341,19 @@ public class DemoMobileNavSeeder(
     /// <summary>
     /// Builds the desktop nav's Block List JSON — same shape and element type as
     /// <see cref="BuildBlockListJson"/>, but its own five items (Home, Get in Touch, My
-    /// Workflows, Apply for a juggling licence, Transfer your licence — genuinely different
-    /// content from the mobile bar's Home/Dashboard/Workflows) and no icons, matching how the
+    /// Service Requests, Apply for a juggling licence, Transfer your licence — genuinely different
+    /// content from the mobile bar's Home/Dashboard/My Service Requests) and no icons, matching how the
     /// desktop header nav has always rendered as plain text links. The two juggling-licence
-    /// links are the only route into Prism's CMS Workflow demos — unlike the
+    /// links are the only route into Prism's CMS Service Blueprint demos — unlike the
     /// MockBusinessApp-hosted GDS demos (reached by direct URL, documented for developers
-    /// testing the toolkit), CMS Workflow's entire point is a native, discoverable public
+    /// testing the toolkit), CMS Service Blueprint's entire point is a native, discoverable public
     /// journey, so each earns a permanent nav entry the others don't.
     /// </summary>
     private static string BuildWebNavBlockListJson()
     {
         var homeKey = WebHomeElementKey.ToString();
         var getInTouchKey = WebGetInTouchElementKey.ToString();
-        var workflowsKey = WebWorkflowsElementKey.ToString();
+        var serviceRequestsKey = WebServiceRequestsElementKey.ToString();
         var jugglingLicenceKey = WebJugglingLicenceElementKey.ToString();
         var licenceTransferKey = WebLicenceTransferElementKey.ToString();
 
@@ -364,7 +364,7 @@ public class DemoMobileNavSeeder(
                 ["Umbraco.BlockList"] = new JsonArray(
                     new JsonObject { ["contentKey"] = homeKey },
                     new JsonObject { ["contentKey"] = getInTouchKey },
-                    new JsonObject { ["contentKey"] = workflowsKey },
+                    new JsonObject { ["contentKey"] = serviceRequestsKey },
                     new JsonObject { ["contentKey"] = jugglingLicenceKey },
                     new JsonObject { ["contentKey"] = licenceTransferKey }
                 )
@@ -372,7 +372,7 @@ public class DemoMobileNavSeeder(
             ["contentData"] = new JsonArray(
                 BuildBlockItem(homeKey, "Home", TestSiteSeedContract.HomePageUrl, mediaKey: null),
                 BuildBlockItem(getInTouchKey, "Get in Touch", TestSiteSeedContract.ServiceRequestPageUrl, mediaKey: null),
-                BuildBlockItem(workflowsKey, "My Workflows", TestSiteSeedContract.ServiceRequestHubUrl, mediaKey: null),
+                BuildBlockItem(serviceRequestsKey, "My Service Requests", TestSiteSeedContract.ServiceRequestHubUrl, mediaKey: null),
                 BuildBlockItem(jugglingLicenceKey, TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicencePageUrl, mediaKey: null),
                 BuildBlockItem(licenceTransferKey, TestSiteSeedContract.LicenceTransferNavLabel, TestSiteSeedContract.LicenceTransferPageUrl, mediaKey: null)
             ),
@@ -380,7 +380,7 @@ public class DemoMobileNavSeeder(
             ["expose"] = new JsonArray(
                 new JsonObject { ["contentKey"] = homeKey, ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = getInTouchKey, ["culture"] = null, ["segment"] = null },
-                new JsonObject { ["contentKey"] = workflowsKey, ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = serviceRequestsKey, ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = jugglingLicenceKey, ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = licenceTransferKey, ["culture"] = null, ["segment"] = null }
             )
