@@ -605,7 +605,7 @@ function normaliseStage(
   rawGateways: Array<Record<string, unknown>>
 ): AuthoredTouchpoint {
   const metadata = asRecord(rawStage.metadata);
-  const stateKey = firstString(rawStage.stateKey, rawStage.stageKey, rawStage.key) ?? '';
+  const stateKey = firstString(rawStage.touchpointKey, rawStage.stateKey, rawStage.stageKey, rawStage.key) ?? '';
   const transitionRoutes = rawTransitions
     .filter(transition => firstString(transition.fromState) === stateKey)
     .map(transition => normaliseLegacyTransitionRoute(stateKey, transition));
@@ -635,7 +635,7 @@ function normaliseStage(
     displayName: firstString(rawStage.displayName, rawStage.title) ?? stateKey,
     components: asArray<AuthoredComponent>(rawStage.components),
     description: firstString(rawStage.description, metadata.description),
-    kind: firstString(rawStage.kind, rawStage.stageType, rawStage.type, metadata.stageType) as TouchpointKind | undefined,
+    kind: firstString(rawStage.touchpointType, rawStage.kind, rawStage.stageType, rawStage.type, metadata.stageType) as TouchpointKind | undefined,
     actor: firstString(rawStage.actor, metadata.actor),
     queueKey: resolveQueueKey(rawStage, queueLookup),
     routes,
