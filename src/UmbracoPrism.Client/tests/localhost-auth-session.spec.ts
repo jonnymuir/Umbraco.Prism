@@ -92,7 +92,7 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await signIn(page);
     await openDashboard(page);
 
-    await page.getByRole('link', { name: 'View ServiceBlueprints' }).click();
+    await page.getByRole('link', { name: 'View Service Requests' }).click();
     await expect(page).toHaveURL(/\/my-service-requests$/);
 
     await openDashboard(page);
@@ -240,9 +240,9 @@ async function openDashboard(page: Page): Promise<void> {
     capture.dispose();
   }
 
-  await expect(page.getByRole('link', { name: 'View ServiceBlueprints' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'View Service Requests' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Call Mock Business App API' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'ServiceBlueprint Demos' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Service Blueprint Demos' })).toBeVisible();
 }
 
 function serviceBlueprintDemoCard(page: Page, title: string): Locator {

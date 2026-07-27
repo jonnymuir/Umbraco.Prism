@@ -124,7 +124,7 @@ export async function openDashboard(page: Page): Promise<void> {
   await expect(page.getByRole('link', { name: 'Go to Dashboard' })).toBeVisible({ timeout: 30_000 });
   await page.getByRole('link', { name: 'Go to Dashboard' }).click();
   await expect(page).toHaveURL(/\/dashboard\/?$/, { timeout: 30_000 });
-  await expect(page.getByRole('heading', { name: 'ServiceBlueprint Demos' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: 'Service Blueprint Demos' })).toBeVisible({ timeout: 30_000 });
 }
 
 export async function resetServiceBlueprints(request: APIRequestContext): Promise<void> {
