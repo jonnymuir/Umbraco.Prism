@@ -5,19 +5,21 @@ import { LiveAppHost } from './support/live-app-host';
 const appHost = new LiveAppHost();
 
 /**
- * Four-service-blueprint reference contract: validates that exactly 4 demo service blueprints
- * are available through the MockBusinessApp admin surface and that all 4
- * have editor links (proving they're backed by authored sources).
+ * Six-service-blueprint reference contract: validates that exactly the six demo service
+ * blueprints in service-blueprints/ are available through the MockBusinessApp admin surface
+ * and that all six have editor links (proving they're backed by authored sources).
  */
-test.describe('Four-service-blueprint reference contract', () => {
+test.describe('Six-service-blueprint reference contract', () => {
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(12 * 60_000);
 
   const expectedServiceBlueprints = [
     'community-enquiry',
     'information-request',
+    'money-modeller',
     'payment-demo',
-    'planning'
+    'planning',
+    'planning-notification'
   ];
 
   test.beforeAll(async ({}, testInfo) => {
@@ -30,7 +32,7 @@ test.describe('Four-service-blueprint reference contract', () => {
     await appHost.stop();
   });
 
-  test('admin screen lists exactly 4 service blueprints', async ({ page }) => {
+  test('admin screen lists exactly 6 service blueprints', async ({ page }) => {
     await page.goto('https://localhost:7245/admin/service-desk');
 
     await expect(page.getByRole('heading', { name: /service desk/i })).toBeVisible();
@@ -45,12 +47,12 @@ test.describe('Four-service-blueprint reference contract', () => {
 
     // Count service blueprint cards to ensure no unexpected service blueprints
     const allServiceBlueprintCards = page.locator('[data-definition-key]');
-    await expect(allServiceBlueprintCards).toHaveCount(4, {
+    await expect(allServiceBlueprintCards).toHaveCount(6, {
       timeout: 5000
     });
   });
 
-  test('all 4 service blueprints have editor links', async ({ page }) => {
+  test('all 6 service blueprints have editor links', async ({ page }) => {
     await page.goto('https://localhost:7245/admin/service-desk');
 
     await expect(page.getByRole('heading', { name: /service desk/i })).toBeVisible();
@@ -71,7 +73,7 @@ test.describe('Four-service-blueprint reference contract', () => {
     await expect(page.getByText('No editor definition yet')).not.toBeVisible();
   });
 
-  test('service blueprint source API lists exactly 4 service blueprints', async ({ request }) => {
+  test('service blueprint source API lists exactly 6 service blueprints', async ({ request }) => {
     const response = await request.get('https://localhost:7245/mockapp/service-blueprints', {
       ignoreHTTPSErrors: true
     });
@@ -80,13 +82,13 @@ test.describe('Four-service-blueprint reference contract', () => {
 
     const serviceBlueprints = await response.json();
     expect(Array.isArray(serviceBlueprints)).toBeTruthy();
-    expect(serviceBlueprints).toHaveLength(4);
+    expect(serviceBlueprints).toHaveLength(6);
 
     const serviceBlueprintKeys = serviceBlueprints.map((w: any) => w.definitionKey).sort();
     expect(serviceBlueprintKeys).toEqual(expectedServiceBlueprints.sort());
   });
 
-  test('all 4 service blueprints are loadable via service blueprint source API', async ({ request }) => {
+  test('all 6 service blueprints are loadable via service blueprint source API', async ({ request }) => {
     for (const serviceBlueprintKey of expectedServiceBlueprints) {
       const response = await request.get(
         `https://localhost:7245/mockapp/service-blueprints/${serviceBlueprintKey}`,

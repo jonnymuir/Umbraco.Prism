@@ -31,41 +31,43 @@
       "actor": "applicant",
       "components": [
         {
+          "type": "fieldset",
           "children": [
             {
+              "type": "text",
               "fieldKey": "firstName",
               "hint": "As it appears on your ID",
               "label": "First name",
-              "required": true,
-              "type": "text"
+              "required": true
             },
             {
+              "type": "text",
               "fieldKey": "lastName",
               "label": "Last name",
-              "required": true,
-              "type": "text"
+              "required": true
             },
             {
+              "type": "date",
               "fieldKey": "dateOfBirth",
               "hint": "For example, 12 03 1985",
               "label": "Date of birth",
-              "required": true,
-              "type": "date"
+              "required": true
             },
             {
+              "type": "email",
               "fieldKey": "email",
               "hint": "We'll only use this to contact you about your request",
               "label": "Email address",
-              "required": true,
-              "type": "email"
+              "required": true
             }
           ],
-          "legend": "Your details",
-          "type": "fieldset"
+          "legend": "Your details"
         },
         {
+          "type": "fieldset",
           "children": [
             {
+              "type": "select",
               "fieldKey": "requestType",
               "label": "What type of request is this?",
               "options": [
@@ -74,17 +76,17 @@
                 "Complaint",
                 "Technical support"
               ],
-              "required": true,
-              "type": "select"
+              "required": true
             },
             {
+              "type": "textarea",
               "fieldKey": "description",
               "hint": "Include as much detail as possible. Maximum 1000 characters.",
               "label": "Tell us more about your request",
-              "required": true,
-              "type": "textarea"
+              "required": true
             },
             {
+              "type": "radio",
               "fieldKey": "urgency",
               "label": "How urgent is this?",
               "options": [
@@ -92,12 +94,10 @@
                 "Urgent (2 working days)",
                 "Critical (same day)"
               ],
-              "required": true,
-              "type": "radio"
+              "required": true
             }
           ],
-          "legend": "Your request",
-          "type": "fieldset"
+          "legend": "Your request"
         }
       ],
       "displayName": "Tell us about yourself",
@@ -119,8 +119,8 @@
       "actor": "reviewer",
       "components": [
         {
-          "content": "This is a review",
-          "type": "body"
+          "type": "body",
+          "content": "This is a review"
         }
       ],
       "displayName": "Under Review",
@@ -145,21 +145,21 @@
       "actor": "applicant",
       "components": [
         {
-          "heading": "Application complete",
-          "type": "panel"
+          "type": "panel",
+          "heading": "Application complete"
         },
         {
+          "type": "heading",
           "content": "What happens next",
-          "level": 2,
-          "type": "heading"
+          "level": 2
         },
         {
-          "content": "We've sent you a confirmation email.",
-          "type": "body"
+          "type": "body",
+          "content": "We've sent you a confirmation email."
         },
         {
-          "content": "A member of our team will be in touch shortly.",
-          "type": "body"
+          "type": "body",
+          "content": "A member of our team will be in touch shortly."
         }
       ],
       "displayName": "Request Complete",
