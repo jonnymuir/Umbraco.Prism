@@ -35,8 +35,8 @@ export interface PageHealthCheck {
    * - The narrative requires the reader to see the full page context
    *
    * Hook contract for Isabelle (docs pipeline): when CAPTURE_SCREENSHOTS=1 a per-step
-   * fullPage flag is the intended control point. If the docs workflow needs a different
-   * default, add a SCREENSHOT_FULL_PAGE env var to the capture-screenshots.yml workflow
+   * fullPage flag is the intended control point. If the docs service blueprint needs a different
+   * default, add a SCREENSHOT_FULL_PAGE env var to the capture-screenshots.yml service blueprint
    * and read it here alongside the per-step override.
    */
   fullPage?: boolean;
@@ -124,10 +124,10 @@ export async function openDashboard(page: Page): Promise<void> {
   await expect(page.getByRole('link', { name: 'Go to Dashboard' })).toBeVisible({ timeout: 30_000 });
   await page.getByRole('link', { name: 'Go to Dashboard' }).click();
   await expect(page).toHaveURL(/\/dashboard\/?$/, { timeout: 30_000 });
-  await expect(page.getByRole('heading', { name: 'Workflow Demos' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: 'Service Blueprint Demos' })).toBeVisible({ timeout: 30_000 });
 }
 
-export async function resetWorkflows(request: APIRequestContext): Promise<void> {
+export async function resetServiceBlueprints(request: APIRequestContext): Promise<void> {
   await request.delete(`${businessAppOrigin}/api/test/reset`, { ignoreHTTPSErrors: true });
 }
 
@@ -278,13 +278,13 @@ async function getContentAwareScreenshotHeight(page: Page, expected: PageHealthC
 }
 
 /**
- * The workflow admin page loads Ace and Mermaid from public CDNs. We always stub
+ * The service blueprint admin page loads Ace and Mermaid from public CDNs. We always stub
  * Ace because walkthroughs never need the full editor bundle. Mermaid is stubbed
  * only outside screenshot capture so normal Playwright tests stay deterministic
  * without third-party network dependencies, while screenshot runs still render
  * the real diagram markup before capture.
  */
-export async function stubWorkflowAdminVendorAssets(page: Page): Promise<void> {
+export async function stubServiceBlueprintAdminVendorAssets(page: Page): Promise<void> {
   await page.context().route(/https:\/\/cdnjs\.cloudflare\.com\/ajax\/libs\/ace\/.*\/ace\.min\.js/, route =>
     route.fulfill({
       status: 200,
@@ -316,21 +316,21 @@ export async function stubWorkflowAdminVendorAssets(page: Page): Promise<void> {
   }
 }
 
-export async function waitForWorkflowAdmin(page: Page): Promise<void> {
+export async function waitForServiceBlueprintAdmin(page: Page): Promise<void> {
   await assertHealthyPage(page, {
-    url: /https:\/\/localhost:7245\/admin\/workflow\/?$/,
-    heading: /workflow admin/i
+    url: /https:\/\/localhost:7245\/admin\/service-blueprint\/?$/,
+    heading: /service-blueprint admin/i
   });
-  await expect(page.getByRole('heading', { name: 'Workflow Instances' })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole('heading', { name: 'Workflow Definitions' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: 'ServiceBlueprint Instances' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: 'Service Blueprint Definitions' })).toBeVisible({ timeout: 30_000 });
 }
 
-export async function openWorkflowAdminFromDashboard(page: Page): Promise<Page> {
-  await stubWorkflowAdminVendorAssets(page);
+export async function openServiceBlueprintAdminFromDashboard(page: Page): Promise<Page> {
+  await stubServiceBlueprintAdminVendorAssets(page);
 
   const adminLink = page.getByRole('link', { name: 'Open Admin' });
   await expect(adminLink).toBeVisible({ timeout: 30_000 });
-  await expect(adminLink).toHaveAttribute('href', `${businessAppOrigin}/admin/workflow`);
+  await expect(adminLink).toHaveAttribute('href', `${businessAppOrigin}/admin/service-desk`);
 
   const [adminPage] = await Promise.all([
     page.context().waitForEvent('page'),
@@ -338,7 +338,7 @@ export async function openWorkflowAdminFromDashboard(page: Page): Promise<Page> 
   ]);
 
   await adminPage.waitForLoadState('domcontentloaded');
-  await waitForWorkflowAdmin(adminPage);
+  await waitForServiceBlueprintAdmin(adminPage);
 
   return adminPage;
 }

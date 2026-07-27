@@ -1,6 +1,6 @@
 # Gateway-First Authoring
 
-A guide to the gateway-and-route model. Understand how the workflow editor structures transitions.
+A guide to the gateway-and-route model. Understand how the service blueprint editor structures transitions.
 
 ---
 
@@ -57,7 +57,7 @@ The new model has no inbound-binding mechanism on Joins. Instead, you express fa
 
 ### Worked Example — Leave Request (5 Gateways)
 
-The Leave Request workflow demonstrates the fan-in pattern. Five gateways:
+The Leave Request service blueprint demonstrates the fan-in pattern. Five gateways:
 
 1. **`review-split`** — Split anchored to the `review` stage. Emits three routes:
    - `request-amendments` → targets `applicant-amendments` stage
@@ -109,7 +109,7 @@ This makes the model:
 
 ### Why Joins Have No Source
 
-A Join is a **convergence point**. It does not belong to any one stage. It belongs to the workflow as a whole.
+A Join is a **convergence point**. It does not belong to any one stage. It belongs to the service blueprint as a whole.
 
 If you try to give a Join a source, you create ambiguity: which stage owns the Join? What happens if that stage is deleted?
 
@@ -129,7 +129,7 @@ The rendering is automatic. You do not configure it.
 
 ---
 
-## Authoring Workflow
+## Authoring Service Blueprint
 
 When you add a new transition in the editor:
 
@@ -147,7 +147,7 @@ When you delete a transition:
 4. The editor removes the route from the gateway.
 5. If the gateway has no routes left, the editor deletes the gateway.
 
-This workflow is the same whether you have a single-route Split or a multi-route Split. The editor handles the rendering automatically.
+This service blueprint is the same whether you have a single-route Split or a multi-route Split. The editor handles the rendering automatically.
 
 ---
 
@@ -215,21 +215,21 @@ If any of these rules are violated, the editor shows a validation issue and bloc
 
 ## Migration from the Old Model
 
-If you have old workflows with a top-level `transitions[]` array, you need to migrate them to the gateway-and-route model:
+If you have old service blueprints with a top-level `transitions[]` array, you need to migrate them to the gateway-and-route model:
 
 1. For each transition, find or create a Split gateway anchored to the `from` stage.
 2. Add a route to that Split: `target = transition.to`, `trigger = transition.action`, `condition = transition.condition`, etc.
 3. Delete the top-level `transitions[]` array.
 
-The editor does this automatically when you open an old workflow. The migration is one-way. Once migrated, you cannot go back to the flat transition model.
+The editor does this automatically when you open an old service blueprint. The migration is one-way. Once migrated, you cannot go back to the flat transition model.
 
 ---
 
 ## Related Documentation
 
-- [Embedding the Workflow Editor](../guides/embedding-the-workflow-editor.md) — integrator recipe
-- [Authoring a Workflow](authoring-a-workflow.md) — how to author workflows in the editor
-- [Planning Workflow Editor](planning-workflow-editor.md) — tour of the editor UI
+- [Embedding the Service Blueprint Editor](../guides/embedding-the-service-blueprint-editor.md) — integrator recipe
+- [Authoring a Service Blueprint](authoring-a-service-blueprint.md) — how to author service blueprints in the editor
+- [Planning Service Blueprint Editor](planning-service-blueprint-editor.md) — tour of the editor UI
 
 ---
 

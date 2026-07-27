@@ -117,22 +117,22 @@ var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusines
         {
             ctx.Urls.Add(new ResourceUrlAnnotation
             {
-                Url = $"{baseUrl}/admin/workflow",
-                DisplayText = "Workflow Admin",
+                Url = $"{baseUrl}/admin/service-desk",
+                DisplayText = "Service Desk",
                 DisplayOrder = 1,
             });
 
             ctx.Urls.Add(new ResourceUrlAnnotation
             {
-                Url = $"{baseUrl}/workflow-editor",
-                DisplayText = "Workflow Editor",
+                Url = $"{baseUrl}/service-blueprint-editor",
+                DisplayText = "Service Blueprint Editor",
                 DisplayOrder = 2,
             });
 
             ctx.Urls.Add(new ResourceUrlAnnotation
             {
-                Url = $"{baseUrl}/prism/workflow-authoring/mcp",
-                DisplayText = "Workflow Authoring MCP",
+                Url = $"{baseUrl}/prism/service-blueprint-authoring/mcp",
+                DisplayText = "Service Blueprint Authoring MCP",
                 DisplayOrder = 3,
             });
         }
@@ -144,8 +144,8 @@ var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusines
             // clients (including Claude Code's) won't trust.
             ctx.Urls.Add(new ResourceUrlAnnotation
             {
-                Url = $"{httpBaseUrl}/prism/workflow-authoring/mcp",
-                DisplayText = "Workflow Authoring MCP (HTTP)",
+                Url = $"{httpBaseUrl}/prism/service-blueprint-authoring/mcp",
+                DisplayText = "Service Blueprint Authoring MCP (HTTP)",
                 DisplayOrder = 4,
             });
         }
@@ -155,7 +155,7 @@ var prismClient = builder.AddNpmApp("prism-client", "../UmbracoPrism.Client", "b
 
 var testsite = builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj", launchProfileName: "Umbraco.Web.UI")
     .WithEnvironment("KEYCLOAK_URL", keycloakProxyUrl)
-    .WithEnvironment("PrismBusinessApp__WorkflowApiBaseUrl", businessAppUrl)
+    .WithEnvironment("PrismBusinessApp__ApiBaseUrl", businessAppUrl)
     .WithEnvironment(TestSiteRuntimeRootEnvironmentVariable, testSiteRuntimeRoot)
     .WithEnvironment(ResetTestSiteRuntimeEnvironmentVariable, resetTestSiteRuntime)
     .WaitFor(keycloakProxy)
@@ -163,10 +163,10 @@ var testsite = builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoP
     .WaitFor(prismClient)
     .WithUrls(ctx =>
     {
-        // CMS Workflow's own MCP surface (MapPrismCmsWorkflowAuthoringMcp) — a distinct
+        // CMS Service Blueprint's own MCP surface (MapPrismCmsServiceBlueprintAuthoringMcp) — a distinct
         // endpoint from businessApp's above, gated by real backoffice admin auth (client
         // credentials) rather than left open, since (unlike MockBusinessApp) TestSite has
-        // an existing manual-auth surface to match. See docs/guides/ai-workflow-authoring.md.
+        // an existing manual-auth surface to match. See docs/guides/ai-service-blueprint-authoring.md.
         var httpBaseUrl = ctx.Urls
             .Where(u => u.Url?.StartsWith("http://", StringComparison.OrdinalIgnoreCase) == true)
             .Select(u => new Uri(u.Url!))
@@ -177,8 +177,8 @@ var testsite = builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoP
         {
             ctx.Urls.Add(new ResourceUrlAnnotation
             {
-                Url = $"{httpBaseUrl}/prism/workflow-authoring/mcp",
-                DisplayText = "CMS Workflow Authoring MCP (HTTP, requires backoffice admin auth)",
+                Url = $"{httpBaseUrl}/prism/service-blueprint-authoring/mcp",
+                DisplayText = "CMS Service Blueprint Authoring MCP (HTTP, requires backoffice admin auth)",
                 DisplayOrder = 1,
             });
         }
@@ -197,7 +197,7 @@ if (codespaceName != null)
 // In Codespaces, server-side calls from TestSite to the public app.github.dev BusinessApp URL can
 // hit the GitHub forwarded-port proxy and receive an HTML tunnel/auth page instead of API JSON
 // because the forwarded port is browser-facing and often private. Use the BusinessApp's internal
-// HTTP endpoint for server-to-server traffic; keep PrismBusinessApp__WorkflowApiBaseUrl as the
+// HTTP endpoint for server-to-server traffic; keep PrismBusinessApp__ApiBaseUrl as the
 // browser/public URL only.
 // NOTE: Aspire may assign ephemeral ports, so use GetEndpoint("http") for dynamic discovery.
 if (codespaceName != null)

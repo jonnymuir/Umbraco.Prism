@@ -1,14 +1,14 @@
-# Walkthrough — Building a Mobile App from a Workflow
+# Walkthrough — Building a Mobile App from a Service Blueprint
 
-A guide to taking a Prism workflow and shipping it as a native iOS or Android app using Capacitor — covering the shell structure, biometric authentication, deep link handling, and the build pipeline.
+A guide to taking a Prism service blueprint and shipping it as a native iOS or Android app using Capacitor — covering the shell structure, biometric authentication, deep link handling, and the build pipeline.
 
-> **Prerequisites:** The Prism stack runs locally (or in Codespaces). You have completed at least one workflow walkthrough (e.g., [Planning Notification](planning-notification.md)) and are familiar with how workflows render in the browser. For iOS builds, Xcode 15+ is required. For Android, Android Studio.
+> **Prerequisites:** The Prism stack runs locally (or in Codespaces). You have completed at least one service blueprint walkthrough (e.g., [Planning Notification](planning-notification.md)) and are familiar with how service blueprints render in the browser. For iOS builds, Xcode 15+ is required. For Android, Android Studio.
 
 ---
 
 ## Overview
 
-Prism mobile apps are **thin Capacitor shells** around the existing web-based workflow UI. The same Razor views, Lit web components, and workflow engine that power the browser experience are reused unchanged inside a native WebView. What Capacitor adds:
+Prism mobile apps are **thin Capacitor shells** around the existing web-based service blueprint UI. The same Razor views, Lit web components, and service blueprint engine that power the browser experience are reused unchanged inside a native WebView. What Capacitor adds:
 
 - **Native push notifications** (via `@capacitor/push-notifications`)
 - **Biometric authentication** (via `@aparajita/capacitor-biometric-auth`)
@@ -135,7 +135,7 @@ When the mobile app next connects, it checks this tenant setting and offers biom
 
 ## Part 4: Deep Link Handling
 
-Deep links let external sources (emails, SMS, other apps) open your Prism mobile app at a specific workflow or content page.
+Deep links let external sources (emails, SMS, other apps) open your Prism mobile app at a specific service blueprint or content page.
 
 ### URL Scheme (Universal/Custom)
 
@@ -147,7 +147,7 @@ const config: CapacitorConfig = {
   // ...
   plugins: {
     App: {
-      // Custom URL scheme (e.g., prism-portal://workflow/planning-notification)
+      // Custom URL scheme (e.g., prism-portal://service-blueprint/planning-notification)
       appUrlScheme: 'prism-portal',
     },
   },
@@ -165,9 +165,9 @@ import { App, type URLOpenListenerEvent } from '@capacitor/app';
 
 App.addListener('appUrlOpen', (event: URLOpenListenerEvent) => {
   const url = new URL(event.url);
-  // e.g., prism-portal://workflow/planning-notification → navigate to /apply-for-planning-permission
-  const workflowSlug = url.pathname.replace('/workflow/', '');
-  window.location.href = `/${workflowSlug}`;
+  // e.g., prism-portal://service-blueprint/planning-notification → navigate to /apply-for-planning-permission
+  const serviceBlueprintSlug = url.pathname.replace('/service-blueprint/', '');
+  window.location.href = `/${serviceBlueprintSlug}`;
 });
 ```
 
@@ -179,7 +179,7 @@ App.addListener('appUrlOpen', (event: URLOpenListenerEvent) => {
 
 The `prism-mobile-nav` web component (`src/UmbracoPrism.Client/src/mobile/prism-mobile-nav.ts`) provides a native-feeling bottom tab bar for mobile layouts. It:
 
-- Renders below the workflow content area
+- Renders below the service blueprint content area
 - Uses CSS variables for theming (respects the tenant's `--prism-nav-bg`, `--prism-primary`, etc.)
 - Integrates with `@capacitor/app` to detect the active route and highlight the correct tab
 - Shows push notification badge counts on the notifications tab
@@ -189,7 +189,7 @@ The `prism-mobile-nav` web component (`src/UmbracoPrism.Client/src/mobile/prism-
   active-route="/dashboard"
   .tabs="${[
     { label: 'Home',          icon: 'home',  href: '/' },
-    { label: 'My Workflows',  icon: 'list',  href: '/dashboard' },
+    { label: 'My Service-Blueprints',  icon: 'list',  href: '/dashboard' },
     { label: 'Notifications', icon: 'bell',  href: '/notifications', badge: 3 },
     { label: 'Profile',       icon: 'user',  href: '/profile' },
   ]}"

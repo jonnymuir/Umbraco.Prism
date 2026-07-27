@@ -21,7 +21,7 @@ const maxRecoveryAttempts = 1;
 // classify as "still seeding" (not a hard failure). CI hardware timing can push
 // the seed task past the probe's initial retry window, so the probe must distinguish
 // "Umbraco booting" from "Umbraco up but unseeded" from "Umbraco fully ready".
-// See: PR #52 (squad/planning-workflow-editor-walkthrough), CI run 25987849590.
+// See: PR #52 (squad/planning-service-blueprint-editor-walkthrough), CI run 25987849590.
 const umbracoUnseededPageMarkers = [
   '<title>Umbraco: No Published Content</title>',
   'Welcome to your Umbraco installation',
@@ -47,16 +47,16 @@ const readinessChecks = [
     bodyIncludes: [
       '"ready":true',
       '"routeContractReady":true',
-      '"challengePath":"/auth/login?ReturnUrl=%2Fmy-workflows"'
+      '"challengePath":"/auth/login?ReturnUrl=%2Fmy-service-requests"'
     ]
   },
   {
     // Behavioural confirmation: the protected authored URL now challenges with the expected return target.
     // Doubles as a Razor view-compilation warmup so the first test doesn't pay the cold-render cost.
-    name: 'Workflow hub seed',
-    url: 'https://localhost:44345/my-workflows',
+    name: 'ServiceBlueprint hub seed',
+    url: 'https://localhost:44345/my-service-requests',
     allowedStatuses: [302],
-    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fmy-workflows' }]
+    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fmy-service-requests' }]
   },
   {
     // Dashboard route warmup. MemberDashboardController has [Authorize]; the cookie auth
@@ -68,29 +68,29 @@ const readinessChecks = [
     headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fdashboard' }]
   },
   {
-    // Community-enquiry workflow page warmup (used by both localhost-auth and workflow-all-demos suites).
-    name: 'Community enquiry workflow route',
+    // Community-enquiry service blueprint page warmup (used by both localhost-auth and service-blueprint-all-demos suites).
+    name: 'Community enquiry service blueprint route',
     url: 'https://localhost:44345/get-in-touch',
     allowedStatuses: [302],
     headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fget-in-touch' }]
   },
   {
-    // Planning workflow page warmup (workflow-gds-journey + workflow-all-demos).
-    name: 'Planning workflow route',
+    // Planning service blueprint page warmup (service-blueprint-gds-journey + service-blueprint-all-demos).
+    name: 'Planning service blueprint route',
     url: 'https://localhost:44345/apply-for-planning-permission',
     allowedStatuses: [302],
     headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fapply-for-planning-permission' }]
   },
   {
-    // Payment-demo workflow page warmup (workflow-all-demos).
-    name: 'Payment demo workflow route',
+    // Payment-demo service blueprint page warmup (service-blueprint-all-demos).
+    name: 'Payment demo service blueprint route',
     url: 'https://localhost:44345/payment-demo',
     allowedStatuses: [302],
     headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fpayment-demo' }]
   },
   {
-    // Information-request workflow page warmup (workflow-all-demos).
-    name: 'Information request workflow route',
+    // Information-request service blueprint page warmup (service-blueprint-all-demos).
+    name: 'Information request service blueprint route',
     url: 'https://localhost:44345/request-information',
     allowedStatuses: [302],
     headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Frequest-information' }]

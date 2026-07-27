@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using System.Text;
-using UmbracoPrism.Core.Models.Workflow;
+using UmbracoPrism.Shared.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.TagHelpers;
 
@@ -8,7 +8,7 @@ namespace UmbracoPrism.Core.TagHelpers;
 public class PrismErrorSummaryTagHelper : TagHelper
 {
     [HtmlAttributeName("problems")]
-    public IReadOnlyList<WorkflowProblem>? Problems { get; set; }
+    public IReadOnlyList<ServiceRequestProblem>? Problems { get; set; }
 
     public override void Process(TagHelperContext context, TagHelperOutput output)
     {

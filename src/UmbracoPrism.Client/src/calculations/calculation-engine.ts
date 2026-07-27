@@ -1,5 +1,5 @@
 /**
- * TypeScript evaluator for the Prism workflow calculation language.
+ * TypeScript evaluator for the Prism service blueprint calculation language.
  *
  * This mirrors the C# implementation (UmbracoPrism.Shared/Services/Calculations) —
  * same grammar, same functions, same semantics. The shared conformance suite in

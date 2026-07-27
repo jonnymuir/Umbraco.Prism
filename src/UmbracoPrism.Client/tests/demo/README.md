@@ -89,7 +89,7 @@ Note: The ttyd is strickly just so we can automate the recording. If you want to
    dev certs aren't trusted). Read it off the Aspire dashboard, or find it directly:
    ```
    lsof -p $(pgrep -f UmbracoPrism.MockBusinessApp/bin) -a -i -P | grep LISTEN
-   # try each candidate port with: curl http://localhost:<port>/prism/workflow-authoring/mcp
+   # try each candidate port with: curl http://localhost:<port>/prism/service-blueprint-authoring/mcp
    # the real one returns 400 (bad request — no session header) rather than connection-refused
    ```
 3. **Start the terminal surface, from an empty scratch directory** (no repo checkout in reach —
@@ -107,7 +107,7 @@ Note: The ttyd is strickly just so we can automate the recording. If you want to
      ttyd --writable --interface 127.0.0.1 -p 7681 -c "demo:$PASS" \
        tmux new-session -A -s prism-demo -- \
        script -q -F /tmp/claude-session.log claude \
-         --tools "mcp__prism-workflow__*,ListMcpResourcesTool,ReadMcpResourceDirTool,ReadMcpResourceTool" \
+         --tools "mcp__prism-service-blueprint__*,ListMcpResourcesTool,ReadMcpResourceDirTool,ReadMcpResourceTool" \
          --permission-mode bypassPermissions
    ```
    Six things bundled into that command, each load-bearing:
@@ -127,19 +127,19 @@ Note: The ttyd is strickly just so we can automate the recording. If you want to
      interactive over ttyd) that also tees every byte to a plain file, which the spec polls
      directly. `-F` flushes after every write so the poll sees output immediately, not in
      buffered chunks.
-   - `--tools "mcp__prism-workflow__*"` — restricts the *entire available toolset* (not an
-     allow-list on top of the default one) to just the five `prism-workflow` MCP tools. Without
+   - `--tools "mcp__prism-service-blueprint__*"` — restricts the *entire available toolset* (not an
+     allow-list on top of the default one) to just the five `prism-service-blueprint` MCP tools. Without
      this, Claude Code's own built-in `Agent`/Task tool stays available, and on a bare/scratch
      invocation the model has been observed to spontaneously delegate a read to a background
      sub-agent fork instead of calling the MCP tool directly; that fork call failed ("Invalid
      tool parameters") and left the session stuck waiting on a fork that never returns — a real
      hang, not a recording artifact. This also makes for a more honest demo: the terminal shows
-     the model calling `read_workflow`/`validate_workflow`/`simulate_workflow`/`save_workflow`
+     the model calling `read_service_blueprint`/`validate_service_blueprint`/`simulate_service_blueprint`/`save_service_blueprint`
      directly, not delegating through an opaque sub-agent.
-   - `--permission-mode bypassPermissions` — `--allowedTools "mcp__prism-workflow__*"` was tried
+   - `--permission-mode bypassPermissions` — `--allowedTools "mcp__prism-service-blueprint__*"` was tried
      first and looked sufficient (an allow-list glob should pre-approve matching tool calls), but
-     in practice only `read_workflow` went through silently; `validate_workflow`/`save_workflow`/
-     `simulate_workflow` still stopped on an unanswered approval prompt with no interactive human
+     in practice only `read_service_blueprint` went through silently; `validate_service_blueprint`/`save_service_blueprint`/
+     `simulate_service_blueprint` still stopped on an unanswered approval prompt with no interactive human
      there to answer it, stalling the agent mid-task (confirmed by reading the agent's own
      narration in `/tmp/claude-session.log`, which correctly diagnosed the stall as a permission
      issue). `bypassPermissions` removes the confirmation gate entirely — reasonable here only
@@ -180,7 +180,7 @@ Note: The ttyd is strickly just so we can automate the recording. If you want to
 4. **Wire the agent**, using the port from step 2, from inside that same scratch directory (only
    needs doing once — the config persists in `~/.claude.json` for that project path):
    ```
-   claude mcp add --transport http prism-workflow http://localhost:<port>/prism/workflow-authoring/mcp
+   claude mcp add --transport http prism-service-blueprint http://localhost:<port>/prism/service-blueprint-authoring/mcp
    claude mcp list   # confirm "✔ Connected"
    ```
    The first launch in a new directory also shows a one-time "do you trust this folder?" prompt —

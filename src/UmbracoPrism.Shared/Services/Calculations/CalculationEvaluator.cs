@@ -1,9 +1,9 @@
 using System.Globalization;
-using UmbracoPrism.Shared.Models.Workflow.Calculations;
+using UmbracoPrism.Shared.Models.ServiceDesign.Calculations;
 
 namespace UmbracoPrism.Shared.Services.Calculations;
 
-/// <summary>Result of evaluating a <see cref="WorkflowCalculationSet"/>.</summary>
+/// <summary>Result of evaluating a <see cref="ServiceBlueprintCalculationSet"/>.</summary>
 public sealed record CalculationResult
 {
     /// <summary>Computed field values (decimal, bool or string) in declaration order.</summary>
@@ -15,7 +15,7 @@ public sealed record CalculationResult
         = new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>();
 }
 
-/// <summary>Which part of a <see cref="WorkflowCalculationSet"/> a <see cref="CalculationDiagnostic"/> came from.</summary>
+/// <summary>Which part of a <see cref="ServiceBlueprintCalculationSet"/> a <see cref="CalculationDiagnostic"/> came from.</summary>
 public enum CalculationDiagnosticKind { Field, Series }
 
 /// <summary>One field/series failure collected by <see cref="CalculationEvaluator.EvaluateCollectingErrors"/>.</summary>
@@ -29,7 +29,7 @@ public sealed record CalculationDiagnostic(CalculationDiagnosticKind Kind, strin
 public sealed record CalculationEvaluationResult(CalculationResult Result, IReadOnlyList<CalculationDiagnostic> Diagnostics);
 
 /// <summary>
-/// Evaluates a workflow calculation set against a scope of input values.
+/// Evaluates a blueprint calculation set against a scope of input values.
 ///
 /// Numeric semantics: all arithmetic is <see cref="decimal"/>. The single exception is
 /// <c>pow</c>, which round-trips through <see cref="double"/> because fractional
@@ -50,17 +50,17 @@ public sealed class CalculationEvaluator
     public object? EvaluateExpression(
         string expression,
         IReadOnlyDictionary<string, object?> scope,
-        WorkflowCalculationSet? context = null)
+        ServiceBlueprintCalculationSet? context = null)
     {
         return EvaluateNode(
             CalculationExpressionParser.Parse(expression),
             scope,
-            context ?? new WorkflowCalculationSet(),
+            context ?? new ServiceBlueprintCalculationSet(),
             $"expression '{expression}'");
     }
 
     public CalculationResult Evaluate(
-        WorkflowCalculationSet calculations,
+        ServiceBlueprintCalculationSet calculations,
         IReadOnlyDictionary<string, object?> inputs) =>
         EvaluateCore(calculations, inputs, collectErrors: false).Result;
 
@@ -71,12 +71,12 @@ public sealed class CalculationEvaluator
     /// where an author needs every problem in one pass, not just the first.
     /// </summary>
     public CalculationEvaluationResult EvaluateCollectingErrors(
-        WorkflowCalculationSet calculations,
+        ServiceBlueprintCalculationSet calculations,
         IReadOnlyDictionary<string, object?> inputs) =>
         EvaluateCore(calculations, inputs, collectErrors: true);
 
     private CalculationEvaluationResult EvaluateCore(
-        WorkflowCalculationSet calculations,
+        ServiceBlueprintCalculationSet calculations,
         IReadOnlyDictionary<string, object?> inputs,
         bool collectErrors)
     {
@@ -121,7 +121,7 @@ public sealed class CalculationEvaluator
         }
 
         var series = new Dictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>>(StringComparer.Ordinal);
-        foreach (var (name, definition) in calculations.Series ?? new Dictionary<string, WorkflowCalculationSeries>())
+        foreach (var (name, definition) in calculations.Series ?? new Dictionary<string, ServiceBlueprintCalculationSeries>())
         {
             try
             {
@@ -138,9 +138,9 @@ public sealed class CalculationEvaluator
 
     private IReadOnlyList<IReadOnlyDictionary<string, object?>> EvaluateSeries(
         string seriesName,
-        WorkflowCalculationSeries definition,
+        ServiceBlueprintCalculationSeries definition,
         Dictionary<string, object?> scope,
-        WorkflowCalculationSet calculations)
+        ServiceBlueprintCalculationSet calculations)
     {
         if (string.IsNullOrWhiteSpace(definition.Over))
         {
@@ -193,7 +193,7 @@ public sealed class CalculationEvaluator
     private object? EvaluateNode(
         CalcNode node,
         IReadOnlyDictionary<string, object?> scope,
-        WorkflowCalculationSet calculations,
+        ServiceBlueprintCalculationSet calculations,
         string context)
     {
         switch (node)
@@ -227,7 +227,7 @@ public sealed class CalculationEvaluator
     private object? EvaluateBinary(
         CalcNode.Binary binary,
         IReadOnlyDictionary<string, object?> scope,
-        WorkflowCalculationSet calculations,
+        ServiceBlueprintCalculationSet calculations,
         string context)
     {
         // Short-circuit boolean operators before evaluating the right side.
@@ -288,7 +288,7 @@ public sealed class CalculationEvaluator
     private object? EvaluateCall(
         CalcNode.Call call,
         IReadOnlyDictionary<string, object?> scope,
-        WorkflowCalculationSet calculations,
+        ServiceBlueprintCalculationSet calculations,
         string context)
     {
         object? Arg(int i) => EvaluateNode(call.Args[i], scope, calculations, context);
@@ -371,7 +371,7 @@ public sealed class CalculationEvaluator
     private static decimal Lookup(
         string tableName,
         decimal key,
-        WorkflowCalculationSet calculations,
+        ServiceBlueprintCalculationSet calculations,
         string context)
     {
         if (calculations.Tables is null || !calculations.Tables.TryGetValue(tableName, out var table))

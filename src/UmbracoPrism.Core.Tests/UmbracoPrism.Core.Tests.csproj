@@ -32,12 +32,6 @@
     <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
     <ProjectReference Include="../UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj" />
     <ProjectReference Include="../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj" Aliases="global,MockBusinessApp" />
-    <ProjectReference Include="..\UmbracoPrism.WorkflowEditor\UmbracoPrism.WorkflowEditor.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Remove="Workflow/Authoring/Fixtures/*.workflow.json" />
-    <Content Include="Workflow/Authoring/Fixtures/*.workflow.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

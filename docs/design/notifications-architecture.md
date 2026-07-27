@@ -615,7 +615,7 @@ Send a personalized push notification 5 minutes after a member's first biometric
 
 | Component | Description |
 |-----------|-------------|
-| `IPrismNotificationService` | Public API — the main developer touchpoint |
+| `IPrismNotificationService` | Public API — the main developer stage |
 | `IPrismPushGateway` + `FcmPushGateway` | Push delivery abstraction + FCM default |
 | `NotificationController` | Token registration, subscribe/unsubscribe endpoints |
 | `PrismContentNotificationHandler` | Umbraco event → push notification bridge |

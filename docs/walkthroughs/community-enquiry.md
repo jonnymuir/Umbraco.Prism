@@ -1,10 +1,10 @@
-# Community Enquiry Workflow
+# Community Enquiry Service Blueprint
 
 A multi-section contact form demonstrating the polymorphic component model with conditional reveals, checkboxes, and form validation.
 
 ## Overview
 
-The community enquiry workflow (`community-enquiry`) collects contact details and enquiry preferences through a single-page form. It demonstrates:
+The community enquiry service blueprint (`community-enquiry`) collects contact details and enquiry preferences through a single-page form. It demonstrates:
 
 - **Fieldsets** grouping related fields
 - **Conditional radios** with `conditionalChildren` (select "Other" to reveal a text input)
@@ -72,19 +72,19 @@ A completed form shows the enquiry type selection, the free-text "Tell us more" 
 
 Successful submission transitions the instance to its terminal state and displays a confirmation panel. Subsequent visits to `/get-in-touch` show this same confirmation — the `single` instance policy means no new instance can be started until the current one is reset or resolved.
 
-### Workflow Admin handoff (development only)
+### Service Desk handoff (development only)
 
-In the local demo, this is also the point where a tester or operator can pick up the story in the [Workflow Administration walkthrough](workflow-administration.md). The development-only admin panel exposes **Request Changes** and **Approve** actions for the `under-review` state, letting you exercise the "member submits → reviewer responds" handoff against the real UI without adding operator controls to the public form.
+In the local demo, this is also the point where a tester or operator can pick up the story in the [Service Blueprint Administration walkthrough](service-request-administration.md). The development-only admin panel exposes **Request Changes** and **Approve** actions for the `under-review` state, letting you exercise the "member submits → reviewer responds" handoff against the real UI without adding operator controls to the public form.
 
-## Workflow Seed JSON
+## Service Blueprint Seed JSON
 
-**Location:** `src/UmbracoPrism.MockBusinessApp/workflow-seeds/community-enquiry.json`
+**Location:** `src/UmbracoPrism.MockBusinessApp/service-blueprints/community-enquiry.json`
 
 **Definition key:** `community-enquiry`  
 **Display name:** Get in Touch  
 **Instance policy:** `single` (only one active instance per user)
 
-The workflow uses the polymorphic component schema:
+The service blueprint uses the polymorphic component schema:
 - All components have a `type` discriminator (`"text"`, `"email"`, `"radios"`, `"checkboxes"`, `"fieldset"`, etc.)
 - Fieldsets use `children[]` arrays for nested components
 - Radios use `conditionalChildren` for conditional reveals
@@ -95,7 +95,7 @@ The workflow uses the polymorphic component schema:
 ✅ **Polymorphic components** – Every component has a `type` discriminator  
 ✅ **Fieldsets as containers** – Use `children[]` to group related fields  
 ✅ **Conditional logic** – Implemented via `conditionalChildren` on radios/checkboxes  
-✅ **Readonly fields** – Pre-populated from auth claims for authenticated workflows  
+✅ **Readonly fields** – Pre-populated from auth claims for authenticated service blueprints  
 ✅ **Validation built-in** – `required`, `maxLength`, and type-specific constraints
 
 ---

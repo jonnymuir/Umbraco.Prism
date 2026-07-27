@@ -37,8 +37,8 @@ using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.TagHelpers;
 using UmbracoPrism.MockBusinessApp.Services;
-using UmbracoPrism.Shared.Models.Workflow;
-using UmbracoPrism.Shared.Models.Workflow.Components;
+using UmbracoPrism.Shared.Models.ServiceDesign;
+using UmbracoPrism.Shared.Models.ServiceDesign.Components;
 using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.TestSite.Controllers;
 using UmbracoPrism.TestSite.Controllers.Models;
@@ -260,7 +260,7 @@ public class Phase1SecurityRegressionTests : IDisposable
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Prism:EnableDownstreamDemo"] = "false",
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://api.example.com"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://api.example.com"
             })
             .Build();
 
@@ -283,7 +283,7 @@ public class Phase1SecurityRegressionTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             })
             .Build();
 
@@ -309,7 +309,7 @@ public class Phase1SecurityRegressionTests : IDisposable
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Prism:EnableDownstreamDemo"] = "true",
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://api.example.com"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://api.example.com"
             })
             .Build();
 
@@ -336,7 +336,7 @@ public class Phase1SecurityRegressionTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             })
             .Build();
 
@@ -358,7 +358,7 @@ public class Phase1SecurityRegressionTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             })
             .Build();
 
@@ -377,21 +377,21 @@ public class Phase1SecurityRegressionTests : IDisposable
     }
 
     // ------------------------------------------------------------------
-    // 5. WORKFLOW POLL CONTROLLER AUTHENTICATION (SEC-001 patch)
+    // 5. SERVICE REQUEST POLL CONTROLLER AUTHENTICATION (SEC-001 patch)
     // ------------------------------------------------------------------
 
     [Fact]
-    public void WorkflowPollController_RequiresPrismMemberCookieAuth()
+    public void ServiceRequestPollController_RequiresPrismMemberCookieAuth()
     {
-        // SECURITY: WorkflowPollController.Poll exposes workflow instance state
+        // SECURITY: ServiceRequestPollController.Poll exposes service request state
         // (state version, step type) for any provided instanceId.
-        // Without auth an unauthenticated caller could probe workflow existence.
+        // Without auth an unauthenticated caller could probe request existence.
         // Fix: [Authorize(AuthenticationSchemes = "PrismMemberCookie")] on the controller class.
 
-        var hasMemberCookieAuth = HasAuthorizeAttributeWithScheme<Controllers.WorkflowPollController>("PrismMemberCookie");
+        var hasMemberCookieAuth = HasAuthorizeAttributeWithScheme<Controllers.ServiceRequestPollController>("PrismMemberCookie");
 
         hasMemberCookieAuth.Should().BeTrue(
-            "because WorkflowPollController.Poll returns workflow state and must require member authentication");
+            "because ServiceRequestPollController.Poll returns service request state and must require member authentication");
     }
 
     // ------------------------------------------------------------------
@@ -796,72 +796,72 @@ public class Phase1SecurityRegressionTests : IDisposable
     }
 
     // ------------------------------------------------------------------
-    // 5. WORKFLOW CONTENT SANITIZATION (SEC-003)
+    // 6. SERVICE REQUEST CONTENT SANITIZATION (SEC-003)
     //
     // These tests assert that when the engine processes a malicious Content
     // payload, the rendered PrismComponentRenderPayload.Content does NOT
-    // contain the malicious vector. They use the real WorkflowContentSanitizer
+    // contain the malicious vector. They use the real ServiceContentSanitizer
     // (Ganss.Xss-backed GDS allowlist) wired into a minimal engine instance.
     // ------------------------------------------------------------------
 
     [Fact]
-    public void WorkflowContent_ScriptTagInBody_StrippedFromPayload()
+    public void ServiceRequestContent_ScriptTagInBody_StrippedFromPayload()
     {
         var content = "<script>alert(1)</script><p>safe</p>";
         var payload = BuildEnginePayloadForBody(content);
         payload.Should().NotContain("<script",
-            because: "script tags must be stripped by IWorkflowContentSanitizer before reaching the payload");
+            because: "script tags must be stripped by IServiceContentSanitizer before reaching the payload");
     }
 
     [Fact]
-    public void WorkflowContent_JavascriptHref_StrippedFromPayload()
+    public void ServiceRequestContent_JavascriptHref_StrippedFromPayload()
     {
         var content = "<a href=\"javascript:alert(1)\">click</a>";
         var payload = BuildEnginePayloadForBody(content);
         payload.Should().NotContain("javascript:",
-            because: "javascript: href schemes must be stripped by IWorkflowContentSanitizer");
+            because: "javascript: href schemes must be stripped by IServiceContentSanitizer");
     }
 
     [Fact]
-    public void WorkflowContent_OnerrorAttribute_StrippedFromPayload()
+    public void ServiceRequestContent_OnerrorAttribute_StrippedFromPayload()
     {
         var content = "<img src=x onerror=alert(1)>";
         var payload = BuildEnginePayloadForBody(content);
         payload.Should().NotContain("onerror",
-            because: "event handler attributes (on*) must be stripped by IWorkflowContentSanitizer");
+            because: "event handler attributes (on*) must be stripped by IServiceContentSanitizer");
     }
 
     [Fact]
-    public void WorkflowContent_DataTextHtmlHref_StrippedFromPayload()
+    public void ServiceRequestContent_DataTextHtmlHref_StrippedFromPayload()
     {
         var content = "<a href=\"data:text/html,<script>alert(1)</script>\">x</a>";
         var payload = BuildEnginePayloadForBody(content);
         payload.Should().NotContain("data:text/html",
-            because: "data: URI schemes must be stripped by IWorkflowContentSanitizer");
+            because: "data: URI schemes must be stripped by IServiceContentSanitizer");
     }
 
     [Fact]
-    public void WorkflowContent_NestedSvgWithOnload_StrippedFromPayload()
+    public void ServiceRequestContent_NestedSvgWithOnload_StrippedFromPayload()
     {
         var content = "<svg onload=alert(1)><circle/></svg><p>text</p>";
         var payload = BuildEnginePayloadForBody(content);
         payload.Should().NotContain("<svg",
-            because: "SVG elements with event handlers must be stripped by IWorkflowContentSanitizer");
+            because: "SVG elements with event handlers must be stripped by IServiceContentSanitizer");
         payload.Should().NotContain("onload",
-            because: "onload event handler must be stripped by IWorkflowContentSanitizer");
+            because: "onload event handler must be stripped by IServiceContentSanitizer");
     }
 
     [Fact]
-    public void WorkflowContent_PlainTextContent_PreservedInPayload()
+    public void ServiceRequestContent_PlainTextContent_PreservedInPayload()
     {
         var content = "Hello, this is plain text with no HTML.";
         var payload = BuildEnginePayloadForBody(content);
         payload.Should().Be(content,
-            because: "plain text content must pass through IWorkflowContentSanitizer unchanged");
+            because: "plain text content must pass through IServiceContentSanitizer unchanged");
     }
 
     /// <summary>
-    /// Builds a minimal engine wired with the real <see cref="WorkflowContentSanitizer"/>,
+    /// Builds a minimal engine wired with the real <see cref="ServiceContentSanitizer"/>,
     /// runs a single BodyComponent through BuildComponents (via GetCurrent),
     /// and returns the resulting payload Content string.
     /// </summary>
@@ -869,22 +869,22 @@ public class Phase1SecurityRegressionTests : IDisposable
     {
         var testSeedDir = Path.Combine(Directory.GetCurrentDirectory(), $"sec003-test-{Guid.NewGuid()}");
         Directory.CreateDirectory(testSeedDir);
-        Directory.CreateDirectory(Path.Combine(testSeedDir, "workflow-seeds"));
+        Directory.CreateDirectory(Path.Combine(testSeedDir, "service-blueprints"));
 
         try
         {
-            var workflow = new WorkflowDefinitionFile
+            var workflow = new ServiceBlueprint
             {
                 DefinitionKey = "sec003-test",
                 DisplayName = "SEC-003 Test",
                 Version = 1,
-                InitialState = "step-1",
-                InstancePolicy = "single",
-                States = new[]
+                InitialStage = "step-1",
+                RequestPolicy = "single",
+                Stages = new[]
                 {
-                    new StepDefinition
+                    new StageDefinition
                     {
-                        StateKey = "step-1",
+                        StageKey = "step-1",
                         DisplayName = "Step 1",
                         Components = new PrismComponent[]
                         {
@@ -892,21 +892,21 @@ public class Phase1SecurityRegressionTests : IDisposable
                         }
                     }
                 },
-                Transitions = Array.Empty<WorkflowTransitionFile>()
+                Transitions = Array.Empty<RouteFile>()
             };
 
             File.WriteAllText(
-                Path.Combine(testSeedDir, "workflow-seeds", "sec003-test.json"),
+                Path.Combine(testSeedDir, "service-blueprints", "sec003-test.json"),
                 JsonSerializer.Serialize(workflow, new JsonSerializerOptions { WriteIndented = true }));
 
             var mockEnv = new Mock<IWebHostEnvironment>();
             mockEnv.Setup(e => e.ContentRootPath).Returns(testSeedDir);
 
-            var logger = new Mock<ILogger<BusinessAppWorkflowEngine>>();
+            var logger = new Mock<ILogger<BusinessAppProcessManager>>();
             // Real sanitizer — exercises the GDS allowlist security boundary.
-            var sanitizer = new UmbracoPrism.Core.Services.Sanitization.WorkflowContentSanitizer();
+            var sanitizer = new UmbracoPrism.Core.Services.Sanitization.ServiceContentSanitizer();
 
-            var engine = new BusinessAppWorkflowEngine(logger.Object, mockEnv.Object, sanitizer);
+            var engine = new BusinessAppProcessManager(logger.Object, mockEnv.Object, sanitizer);
             var result = engine.GetCurrent("sec003-test", "tenant1", "user1");
 
             var bodyComponent = result.Render!.Components.FirstOrDefault(c =>

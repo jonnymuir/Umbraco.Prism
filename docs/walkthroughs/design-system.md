@@ -62,7 +62,7 @@ Click on **Prism Dashboard** to open its story.
 <!-- pending capture -->
 
 4. ✅ **What you can do in Storybook:**
-   - Inspect every state of every component (default, filled, error, loading, etc.) without navigating a full workflow.
+   - Inspect every state of every component (default, filled, error, loading, etc.) without navigating a full service blueprint.
    - Use **Accessibility** add-on to check ARIA labels and colour contrast against WCAG 2.1 AA.
    - Use **Actions** add-on to inspect custom events emitted by components.
    - Write new stories to document edge cases before implementing them.

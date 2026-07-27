@@ -110,16 +110,16 @@
           "to": "start + 3",
           "values": {
             "db": "pension",
-            "state": "if(age >= 68, sp, 0)"
+            "touchpoint": "if(age >= 68, sp, 0)"
           }
         }
       },
       "expectSeries": {
         "income": [
-          { "age": "66", "db": "12000", "state": "0" },
-          { "age": "67", "db": "12000", "state": "0" },
-          { "age": "68", "db": "12000", "state": "11975" },
-          { "age": "69", "db": "12000", "state": "11975" }
+          { "age": "66", "db": "12000", "touchpoint": "0" },
+          { "age": "67", "db": "12000", "touchpoint": "0" },
+          { "age": "68", "db": "12000", "touchpoint": "11975" },
+          { "age": "69", "db": "12000", "touchpoint": "11975" }
         ]
       }
     },

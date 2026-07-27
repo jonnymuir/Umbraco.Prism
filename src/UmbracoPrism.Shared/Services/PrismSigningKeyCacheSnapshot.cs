@@ -3,7 +3,7 @@ using Microsoft.IdentityModel.Tokens;
 namespace UmbracoPrism.Core.Services;
 
 /// <summary>
-/// Immutable view of tenant signing-key cache state used for fail-closed token validation.
+/// Immutable view of tenant signing-key cache touchpoint used for fail-closed token validation.
 /// </summary>
 /// <param name="Keys">Cached signing keys for the tenant.</param>
 /// <param name="ShouldRefresh">Whether the cache should be refreshed proactively.</param>

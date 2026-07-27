@@ -1,0 +1,393 @@
+{
+  "definitionKey": "planning-notification",
+  "displayName": "Apply for Planning Permission",
+  "version": 1,
+  "requestPolicy": "single",
+  "initialStage": "project-details",
+  "stages": [
+    {
+      "stageKey": "project-details",
+      "displayName": "Describe your project",
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Project details",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "projectName",
+              "label": "Project name",
+              "hint": "Give your project a short descriptive name",
+              "required": true,
+              "maxLength": 100
+            },
+            {
+              "type": "textarea",
+              "fieldKey": "projectDescription",
+              "label": "Describe the proposed works",
+              "hint": "Include details of what you plan to build or change",
+              "required": true,
+              "maxLength": 2000
+            },
+            {
+              "type": "textarea",
+              "fieldKey": "propertyAddress",
+              "label": "Property address",
+              "hint": "The address where the work will take place",
+              "required": true,
+              "maxLength": 500
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stageKey": "work-type",
+      "displayName": "Type of work",
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Type of work",
+          "children": [
+            {
+              "type": "radio",
+              "fieldKey": "workType",
+              "label": "What type of work are you planning?",
+              "hint": "Select the option that best describes your project",
+              "required": true,
+              "options": [
+                "Extension or alteration",
+                "New building",
+                "Change of use",
+                "Demolition",
+                "Other"
+              ],
+              "conditionalChildren": {
+                "Other": [
+                  {
+                    "type": "textarea",
+                    "fieldKey": "otherWorkTypeDescription",
+                    "label": "Describe the type of work",
+                    "hint": "Give us more details about what you're planning",
+                    "required": true,
+                    "maxLength": 500
+                  }
+                ]
+              }
+            },
+            {
+              "type": "radio",
+              "fieldKey": "planningRequired",
+              "label": "Do you believe planning permission is required?",
+              "hint": "",
+              "required": true,
+              "options": [
+                "Yes",
+                "No",
+                "Not sure"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stageKey": "timeline-cost",
+      "displayName": "Timeline and cost",
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Timeline and cost",
+          "children": [
+            {
+              "type": "date",
+              "fieldKey": "proposedStartDate",
+              "label": "Proposed start date",
+              "hint": "For example, 27 3 2025",
+              "required": true
+            },
+            {
+              "type": "number",
+              "fieldKey": "estimatedDuration",
+              "label": "Estimated duration in weeks",
+              "hint": "How long do you expect the work to take?",
+              "required": true,
+              "min": 1,
+              "max": 260
+            },
+            {
+              "type": "decimal",
+              "fieldKey": "estimatedCost",
+              "label": "Estimated cost of works",
+              "hint": "Enter the amount in pounds (do not include commas or the \u00a3 symbol)",
+              "required": true,
+              "prefix": "\u00a3",
+              "min": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stageKey": "affected-parties",
+      "displayName": "Affected parties",
+      "components": [
+        {
+          "type": "fieldset",
+          "legend": "Affected parties",
+          "children": [
+            {
+              "type": "checkboxlist",
+              "fieldKey": "affectedParties",
+              "label": "Who may be affected by this work?",
+              "hint": "Select all that apply",
+              "required": false,
+              "options": [
+                "Neighbouring properties",
+                "Shared access ways",
+                "Conservation area",
+                "Listed building",
+                "Tree preservation order area",
+                "None of the above"
+              ]
+            },
+            {
+              "type": "radio",
+              "fieldKey": "neighborsNotified",
+              "label": "Have you notified your neighbours?",
+              "hint": "",
+              "required": true,
+              "options": [
+                "Yes",
+                "No",
+                "Not applicable"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stageKey": "check-answers",
+      "displayName": "Check your answers",
+      "components": [
+        {
+          "type": "summary-list",
+          "changeStateKey": "project-details",
+          "title": "Project details",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "projectName",
+              "label": "Project name",
+              "hint": "Give your project a short descriptive name",
+              "required": true,
+              "maxLength": 100
+            },
+            {
+              "type": "textarea",
+              "fieldKey": "projectDescription",
+              "label": "Describe the proposed works",
+              "hint": "Include details of what you plan to build or change",
+              "required": true,
+              "maxLength": 2000
+            },
+            {
+              "type": "textarea",
+              "fieldKey": "propertyAddress",
+              "label": "Property address",
+              "hint": "The address where the work will take place",
+              "required": true,
+              "maxLength": 500
+            }
+          ]
+        },
+        {
+          "type": "summary-list",
+          "changeStateKey": "work-type",
+          "title": "Type of work",
+          "children": [
+            {
+              "type": "radio",
+              "fieldKey": "workType",
+              "label": "What type of work are you planning?",
+              "hint": "Select the option that best describes your project",
+              "required": true,
+              "options": [
+                "Extension or alteration",
+                "New building",
+                "Change of use",
+                "Demolition",
+                "Other"
+              ],
+              "conditionalChildren": {
+                "Other": [
+                  {
+                    "type": "textarea",
+                    "fieldKey": "otherWorkTypeDescription",
+                    "label": "Describe the type of work",
+                    "hint": "Give us more details about what you're planning",
+                    "required": true,
+                    "maxLength": 500
+                  }
+                ]
+              }
+            },
+            {
+              "type": "radio",
+              "fieldKey": "planningRequired",
+              "label": "Do you believe planning permission is required?",
+              "hint": "",
+              "required": true,
+              "options": [
+                "Yes",
+                "No",
+                "Not sure"
+              ]
+            }
+          ]
+        },
+        {
+          "type": "summary-list",
+          "changeStateKey": "timeline-cost",
+          "title": "Timeline and cost",
+          "children": [
+            {
+              "type": "date",
+              "fieldKey": "proposedStartDate",
+              "label": "Proposed start date",
+              "hint": "For example, 27 3 2025",
+              "required": true
+            },
+            {
+              "type": "number",
+              "fieldKey": "estimatedDuration",
+              "label": "Estimated duration in weeks",
+              "hint": "How long do you expect the work to take?",
+              "required": true,
+              "min": 1,
+              "max": 260
+            },
+            {
+              "type": "decimal",
+              "fieldKey": "estimatedCost",
+              "label": "Estimated cost of works",
+              "hint": "Enter the amount in pounds (do not include commas or the \u00a3 symbol)",
+              "required": true,
+              "prefix": "\u00a3",
+              "min": 0
+            }
+          ]
+        },
+        {
+          "type": "summary-list",
+          "changeStateKey": "affected-parties",
+          "title": "Affected parties",
+          "children": [
+            {
+              "type": "checkboxlist",
+              "fieldKey": "affectedParties",
+              "label": "Who may be affected by this work?",
+              "hint": "Select all that apply",
+              "required": false,
+              "options": [
+                "Neighbouring properties",
+                "Shared access ways",
+                "Conservation area",
+                "Listed building",
+                "Tree preservation order area",
+                "None of the above"
+              ]
+            },
+            {
+              "type": "radio",
+              "fieldKey": "neighborsNotified",
+              "label": "Have you notified your neighbours?",
+              "hint": "",
+              "required": true,
+              "options": [
+                "Yes",
+                "No",
+                "Not applicable"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "stageKey": "complete",
+      "displayName": "Application received",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Application received"
+        },
+        {
+          "type": "body",
+          "content": "Your reference number is <strong>HDJ2123F</strong>"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "content": "What happens next"
+        },
+        {
+          "type": "body",
+          "content": "We've sent you a confirmation email."
+        },
+        {
+          "type": "body",
+          "content": "A member of our team will review your application and be in touch."
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "fromState": "project-details",
+      "toState": "work-type",
+      "action": "continue"
+    },
+    {
+      "fromState": "work-type",
+      "toState": "timeline-cost",
+      "action": "continue"
+    },
+    {
+      "fromState": "work-type",
+      "toState": "project-details",
+      "action": "back"
+    },
+    {
+      "fromState": "timeline-cost",
+      "toState": "affected-parties",
+      "action": "continue"
+    },
+    {
+      "fromState": "timeline-cost",
+      "toState": "work-type",
+      "action": "back"
+    },
+    {
+      "fromState": "affected-parties",
+      "toState": "check-answers",
+      "action": "continue"
+    },
+    {
+      "fromState": "affected-parties",
+      "toState": "timeline-cost",
+      "action": "back"
+    },
+    {
+      "fromState": "check-answers",
+      "toState": "complete",
+      "action": "submit"
+    },
+    {
+      "fromState": "check-answers",
+      "toState": "affected-parties",
+      "action": "back"
+    }
+  ]
+}

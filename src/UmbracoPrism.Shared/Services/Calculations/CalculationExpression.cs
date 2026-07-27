@@ -4,7 +4,7 @@ namespace UmbracoPrism.Shared.Services.Calculations;
 
 /// <summary>
 /// Thrown for any parse or evaluation failure. Messages include enough position/name
-/// context to be surfaced directly to workflow authors.
+/// context to be surfaced directly to blueprint authors.
 /// </summary>
 public sealed class CalculationException : Exception
 {

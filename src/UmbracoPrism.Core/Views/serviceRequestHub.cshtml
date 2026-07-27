@@ -1,0 +1,36 @@
+@using UmbracoPrism.Core.Models
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<UmbracoPrism.Core.Models.ServiceRequestHubViewModel>
+@{
+    Layout = "~/Views/Shared/Master.cshtml";
+    var pageTitle = string.IsNullOrWhiteSpace(Model.Name) ? "My Service Requests" : Model.Name;
+}
+
+<div class="prism-service-request-hub">
+    <header class="prism-service-request-hub__header">
+        <h1 class="prism-service-request-hub__title">@pageTitle</h1>
+        <p class="prism-service-request-hub__subtitle">Track and manage your service requests.</p>
+    </header>
+
+    @if (Model.ActiveInstances.Any())
+    {
+        <section class="prism-service-request-hub__section" aria-labelledby="active-heading">
+            <h2 id="active-heading" class="prism-service-request-hub__section-title">In Progress</h2>
+            @await Html.PartialAsync("~/Views/Partials/_ServiceRequestHub-InstanceList.cshtml", Model.ActiveInstances)
+        </section>
+    }
+
+    @if (Model.CompletedInstances.Any())
+    {
+        <section class="prism-service-request-hub__section" aria-labelledby="completed-heading">
+            <h2 id="completed-heading" class="prism-service-request-hub__section-title">Completed</h2>
+            @await Html.PartialAsync("~/Views/Partials/_ServiceRequestHub-InstanceList.cshtml", Model.CompletedInstances)
+        </section>
+    }
+
+    @if (!Model.ActiveInstances.Any() && !Model.CompletedInstances.Any())
+    {
+        <div class="prism-service-request-hub__empty" role="status">
+            <p class="govuk-body">You don't have any active service requests yet.</p>
+        </div>
+    }
+</div>

@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using System.Net;
-using UmbracoPrism.Core.Models.Workflow;
-using UmbracoPrism.Shared.Models.Workflow;
+using UmbracoPrism.Core.Models.ServiceDesign;
+using UmbracoPrism.Shared.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.TagHelpers;
 
@@ -16,7 +16,7 @@ namespace UmbracoPrism.Core.TagHelpers;
 /// <para>
 /// Container usage: &lt;prism-component component="@comp" errors="@Model.FieldErrors" values="@Model.FormValues"
 ///   return-url="@Model.ReturnUrl" instance-id="@Model.InstanceId" state-version="@Model.StateVersion"
-///   workflow-key="@Model.WorkflowKey" nonce="@Model.Nonce" /&gt;
+///   blueprint-key="@Model.BlueprintKey" nonce="@Model.Nonce" /&gt;
 /// </para>
 /// <para>
 /// Input field usage: &lt;prism-component field="@field" errors="@Model.FieldErrors" values="@Model.FormValues" /&gt;
@@ -81,8 +81,8 @@ public class PrismComponentTagHelper : TagHelper
     [HtmlAttributeName("state-version")]
     public int StateVersion { get; set; }
 
-    [HtmlAttributeName("workflow-key")]
-    public string WorkflowKey { get; set; } = string.Empty;
+    [HtmlAttributeName("blueprint-key")]
+    public string BlueprintKey { get; set; } = string.Empty;
 
     [HtmlAttributeName("nonce")]
     public string Nonce { get; set; } = string.Empty;
@@ -113,7 +113,7 @@ public class PrismComponentTagHelper : TagHelper
             ReturnUrl    = ReturnUrl,
             InstanceId   = InstanceId,
             StateVersion = StateVersion,
-            WorkflowKey  = WorkflowKey,
+            BlueprintKey  = BlueprintKey,
             Nonce        = Nonce
         };
 
@@ -149,7 +149,7 @@ public class PrismComponentTagHelper : TagHelper
         }
 
         var fieldError = Errors?.GetValueOrDefault(Field.FieldKey);
-        var ctx        = PrismFieldContext.Build(Field, fieldError, Values, InstanceId, Nonce, WorkflowKey);
+        var ctx        = PrismFieldContext.Build(Field, fieldError, Values, InstanceId, Nonce, BlueprintKey);
         var partial    = ResolveFieldPartial(fieldType);
         var content    = await _htmlHelper.PartialAsync(partial, ctx);
 

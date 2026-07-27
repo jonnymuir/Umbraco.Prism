@@ -1,12 +1,12 @@
 using System.Globalization;
 using UmbracoPrism.Shared.Extensions;
-using UmbracoPrism.Shared.Models.Workflow;
-using UmbracoPrism.Shared.Models.Workflow.Components;
+using UmbracoPrism.Shared.Models.ServiceDesign;
+using UmbracoPrism.Shared.Models.ServiceDesign.Components;
 
 namespace UmbracoPrism.Shared.Services.Calculations;
 
 /// <summary>
-/// Builds the typed evaluation scope for a workflow's calculation set from raw instance
+/// Builds the typed evaluation scope for a blueprint's calculation set from raw instance
 /// field values. Types and defaults come from the definition's own input components:
 /// slider/number/decimal fields parse as decimals (tolerating "£" and thousands
 /// separators written back for display), everything else stays a string. Service-sourced
@@ -21,12 +21,12 @@ public static class CalculationScopeBuilder
 
     /// <summary>Returns fieldKey → ("number" | "string", default) for every input in the definition.</summary>
     public static IReadOnlyDictionary<string, (string Type, string? Default)> DescribeInputs(
-        WorkflowDefinitionFile definition)
+        ServiceBlueprint definition)
     {
         var inputs = new Dictionary<string, (string, string?)>(StringComparer.Ordinal);
-        foreach (var state in definition.States)
+        foreach (var stage in definition.Stages)
         {
-            foreach (var input in state.Components.GetAllInputs())
+            foreach (var input in stage.Components.GetAllInputs())
             {
                 if (string.IsNullOrWhiteSpace(input.FieldKey) || inputs.ContainsKey(input.FieldKey))
                 {
@@ -42,7 +42,7 @@ public static class CalculationScopeBuilder
     }
 
     public static Dictionary<string, object?> Build(
-        WorkflowDefinitionFile definition,
+        ServiceBlueprint definition,
         IReadOnlyDictionary<string, object?> fieldValues,
         IReadOnlyDictionary<string, object?>? serviceInputs = null)
     {

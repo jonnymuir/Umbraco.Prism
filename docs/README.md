@@ -29,11 +29,11 @@ Comprehensive guide to the CSS variable annotation system. Learn the `@property`
 ### [Cloudflare Maintenance Pages](cloudflare-maintenance.md)
 Handle backend downtime at the edge. Custom error pages or Workers for branded maintenance pages. Separate responses for browser vs mobile app users.
 
-### [Reference Workflow Contract](guides/reference-workflow-contract.md)
-The `WorkflowDefinitionFile` JSON contract: states, routes, gateways, queues, components, and response states — the shape every workflow is authored in, by a human or an AI agent.
+### [Reference Service Blueprint Contract](guides/reference-service-blueprint-contract.md)
+The `ServiceBlueprint` JSON contract: states, routes, gateways, queues, components, and response states — the shape every service blueprint is authored in, by a human or an AI agent.
 
 ### [The Prism Calculation Language](guides/calculation-language.md)
-Grammar, functions, tables/series, and `showWhen` for the declarative expression language behind workflow calculations.
+Grammar, functions, tables/series, and `showWhen` for the declarative expression language behind service blueprint calculations.
 
 ---
 
@@ -46,7 +46,7 @@ Push notification architecture: device registration, subscription management, co
 
 ## Design Documents & Package Guides
 
-These documents cover architecture and implementation details. Some are contributor-focused internal references; the workflow set is now organised as package-consumer implementation guidance.
+These documents cover architecture and implementation details. Some are contributor-focused internal references; the service blueprint set is now organised as package-consumer implementation guidance.
 
 ### [Notifications Architecture](design/notifications-architecture.md)
 **Internal design:** System layers, FCM integration, tenant isolation, and notification delivery pipeline.
@@ -60,8 +60,8 @@ These documents cover architecture and implementation details. Some are contribu
 ### [Notifications Umbraco Integration](design/notifications-umbraco-demo.md)
 **Internal design:** Umbraco content hooks, notification handlers, and Vinyl Vault demo site architecture.
 
-### [Workflow package design docs](design/README.md)
-**Package guide:** Start here for the current workflow architecture, implementation story, backend contracts, Umbraco integration, validation, security, and advanced authoring patterns.
+### [Service Blueprint package design docs](design/README.md)
+**Package guide:** Start here for the current service blueprint architecture, implementation story, backend contracts, Umbraco integration, validation, security, and advanced authoring patterns.
 
 ---
 
@@ -69,4 +69,4 @@ These documents cover architecture and implementation details. Some are contribu
 
 - [Main README](../README.md) — Quick start and feature overview
 - [CHANGELOG](../CHANGELOG.md) — Version history and release notes
-- [CONTRIBUTING](../CONTRIBUTING.md) — Contribution guidelines and development workflow
+- [CONTRIBUTING](../CONTRIBUTING.md) — Contribution guidelines and development service blueprint

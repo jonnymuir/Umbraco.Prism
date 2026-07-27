@@ -1,20 +1,8 @@
-/* prism-forms.css — Form & workflow component styles */
+/* prism-forms.css — Form component styles */
 
 /* --------------------------------------------------------------------------
    @property declarations for form-specific custom properties
    -------------------------------------------------------------------------- */
-
-@property --prism-workflow-max-width {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 640px;
-}
-
-@property --prism-workflow-padding {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 1.5rem;
-}
 
 @property --prism-form-group-spacing {
   syntax: '<length>';
@@ -147,8 +135,6 @@
    -------------------------------------------------------------------------- */
 
 :root {
-    --prism-workflow-max-width: 40rem; /* ~640px: matches GDS form measure */
-    --prism-workflow-padding: 0;
     --prism-form-group-spacing: 20px;
     --prism-input-border: 2px solid var(--prism-text);
     --prism-input-border-radius: 0;
@@ -173,22 +159,9 @@
 }
 
 /* --------------------------------------------------------------------------
-   Workflow container
-   -------------------------------------------------------------------------- */
-
-.prism-workflow {
-    width: 100%;
-    max-width: var(--prism-workflow-max-width);
-    padding: var(--prism-workflow-padding);
-    margin: 0;
-    box-sizing: border-box;
-}
-
-/* --------------------------------------------------------------------------
    Fieldset / legend
    -------------------------------------------------------------------------- */
 
-.prism-workflow__fieldset,
 .prism-fieldset {
     border: 0;
     padding: 0;
@@ -196,7 +169,6 @@
     min-inline-size: 0;
 }
 
-.prism-workflow__legend,
 .prism-legend {
     font-size: var(--prism-text-size-lg);
     font-weight: 700;
@@ -208,12 +180,6 @@
     display: table;
     max-width: 100%;
     box-sizing: border-box;
-}
-
-.prism-workflow__heading {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin-bottom: 1rem;
 }
 
 /* --------------------------------------------------------------------------
@@ -381,18 +347,6 @@
 }
 
 /* --------------------------------------------------------------------------
-   Actions row
-   -------------------------------------------------------------------------- */
-
-.prism-workflow__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-top: 30px;
-    padding-top: 15px;
-}
-
-/* --------------------------------------------------------------------------
    Buttons
    -------------------------------------------------------------------------- */
 
@@ -475,10 +429,6 @@
    Review step
    -------------------------------------------------------------------------- */
 
-.prism-workflow--review {
-    /* inherits container styles from .prism-workflow */
-}
-
 .prism-review__group {
     margin-bottom: 2rem;
 }
@@ -528,10 +478,6 @@
 /* --------------------------------------------------------------------------
    Completion / confirmation panel
    -------------------------------------------------------------------------- */
-
-.prism-workflow--complete {
-    /* inherits container styles from .prism-workflow */
-}
 
 .prism-panel--confirmation {
     background-color: var(--prism-panel-confirmation-bg);
@@ -586,10 +532,6 @@
    -------------------------------------------------------------------------- */
 
 @media (max-width: 640px) {
-    .prism-workflow {
-        padding: 1rem;
-    }
-
     .prism-input,
     .prism-textarea,
     .prism-select {
@@ -601,10 +543,6 @@
         grid-template-columns: 1fr;
     }
 
-    .prism-workflow__actions {
-        flex-direction: column;
-    }
-
     .prism-button {
         width: 100%;
         justify-content: center;
@@ -612,19 +550,19 @@
 }
 
 /* --------------------------------------------------------------------------
-   Page container (WorkflowPage layout)
+   Page container (StagePage layout)
    -------------------------------------------------------------------------- */
 
-.workflow-page {
+.stage-page {
     margin: 0;
 }
 
-.workflow-page__header {
+.stage-page__header {
     margin-bottom: var(--prism-section-gap);
     padding-top: 0;
 }
 
-.workflow-page__title {
+.stage-page__title {
     font-size: clamp(32px, 5vw, var(--prism-text-size-xl));
     font-weight: 700;
     line-height: 1.1;
@@ -636,32 +574,32 @@
    Alerts
    -------------------------------------------------------------------------- */
 
-.workflow-alert {
+.stage-alert {
     border-left: 5px solid;
     padding: 15px 20px;
     margin-bottom: 30px;
     font-size: var(--prism-text-size-md);
 }
 
-.workflow-alert--error {
+.stage-alert--error {
     border-color: var(--prism-danger);
     background: color-mix(in srgb, var(--prism-danger) 8%, var(--prism-surface));
     color: var(--prism-text);
 }
 
-.workflow-alert--error p {
+.stage-alert--error p {
     color: var(--prism-danger);
     font-weight: 700;
     margin: 0;
 }
 
-.workflow-alert--warn {
+.stage-alert--warn {
     border-color: var(--prism-warning);
     background: color-mix(in srgb, var(--prism-warning) 10%, var(--prism-surface));
     color: var(--prism-text);
 }
 
-.workflow-alert--warn p {
+.stage-alert--warn p {
     margin: 0;
 }
 
@@ -696,11 +634,6 @@
 /* --------------------------------------------------------------------------
    Status timeline step
    -------------------------------------------------------------------------- */
-
-.prism-workflow--status {
-    text-align: center;
-    padding: 3rem 1rem;
-}
 
 .prism-status__icon {
     font-size: 3rem;
@@ -841,20 +774,20 @@ textarea[aria-invalid="true"] {
 }
 
 /* --------------------------------------------------------------------------
-   Workflow Hub
+   Service Request Hub
    -------------------------------------------------------------------------- */
 
-.prism-workflow-hub {
+.prism-service-request-hub {
   margin: 0;
   padding: 0;
 }
 
-.prism-workflow-hub__header {
+.prism-service-request-hub__header {
   margin-bottom: var(--prism-section-gap);
   padding-top: 0;
 }
 
-.prism-workflow-hub__title {
+.prism-service-request-hub__title {
   font-size: clamp(32px, 5vw, var(--prism-text-size-xl));
   font-weight: 700;
   line-height: 1.1;
@@ -862,18 +795,18 @@ textarea[aria-invalid="true"] {
   color: var(--prism-text);
 }
 
-.prism-workflow-hub__subtitle {
+.prism-service-request-hub__subtitle {
   font-size: var(--prism-text-size-md);
   color: var(--prism-muted);
   margin: 0;
   line-height: 1.5;
 }
 
-.prism-workflow-hub__section {
+.prism-service-request-hub__section {
   margin-bottom: 40px;
 }
 
-.prism-workflow-hub__section-title {
+.prism-service-request-hub__section-title {
   font-size: var(--prism-text-size-lg);
   font-weight: 700;
   border-bottom: 1px solid var(--prism-border);
@@ -882,13 +815,13 @@ textarea[aria-invalid="true"] {
   color: var(--prism-text);
 }
 
-.prism-workflow-hub__empty {
+.prism-service-request-hub__empty {
   text-align: center;
   padding: 60px 20px;
   color: var(--prism-muted);
 }
 
-.prism-workflow-hub__empty-text {
+.prism-service-request-hub__empty-text {
   font-size: var(--prism-text-size-md);
   margin-bottom: 30px;
   line-height: 1.5;
@@ -1004,7 +937,7 @@ textarea[aria-invalid="true"] {
     width: 100%;
   }
   
-  .prism-workflow-hub__empty {
+  .prism-service-request-hub__empty {
     padding: 40px 15px;
   }
 }

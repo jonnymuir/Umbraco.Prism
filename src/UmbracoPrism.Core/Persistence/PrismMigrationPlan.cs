@@ -32,7 +32,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
         .To<DropThemeColorColumn>("drop-theme-color")
         .To<AddOidcAuthorityColumns>("add-oidc-authority-columns")
         .To<AddOidcSecretProviderColumns>("add-oidc-secret-provider-columns")
-        .To<CreatePrismCmsWorkflowDefinitionTable>("add-cms-workflow-definitions")
-        .To<CreatePrismCmsWorkflowInstanceTable>("add-cms-workflow-instances");
+        .To<CreatePrismCmsServiceBlueprintTable>("add-cms-service-blueprints")
+        .To<CreatePrismCmsServiceRequestTable>("add-cms-service-requests");
     }
 }

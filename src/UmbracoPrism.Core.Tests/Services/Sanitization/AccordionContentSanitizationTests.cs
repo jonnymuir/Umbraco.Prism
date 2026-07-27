@@ -6,12 +6,12 @@ namespace UmbracoPrism.Core.Tests.Services.Sanitization;
 /// <summary>
 /// Regression tests for SEC-PT2-007: Accordion <c>Content</c> field sanitization.
 /// The Accordion partial now routes <c>accordionSection.Content</c> through
-/// <see cref="WorkflowContentSanitizer"/> before passing it to <c>@Html.Raw</c>.
+/// <see cref="ServiceContentSanitizer"/> before passing it to <c>@Html.Raw</c>.
 /// These tests prove that a hostile payload cannot survive that boundary.
 /// </summary>
 public class AccordionContentSanitizationTests
 {
-    private readonly WorkflowContentSanitizer _sut = new();
+    private readonly ServiceContentSanitizer _sut = new();
 
     [Fact]
     public void Sanitize_AccordionContent_ScriptTag_IsStripped()

@@ -1,0 +1,206 @@
+{
+  "definitionKey": "payment-demo",
+  "displayName": "Payment Demo",
+  "version": 1,
+  "description": "Payment flow showing the web queue handing off to the business queue before completion.",
+  "schemaVersion": "1.0",
+  "initialStage": "enter-details",
+  "requestPolicy": "single",
+  "stages": [
+    {
+      "stageKey": "enter-details",
+      "displayName": "Enter payment details",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "web-user",
+      "components": [
+        {
+          "type": "body",
+          "content": "Provide the payment details for this application. We\u0027ll take you to a waiting screen while the payments team confirms receipt."
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "cardholderName",
+              "label": "Cardholder name",
+              "hint": "Enter the name exactly as it appears on the card.",
+              "required": true
+            },
+            {
+              "type": "text",
+              "fieldKey": "paymentReference",
+              "label": "Payment reference",
+              "hint": "Use the reference shown on your application or invoice.",
+              "required": true
+            },
+            {
+              "type": "email",
+              "fieldKey": "receiptEmail",
+              "label": "Email address for the receipt",
+              "hint": "We\u0027ll send confirmation to this address once the payment is confirmed.",
+              "required": true
+            },
+            {
+              "type": "decimal",
+              "fieldKey": "amount",
+              "label": "Amount (\u00A3)",
+              "hint": "Enter the amount you are paying today.",
+              "required": true
+            }
+          ],
+          "legend": "Payment details",
+          "legendSize": "m"
+        },
+        {
+          "type": "inset-text",
+          "content": "After you submit, your payment will wait for a quick back-office confirmation before this journey completes."
+        },
+        {
+          "type": "warning-text",
+          "content": "Do not close the page until you see the confirmation screen, unless you choose to leave and return later."
+        }
+      ],
+      "routes": [
+        {
+          "id": "enter-details--submit--submit-payment",
+          "target": "submit-payment",
+          "trigger": "submit"
+        }
+      ]
+    },
+    {
+      "stageKey": "confirm-payment-received",
+      "displayName": "Confirm payment received",
+      "description": "Back-office confirmation step for reconciling the payment before the applicant is released.",
+      "stageType": "Question",
+      "actor": "reviewer",
+      "queueKey": "business-user",
+      "roleGates": [
+        "reviewer"
+      ],
+      "components": [
+        {
+          "type": "body",
+          "content": "Record the confirmation details from the payment provider so the applicant can be released from the waiting step."
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "confirmationReference",
+              "label": "Confirmation reference",
+              "hint": "Enter the provider or ledger reference used to match this payment.",
+              "required": true
+            },
+            {
+              "type": "decimal",
+              "fieldKey": "amountReceived",
+              "label": "Amount received (\u00A3)",
+              "hint": "Use the settled amount shown in the provider response.",
+              "required": true
+            },
+            {
+              "type": "textarea",
+              "fieldKey": "notes",
+              "label": "Notes",
+              "hint": "Add any brief context the service team may need later.",
+              "required": false
+            }
+          ],
+          "legend": "Confirmation details",
+          "legendSize": "m"
+        }
+      ],
+      "routes": [
+        {
+          "id": "confirm-payment-received--confirm--await-payment-confirmation",
+          "target": "await-payment-confirmation",
+          "trigger": "confirm",
+          "requiresRole": "reviewer"
+        }
+      ]
+    },
+    {
+      "stageKey": "payment-complete",
+      "displayName": "Payment complete",
+      "description": "Confirms that the payment has been matched and the receipt is on its way.",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "web-user",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Payment confirmed"
+        },
+        {
+          "type": "body",
+          "content": "We\u0027ve matched your payment and sent a receipt to the email address you provided."
+        },
+        {
+          "type": "inset-text",
+          "content": "Keep your payment reference handy if you contact us about this application."
+        }
+      ],
+      "routes": []
+    }
+  ],
+  "queues": [
+    {
+      "key": "web-user",
+      "displayName": "Applicant touchpoints",
+      "description": "Web user entering payment details and waiting for confirmation.",
+      "actor": "applicant"
+    },
+    {
+      "key": "business-user",
+      "displayName": "Payments team touchpoints",
+      "description": "Back-office payments queue confirming receipt.",
+      "actor": "reviewer"
+    }
+  ],
+  "gateways": [
+    {
+      "key": "submit-payment",
+      "displayName": "Submit payment \u2192 notify back-office",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "submit-payment--submit--await-payment-confirmation",
+          "target": "await-payment-confirmation",
+          "trigger": "submit"
+        },
+        {
+          "id": "submit-payment--submit--confirm-payment-received",
+          "target": "confirm-payment-received",
+          "trigger": "submit"
+        }
+      ]
+    },
+    {
+      "key": "await-payment-confirmation",
+      "displayName": "Awaiting payment confirmation",
+      "gatewayType": "Join",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "await-payment-confirmation--release--payment-complete",
+          "target": "payment-complete",
+          "trigger": "release"
+        }
+      ],
+      "waitingContent": "We\u0027re waiting for the payments team to confirm receipt of your payment.",
+      "waitingExpectedSeconds": 60,
+      "waitingPollIntervalMs": 5000,
+      "waitingAllowDefer": true,
+      "waitingDeferMessage": "You can leave this page and return later. We\u0027ll update this payment as soon as the confirmation arrives.",
+      "requiredIncomingQueues": [
+        "web-user",
+        "business-user"
+      ]
+    }
+  ]
+}

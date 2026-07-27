@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" class="govuk-template">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Service Blueprint Editor Reference Host</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230b0c0c'/%3E%3Cpath d='M18 20h28v6H34v18h-8V26H18z' fill='%23ffffff'/%3E%3C/svg%3E"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        font-family: "GDS Transport", arial, sans-serif;
+        background: #f3f2f1;
+      }
+
+      prism-service-blueprint-editor-shell {
+        display: block;
+        min-height: 100vh;
+      }
+    </style>
+    <script type="module">
+      import './src/service-blueprint-editor/prism-service-blueprint-editor-shell.ts';
+      import { MockBusinessAppServiceBlueprintSource } from './src/service-blueprint-editor/integrations/mockapp-service-blueprint-source.ts';
+
+      const shell = document.querySelector('prism-service-blueprint-editor-shell');
+      if (shell) {
+        shell.serviceBlueprintSource = new MockBusinessAppServiceBlueprintSource();
+        shell.availableQueues = [
+          { queueName: 'applicant', displayName: 'Applicant' },
+          { queueName: 'reviewer', displayName: 'Reviewer' },
+          { queueName: 'caseworker', displayName: 'Caseworker' },
+          { queueName: 'payments', displayName: 'Payments' },
+        ];
+      }
+    </script>
+  </head>
+  <body>
+    <prism-service-blueprint-editor-shell blueprint-key="planning"></prism-service-blueprint-editor-shell>
+  </body>
+</html>

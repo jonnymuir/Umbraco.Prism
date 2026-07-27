@@ -43,9 +43,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
-    <ProjectReference Include="..\UmbracoPrism.WorkflowEditor\UmbracoPrism.WorkflowEditor.csproj" />
-    <ProjectReference Include="..\UmbracoPrism.WorkflowRuntime\UmbracoPrism.WorkflowRuntime.csproj" />
-    <ProjectReference Include="..\UmbracoPrism.WorkflowRuntime.Mcp\UmbracoPrism.WorkflowRuntime.Mcp.csproj" />
+    <ProjectReference Include="..\UmbracoPrism.ServiceBlueprintEditor\UmbracoPrism.ServiceBlueprintEditor.csproj" />
+    <ProjectReference Include="..\UmbracoPrism.ProcessManager\UmbracoPrism.ProcessManager.csproj" />
+    <ProjectReference Include="..\UmbracoPrism.ProcessManager.Mcp\UmbracoPrism.ProcessManager.Mcp.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -57,15 +57,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="workflow-seeds\*.json" />
-    <EmbeddedResource Include="workflow-seeds\field-groups\*.json" />
+    <EmbeddedResource Include="service-blueprints\*.json" />
+    <EmbeddedResource Include="service-blueprints\field-groups\*.json" />
     <EmbeddedResource Include="Views\_ViewImports.cshtml" />
     <EmbeddedResource Include="Views\Partials\PrismFields\**\*.cshtml" />
     <EmbeddedResource Include="Views\Partials\PrismComponents\**\*.cshtml" />
-    <EmbeddedResource Include="Views\Partials\_WorkflowStep-*.cshtml" />
-    <EmbeddedResource Include="Views\Partials\_WorkflowHub-*.cshtml" />
-    <EmbeddedResource Include="Views\workflowPage.cshtml" />
-    <EmbeddedResource Include="Views\workflowHub.cshtml" />
+    <EmbeddedResource Include="Views\Partials\_Stage-*.cshtml" />
+    <EmbeddedResource Include="Views\Partials\_ServiceRequestHub-*.cshtml" />
+    <EmbeddedResource Include="Views\stagePage.cshtml" />
+    <EmbeddedResource Include="Views\serviceRequestHub.cshtml" />
   </ItemGroup>
 
 </Project>

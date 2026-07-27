@@ -379,7 +379,7 @@ public class DownstreamDemoController(
         }
         else
         {
-            var publicUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+            var publicUrl = configuration["PrismBusinessApp:ApiBaseUrl"]?.TrimEnd('/');
             transport = IsCodespacesUrl(publicUrl ?? "") ? "public-tunnel" : "public-url";
             transportBaseUrl = MaskPublicUrl(publicUrl ?? "");
         }
@@ -457,18 +457,18 @@ public class DownstreamDemoController(
         if (!string.IsNullOrWhiteSpace(backchannelUrl))
             return backchannelUrl;
 
-        var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        var baseUrl = configuration["PrismBusinessApp:ApiBaseUrl"]?.TrimEnd('/');
         if (string.IsNullOrWhiteSpace(baseUrl))
-            throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
+            throw new InvalidOperationException("PrismBusinessApp:ApiBaseUrl is not configured.");
 
         return baseUrl;
     }
 
     private string ResolveBusinessAppDisplayBaseUrl()
     {
-        var baseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        var baseUrl = configuration["PrismBusinessApp:ApiBaseUrl"]?.TrimEnd('/');
         if (string.IsNullOrWhiteSpace(baseUrl))
-            throw new InvalidOperationException("PrismBusinessApp:WorkflowApiBaseUrl is not configured.");
+            throw new InvalidOperationException("PrismBusinessApp:ApiBaseUrl is not configured.");
 
         return baseUrl;
     }
@@ -503,7 +503,7 @@ public class DownstreamDemoController(
             }
         }
 
-        var defaultBaseUrl = configuration["PrismBusinessApp:WorkflowApiBaseUrl"]?.TrimEnd('/');
+        var defaultBaseUrl = configuration["PrismBusinessApp:ApiBaseUrl"]?.TrimEnd('/');
         if (!string.IsNullOrWhiteSpace(defaultBaseUrl) && UrlStartsWithAllowed(url, defaultBaseUrl))
             return true;
 
@@ -734,34 +734,34 @@ public class DownstreamDemoController(
             TestSiteSeedContract.DashboardAlias,
             TestSiteSeedContract.DashboardName,
             TestSiteSeedContract.DashboardUrl);
-        var workflowPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.WorkflowKey),
-            TestSiteSeedContract.WorkflowPageAlias,
-            TestSiteSeedContract.WorkflowPageName,
-            TestSiteSeedContract.WorkflowPageUrl);
-        var workflowHub = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.WorkflowHubAlias),
-            TestSiteSeedContract.WorkflowHubAlias,
-            TestSiteSeedContract.WorkflowHubName,
-            TestSiteSeedContract.WorkflowHubUrl);
-        var planningWorkflowPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.PlanningWorkflowKey),
-            TestSiteSeedContract.WorkflowPageAlias,
-            TestSiteSeedContract.PlanningWorkflowPageName,
-            TestSiteSeedContract.PlanningWorkflowPageUrl);
+        var stagePage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.BlueprintKey),
+            TestSiteSeedContract.StagePageAlias,
+            TestSiteSeedContract.StagePageName,
+            TestSiteSeedContract.ServiceRequestPageUrl);
+        var serviceRequestHub = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.ServiceRequestHubAlias),
+            TestSiteSeedContract.ServiceRequestHubAlias,
+            TestSiteSeedContract.ServiceRequestHubName,
+            TestSiteSeedContract.ServiceRequestHubUrl);
+        var planningStagePage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.PlanningBlueprintKey),
+            TestSiteSeedContract.StagePageAlias,
+            TestSiteSeedContract.PlanningStagePageName,
+            TestSiteSeedContract.PlanningStagePageUrl);
         var paymentDemoPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.PaymentDemoWorkflowKey),
-            TestSiteSeedContract.WorkflowPageAlias,
+            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.PaymentDemoBlueprintKey),
+            TestSiteSeedContract.StagePageAlias,
             TestSiteSeedContract.PaymentDemoPageName,
             TestSiteSeedContract.PaymentDemoPageUrl);
         var informationRequestPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedWorkflowPage(roots, TestSiteSeedContract.InformationRequestWorkflowKey),
-            TestSiteSeedContract.WorkflowPageAlias,
+            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.InformationRequestBlueprintKey),
+            TestSiteSeedContract.StagePageAlias,
             TestSiteSeedContract.InformationRequestPageName,
             TestSiteSeedContract.InformationRequestPageUrl);
         var settings = TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.SettingsAlias);
         var mobileNav = BuildMobileNavStatus(settings);
-        var challengePath = $"/auth/login?ReturnUrl={Uri.EscapeDataString(TestSiteSeedContract.WorkflowHubUrl)}";
+        var challengePath = $"/auth/login?ReturnUrl={Uri.EscapeDataString(TestSiteSeedContract.ServiceRequestHubUrl)}";
         // routeContractReady waits for every authored URL the Playwright suite navigates to, so
         // the first request to any of them lands on a fully-warm Umbraco route + Razor view —
         // not a cold-start that returns 404 / Home / a half-rendered page (the symptom that
@@ -770,9 +770,9 @@ public class DownstreamDemoController(
         var routeContractReady =
             home.MatchesExpected &&
             dashboard.MatchesExpected &&
-            workflowPage.MatchesExpected &&
-            workflowHub.MatchesExpected &&
-            planningWorkflowPage.MatchesExpected &&
+            stagePage.MatchesExpected &&
+            serviceRequestHub.MatchesExpected &&
+            planningStagePage.MatchesExpected &&
             paymentDemoPage.MatchesExpected &&
             informationRequestPage.MatchesExpected &&
             mobileNav.Ready;
@@ -783,9 +783,9 @@ public class DownstreamDemoController(
             Auth: new SeedAuthStatus("/auth/login", "/auth/logout", challengePath),
             Home: home,
             Dashboard: dashboard,
-            WorkflowPage: workflowPage,
-            WorkflowHub: workflowHub,
-            PlanningWorkflowPage: planningWorkflowPage,
+            StagePage: stagePage,
+            ServiceRequestHub: serviceRequestHub,
+            PlanningStagePage: planningStagePage,
             PaymentDemoPage: paymentDemoPage,
             InformationRequestPage: informationRequestPage,
             MobileNav: mobileNav);
@@ -816,16 +816,16 @@ public class DownstreamDemoController(
             ?? [];
         var hasHome = navUrls.Contains(NormalizePath(TestSiteSeedContract.HomePageUrl));
         var hasDashboard = navUrls.Contains(NormalizePath(TestSiteSeedContract.DashboardUrl));
-        var hasWorkflowHub = navUrls.Contains(NormalizePath(TestSiteSeedContract.WorkflowHubUrl));
+        var hasServiceRequestHub = navUrls.Contains(NormalizePath(TestSiteSeedContract.ServiceRequestHubUrl));
         var ready =
             settings != null &&
             mobileNavLinks != null &&
             mobileNavLinks.Any() &&
             hasHome &&
             hasDashboard &&
-            hasWorkflowHub;
+            hasServiceRequestHub;
 
-        return new MobileNavStatus(settings != null, mobileNavLinks?.Count ?? 0, hasHome, hasDashboard, hasWorkflowHub, ready);
+        return new MobileNavStatus(settings != null, mobileNavLinks?.Count ?? 0, hasHome, hasDashboard, hasServiceRequestHub, ready);
     }
 
     private sealed record SeedContractStatus(
@@ -834,9 +834,9 @@ public class DownstreamDemoController(
         SeedAuthStatus Auth,
         SeededRouteStatus Home,
         SeededRouteStatus Dashboard,
-        SeededRouteStatus WorkflowPage,
-        SeededRouteStatus WorkflowHub,
-        SeededRouteStatus PlanningWorkflowPage,
+        SeededRouteStatus StagePage,
+        SeededRouteStatus ServiceRequestHub,
+        SeededRouteStatus PlanningStagePage,
         SeededRouteStatus PaymentDemoPage,
         SeededRouteStatus InformationRequestPage,
         MobileNavStatus MobileNav);
@@ -856,7 +856,7 @@ public class DownstreamDemoController(
         int ItemCount,
         bool HasHome,
         bool HasDashboard,
-        bool HasWorkflowHub,
+        bool HasServiceRequestHub,
         bool Ready);
 
     private static string NormalizePath(string? path)

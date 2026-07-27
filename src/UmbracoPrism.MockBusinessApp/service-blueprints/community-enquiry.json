@@ -1,0 +1,195 @@
+{
+  "definitionKey": "community-enquiry",
+  "displayName": "Get in Touch",
+  "version": 1,
+  "schemaVersion": "1.0",
+  "initialStage": "collecting-details",
+  "requestPolicy": "single",
+  "stages": [
+    {
+      "stageKey": "collecting-details",
+      "displayName": "Your details",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "web-user",
+      "components": [
+        {
+          "type": "inset-text",
+          "content": "We\u0027ll only use your contact details to respond to your enquiry. We won\u0027t share them with any third parties or add you to a mailing list without your consent."
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "text",
+              "maxLength": 100,
+              "fieldKey": "full-name",
+              "label": "Full name",
+              "required": true
+            },
+            {
+              "type": "email",
+              "fieldKey": "email-address",
+              "label": "Email address",
+              "required": true
+            },
+            {
+              "type": "text",
+              "maxLength": 100,
+              "fieldKey": "organisation",
+              "label": "Organisation (optional)",
+              "required": false
+            },
+            {
+              "type": "select",
+              "options": [
+                "Developer",
+                "Architect",
+                "Technical Lead",
+                "CTO / Head of Engineering",
+                "Other"
+              ],
+              "fieldKey": "your-role",
+              "label": "Your role",
+              "required": true
+            }
+          ],
+          "legend": "About You"
+        },
+        {
+          "type": "details",
+          "heading": "Why do we need your contact details?",
+          "content": "We need your name and email so we can respond to your enquiry. Your role helps us understand the context of your question so we can give you the most relevant answer. We keep enquiry records for 12 months."
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "radio",
+              "options": [
+                "General enquiry",
+                "Technical support",
+                "Partnership opportunity",
+                "Speaking / events",
+                "Other"
+              ],
+              "fieldKey": "enquiry-type",
+              "label": "What can we help with?",
+              "required": true
+            },
+            {
+              "type": "text",
+              "maxLength": 100,
+              "fieldKey": "enquiry-type-detail",
+              "label": "Please specify your enquiry type",
+              "hint": "Please describe your enquiry type in a few words.",
+              "required": false,
+              "conditionalOn": "enquiry-type",
+              "visibleWhen": "Other"
+            }
+          ],
+          "legend": "Your Enquiry"
+        },
+        {
+          "type": "inset-text",
+          "content": "For technical support, include your Prism version number, a URL, or any error messages you\u0027re seeing. This helps us resolve your issue faster."
+        },
+        {
+          "type": "warning-text",
+          "content": "Do not include passwords, API keys, or other sensitive credentials in your message. Our support team does not need this information."
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "textarea",
+              "minLength": 20,
+              "maxLength": 1000,
+              "fieldKey": "message",
+              "label": "Tell us more",
+              "hint": "Please be as specific as possible \u2014 the more detail you give, the faster we can help.",
+              "required": true
+            },
+            {
+              "type": "checkboxlist",
+              "options": [
+                "Umbraco CMS",
+                ".NET Development",
+                "Mobile Apps",
+                "Cloud \u0026 Azure",
+                "Design Systems"
+              ],
+              "fieldKey": "topics",
+              "label": "Topics you\u0027re interested in",
+              "required": false
+            },
+            {
+              "type": "boolean",
+              "fieldKey": "newsletter",
+              "label": "Keep me updated with Prism news and releases",
+              "required": false
+            }
+          ],
+          "legend": "Your Message"
+        }
+      ],
+      "routes": [
+        {
+          "id": "collecting-details--submit--submit-enquiry",
+          "target": "submit-enquiry",
+          "trigger": "submit"
+        }
+      ]
+    },
+    {
+      "stageKey": "submitted",
+      "displayName": "Thank you",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "web-user",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Thank you"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "content": "What happens next"
+        },
+        {
+          "type": "body",
+          "content": "We\u0027ve sent you a confirmation email."
+        },
+        {
+          "type": "body",
+          "content": "A member of our team will be in touch shortly."
+        }
+      ],
+      "routes": []
+    }
+  ],
+  "queues": [
+    {
+      "key": "web-user",
+      "displayName": "Enquirer touchpoints",
+      "description": "Web user submitting and tracking a community enquiry.",
+      "actor": "applicant"
+    }
+  ],
+  "gateways": [
+    {
+      "key": "submit-enquiry",
+      "displayName": "Submit Enquiry",
+      "gatewayType": "Split",
+      "queueKey": "web-user",
+      "routes": [
+        {
+          "id": "submit-enquiry--submit--submitted",
+          "target": "submitted",
+          "trigger": "submit"
+        }
+      ]
+    }
+  ]
+}

@@ -6,14 +6,14 @@ namespace UmbracoPrism.TestSite.Services;
 /// non-member (anonymous visitor, or a logged-in Prism Member who just isn't a Society member) —
 /// deliberately never <see langword="null"/>, so the "apply-for-a-juggling-licence" definition's
 /// <c>member.tier</c> calculation field is always resolvable regardless of who's asking. See
-/// <c>CmsWorkflowEngine</c>'s <c>serviceInputsResolver</c> wiring in <c>TestSiteComposer</c>.
+/// <c>CmsProcessManager</c>'s <c>serviceInputsResolver</c> wiring in <c>TestSiteComposer</c>.
 /// </summary>
 public sealed record JugglingSocietyMembership(string Tier);
 
 /// <summary>
-/// Mock membership lookup demonstrating the extension point a real CMS Workflow implementation
+/// Mock membership lookup demonstrating the extension point a real CMS Service Blueprint implementation
 /// uses to default form data from an external system of record for a logged-in member — the same
-/// role <c>MemberRecordService</c> plays for Money Modeller's business-workflow demo, just a
+/// role <c>MemberRecordService</c> plays for Money Modeller's business-service-blueprint demo, just a
 /// simpler shape (one field, not six).
 /// </summary>
 public class JugglingSocietyMembershipClient : IJugglingSocietyMembershipClient

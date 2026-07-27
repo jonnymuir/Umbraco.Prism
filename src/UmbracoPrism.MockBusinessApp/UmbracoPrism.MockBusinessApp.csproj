@@ -7,10 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Update="workflow-seeds\**\*">
+    <Content Update="service-blueprints\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Update="workflow-authored\**\*">
+    <Content Update="service-blueprints-authored\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -24,10 +24,10 @@
   <ItemGroup>
     <ProjectReference Include="../UmbracoPrism.Core/UmbracoPrism.Core.csproj" />
     <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
-    <ProjectReference Include="../UmbracoPrism.WorkflowRuntime/UmbracoPrism.WorkflowRuntime.csproj" />
-    <ProjectReference Include="../UmbracoPrism.WorkflowRuntime.Api/UmbracoPrism.WorkflowRuntime.Api.csproj" />
-    <ProjectReference Include="../UmbracoPrism.WorkflowRuntime.Mcp/UmbracoPrism.WorkflowRuntime.Mcp.csproj" />
-    <ProjectReference Include="../UmbracoPrism.WorkflowEditor/UmbracoPrism.WorkflowEditor.csproj" />
+    <ProjectReference Include="../UmbracoPrism.ProcessManager/UmbracoPrism.ProcessManager.csproj" />
+    <ProjectReference Include="../UmbracoPrism.ProcessManager.Api/UmbracoPrism.ProcessManager.Api.csproj" />
+    <ProjectReference Include="../UmbracoPrism.ProcessManager.Mcp/UmbracoPrism.ProcessManager.Mcp.csproj" />
+    <ProjectReference Include="../UmbracoPrism.ServiceBlueprintEditor/UmbracoPrism.ServiceBlueprintEditor.csproj" />
   </ItemGroup>
 
 </Project>

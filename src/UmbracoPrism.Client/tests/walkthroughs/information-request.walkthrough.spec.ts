@@ -1,7 +1,7 @@
 // Executable counterpart of docs/walkthroughs/information-request.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { test, expect } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
-import { assertHealthyPage, step, signIn, resetWorkflows } from './support/walkthrough';
+import { assertHealthyPage, step, signIn, resetServiceBlueprints } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
 
@@ -18,7 +18,7 @@ test.describe('Information request walkthrough', () => {
   });
 
   test.beforeEach(async ({ request }) => {
-    await resetWorkflows(request);
+    await resetServiceBlueprints(request);
   });
 
   test('happy path: user submits information request', async ({ page }) => {
@@ -97,8 +97,8 @@ test.describe('Information request walkthrough', () => {
     await expect(page.getByRole('heading', { name: 'Your request is being reviewed' })).toBeVisible({ timeout: 30_000 });
 
     // Navigate away
-    await page.goto('/my-workflows');
-    await expect(page.getByRole('heading', { name: 'My Workflows' })).toBeVisible();
+    await page.goto('/my-service-requests');
+    await expect(page.getByRole('heading', { name: 'My Service Requests' })).toBeVisible();
 
     // Navigate back — instance policy means the under-review state persists
     await page.goto('/request-information');

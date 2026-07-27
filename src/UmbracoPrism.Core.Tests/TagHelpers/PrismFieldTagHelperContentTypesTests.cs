@@ -8,15 +8,16 @@ using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Moq;
-using UmbracoPrism.Core.Models.Workflow;
+using UmbracoPrism.Core.Models.ServiceDesign;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.TagHelpers;
+using UmbracoPrism.Shared.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.Tests.TagHelpers;
 
 public class PrismFieldTagHelperContentTypesTests
 {
-    private static readonly WorkflowFieldValidator Validator = new();
+    private static readonly ServiceRequestFieldValidator Validator = new();
 
     // ------------------------------------------------------------------ Helpers
 

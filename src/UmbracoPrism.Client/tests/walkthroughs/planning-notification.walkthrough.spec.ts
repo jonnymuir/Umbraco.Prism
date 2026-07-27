@@ -1,10 +1,10 @@
 // Planning-notification walkthrough retained for historical screenshots only.
-// The live localhost-auth lane now runs against the authored "planning" workflow
+// The live localhost-auth lane now runs against the authored "planning" service blueprint
 // (Declaration → Application Form → Check your answers → Application submitted).
-// See planning-workflow-complete.walkthrough.spec.ts for the current contract.
+// See planning-service-blueprint-complete.walkthrough.spec.ts for the current contract.
 import { test, expect } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
-import { step, signIn, resetWorkflows } from './support/walkthrough';
+import { step, signIn, resetServiceBlueprints } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
 
@@ -21,7 +21,7 @@ test.describe.skip('Planning notification walkthrough', () => {
   });
 
   test.beforeEach(async ({ request }) => {
-    await resetWorkflows(request);
+    await resetServiceBlueprints(request);
   });
 
   test('happy path: user completes multi-step planning application', async ({ page }) => {

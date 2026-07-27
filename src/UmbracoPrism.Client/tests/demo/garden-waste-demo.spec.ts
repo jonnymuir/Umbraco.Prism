@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { signIn, resetWorkflows, businessAppOrigin } from '../walkthroughs/support/walkthrough';
+import { signIn, resetServiceBlueprints, businessAppOrigin } from '../walkthroughs/support/walkthrough';
 import { beat, showSlate, clearSlate, moveNarrationTo, startNarrationTimeline, getNarrationTimeline } from './support/narration';
 import { humanClick, humanType } from './support/human-interactions';
 
@@ -47,12 +47,12 @@ function tryConvertToMp4(webmPath: string): void {
 // the page's own state (logins, open tabs' worth of context) persists across acts the way a real
 // browser session would.
 
-const workflowKey = 'garden-waste-permit';
+const serviceBlueprintKey = 'garden-waste-permit';
 const adminCredentials = { username: 'admin@prism.local', password: 'PrismLocal!12345' };
 const ttydUrl = process.env.TTYD_URL ?? 'http://127.0.0.1:7681';
 const claudeSessionLogPath = '/tmp/claude-session.log';
 
-// simulate_workflow's `calculations` is a parallel array, one entry per trace step — `null` for
+// simulate_serviceBlueprint's `calculations` is a parallel array, one entry per trace step — `null` for
 // any step that doesn't produce a fresh calculation (confirmed live: a step routed through a
 // gateway can add an extra trace entry for the passthrough with no calc of its own, making the
 // *last* entry null even though the calculation from the actual field-bearing step is very much
@@ -101,7 +101,7 @@ async function connectToClaudeTerminal(page: Page): Promise<void> {
 
 test.describe.serial('garden waste permit demo', () => {
   test.beforeAll(async ({ request }) => {
-    await resetWorkflows(request);
+    await resetServiceBlueprints(request);
   });
 
   let page: Page;
@@ -199,10 +199,10 @@ test.describe.serial('garden waste permit demo', () => {
       eyebrow: 'UMBRACO PRISM',
       title: 'Standing up a new council service in minutes',
       body:
-        "We're going to show you how easy it is to build a real service on Prism's workflow " +
+        "We're going to show you how easy it is to build a real service on Prism's service blueprint " +
         'engine. Our system of record is a mock business application; our AI tooling is Claude. ' +
-        "We'll move across the Umbraco back office, the business app's workflow admin, the " +
-        'workflow editor, and the Claude CLI — to build a garden waste collection permit for a ' +
+        "We'll move across the Umbraco back office, the business app's service blueprint admin, the " +
+        'service blueprint editor, and the Claude CLI — to build a garden waste collection permit for a ' +
         'local council.',
       // The word-count-based default comfortably exceeds this for a paragraph this length —
       // explicit override rather than trimming the copy itself.
@@ -226,25 +226,25 @@ test.describe.serial('garden waste permit demo', () => {
     await beat(
       page,
       'intent',
-      "We're going to create a page for our new service, and give it a Workflow Key — the one " +
+      "We're going to create a page for our new service, and give it a ServiceBlueprint Key — the one " +
         'property that connects it to the runtime engine.'
     );
 
-    // "Home" allows workflowPage/workflowHub/memberDashboard as children (see
+    // "Home" allows serviceBlueprintPage/serviceBlueprintHub/memberDashboard as children (see
     // PrismContentTypeSeeder.EnsureHomeAllowedChildrenAsync). The "+" button only renders on
     // hover — hovering the row first is required, not just a visual nicety.
     await page.getByText('Home', { exact: true }).first().hover();
     await humanClick(page, page.getByRole('button', { name: 'Create item for Home' }));
-    await humanClick(page, page.locator('uui-ref-node-document-type').filter({ hasText: 'Workflow Page' }));
+    await humanClick(page, page.locator('uui-ref-node-document-type').filter({ hasText: 'ServiceBlueprint Page' }));
     await page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
 
     await humanType(page, page.getByRole('textbox', { name: 'Enter a name...' }), 'Garden Waste Permit');
-    await humanType(page, page.getByLabel('Workflow Key'), workflowKey);
+    await humanType(page, page.getByLabel('ServiceBlueprint Key'), serviceBlueprintKey);
 
     await humanClick(page, page.getByRole('button', { name: 'Save and publish', exact: true }));
     await expect(page.getByRole('alert').getByText('Document published')).toBeVisible({ timeout: 15_000 });
 
-    publishedUrl = `/${workflowKey}/`;
+    publishedUrl = `/${serviceBlueprintKey}/`;
     // Confirm the guessed slug actually resolves rather than assuming it silently.
     const check = await page.request.get(publishedUrl, { ignoreHTTPSErrors: true });
     expect(check.ok(), `published page did not resolve at ${publishedUrl}`).toBeTruthy();
@@ -252,7 +252,7 @@ test.describe.serial('garden waste permit demo', () => {
     await beat(
       page,
       'recap',
-      'One content page, one key, and Garden Waste Permit is already wired to the workflow ' +
+      'One content page, one key, and Garden Waste Permit is already wired to the service blueprint ' +
         "engine. Now let's give it a real navigation link so a visitor can actually find it."
     );
 
@@ -278,14 +278,14 @@ test.describe.serial('garden waste permit demo', () => {
     await beat(page, 'recap', 'Published, and linked from the site navigation — no hardcoded URL.');
   });
 
-  test('Act 2 — add the new service via the workflow admin dashboard', async () => {
-    await page.goto(`${businessAppOrigin}/admin/workflow`);
+  test('Act 2 — add the new service via the service blueprint admin dashboard', async () => {
+    await page.goto(`${businessAppOrigin}/admin/service-desk`);
     await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
     await beat(
       page,
       'setup',
-      "This is the mock business app's workflow admin — every authored service, plus who's " +
+      "This is the mock business app's service blueprint admin — every authored service, plus who's " +
         "queued up in each one."
     );
     // The "Add a new service" form sits at the bottom of this page — right where the bar was
@@ -297,32 +297,32 @@ test.describe.serial('garden waste permit demo', () => {
       { position: 'top' }
     );
 
-    await humanType(page, page.getByLabel('Definition key'), workflowKey);
+    await humanType(page, page.getByLabel('Definition key'), serviceBlueprintKey);
     await humanType(page, page.getByLabel('Display name'), 'Garden Waste Permit');
-    await humanClick(page, page.getByRole('button', { name: 'Create workflow' }));
+    await humanClick(page, page.getByRole('button', { name: 'Create service blueprint' }));
 
     // The create form is a plain HTML POST (no client JS), so submitting it is a real navigation
-    // — the server scaffolds a zero-states shell (initialState left blank; the graph's own "add
+    // — the server scaffolds a zero-states shell (initialStage left blank; the graph's own "add
     // stage" affordance fills it in the moment a first stage is created) and redirects straight
     // into the editor for it.
-    await page.waitForURL(/workflow-editor/, { timeout: 15_000 });
+    await page.waitForURL(/service-blueprint-editor/, { timeout: 15_000 });
   });
 
   test('Act 3 — build the first stage by hand in the editor', async () => {
-    await page.goto(`${businessAppOrigin}/workflow-editor?workflow=${workflowKey}`);
-    await expect(page.locator('[data-prism-component="workflow-editor-shell"]'))
-      .toHaveAttribute('data-prism-active-workflow', workflowKey, { timeout: 30_000 });
-    await expect(page.locator('prism-workflow-editor'))
-      .toHaveAttribute('data-prism-workflow-loaded', workflowKey, { timeout: 30_000 });
+    await page.goto(`${businessAppOrigin}/service-blueprint-editor?service blueprint=${serviceBlueprintKey}`);
+    await expect(page.locator('[data-prism-component="service-blueprint-editor-shell"]'))
+      .toHaveAttribute('data-prism-active-service-blueprint', serviceBlueprintKey, { timeout: 30_000 });
+    await expect(page.locator('prism-service-blueprint-editor'))
+      .toHaveAttribute('data-prism-service-blueprint-loaded', serviceBlueprintKey, { timeout: 30_000 });
 
-    await beat(page, 'setup', 'This is the visual workflow editor — stages and routes are fully UI-authorable today.');
+    await beat(page, 'setup', 'This is the visual service blueprint editor — stages and routes are fully UI-authorable today.');
     await beat(
       page,
       'intent',
       "We'll build the first stage by hand: a simple question asking how many bins the resident has."
     );
 
-    // Empty-canvas "Create stage" affordance (tests/workflow-editor/workflow-graph-keyboard.spec.ts).
+    // Empty-canvas "Create stage" affordance (tests/service-blueprint-editor/service-blueprint-graph-keyboard.spec.ts).
     await humanClick(page, page.locator('[data-prism-empty-add-stage]'));
     const dialog = page.locator('[data-prism-create-stage-dialog]');
     await humanType(page, dialog.locator('[data-prism-create-stage-title]'), 'How many bins do you have?');
@@ -343,8 +343,8 @@ test.describe.serial('garden waste permit demo', () => {
     await humanClick(page, page.getByRole('button', { name: 'Fit' }));
     await page.waitForTimeout(400);
 
-    // prism-definition-editor lives inside TWO nested shadow roots (workflow-editor-shell →
-    // workflow-editor → definition-editor) — Playwright's own locators auto-pierce open shadow
+    // prism-definition-editor lives inside TWO nested shadow roots (service-blueprint-editor-shell →
+    // service-blueprint-editor → definition-editor) — Playwright's own locators auto-pierce open shadow
     // roots, but a raw page.evaluate() callback runs plain DOM APIs that don't, so the walk has
     // to be explicit here. Off-camera plumbing (adding the one input field) — not worth narrating
     // keystroke by keystroke.
@@ -353,21 +353,21 @@ test.describe.serial('garden waste permit demo', () => {
     // sleep, since first-load JS-chunk fetch time varies (this raced and failed intermittently
     // with a fixed 500ms wait).
     await page.waitForFunction(() => {
-      const shell = document.querySelector('prism-workflow-editor-shell');
-      const editor = shell?.shadowRoot?.querySelector('prism-workflow-editor');
+      const shell = document.querySelector('prism-service-blueprint-editor-shell');
+      const editor = shell?.shadowRoot?.querySelector('prism-service-blueprint-editor');
       return !!editor?.shadowRoot?.querySelector('prism-definition-editor');
     }, { timeout: 15_000 });
     await page.evaluate(({ key, field }) => {
-      const shell = document.querySelector('prism-workflow-editor-shell')!;
-      const editor = shell.shadowRoot!.querySelector('prism-workflow-editor')!;
+      const shell = document.querySelector('prism-service-blueprint-editor-shell')!;
+      const editor = shell.shadowRoot!.querySelector('prism-service-blueprint-editor')!;
       const def = editor.shadowRoot!.querySelector('prism-definition-editor') as unknown as { value: string };
       const current = JSON.parse(def.value);
       const stage = current.states.find((s: { stateKey: string }) => s.stateKey === key);
       stage.components = [
-        // `default` matters beyond seeding the form: validate_workflow has no submitted values to
+        // `default` matters beyond seeding the form: validate_serviceBlueprint has no submitted values to
         // work with, so a calculation the agent later writes against `binCount` (in Act 4) can only
         // be statically verified if this field has one — see docs/guides/calculation-language.md's
-        // "validate_workflow has no submitted values" section. Omitting it doesn't break the
+        // "validate_serviceBlueprint has no submitted values" section. Omitting it doesn't break the
         // *runtime*, but it's exactly the trap that sends an agent chasing a phantom validator bug.
         { type: 'number', fieldKey: field, label: 'How many bins do you have?', required: true, min: 1, default: '1' }
       ];
@@ -387,7 +387,7 @@ test.describe.serial('garden waste permit demo', () => {
 
   test('Act 4 — hand off to the agent over MCP', async ({ request }) => {
     // Real agent call, not mocked, doing real iterative debugging (validate → fix → re-validate,
-    // sometimes cross-checking other seeded workflows to isolate a tool-usage mistake) — observed
+    // sometimes cross-checking other seeded service blueprints to isolate a tool-usage mistake) — observed
     // live to need well over the initial 150s poll budget.
     test.setTimeout(12 * 60_000);
 
@@ -405,7 +405,7 @@ test.describe.serial('garden waste permit demo', () => {
     await beat(
       page,
       'intent',
-      "We'll ask it to read the workflow we just started, add a second stage that calculates the " +
+      "We'll ask it to read the service blueprint we just started, add a second stage that calculates the " +
         'collection fee, and route the first stage into it — completely on its own.'
     );
 
@@ -418,16 +418,16 @@ test.describe.serial('garden waste permit demo', () => {
     // second stage (a real calculations block + a component that renders it, gateway-routed
     // from the first stage). Whether the fee is actually correct on screen is Act 6's job: a
     // real signed-in TestSite user submitting a bin count and seeing the live engine render it.
-    // Asking the agent to also call simulate_workflow and read back the numbers here conflates
+    // Asking the agent to also call simulate_serviceBlueprint and read back the numbers here conflates
     // the two beats, so it's deliberately not part of this prompt.
     const prompt = [
       "I'm designing a garden waste collection permit service (definitionKey: garden-waste-permit).",
       'There is already a first stage "how-many-bins" capturing a number field "binCount".',
-      'Read the workflow, then add a second stage "collection-fee" that calculates the fee:',
+      'Read the service blueprint, then add a second stage "collection-fee" that calculates the fee:',
       '£40 base charge plus £10 per bin over 2, capped at £120 — and include a visible component',
       'that actually displays the calculated fee (a calculation with nothing rendering it is',
       'invisible to the user). Route the first stage through to it via a gateway. Validate before',
-      'you save, and fix anything it flags, then save the workflow.'
+      'you save, and fix anything it flags, then save the service blueprint.'
     ].join(' ');
 
     // Typed at a legible, deliberately human pace for an audience actually reading along —
@@ -438,13 +438,13 @@ test.describe.serial('garden waste permit demo', () => {
 
     // The real completion signal is the saved definition itself, not anything printed in the
     // terminal — the terminal is just the visual of the agent working. Poll the same
-    // read_workflow endpoint the agent itself calls, via the plain REST toolkit (not MCP), for a
+    // read_serviceBlueprint endpoint the agent itself calls, via the plain REST toolkit (not MCP), for a
     // second state carrying a non-empty `calculations` block. That's the one fact that can only
-    // become true via a real save_workflow call reaching the live engine.
+    // become true via a real save_serviceBlueprint call reaching the live engine.
     await expect.poll(
       async () => {
         const response = await request.get(
-          `${businessAppOrigin}/prism/workflow-authoring/workflows/${workflowKey}`,
+          `${businessAppOrigin}/prism/service-blueprint-authoring/service-blueprints/${serviceBlueprintKey}`,
           { ignoreHTTPSErrors: true }
         );
         if (!response.ok()) return false;
@@ -470,11 +470,11 @@ test.describe.serial('garden waste permit demo', () => {
   test('Act 5 — go back to the editor and see what it built', async () => {
     await beat(page, 'intent', "Let's go back to the editor and see what it actually built — no restart, no redeploy.");
 
-    await page.goto(`${businessAppOrigin}/workflow-editor?workflow=${workflowKey}`);
-    await expect(page.locator('[data-prism-component="workflow-editor-shell"]'))
-      .toHaveAttribute('data-prism-active-workflow', workflowKey, { timeout: 30_000 });
-    await expect(page.locator('prism-workflow-editor'))
-      .toHaveAttribute('data-prism-workflow-loaded', workflowKey, { timeout: 30_000 });
+    await page.goto(`${businessAppOrigin}/service-blueprint-editor?service blueprint=${serviceBlueprintKey}`);
+    await expect(page.locator('[data-prism-component="service-blueprint-editor-shell"]'))
+      .toHaveAttribute('data-prism-active-service-blueprint', serviceBlueprintKey, { timeout: 30_000 });
+    await expect(page.locator('prism-service-blueprint-editor'))
+      .toHaveAttribute('data-prism-service-blueprint-loaded', serviceBlueprintKey, { timeout: 30_000 });
 
     await page.locator('[data-prism-confidence-tab="canvas"]').click();
     await expect(page.locator('[data-prism-stage="how-many-bins"]')).toBeVisible();
@@ -509,15 +509,15 @@ test.describe.serial('garden waste permit demo', () => {
     // same mismatch the Act 4 CLI intro had before it was reordered.
     await page.locator('[data-prism-confidence-tab="definition"]').click();
     await page.waitForFunction(() => {
-      const shell = document.querySelector('prism-workflow-editor-shell');
-      const editor = shell?.shadowRoot?.querySelector('prism-workflow-editor');
+      const shell = document.querySelector('prism-service-blueprint-editor-shell');
+      const editor = shell?.shadowRoot?.querySelector('prism-service-blueprint-editor');
       return !!editor?.shadowRoot?.querySelector('prism-definition-editor');
     }, { timeout: 15_000 });
     await page.waitForTimeout(800);
     await beat(page, 'intent', "And here's the actual calculation it wrote — not just the shape, the real maths.");
     const hasCalculations = await page.evaluate(() => {
-      const shell = document.querySelector('prism-workflow-editor-shell')!;
-      const editor = shell.shadowRoot!.querySelector('prism-workflow-editor')!;
+      const shell = document.querySelector('prism-service-blueprint-editor-shell')!;
+      const editor = shell.shadowRoot!.querySelector('prism-service-blueprint-editor')!;
       const def = editor.shadowRoot!.querySelector('prism-definition-editor') as unknown as { value: string };
       const parsed = JSON.parse(def.value);
       return Boolean(parsed.calculations?.fields && Object.keys(parsed.calculations.fields).length > 0);
@@ -528,7 +528,7 @@ test.describe.serial('garden waste permit demo', () => {
       page,
       'recap',
       '£40 base charge, £10 for every bin over two, capped at £120 — exactly what we asked for, ' +
-        "sitting right there in the workflow's own calculations block."
+        "sitting right there in the service blueprint's own calculations block."
     );
   });
 
@@ -538,28 +538,28 @@ test.describe.serial('garden waste permit demo', () => {
     // page against this (rather than a hardcoded "£70") keeps the assertion honest across
     // different agent runs that all correctly implement the same formula.
     const currentDefinition = await (
-      await request.get(`${businessAppOrigin}/prism/workflow-authoring/workflows/${workflowKey}`, { ignoreHTTPSErrors: true })
+      await request.get(`${businessAppOrigin}/prism/service-blueprint-authoring/service-blueprints/${serviceBlueprintKey}`, { ignoreHTTPSErrors: true })
     ).json();
     // The agent chooses its own route trigger each run (empty string, "continue", "submit", ...)
     // — discover the real one from the initial render's own availableActions rather than
     // guessing, so this stays correct across different (equally valid) agent-authored shapes.
     const initialRender = await (
-      await request.post(`${businessAppOrigin}/prism/workflow-authoring/workflows/simulate`, {
+      await request.post(`${businessAppOrigin}/prism/service-blueprint-authoring/service-blueprints/simulate`, {
         ignoreHTTPSErrors: true,
-        data: { workflow: currentDefinition, steps: [] }
+        data: { serviceBlueprint: currentDefinition, steps: [] }
       })
     ).json();
     const realActionKey = initialRender.trace?.[0]?.render?.availableActions?.[0]?.actionKey ?? '';
 
     const simulation = await (
-      await request.post(`${businessAppOrigin}/prism/workflow-authoring/workflows/simulate`, {
+      await request.post(`${businessAppOrigin}/prism/service-blueprint-authoring/service-blueprints/simulate`, {
         ignoreHTTPSErrors: true,
-        data: { workflow: currentDefinition, steps: [{ action: realActionKey, fieldValues: { binCount: 5 } }] }
+        data: { serviceBlueprint: currentDefinition, steps: [{ action: realActionKey, fieldValues: { binCount: 5 } }] }
       })
     ).json();
     const feeFields = lastCalculatedFields(simulation.calculations);
     const expectedFee = feeFields.fee ?? Object.values(feeFields)[0];
-    expect(expectedFee, 'could not determine the expected fee from a direct simulate_workflow call').not.toBeUndefined();
+    expect(expectedFee, 'could not determine the expected fee from a direct simulate_serviceBlueprint call').not.toBeUndefined();
 
     await beat(page, 'setup', "Now let's be an actual resident.");
     await signIn(page);
@@ -644,8 +644,8 @@ test.describe.serial('garden waste permit demo', () => {
     // version of this prompt asked the agent to break the fee into a summary-list of base
     // charge/per-bin surcharge/cap — technically valid, but nonsensical UX (a resident can't
     // sensibly "change" a calculated intermediate value). The fix is in the toolkit itself now —
-    // WorkflowDefinitionFile.ValidateDataDisplayBindings() and each summary-list child's own
-    // ChangeStateKey (UmbracoPrism.Shared/Models/Workflow/Components/InputComponents.cs) — but the
+    // ServiceBlueprintDefinitionFile.ValidateDataDisplayBindings() and each summary-list child's own
+    // ChangeStateKey (UmbracoPrism.Shared/Models/ServiceBlueprint/Components/InputComponents.cs) — but the
     // agent still needs to be told to use it correctly: review CAPTURED INPUTS with working
     // per-row Change links, and show the CALCULATED fee separately via stat-group.
     const refinementPrompt = [
@@ -660,7 +660,7 @@ test.describe.serial('garden waste permit demo', () => {
       'prominently — a stat-group with the total fee is enough; the raw calculation internals (base',
       'charge, per-bin surcharge, the cap) aren\'t something a resident should be asked to "change" in',
       'a summary list, so leave those out of it. Validate before you save, fix anything it flags,',
-      'then save the workflow.'
+      'then save the service blueprint.'
     ].join(' ');
 
     await page.keyboard.type(refinementPrompt, { delay: 45 });
@@ -673,7 +673,7 @@ test.describe.serial('garden waste permit demo', () => {
     await expect.poll(
       async () => {
         const response = await request.get(
-          `${businessAppOrigin}/prism/workflow-authoring/workflows/${workflowKey}`,
+          `${businessAppOrigin}/prism/service-blueprint-authoring/service-blueprints/${serviceBlueprintKey}`,
           { ignoreHTTPSErrors: true }
         );
         if (!response.ok()) return false;
@@ -702,11 +702,11 @@ test.describe.serial('garden waste permit demo', () => {
   test('Act 8 — go back to the editor and see the refined design', async () => {
     await beat(page, 'intent', "Let's see what that refinement actually changed.", { position: 'top' });
 
-    await page.goto(`${businessAppOrigin}/workflow-editor?workflow=${workflowKey}`);
-    await expect(page.locator('[data-prism-component="workflow-editor-shell"]'))
-      .toHaveAttribute('data-prism-active-workflow', workflowKey, { timeout: 30_000 });
-    await expect(page.locator('prism-workflow-editor'))
-      .toHaveAttribute('data-prism-workflow-loaded', workflowKey, { timeout: 30_000 });
+    await page.goto(`${businessAppOrigin}/service-blueprint-editor?service blueprint=${serviceBlueprintKey}`);
+    await expect(page.locator('[data-prism-component="service-blueprint-editor-shell"]'))
+      .toHaveAttribute('data-prism-active-service-blueprint', serviceBlueprintKey, { timeout: 30_000 });
+    await expect(page.locator('prism-service-blueprint-editor'))
+      .toHaveAttribute('data-prism-service-blueprint-loaded', serviceBlueprintKey, { timeout: 30_000 });
 
     await page.locator('[data-prism-confidence-tab="canvas"]').click();
     await expect(page.locator('[data-prism-stage="property-address"]')).toBeVisible();
@@ -733,8 +733,8 @@ test.describe.serial('garden waste permit demo', () => {
     // capability this whole refinement exists to demonstrate.
     await page.locator('[data-prism-confidence-tab="definition"]').click();
     await page.waitForFunction(() => {
-      const shell = document.querySelector('prism-workflow-editor-shell');
-      const editor = shell?.shadowRoot?.querySelector('prism-workflow-editor');
+      const shell = document.querySelector('prism-service-blueprint-editor-shell');
+      const editor = shell?.shadowRoot?.querySelector('prism-service-blueprint-editor');
       return !!editor?.shadowRoot?.querySelector('prism-definition-editor');
     }, { timeout: 15_000 });
     await page.waitForTimeout(800);
@@ -745,8 +745,8 @@ test.describe.serial('garden waste permit demo', () => {
         'the stage that actually captured it.'
     );
     const feeStageComponents = await page.evaluate(() => {
-      const shell = document.querySelector('prism-workflow-editor-shell')!;
-      const editor = shell.shadowRoot!.querySelector('prism-workflow-editor')!;
+      const shell = document.querySelector('prism-service-blueprint-editor-shell')!;
+      const editor = shell.shadowRoot!.querySelector('prism-service-blueprint-editor')!;
       const def = editor.shadowRoot!.querySelector('prism-definition-editor') as unknown as { value: string };
       const parsed = JSON.parse(def.value);
       const feeStage = parsed.states?.find((s: { stateKey: string }) => s.stateKey === 'collection-fee');
@@ -775,27 +775,27 @@ test.describe.serial('garden waste permit demo', () => {
     // left once each humanClick/humanType's deliberate human-paced delay is added up.
     test.setTimeout(6 * 60_000);
 
-    // instancePolicy is "single" for this resident — Act 6 already ran a submission and left its
+    // requestPolicy is "single" for this resident — Act 6 already ran a submission and left its
     // instance parked wherever it stopped (the collection-fee review stage). Without a reset,
     // clicking the nav link here just RESUMES that instance at its current state instead of
     // starting fresh (confirmed live: landed straight on the review stage, bin count already "5"
     // from Act 6, address "Not answered" since that field didn't exist yet when Act 6 ran) —
     // exactly wrong for "let's run it again" framing, which means starting over. Only the
-    // instance needs clearing; resetWorkflows() doesn't touch the definition Act 7 just saved.
-    await resetWorkflows(request);
+    // instance needs clearing; resetServiceBlueprints() doesn't touch the definition Act 7 just saved.
+    await resetServiceBlueprints(request);
 
     // Two-stage ground truth now: how-many-bins then property-address before the fee stage, so the
     // expected-fee simulation has to walk both steps (discovering each stage's own action key from
     // the trace, never assuming a trigger name) rather than the single-step call Act 6 used.
     const currentDefinition = await (
-      await request.get(`${businessAppOrigin}/prism/workflow-authoring/workflows/${workflowKey}`, { ignoreHTTPSErrors: true })
+      await request.get(`${businessAppOrigin}/prism/service-blueprint-authoring/service-blueprints/${serviceBlueprintKey}`, { ignoreHTTPSErrors: true })
     ).json();
 
     async function simulate(steps: Array<{ action: string; fieldValues: Record<string, unknown> }>) {
       return (
-        await request.post(`${businessAppOrigin}/prism/workflow-authoring/workflows/simulate`, {
+        await request.post(`${businessAppOrigin}/prism/service-blueprint-authoring/service-blueprints/simulate`, {
           ignoreHTTPSErrors: true,
-          data: { workflow: currentDefinition, steps }
+          data: { serviceBlueprint: currentDefinition, steps }
         })
       ).json();
     }
@@ -811,7 +811,7 @@ test.describe.serial('garden waste permit demo', () => {
       ]);
       const feeFields = lastCalculatedFields(afterAddress.calculations);
       const fee = feeFields.fee ?? feeFields.totalFee ?? feeFields.total ?? Object.values(feeFields).at(-1);
-      expect(fee, 'could not determine the expected fee from a direct simulate_workflow call').not.toBeUndefined();
+      expect(fee, 'could not determine the expected fee from a direct simulate_serviceBlueprint call').not.toBeUndefined();
       return String(fee);
     }
 
@@ -896,7 +896,7 @@ test.describe.serial('garden waste permit demo', () => {
       eyebrow: 'UMBRACO PRISM',
       title: "That's the whole loop",
       body:
-        'Content, workflow, calculation, and a real page — authored partly by hand, partly by an ' +
+        'Content, service blueprint, calculation, and a real page — authored partly by hand, partly by an ' +
         'AI agent talking to nothing but a documented MCP toolkit. Thanks for watching.'
     });
   });

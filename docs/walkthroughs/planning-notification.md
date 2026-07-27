@@ -1,10 +1,10 @@
 # Interactive Walkthrough — "Apply for Planning Permission"
 
-A complex multi-page workflow demonstrating file uploads, address lookups, progressive disclosure, and the full end-to-end flow with explanations of what Umbraco.Prism and the Umbraco backoffice do at each step.
+A complex multi-page service blueprint demonstrating file uploads, address lookups, progressive disclosure, and the full end-to-end flow with explanations of what Umbraco.Prism and the Umbraco backoffice do at each step.
 
 ## Overview
 
-The planning notification workflow (`planning-notification`) handles planning permission applications with:
+The planning notification service blueprint (`planning-notification`) handles planning permission applications with:
 
 - **Multi-page flow** with state transitions
 - **File upload** for supporting documents
@@ -18,11 +18,11 @@ The planning notification workflow (`planning-notification`) handles planning pe
 
 ---
 
-## Part 1: Log In and Start the Workflow
+## Part 1: Log In and Start the Service Blueprint
 
 ### Step 1: Navigate to the TestSite
 
-![TestSite homepage — branded landing page with navigation and workflow entry point](../images/walkthroughs/shared/01-homepage.png)
+![TestSite homepage — branded landing page with navigation and service blueprint entry point](../images/walkthroughs/shared/01-homepage.png)
 
 1. Open the TestSite in your browser:
    - **Codespaces:** Click the forwarded link from the terminal (or `https://{CODESPACE_NAME}-44345.app.github.dev`)
@@ -34,7 +34,7 @@ The planning notification workflow (`planning-notification`) handles planning pe
 
 ### Step 2: Log In
 
-1. Click **My Workflows** in the navigation or find the link on the homepage.
+1. Click **My Service Blueprints** in the navigation or find the link on the homepage.
 
 2. You are redirected to the Keycloak login screen.
 
@@ -44,9 +44,9 @@ The planning notification workflow (`planning-notification`) handles planning pe
 
 4. Click **Sign In**.
 
-   After a few seconds, you land on the **My Workflows** page with a list of available workflows.
+   After a few seconds, you land on the **My Service Blueprints** page with a list of available service blueprints.
 
-   ![My Workflows dashboard — list of available workflows for the authenticated user](../images/walkthroughs/shared/02-dashboard.png)
+   ![My Service Blueprints dashboard — list of available service blueprints for the authenticated user](../images/walkthroughs/shared/02-dashboard.png)
 
 5. 💡 **What's happening:** This is an OpenID Connect (OIDC) authentication flow. Here's what occurred:
    - Your browser was redirected to Keycloak at `https://localhost:8443/realms/prism-dev` (or the Codespaces forwarded URL).
@@ -57,15 +57,15 @@ The planning notification workflow (`planning-notification`) handles planning pe
 
 ### Step 3: Find and Click "Apply for Planning Permission"
 
-1. On the **My Workflows** page, find the tile labeled **Apply for Planning Permission** and click it.
+1. On the **My Service Blueprints** page, find the tile labeled **Apply for Planning Permission** and click it.
 
    The page title changes to **Describe your project** and you see a form with three fields.
 
-2. ✅ **What you're about to do:** You are about to start a new workflow instance — a stateful conversation between you and the system that collects information, validates it, shows it back to you, and then submits it.
+2. ✅ **What you're about to do:** You are about to start a new service request — a stateful conversation between you and the system that collects information, validates it, shows it back to you, and then submits it.
 
 ---
 
-## Part 2: Walk Through the Workflow Steps
+## Part 2: Walk Through the Service Blueprint Steps
 
 Each step collects information or presents a review screen. Let's fill in the form as we go.
 
@@ -90,16 +90,16 @@ Each step collects information or presents a review screen. Let's fill in the fo
 **Click Continue**
 
 1. 💡 **How this works:**
-   - The workflow step type is `question` — designed to collect user input.
-   - Each field is defined in a field group file (e.g., `src/UmbracoPrism.MockBusinessApp/workflow-seeds/field-groups/project-info.json`), which specifies the field name, label, input type (`text` or `textarea`), required flag, and max-length validation.
-   - The Umbraco TestSite made an HTTP POST to `https://localhost:7245/api/workflow/planning-notification/current` (the MockBusinessApp's workflow engine) with your tenant ID, user ID, and bearer token.
-   - The workflow engine created a new instance in memory, seeded it with the `project-info` field group, and returned a `WorkflowResponseEnvelope` describing the current state (display name, field definitions, allowed actions).
+   - The service blueprint step type is `question` — designed to collect user input.
+   - Each field is defined in a field group file (e.g., `src/UmbracoPrism.MockBusinessApp/service-blueprints/field-groups/project-info.json`), which specifies the field name, label, input type (`text` or `textarea`), required flag, and max-length validation.
+   - The Umbraco TestSite made an HTTP POST to `https://localhost:7245/api/service-blueprint/planning-notification/current` (the MockBusinessApp's service blueprint engine) with your tenant ID, user ID, and bearer token.
+   - The service blueprint engine created a new instance in memory, seeded it with the `project-info` field group, and returned a `ServiceRequestResponseEnvelope` describing the current state (display name, field definitions, allowed actions).
    - The TestSite rendered those field definitions as HTML form inputs using Razor partials (e.g., `_WorkflowStep-Question.cshtml`).
 
 2. ✅ **Data validation happens in real-time:**
    - If you leave the **Project name** blank and click Continue, the browser validates (HTML5 `required` attribute) and the form doesn't submit.
    - If you exceed 100 characters, the browser truncates or the form rejects submission.
-   - Server-side validation happens when you click Continue — if the MockBusinessApp receives invalid data, it returns a `WorkflowResponseEnvelope` with `isValid: false` and error messages, which the TestSite re-renders.
+   - Server-side validation happens when you click Continue — if the MockBusinessApp receives invalid data, it returns a `ServiceRequestResponseEnvelope` with `isValid: false` and error messages, which the TestSite re-renders.
 
 ### Step 2: "Type of work"
 
@@ -121,10 +121,10 @@ Each step collects information or presents a review screen. Let's fill in the fo
 **Click Continue**
 
 1. 💡 **Field group reference:**
-   - This step uses the `work-type-info` field group (defined in `workflow-seeds/field-groups/work-type-info.json`).
-   - The workflow definition (in `planning-notification.json`) specifies that the `work-type` state includes the `work-type-info` field group.
-   - The Umbraco client sent your filled-in `project-name`, `project-description`, and `property-address` values to the workflow engine along with an action `continue`.
-   - The workflow engine validated those fields, stored them in the in-memory instance, transitioned to the `work-type` state, and returned the new state's field group definitions.
+   - This step uses the `work-type-info` field group (defined in `service-blueprints/field-groups/work-type-info.json`).
+   - The service blueprint (in `planning-notification.json`) specifies that the `work-type` state includes the `work-type-info` field group.
+   - The Umbraco client sent your filled-in `project-name`, `project-description`, and `property-address` values to the service blueprint engine along with an action `continue`.
+   - The service blueprint engine validated those fields, stored them in the in-memory instance, transitioned to the `work-type` state, and returned the new state's field group definitions.
 
 ### Step 3: "Timeline and cost"
 
@@ -146,9 +146,9 @@ Each step collects information or presents a review screen. Let's fill in the fo
 **Click Continue**
 
 1. 💡 **What's happening:**
-   - The date field uses the GDS `date-input` step type, rendering three separate inputs with IDs `proposedStartDate-day`, `proposedStartDate-month`, and `proposedStartDate-year`. The workflow engine combines these into a single `D/M/YYYY` value stored under the base field key.
+   - The date field uses the GDS `date-input` step type, rendering three separate inputs with IDs `proposedStartDate-day`, `proposedStartDate-month`, and `proposedStartDate-year`. The service blueprint engine combines these into a single `D/M/YYYY` value stored under the base field key.
    - The currency field stores the raw number and prepends the `£` prefix when displaying the value in the summary.
-   - When you click Continue, the TestSite POSTs the filled values to `/api/workflow/planning-notification/advance` with action `continue`, and the engine transitions to the next state.
+   - When you click Continue, the TestSite POSTs the filled values to `/api/service-blueprint/planning-notification/advance` with action `continue`, and the engine transitions to the next state.
 
 ### Step 4: "Affected parties"
 
@@ -183,20 +183,20 @@ Each step collects information or presents a review screen. Let's fill in the fo
 - Two buttons: **Back** (to edit) and **Submit**
 
 1. 💡 **The check-answers step type:**
-   - The workflow definition specifies `stepType: "check-answers"` for this state.
+   - The service blueprint specifies `stepType: "check-answers"` for this state.
    - The TestSite rendered a special partial (`_WorkflowStep-Review.cshtml`) that displays a read-only summary instead of input fields.
-   - The workflow engine aggregates all field groups from every previous step and presents them together — none of your earlier answers are lost.
+   - The service blueprint engine aggregates all field groups from every previous step and presents them together — none of your earlier answers are lost.
    - This is a UX checkpoint: users confirm their data is correct before submission.
 
 2. ✅ **What you can do:**
-   - **Edit:** Click **Back** to return to the previous step, make changes, and click **Continue** again. The workflow instance remembers your earlier answers, so you land back on the **Affected parties** step with your previous choices still selected.
-   - **Submit:** Click **Submit** to finalize the workflow.
+   - **Edit:** Click **Back** to return to the previous step, make changes, and click **Continue** again. The service request remembers your earlier answers, so you land back on the **Affected parties** step with your previous choices still selected.
+   - **Submit:** Click **Submit** to finalize the service blueprint.
 
 **Click Submit**
 
-1. 💡 **Submitting the workflow:**
-   - The TestSite POSTs to `/api/workflow/planning-notification/advance` with action `submit`.
-   - The workflow engine validates that all required fields are filled, transitions to the `complete` state, and marks the instance as finished.
+1. 💡 **Submitting the service blueprint:**
+   - The TestSite POSTs to `/api/service-blueprint/planning-notification/advance` with action `submit`.
+   - The service blueprint engine validates that all required fields are filled, transitions to the `complete` state, and marks the instance as finished.
    - The Business App stores the instance in its in-memory state (for this demo; in production, it would persist to a database and possibly trigger downstream actions like sending emails or creating records).
 
 ### Step 6: "Application received"
@@ -214,25 +214,25 @@ Each step collects information or presents a review screen. Let's fill in the fo
 - One button: **Start another application**
 
 1. 💡 **The confirmation step type:**
-   - The workflow definition specifies `stepType: "confirmation"` for the `complete` state.
+   - The service blueprint specifies `stepType: "confirmation"` for the `complete` state.
    - The TestSite rendered a special partial (`_WorkflowStep-Completion.cshtml`) that displays a success message and next steps.
-   - The workflow engine includes a reference number (the instance ID) so the user can track their submission.
-   - Subsequent requests to `/api/workflow/planning-notification/current` will show this same completion state (the instance is still active but completed).
+   - The service blueprint engine includes a reference number (the instance ID) so the user can track their submission.
+   - Subsequent requests to `/api/service-blueprint/planning-notification/current` will show this same completion state (the instance is still active but completed).
 
 2. ✅ **Starting another application:**
    - Click **Start another application**.
-   - The workflow engine creates a fresh instance for the same user/tenant/workflow combination.
-   - The `instancePolicy: "multiple"` setting in the workflow definition means users can start multiple instances.
+   - The service blueprint engine creates a fresh instance for the same user/tenant/service blueprint combination.
+   - The `instancePolicy: "multiple"` setting in the service blueprint means users can start multiple instances.
 
 ---
 
-## Part 3: Behind the Scenes — How Umbraco.Prism Powers This Workflow
+## Part 3: Behind the Scenes — How Umbraco.Prism Powers This Service Blueprint
 
-### The Workflow Definition
+### The Service Blueprint
 
-**Location:** `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.json`
+**Location:** `src/UmbracoPrism.MockBusinessApp/service-blueprints/planning-notification.json`
 
-This JSON file defines the entire workflow structure:
+This JSON file defines the entire service blueprint structure:
 
 ```json
 {
@@ -255,15 +255,15 @@ This JSON file defines the entire workflow structure:
 ```
 
 **What this means:**
-- **definitionKey:** The unique workflow identifier (used in the URL: `/api/workflow/planning-notification/...`).
+- **definitionKey:** The unique service blueprint identifier (used in the URL: `/api/service-blueprint/planning-notification/...`).
 - **displayName:** Human-readable name shown to users.
 - **instancePolicy:** `"multiple"` means users can have multiple active instances.
-- **states:** Each state is a step in the workflow, with a `stepType` (`question`, `check-answers`, `confirmation`) and allowed actions (`continue`, `back`, `submit`).
+- **states:** Each state is a step in the service blueprint, with a `stepType` (`question`, `check-answers`, `confirmation`) and allowed actions (`continue`, `back`, `submit`).
 - **transitions:** Defines which state follows each action (e.g., "from `project-details`, if action is `continue`, go to `work-type`").
 
 ### Polymorphic Component Model
 
-The workflow uses a polymorphic component model where field definitions include a discriminator `type`:
+The service blueprint uses a polymorphic component model where field definitions include a discriminator `type`:
 
 ```json
 {
@@ -280,17 +280,17 @@ The workflow uses a polymorphic component model where field definitions include 
 
 Field types include: `text`, `textarea`, `email`, `number`, `currency`, `date`, `radios`, `checkboxes`, `file`, and more.
 
-### The Workflow Engine
+### The Service Blueprint Engine
 
-**Location:** `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs`
+**Location:** `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppProcessManager.cs`
 
-This is the core engine that powers workflow logic. It:
+This is the core engine that powers service blueprint logic. It:
 
-1. **Loads seed data at startup:** Reads all JSON files from `workflow-seeds/` into memory as `WorkflowDefinitionFile` and `FieldGroupFile` objects.
-2. **Maintains instance state:** Stores each user's workflow instances in a `ConcurrentDictionary<string, WorkflowInstanceState>` keyed by `{tenantId}:{userId}:{workflowKey}`.
-3. **Handles GetCurrent:** Returns the current state of a workflow instance, or creates a fresh one if none exists.
+1. **Loads seed data at startup:** Reads all JSON files from `service-blueprints/` into memory as `ServiceBlueprint` and `FieldGroupFile` objects.
+2. **Maintains instance state:** Stores each user's service requests in a `ConcurrentDictionary<string, ServiceRequest>` keyed by `{tenantId}:{userId}:{workflowKey}`.
+3. **Handles GetCurrent:** Returns the current state of a service request, or creates a fresh one if none exists.
 4. **Handles Advance:** Validates the user's input against the current state's field definitions, transitions to the next state, and returns the new state's definition.
-5. **Tracks completed instances:** Once a workflow reaches a terminal state (e.g., `complete`), it marks the instance as finished but keeps it in memory so the UI can display the confirmation.
+5. **Tracks completed instances:** Once a service blueprint reaches a terminal state (e.g., `complete`), it marks the instance as finished but keeps it in memory so the UI can display the confirmation.
 
 ### Integration: How Umbraco Calls the Engine
 
@@ -298,24 +298,24 @@ This is the core engine that powers workflow logic. It:
 
 The Umbraco site (TestSite) includes a service that makes HTTP calls to the Business App:
 
-1. **GetCurrentAsync:** POSTs to `/api/workflow/{workflowKey}/current`
+1. **GetCurrentAsync:** POSTs to `/api/service-blueprint/{workflowKey}/current`
    - The TestSite controller routes this request through `BusinessAppWorkflowClient`.
    - The client forwards your bearer token (JWT) so the Business App can verify your identity.
-   - Returns a `WorkflowResponseEnvelope` with the current state and field definitions.
+   - Returns a `ServiceRequestResponseEnvelope` with the current state and field definitions.
 
-2. **AdvanceAsync:** POSTs to `/api/workflow/{workflowKey}/advance` with your form data
+2. **AdvanceAsync:** POSTs to `/api/service-blueprint/{workflowKey}/advance` with your form data
    - The client serializes your filled-in fields as JSON.
    - The Business App engine validates them, transitions the instance, and returns the new state.
    - If validation fails, the engine returns an error envelope with validation messages.
 
 ### The Response Envelope
 
-Every workflow API response from the Business App includes a `WorkflowResponseEnvelope`:
+Every service blueprint API response from the Business App includes a `ServiceRequestResponseEnvelope`:
 
 ```csharp
-public class WorkflowResponseEnvelope
+public class ServiceRequestResponseEnvelope
 {
-    public string InstanceId { get; set; }           // Unique ID for this workflow instance
+    public string InstanceId { get; set; }           // Unique ID for this service request
     public string StateKey { get; set; }             // Current state (e.g., "project-details")
     public string StateDisplayName { get; set; }     // User-facing name
     public string StepType { get; set; }             // "question", "check-answers", "confirmation"
@@ -327,12 +327,12 @@ public class WorkflowResponseEnvelope
 }
 ```
 
-### Rendering: How Umbraco Displays the Workflow
+### Rendering: How Umbraco Displays the Service Blueprint
 
 **Location:** `src/UmbracoPrism.TestSite/Views/WorkflowPage.cshtml`
 
 1. The TestSite controller fetches the current state via `BusinessAppWorkflowClient.GetCurrentAsync()`.
-2. It passes the `WorkflowResponseEnvelope` to `WorkflowPage.cshtml`.
+2. It passes the `ServiceRequestResponseEnvelope` to `stagePage.cshtml`.
 3. The view maps the `StepType` to a partial view:
    - `question` → `_WorkflowStep-Question.cshtml` (renders form inputs)
    - `check-answers` → `_WorkflowStep-Review.cshtml` (renders read-only summary)
@@ -341,7 +341,7 @@ public class WorkflowResponseEnvelope
 
 ### Umbraco Backoffice Content
 
-Log into the Umbraco backoffice to see how this workflow is wired:
+Log into the Umbraco backoffice to see how this service blueprint is wired:
 
 1. Go to `https://localhost:44345/umbraco` (or the Codespaces URL + `/umbraco`)
 2. Log in with:
@@ -350,16 +350,16 @@ Log into the Umbraco backoffice to see how this workflow is wired:
 3. Navigate to **Content** and find **Get in Touch** or **Apply for Planning Permission**
 4. Look at the page properties:
    - **URL:** `/apply-for-planning-permission`
-   - **Workflow Key:** `planning-notification` (links to the workflow definition)
+   - **Blueprint Key:** `planning-notification` (links to the service blueprint)
 
 **What the backoffice user controls:**
 - The page title, description, and any static UI text.
-- The workflow key (which workflow definition to use).
+- The blueprint key (which service blueprint to use).
 - Content publishing and unpublishing (determines if the page is visible to users).
 
 **What the backoffice user does NOT control:**
-- The workflow states, transitions, or field definitions — those are baked into the JSON seed files in the MockBusinessApp.
-- In a real system, the backoffice might include a visual workflow builder, but this demo uses JSON as the source of truth.
+- The service blueprint states, transitions, or field definitions — those are baked into the JSON seed files in the MockBusinessApp.
+- In a real system, the backoffice might include a visual service blueprint builder, but this demo uses JSON as the source of truth.
 
 ### Keycloak: Identity and Authorization
 
@@ -370,27 +370,27 @@ When you logged in at the start, Keycloak issued tokens. Here's what happened:
    - `id_token`: Contains claims about your identity (subject ID, email, etc.)
    - `access_token`: An OAuth 2.0 JWT that proves you're authorized to call APIs
 3. **Token storage:** The TestSite stored the `id_token` in a secure cookie and the `access_token` in memory.
-4. **API authorization:** When the TestSite calls the workflow engine, it includes the `access_token` as a Bearer token in the HTTP Authorization header.
+4. **API authorization:** When the TestSite calls the service blueprint engine, it includes the `access_token` as a Bearer token in the HTTP Authorization header.
 5. **Token validation:** The MockBusinessApp validates the token's signature using Keycloak's public key (fetched from `https://localhost:8443/realms/prism-dev/.well-known/openid-configuration`).
-6. **Tenant resolution:** The token includes a `tenantId` claim (set by Prism during token exchange) that the Business App uses to isolate workflow instances by tenant.
+6. **Tenant resolution:** The token includes a `tenantId` claim (set by Prism during token exchange) that the Business App uses to isolate service requests by tenant.
 
 ---
 
 ## Exploring Further
 
-### View the Workflow Definition
+### View the Service Blueprint
 
 In your Codespace or local terminal:
 
 ```bash
-cat src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.json
+cat src/UmbracoPrism.MockBusinessApp/service-blueprints/planning-notification.json
 ```
 
-You'll see the full state machine definition. Try changing a field label or adding a new field, restarting the AppHost, and see it reflected in the workflow UI.
+You'll see the full state machine definition. Try changing a field label or adding a new field, restarting the AppHost, and see it reflected in the service blueprint UI.
 
 ### View the Engine Logs
 
-While running the workflow, watch the MockBusinessApp logs in the Aspire Dashboard:
+While running the service blueprint, watch the MockBusinessApp logs in the Aspire Dashboard:
 
 1. Open the Aspire Dashboard (`https://localhost:17214` or Codespaces forwarded URL)
 2. Click **Resources** and find **MockBusinessApp**
@@ -409,10 +409,10 @@ Log into the Umbraco backoffice and explore:
 
 Open the TestSite in two separate browsers or private windows (both logged in as `demo@prism.local`):
 
-1. Start the workflow in Browser A.
-2. Go to the workflow in Browser B.
+1. Start the service blueprint in Browser A.
+2. Go to the service blueprint in Browser B.
 3. Both should see the same active instance.
-4. Complete the workflow in Browser B.
+4. Complete the service blueprint in Browser B.
 5. Go back to Browser A — you'll see the completion page (the instance is shared).
 
 ---
@@ -420,8 +420,8 @@ Open the TestSite in two separate browsers or private windows (both logged in as
 ## Schema Reference
 
 For details on all available component types and the polymorphic component model, see:
-- [Workflow GDS Components Guide](../guides/workflow-gds-components.md)
-- [Workflow Forms Validation Guide](../guides/workflow-forms-validation.md)
+- [Service Blueprint GDS Components Guide](../guides/service-blueprint-gds-components.md)
+- [Service Blueprint Forms Validation Guide](../guides/service-request-forms-validation.md)
 
 ---
 

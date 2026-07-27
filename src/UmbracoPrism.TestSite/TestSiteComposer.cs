@@ -5,11 +5,11 @@ using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using UmbracoPrism.Core.Services.Workflow;
+using UmbracoPrism.Core.Services.ServiceDesign;
 using UmbracoPrism.Shared.Services.Sanitization;
 using UmbracoPrism.TestSite.BackgroundServices;
 using UmbracoPrism.TestSite.Services;
-using UmbracoPrism.WorkflowRuntime.Abstractions;
+using UmbracoPrism.ProcessManager.Abstractions;
 
 namespace UmbracoPrism.TestSite;
 
@@ -22,8 +22,8 @@ namespace UmbracoPrism.TestSite;
 /// <para>
 /// <see cref="ComposeAfterAttribute"/> on <see cref="PrismComposer"/> guarantees that
 /// <see cref="PrismContentTypeSeeder"/> is registered — and therefore runs — before any
-/// handler registered here. <see cref="WorkflowPageSeeder"/> depends on <c>workflowPage</c>
-/// and <c>workflowHub</c> content types created by <see cref="PrismContentTypeSeeder"/>.
+/// handler registered here. <see cref="StagePageSeeder"/> depends on <c>stagePage</c>
+/// and <c>serviceRequestHub</c> content types created by <see cref="PrismContentTypeSeeder"/>.
 /// Umbraco dispatches <see cref="UmbracoApplicationStartedNotification"/> handlers
 /// sequentially in registration order, so composer ordering is the correct coordination mechanism.
 /// </para>
@@ -45,33 +45,33 @@ public class TestSiteComposer : IComposer
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, VinylVaultSeeder>();
         builder.Services.AddHostedService<LimitedEditionDropNotifier>();
 
-        // Workflow Page demo — runs after PrismContentTypeSeeder has created the workflowPage doc type
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WorkflowPageSeeder>();
+        // Stage Page demo — runs after PrismContentTypeSeeder has created the stagePage doc type
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, StagePageSeeder>();
 
-        // Prism CMS Workflow demos ("Apply for a juggling licence" and "Transfer a professional
+        // Prism CMS Service Blueprint demos ("Apply for a juggling licence" and "Transfer a professional
         // juggling licence") — demonstrates the service-sourced field extension point for a
         // logged-in member, shared across both since they're the same fictional membership
         // scheme. Re-registering
-        // CmsWorkflowEngine here (after AddPrismCmsWorkflow()'s own registration in
+        // CmsProcessManager here (after AddPrismCmsServiceBlueprint()'s own registration in
         // PrismComposer) supplies the serviceInputsResolver delegate; last registration wins
-        // for single-instance resolution, and IWorkflowRuntimeEngine's factory (registered by
-        // Core) resolves CmsWorkflowEngine lazily, so it picks up this one.
+        // for single-instance resolution, and IProcessManager's factory (registered by
+        // Core) resolves CmsProcessManager lazily, so it picks up this one.
         builder.Services.AddSingleton<IJugglingSocietyMembershipClient, JugglingSocietyMembershipClient>();
         builder.Services.AddSingleton(sp =>
         {
             var membershipClient = sp.GetRequiredService<IJugglingSocietyMembershipClient>();
-            return new CmsWorkflowEngine(
-                sp.GetRequiredService<ILogger<CmsWorkflowEngine>>(),
-                sp.GetRequiredService<IWorkflowDefinitionStore>(),
-                sp.GetRequiredService<IWorkflowContentSanitizer>(),
-                sp.GetRequiredService<IWorkflowInstanceStore>(),
+            return new CmsProcessManager(
+                sp.GetRequiredService<ILogger<CmsProcessManager>>(),
+                sp.GetRequiredService<IServiceBlueprintStore>(),
+                sp.GetRequiredService<IServiceContentSanitizer>(),
+                sp.GetRequiredService<IServiceRequestStore>(),
                 sp.GetRequiredService<IHttpContextAccessor>(),
                 (instance, definition, _) =>
                 {
-                    var isJugglingLicenceWorkflow =
-                        string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceWorkflowKey, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceTransferWorkflowKey, StringComparison.OrdinalIgnoreCase);
-                    if (!isJugglingLicenceWorkflow)
+                    var isJugglingLicenceServiceBlueprint =
+                        string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceBlueprintKey, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceTransferBlueprintKey, StringComparison.OrdinalIgnoreCase);
+                    if (!isJugglingLicenceServiceBlueprint)
                     {
                         return null;
                     }
@@ -83,18 +83,18 @@ public class TestSiteComposer : IComposer
                     };
                 });
         });
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, JugglingLicenceCmsWorkflowSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, JugglingLicenceCmsServiceBlueprintSeeder>();
 
         // Guidance articles for "Transfer a Professional Juggling Licence" — seeded ahead of
         // time so a live MCP build has real CMS content to link to rather than needing to author
-        // it on camera. Must run before LicenceTransferCmsWorkflowSeeder below only in the sense
+        // it on camera. Must run before LicenceTransferCmsServiceBlueprintSeeder below only in the sense
         // that both are idempotent and order-independent; listed here because it's the same demo.
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, GuidanceArticleContentTypes>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, GuidanceArticleSeeder>();
 
         // The "here's one we made earlier" reference copy of the definition the recording builds
-        // live via MCP — see LicenceTransferCmsWorkflowSeeder's own remarks for what a future
+        // live via MCP — see LicenceTransferCmsServiceBlueprintSeeder's own remarks for what a future
         // re-recording needs to do first.
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, LicenceTransferCmsWorkflowSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, LicenceTransferCmsServiceBlueprintSeeder>();
     }
 }

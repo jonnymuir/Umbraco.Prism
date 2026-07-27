@@ -6,7 +6,7 @@ using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
-using UmbracoPrism.Core.Services.Workflow;
+using UmbracoPrism.Core.Services.ServiceDesign;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Client;
 using System.Security.Authentication;
@@ -511,7 +511,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 props.RedirectUri = null;
                 await context.HttpContext.SignInAsync("PrismMemberCookie", principal, props);
 
-                ClaimAnonymousWorkflowInstances(context.HttpContext, identity);
+                ClaimAnonymousServiceRequests(context.HttpContext, identity);
 
                 // Tell the OIDC middleware to STOP.
                 // If we don't call HandleResponse, it will try to sign in again and overwrite our cookie.
@@ -592,22 +592,22 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
     /// before this callback ran (anonymous, or a different signed-in user), not the one just
     /// authenticated.
     /// </summary>
-    private void ClaimAnonymousWorkflowInstances(HttpContext httpContext, ClaimsIdentity newIdentity)
+    private void ClaimAnonymousServiceRequests(HttpContext httpContext, ClaimsIdentity newIdentity)
     {
         var services = httpContext.RequestServices;
-        // Resolved by concrete type, not IWorkflowRuntimeEngine — that interface isn't
-        // registered as a keyed service (only IBusinessAppWorkflowClient is, under "cms"), and
-        // a host that also registers its own business-app engine via AddPrismWorkflowEngine()
-        // would make an unkeyed IWorkflowRuntimeEngine lookup ambiguous. CmsWorkflowEngine
+        // Resolved by concrete type, not IProcessManager — that interface isn't
+        // registered as a keyed service (only IBusinessAppProcessManagerClient is, under "cms"), and
+        // a host that also registers its own business-app engine via AddPrismProcessManager()
+        // would make an unkeyed IProcessManager lookup ambiguous. CmsProcessManager
         // itself is always registered by concrete type, so this is unambiguous regardless.
-        var engine = services.GetService<CmsWorkflowEngine>();
+        var engine = services.GetService<CmsProcessManager>();
         if (engine is null)
         {
             // A host using Prism's auth without its CMS Workflow feature — nothing to claim.
             return;
         }
 
-        var identityResolver = services.GetRequiredService<CmsWorkflowVisitorIdentityResolver>();
+        var identityResolver = services.GetRequiredService<CmsServiceRequestVisitorIdentityResolver>();
         var anonymousUserId = identityResolver.PeekAnonymousVisitorId();
         if (anonymousUserId is null)
         {

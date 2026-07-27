@@ -139,7 +139,7 @@ PrismTenantMiddleware.InvokeAsync()
 Next middleware (auth, routing, Umbraco pipeline)
 ```
 
-If no tenant matches the host, `CurrentTenant` is `null` and a `LogWarning` is emitted. Pages that require tenant context (e.g., the dashboard, workflow pages) will return a 404 or redirect to an error page.
+If no tenant matches the host, `CurrentTenant` is `null` and a `LogWarning` is emitted. Pages that require tenant context (e.g., the dashboard, service blueprint pages) will return a 404 or redirect to an error page.
 
 💡 **What's happening:** `ITenantService` is scoped per request and queries the Umbraco database. The result is cached in `IPrismContext` (also scoped per request), so the database is only hit once per request even if multiple middleware or services read the current tenant.
 
@@ -169,11 +169,11 @@ If no tenant matches the host, `CurrentTenant` is `null` and a `LogWarning` is e
    | Tenant resolved correctly | Open browser DevTools → Network → reload → find any API call; its response headers should include `X-Prism-Tenant: Tenant 2` (if you added this debug header in your implementation) |
    | Branding applied | Check that the page colours match what you configured |
    | OIDC login works | Click **Sign In** — you should be redirected to the correct Keycloak realm |
-   | Workflow isolation | Start a workflow as `demo@prism.local` on `tenant2.localhost` — the workflow instance should be isolated from the same user's instance on `localhost` (they share a user ID but have different tenant IDs, so the engine keys instances as `{tenantId}:{userId}:{workflowKey}`) |
+   | Service Blueprint isolation | Start a service blueprint as `demo@prism.local` on `tenant2.localhost` — the service request should be isolated from the same user's instance on `localhost` (they share a user ID but have different tenant IDs, so the engine keys instances as `{tenantId}:{userId}:{blueprintKey}`) |
 
 5. 💡 **Tenant isolation in practice:**
    - **Content:** Umbraco serves the same content tree to all tenants. Tenant-specific content can be achieved by creating tenant-specific Umbraco content nodes (not covered in this walkthrough).
-   - **Workflow instances:** Fully isolated by `tenantId` in the instance key.
+   - **Service Requests:** Fully isolated by `tenantId` in the instance key.
    - **Branding:** Each tenant has its own CSS variable overrides, served at `/branding/tenant/{tenantId}/overrides.css`.
    - **OIDC tokens:** Each tenant's tokens are issued by a different authority and validated using that authority's public keys.
 

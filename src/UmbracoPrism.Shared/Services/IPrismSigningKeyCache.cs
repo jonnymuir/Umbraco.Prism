@@ -28,11 +28,11 @@ public interface IPrismSigningKeyCache
     Task WarmAsync(string tenantKey, string metadataAddress, bool forceRefresh = false, string? requiredKeyId = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets the cached signing-key state for a tenant, including freshness and key-id match information.
+    /// Gets the cached signing-key touchpoint for a tenant, including freshness and key-id match information.
     /// </summary>
     /// <param name="entraTenantId">The Entra tenant identifier.</param>
     /// <param name="keyId">Optional signing-key identifier required by the current token.</param>
-    /// <returns>A snapshot of the cached signing-key state for the tenant.</returns>
+    /// <returns>A snapshot of the cached signing-key touchpoint for the tenant.</returns>
     PrismSigningKeyCacheSnapshot GetSnapshot(string entraTenantId, string? keyId = null);
 
     /// <summary>

@@ -49,7 +49,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -76,7 +76,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -112,7 +112,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://codespace-7245.app.github.dev"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -152,7 +152,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true,
@@ -174,7 +174,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: false);
@@ -200,7 +200,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245",
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245",
                 ["Prism:EnableDownstreamDemo"] = "true"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
@@ -220,7 +220,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -245,7 +245,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -268,7 +268,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245",
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245",
                 ["Prism:DownstreamDemo:AllowedUrls:0"] = "https://staging.example.com"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
@@ -441,7 +441,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)),
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "access-token"),
             isDevelopment: true,
@@ -477,7 +477,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)),
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: null,
             isDevelopment: true,
@@ -516,7 +516,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -559,7 +559,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -598,7 +598,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -639,7 +639,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -686,7 +686,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -732,7 +732,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://localhost:7245"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://localhost:7245"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -782,7 +782,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://codespace-7245.app.github.dev"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -822,7 +822,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -863,7 +863,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://codespace-7245.app.github.dev"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -893,7 +893,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -938,7 +938,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://codespace-7245.app.github.dev"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -982,7 +982,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://codespace-7245.uks1.app.github.dev"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);
@@ -1016,7 +1016,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
             handler,
             new Dictionary<string, string?>
             {
-                ["PrismBusinessApp:WorkflowApiBaseUrl"] = "https://codespace-7245.app.github.dev"
+                ["PrismBusinessApp:ApiBaseUrl"] = "https://codespace-7245.app.github.dev"
             },
             authHeader: new AuthenticationHeaderValue("Bearer", "token"),
             isDevelopment: true);

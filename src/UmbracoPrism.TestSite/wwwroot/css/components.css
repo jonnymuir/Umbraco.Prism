@@ -1303,46 +1303,6 @@ html.prism-mobile .dash-welcome h1 {
     }
 }
 
-/* ========================================================================
-   Prism Workflow Forms
-   ======================================================================== */
-
-.prism-workflow {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 2rem 1rem;
-}
-
-.workflow-page__header {
-    margin-bottom: 2rem;
-}
-
-.workflow-page__title {
-    font-size: 2rem;
-    font-weight: 700;
-    margin: 0;
-    color: var(--prism-primary, #4f46e5);
-}
-
-.workflow-alert {
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-    border-radius: 8px;
-    border-left: 4px solid;
-}
-
-.workflow-alert--error {
-    background: #fef2f2;
-    border-color: #dc2626;
-    color: #991b1b;
-}
-
-.workflow-alert--warn {
-    background: #fffbeb;
-    border-color: #f59e0b;
-    color: #92400e;
-}
-
 /* Error Summary */
 .prism-error-summary {
     background: #fef2f2;
@@ -1409,7 +1369,6 @@ html.prism-mobile .dash-welcome h1 {
 }
 
 /* Fieldset & Legend */
-.prism-workflow__fieldset,
 .prism-fieldset {
     border: none;
     padding: 0;
@@ -1574,22 +1533,6 @@ html.prism-mobile .dash-welcome h1 {
 
 .prism-button--destructive:hover {
     background: #991b1b;
-}
-
-.prism-workflow__actions {
-    display: flex;
-    gap: 1rem;
-    margin-top: 2rem;
-    padding-top: 2rem;
-    border-top: 1px solid #e5e7eb;
-}
-
-/* Status & Completion States */
-.prism-workflow--status,
-.prism-workflow--complete {
-    text-align: center;
-    max-width: 600px;
-    margin: 3rem auto;
 }
 
 .prism-status__icon,

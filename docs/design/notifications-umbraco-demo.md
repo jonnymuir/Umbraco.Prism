@@ -278,7 +278,7 @@ public class PrismNotificationService : IPrismNotificationService
 
 **Benefits:**
 - Empowers content editors to send ad-hoc announcements ("System maintenance in 30 minutes")
-- Natural workflow: "I just published this event → notify subscribers immediately"
+- Natural service blueprint: "I just published this event → notify subscribers immediately"
 - Reduces dependency on developer intervention for one-off campaigns
 
 **Complexity:**
@@ -543,7 +543,7 @@ Vinyl Vault is a vintage record shop built into the UmbracoPrism.TestSite. It de
    - **Image:** Album cover art URL
    - **Action:** Tapping opens the vinyl's content page in the member portal
 
-**Editor workflow:**
+**Editor service blueprint:**
 1. Editor creates a new `VinylRecord` content node under `/vinyl-vault/jazz/`
 2. Fills in: Title, Artist, Cover Art (media picker), Release Year, Description
 3. Ensures `notifyOnPublish` toggle is **ON** (inherited from `notifiableContent` composition)

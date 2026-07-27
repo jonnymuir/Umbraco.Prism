@@ -19,14 +19,14 @@ The TestSite is designed and tested for production use:
 This is a demo and development-only application. It **must never** be deployed to production.
 
 **Why it's unsafe:**
-- **No Authentication:** Admin workflow endpoints have zero auth checks
+- **No Authentication:** Admin service desk endpoints have zero auth checks
 - **In-Memory State:** All state is lost on restart; no persistence
-- **No Audit Logging:** Changes to workflows are not logged
+- **No Audit Logging:** Changes to service requests are not logged
 - **Unrestricted Admin Access:** Anyone with network access can:
-  - View the full workflow dashboard (`GET /admin/workflow`)
-  - Read and write workflow definitions (`GET/PUT /admin/workflow/definition/{key}/json`)
-  - Advance workflow instances (`POST /admin/workflow/{instanceId}/action/{action}`)
-  - Delete all workflow instances (`POST /admin/workflow/reset-all`)
+  - View the full service desk dashboard (`GET /admin/service-desk`)
+  - Advance service requests (`POST /admin/service-desk/{instanceId}/advance`)
+  - Reset a single service request (`POST /admin/service-desk/{instanceId}/reset`)
+  - Delete all service requests (`POST /admin/service-desk/reset-all`)
 
 **Mitigation:** All unauthenticated admin endpoints return `404 Not Found` in non-Development mode. However, **do not rely on this for safety**—simply do not deploy MockBusinessApp.
 
@@ -83,14 +83,14 @@ These variables must **NEVER** be set in production:
 
 ## Admin Endpoint Risk: MockBusinessApp
 
-The MockBusinessApp workflow admin panel is completely unauthenticated in its current form. These endpoints are now safe from accidental exposure because they return `404` in non-Development environments:
+The MockBusinessApp service desk admin panel is completely unauthenticated in its current form. These endpoints are now safe from accidental exposure because they return `404` in non-Development environments:
 
 | Endpoint | Method | Risk |
 |----------|--------|------|
-| `/admin/workflow` | GET | Full workflow dashboard with live JSON editor |
-| `/admin/workflow/definition/{key}/json` | GET/PUT | Read and write workflow definitions |
-| `/admin/workflow/{instanceId}/action/{action}` | POST | Advance workflow state without permission |
-| `/admin/workflow/reset-all` | POST | Delete all workflow instances |
+| `/admin/service-desk` | GET | Full service desk dashboard with live JSON editor |
+| `/admin/service-desk/{instanceId}/advance` | POST | Advance a service request without permission |
+| `/admin/service-desk/{instanceId}/reset` | POST | Reset a single service request |
+| `/admin/service-desk/reset-all` | POST | Delete all service requests |
 
 **Status in Production Mode:** All return `404 Not Found`
 
