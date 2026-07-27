@@ -4,8 +4,8 @@
   "version": 1,
   "schemaVersion": "1.0",
   "description": "Prism CMS Workflow reference example — a GDS-style public application journey, entirely hosted and authored in Umbraco with no separate business app.",
-  "initialState": "eligibility",
-  "instancePolicy": "single",
+  "initialTouchpoint": "eligibility",
+  "requestPolicy": "single",
   "calculations": {
     "fields": {
       "member": { "source": "service" },
@@ -25,12 +25,12 @@
       "actor": "applicant"
     }
   ],
-  "states": [
+  "touchpoints": [
     {
-      "stateKey": "eligibility",
+      "touchpointKey": "eligibility",
       "displayName": "Eligibility",
       "description": "Confirms the applicant meets the basic eligibility rules before collecting any details.",
-      "stageType": "Question",
+      "touchpointType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -65,9 +65,9 @@
       ]
     },
     {
-      "stateKey": "applicant-details",
+      "touchpointKey": "applicant-details",
       "displayName": "Your details",
-      "stageType": "Question",
+      "touchpointType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -107,9 +107,9 @@
       ]
     },
     {
-      "stateKey": "licence-details",
+      "touchpointKey": "licence-details",
       "displayName": "Licence type",
-      "stageType": "Question",
+      "touchpointType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -166,9 +166,9 @@
       ]
     },
     {
-      "stateKey": "check-answers",
+      "touchpointKey": "check-answers",
       "displayName": "Check your answers",
-      "stageType": "CheckAnswers",
+      "touchpointType": "CheckAnswers",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -223,9 +223,9 @@
       ]
     },
     {
-      "stateKey": "confirmation",
+      "touchpointKey": "confirmation",
       "displayName": "Application submitted",
-      "stageType": "Confirmation",
+      "touchpointType": "Confirmation",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [

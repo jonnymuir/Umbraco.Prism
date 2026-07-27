@@ -53,7 +53,7 @@ public class InProcessCmsProcessManagerClientTests
 
         await client.GetCurrentAsync("does-not-exist");
 
-        httpContext.Response.Headers.SetCookie.ToString().Should().NotContain("PrismCmsWorkflowVisitor");
+        httpContext.Response.Headers.SetCookie.ToString().Should().NotContain("PrismCmsServiceRequestVisitor");
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class InProcessCmsProcessManagerClientTests
         await client.GetCurrentAsync("does-not-exist");
 
         var setCookie = httpContext.Response.Headers.SetCookie.ToString();
-        setCookie.Should().Contain("PrismCmsWorkflowVisitor=");
+        setCookie.Should().Contain("PrismCmsServiceRequestVisitor=");
         setCookie.Should().Contain("httponly");
         setCookie.Should().Contain("samesite=lax", "GDS convention is case-insensitive header matching");
     }
@@ -73,11 +73,11 @@ public class InProcessCmsProcessManagerClientTests
     public async Task AnonymousVisitor_ExistingCookie_ReusesItAndRefreshesTheSlidingExpiry()
     {
         var (client, httpContext) = BuildClient(authenticated: false);
-        httpContext.Request.Headers.Cookie = "PrismCmsWorkflowVisitor=existing-visitor-id";
+        httpContext.Request.Headers.Cookie = "PrismCmsServiceRequestVisitor=existing-visitor-id";
 
         await client.GetCurrentAsync("does-not-exist");
 
-        httpContext.Response.Headers.SetCookie.ToString().Should().Contain("PrismCmsWorkflowVisitor=existing-visitor-id");
+        httpContext.Response.Headers.SetCookie.ToString().Should().Contain("PrismCmsServiceRequestVisitor=existing-visitor-id");
     }
 
     private sealed class EmptyDefinitionStore : IServiceBlueprintStore

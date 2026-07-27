@@ -26,7 +26,7 @@ public class ServiceBlueprintPatchServiceTests
         var original = await LoadReferenceFixture();
         var originalStageCount = original.Touchpoints.Count;
 
-        var envelope = BuildEnvelope("insert-stage", value: new
+        var envelope = BuildEnvelope("insert-touchpoint", value: new
         {
             key         = "site-notice",
             title       = "Site Notice",
@@ -51,7 +51,7 @@ public class ServiceBlueprintPatchServiceTests
     {
         var original = await LoadReferenceFixture();
 
-        var envelope = BuildEnvelope("insert-stage",
+        var envelope = BuildEnvelope("insert-touchpoint",
             before: "submitted",
             value: new
             {
@@ -78,7 +78,7 @@ public class ServiceBlueprintPatchServiceTests
     {
         var original = await LoadReferenceFixture();
 
-        var envelope = BuildEnvelope("insert-stage",
+        var envelope = BuildEnvelope("insert-touchpoint",
             after: "collecting-details",
             value: new
             {
@@ -106,7 +106,7 @@ public class ServiceBlueprintPatchServiceTests
         var original = await LoadReferenceFixture();
 
         // Insert an orphan stage first so removing it does not leave dangling routes.
-        var insertEnvelope = BuildEnvelope("insert-stage", value: new
+        var insertEnvelope = BuildEnvelope("insert-touchpoint", value: new
         {
             key       = "orphan-stage",
             title     = "Orphan",
@@ -119,7 +119,7 @@ public class ServiceBlueprintPatchServiceTests
         var withOrphan = _sut.Apply(insertEnvelope, original);
         withOrphan.HasErrors.Should().BeFalse();
 
-        var removeEnvelope = BuildEnvelope("remove-stage", path: "/stages/orphan-stage");
+        var removeEnvelope = BuildEnvelope("remove-touchpoint", path: "/touchpoints/orphan-stage");
         var result = _sut.Apply(removeEnvelope, withOrphan.Updated);
 
         result.HasErrors.Should().BeFalse();
@@ -137,7 +137,7 @@ public class ServiceBlueprintPatchServiceTests
         var original = await LoadReferenceFixture();
         var originalDetailsStage = original.Touchpoints.Single(s => s.TouchpointKey == "collecting-details");
 
-        var envelope = BuildEnvelope("update-stage", path: "/stages/collecting-details", value: new
+        var envelope = BuildEnvelope("update-touchpoint", path: "/touchpoints/collecting-details", value: new
         {
             key         = "collecting-details",
             title       = "Updated Details",
@@ -163,7 +163,7 @@ public class ServiceBlueprintPatchServiceTests
     {
         var original = await LoadReferenceFixture();
 
-        var envelope = BuildEnvelope("insert-stage", value: new
+        var envelope = BuildEnvelope("insert-touchpoint", value: new
         {
             key         = "extra-stage",
             title       = "Extra Stage",
@@ -192,7 +192,7 @@ public class ServiceBlueprintPatchServiceTests
             Version      = original.Version
         };
 
-        var envelope = BuildEnvelope("insert-stage", value: new
+        var envelope = BuildEnvelope("insert-touchpoint", value: new
         {
             key         = "new-stage",
             title       = "New Stage",

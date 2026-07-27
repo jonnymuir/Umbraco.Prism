@@ -46,7 +46,7 @@ public class ServiceBlueprintSimulationServiceTests
                 step.FromTouchpointKey == "start" &&
                 step.ToTouchpointKey == "end" &&
                 step.Action == "continue");
-        result.StopReason.Should().Be("terminal-stage");
+        result.StopReason.Should().Be("terminal-touchpoint");
         result.Completed.Should().BeTrue();
     }
 

@@ -65,7 +65,7 @@ public class LicenceTransferCmsServiceBlueprintSeeder(
             return;
         }
 
-        var path = Path.Combine(env.ContentRootPath, "cms-workflow-seeds", "transfer-a-juggling-licence.json");
+        var path = Path.Combine(env.ContentRootPath, "cms-service-blueprints", "transfer-a-juggling-licence.json");
         if (!File.Exists(path))
         {
             logger.LogWarning("LICENCE TRANSFER SEEDER: Seed file not found at {Path}; skipping", path);

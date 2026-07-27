@@ -109,7 +109,7 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         errors.Should().ContainSingle(d =>
             d.Code == "DATA_DISPLAY_UNKNOWN_FIELD" &&
             d.Message.Contains("'fee'") &&
-            d.Path == "states.result.components[0].items[0].fieldKey");
+            d.Path == "touchpoints.result.components[0].items[0].fieldKey");
     }
 
     [Fact]
@@ -268,7 +268,7 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         errors.Should().ContainSingle(d =>
             d.Code == "DATA_DISPLAY_UNKNOWN_FIELD" &&
             d.Message.Contains("'fee'") &&
-            d.Path == "states.result.components[0].children[0].fieldKey");
+            d.Path == "touchpoints.result.components[0].children[0].fieldKey");
     }
 
     [Fact]
@@ -338,7 +338,7 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
 
         errors.Should().ContainSingle(d =>
             d.Code == "DATA_DISPLAY_UNKNOWN_CHANGE_STATE" &&
-            d.Path == "states.result.components[0].changeStateKey");
+            d.Path == "touchpoints.result.components[0].changeStateKey");
     }
 
     [Fact]
@@ -386,7 +386,7 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
 
         errors.Should().ContainSingle(d =>
             d.Code == "DATA_DISPLAY_UNKNOWN_CHANGE_STATE" &&
-            d.Path == "states.result.components[0].children[1].changeStateKey");
+            d.Path == "touchpoints.result.components[0].children[1].changeStateKey");
     }
 
     [Fact]

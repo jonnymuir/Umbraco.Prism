@@ -47,7 +47,7 @@ public class ServiceBlueprintAuthoringServiceShowWhenTests
         outcome.IsValid.Should().BeFalse();
         outcome.Diagnostics.Should().ContainSingle(d =>
             d.Code == "SHOW_WHEN_EVAL_ERROR"
-            && d.Path == "states.start.components[0].showWhen"
+            && d.Path == "touchpoints.start.components[0].showWhen"
             && d.Message.Contains("nosuchfield"));
     }
 

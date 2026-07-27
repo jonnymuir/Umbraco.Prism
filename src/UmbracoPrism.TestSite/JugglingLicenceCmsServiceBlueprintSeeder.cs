@@ -67,7 +67,7 @@ public class JugglingLicenceCmsServiceBlueprintSeeder(
             return;
         }
 
-        var path = Path.Combine(env.ContentRootPath, "cms-workflow-seeds", "apply-for-a-juggling-licence.json");
+        var path = Path.Combine(env.ContentRootPath, "cms-service-blueprints", "apply-for-a-juggling-licence.json");
         if (!File.Exists(path))
         {
             logger.LogWarning("JUGGLING LICENCE SEEDER: Seed file not found at {Path}; skipping", path);

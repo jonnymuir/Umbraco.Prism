@@ -201,8 +201,8 @@
   "handoffs": [
     {
       "id": "applicant-to-caseworker",
-      "fromStage": "check-answers",
-      "toStage": "submitted",
+      "fromTouchpoint": "check-answers",
+      "toTouchpoint": "submitted",
       "label": "applicant-to-caseworker",
       "actorChange": "caseworker"
     }

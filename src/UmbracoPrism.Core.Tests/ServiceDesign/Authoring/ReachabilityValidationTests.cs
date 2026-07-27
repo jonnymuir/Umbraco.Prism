@@ -133,7 +133,7 @@ public class ReachabilityValidationTests
 
         var errors = workflow.ValidateReachability();
 
-        errors.Should().Contain(d => d.Code == "STATE_UNREACHABLE_TERMINAL" && d.Path == "states.assess");
+        errors.Should().Contain(d => d.Code == "STATE_UNREACHABLE_TERMINAL" && d.Path == "touchpoints.assess");
         errors.Should().Contain(d => d.Code == "GATEWAY_UNREACHABLE_TERMINAL" && d.Path == "gateways[0]");
     }
 

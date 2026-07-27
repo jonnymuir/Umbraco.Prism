@@ -6,7 +6,7 @@ using UmbracoPrism.Shared.Models.ServiceDesign.Components;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.ProcessManager;
 
-public class WorkflowDefinitionInferenceTests
+public class ServiceBlueprintInferenceTests
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -18,10 +18,10 @@ public class WorkflowDefinitionInferenceTests
           "definitionKey": "test",
           "displayName": "Test",
           "version": 1,
-          "initialState": "processing",
-          "states": [
+          "initialTouchpoint": "processing",
+          "touchpoints": [
             {
-              "stateKey": "processing",
+              "touchpointKey": "processing",
               "displayName": "Processing",
               "components": [
                 {
@@ -116,7 +116,7 @@ public class WorkflowDefinitionInferenceTests
     {
         using var document = JsonDocument.Parse(File.ReadAllText(GetSeedPath(fileName)));
 
-        foreach (var state in document.RootElement.GetProperty("states").EnumerateArray())
+        foreach (var state in document.RootElement.GetProperty("touchpoints").EnumerateArray())
         {
             state.TryGetProperty("stepType", out _).Should().BeFalse();
             state.TryGetProperty("waitingConfig", out _).Should().BeFalse();

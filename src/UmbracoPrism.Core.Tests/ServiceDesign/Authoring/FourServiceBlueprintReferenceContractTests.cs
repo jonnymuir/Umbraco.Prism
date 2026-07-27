@@ -159,10 +159,10 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
     {
         var existingJson = await _client.GetStringAsync("/mockapp/service-blueprints/payment-demo");
         var payload = JsonNode.Parse(existingJson)!.AsObject();
-        var states = payload["states"]!.AsArray();
+        var states = payload["touchpoints"]!.AsArray();
         var stage = states
             .Select(node => node!.AsObject())
-            .Single(node => node["stateKey"]!.GetValue<string>() == "confirm-payment-received");
+            .Single(node => node["touchpointKey"]!.GetValue<string>() == "confirm-payment-received");
 
         stage["displayName"] = "Confirm payment received (saved)";
 
@@ -211,7 +211,7 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
     {
         var existingJson = await _client.GetStringAsync("/mockapp/service-blueprints/payment-demo");
         var payload = JsonNode.Parse(existingJson)!.AsObject();
-        var firstState = payload["states"]!.AsArray()[0]!.AsObject();
+        var firstState = payload["touchpoints"]!.AsArray()[0]!.AsObject();
         var firstComponent = firstState["components"]!.AsArray()[0]!.AsObject();
         firstComponent.Remove("type");
 
@@ -224,10 +224,10 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var root = problem.RootElement;
 
-        root.GetProperty("title").GetString().Should().Be("Invalid workflow payload");
+        root.GetProperty("title").GetString().Should().Be("Invalid service blueprint payload");
         root.GetProperty("status").GetInt32().Should().Be(StatusCodes.Status400BadRequest);
-        root.GetProperty("detail").GetString().Should().Be("Every workflow component must include a supported 'type' value before the workflow can be saved.");
-        root.GetProperty("errorCode").GetString().Should().Be("workflow-component-invalid");
+        root.GetProperty("detail").GetString().Should().Be("Every service blueprint component must include a supported 'type' value before the service blueprint can be saved.");
+        root.GetProperty("errorCode").GetString().Should().Be("service-blueprint-component-invalid");
         root.GetProperty("traceId").GetString().Should().NotBeNullOrWhiteSpace();
 
         var errors = root.GetProperty("errors");
@@ -248,9 +248,9 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
     {
         var existingJson = await _client.GetStringAsync("/mockapp/service-blueprints/planning");
         var payload = JsonNode.Parse(existingJson)!.AsObject();
-        var states = payload["states"]!.AsArray();
+        var states = payload["touchpoints"]!.AsArray();
         var declaration = states.Select(n => n!.AsObject())
-            .Single(n => n["stateKey"]!.GetValue<string>() == "declaration");
+            .Single(n => n["touchpointKey"]!.GetValue<string>() == "declaration");
         var route = declaration["routes"]!.AsArray()[0]!.AsObject();
         route["target"] = "application-form"; // a state key, not a gateway key
 
@@ -264,11 +264,11 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var root = problem.RootElement;
 
-        root.GetProperty("errorCode").GetString().Should().Be("workflow-validation-invalid");
+        root.GetProperty("errorCode").GetString().Should().Be("service-blueprint-validation-invalid");
         var errors = root.GetProperty("errors");
         errors.GetArrayLength().Should().BeGreaterThan(0);
         errors[0].GetProperty("message").GetString().Should().Contain(
-            "Routes from states must always target a gateway",
+            "Routes from touchpoints must always target a gateway",
             because: "this is the same message ValidateGatewayRouting() produces for the AI-toolkit path");
     }
 

@@ -54,7 +54,7 @@ public class AuthoredServiceBlueprintSchemaValidationTests
         using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
         var defs = document.RootElement.GetProperty("$defs");
 
-        defs.TryGetProperty("stage", out _).Should().BeTrue();
+        defs.TryGetProperty("touchpoint", out _).Should().BeTrue();
         defs.TryGetProperty("queue", out _).Should().BeTrue();
         defs.TryGetProperty("gateway", out _).Should().BeTrue();
         defs.TryGetProperty("route", out _).Should().BeTrue();

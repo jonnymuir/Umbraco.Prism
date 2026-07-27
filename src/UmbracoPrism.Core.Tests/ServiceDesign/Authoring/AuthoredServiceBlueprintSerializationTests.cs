@@ -51,7 +51,7 @@ public class AuthoredServiceBlueprintSerializationTests
         root.TryGetProperty("lanes", out _).Should().BeFalse();
         root.TryGetProperty("transitions", out _).Should().BeFalse();
 
-        var stage = root.GetProperty("stages")[0];
+        var stage = root.GetProperty("touchpoints")[0];
         stage.TryGetProperty("queueKey", out _).Should().BeTrue();
         stage.TryGetProperty("routes", out _).Should().BeTrue();
         stage.TryGetProperty("laneKey", out _).Should().BeFalse();

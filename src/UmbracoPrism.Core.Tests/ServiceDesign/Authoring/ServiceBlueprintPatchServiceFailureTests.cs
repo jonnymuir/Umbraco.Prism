@@ -38,7 +38,7 @@ public class ServiceBlueprintPatchServiceFailureTests
     public async Task Apply_InsertStage_MissingValue_ReturnsDiagnostic()
     {
         var original = await LoadPlanningFixture();
-        var envelope = BuildEnvelopeRaw("insert-stage"); // no value
+        var envelope = BuildEnvelopeRaw("insert-touchpoint"); // no value
 
         var result = _sut.Apply(envelope, original);
 
@@ -52,7 +52,7 @@ public class ServiceBlueprintPatchServiceFailureTests
     {
         var original = await LoadPlanningFixture();
         // Value is valid JSON but cannot be parsed as AuthoredTouchpoint (missing required stageKey)
-        var envelope = BuildEnvelopeWithValue("insert-stage", new { notAStageKey = "oops" });
+        var envelope = BuildEnvelopeWithValue("insert-touchpoint", new { notAStageKey = "oops" });
 
         var result = _sut.Apply(envelope, original);
 
@@ -65,7 +65,7 @@ public class ServiceBlueprintPatchServiceFailureTests
     public async Task Apply_InsertStage_BeforeNonExistentStage_ReturnsDiagnostic()
     {
         var original = await LoadPlanningFixture();
-        var envelope = BuildEnvelopeWithValue("insert-stage",
+        var envelope = BuildEnvelopeWithValue("insert-touchpoint",
             new
             {
                 key         = "new-stage",
@@ -89,7 +89,7 @@ public class ServiceBlueprintPatchServiceFailureTests
     public async Task Apply_RemoveStage_MissingTarget_ReturnsDiagnostic()
     {
         var original = await LoadPlanningFixture();
-        var envelope = BuildEnvelope("remove-stage", "/stages/does-not-exist");
+        var envelope = BuildEnvelope("remove-touchpoint", "/touchpoints/does-not-exist");
 
         var result = _sut.Apply(envelope, original);
 
@@ -102,7 +102,7 @@ public class ServiceBlueprintPatchServiceFailureTests
     public async Task Apply_UpdateStage_MissingTarget_ReturnsDiagnostic()
     {
         var original = await LoadPlanningFixture();
-        var envelope = BuildEnvelopeWithValue("update-stage",
+        var envelope = BuildEnvelopeWithValue("update-touchpoint",
             new
             {
                 key         = "does-not-exist",
@@ -112,7 +112,7 @@ public class ServiceBlueprintPatchServiceFailureTests
                 components  = Array.Empty<object>(),
                 roleGates   = Array.Empty<string>()
             },
-            path: "/stages/does-not-exist");
+            path: "/touchpoints/does-not-exist");
 
         var result = _sut.Apply(envelope, original);
 
@@ -132,7 +132,7 @@ public class ServiceBlueprintPatchServiceFailureTests
         {
             new PatchOp
             {
-                Op    = "insert-stage",
+                Op    = "insert-touchpoint",
                 Value = JsonSerializer.SerializeToElement(42) // integer, not an object
             }
         };

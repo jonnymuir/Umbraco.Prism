@@ -140,8 +140,8 @@ public class AuthoredServiceBlueprintValidationTests
           "definitionKey": "validation-test",
           "displayName": "Validation Test",
           "schemaVersion": "1.0",
-          "initialStageKey": "start",
-          "stages": [
+          "initialTouchpointKey": "start",
+          "touchpoints": [
             {
               "key": "start",
               "title": "Start",
