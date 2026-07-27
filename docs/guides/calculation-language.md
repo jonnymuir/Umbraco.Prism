@@ -262,7 +262,7 @@ the dependency order *is* the declaration order.
    maximum tax-free cash (`maxTfc = 0.25 * totalValue`).
 8. **`resultPension`**, **`resultCash`**, **`resultDcIncome`**, **`resultTotal`** —
    the final `round(...)`-ed, `format: "gbp"` fields bound directly to the
-   `stat-group` component on the `model` touchpoint.
+   `stat-group` component on the `model` stage.
 9. The **`incomeByAge`** series projects `resultPension`-style figures across every
    age from `retireAgeEff` to `90`, feeding the `chart` component.
 

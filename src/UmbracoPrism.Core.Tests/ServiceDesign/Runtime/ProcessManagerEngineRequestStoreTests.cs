@@ -203,7 +203,7 @@ public class ProcessManagerEngineRequestStoreTests
         BlueprintKey = "test-workflow",
         TenantId = Tenant,
         UserId = User,
-        CurrentTouchpoint = currentState,
+        CurrentStage = currentState,
         StateVersion = 1,
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow

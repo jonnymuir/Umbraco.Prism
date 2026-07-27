@@ -98,7 +98,7 @@ The current endpoint contract is deliberately small:
 In Umbraco, call `AddPrismWorkflowEngine()` so Prism can register:
 
 - `IBusinessAppWorkflowClient`
-- `ITouchpointNonceService`
+- `IStageNonceService`
 - `IServiceRequestFieldValidator`
 - `IServiceContentSanitizer`
 - `PrismServiceDesignOptions`
@@ -107,7 +107,7 @@ Then configure the business-app base URL via `PrismBusinessApp:WorkflowApiBaseUr
 
 ## 5. Create a service blueprint page
 
-Prism seeds a `touchpointPage` document type with a `blueprintKey` property. A page instance only needs to point at the service blueprint key you authored.
+Prism seeds a `stagePage` document type with a `blueprintKey` property. A page instance only needs to point at the service blueprint key you authored.
 
 On GET, the package controller:
 
@@ -117,7 +117,7 @@ On GET, the package controller:
 4. caches authoritative field definitions behind a nonce,
 5. renders the matching shell.
 
-`src/UmbracoPrism.TestSite/Controllers/TouchpointPageController.cs` shows the common extension point: overriding `PrePopulateFields()` to set `DefaultValue` and `ReadOnly` from authenticated member claims.
+`src/UmbracoPrism.TestSite/Controllers/StagePageController.cs` shows the common extension point: overriding `PrePopulateFields()` to set `DefaultValue` and `ReadOnly` from authenticated member claims.
 
 ## 6. Let the package handle the POST round-trip
 
@@ -138,7 +138,7 @@ After that, your business app can apply domain-specific rules. The mock business
 
 ## 7. Add the service request hub when your journey can be resumed
 
-`serviceRequestHub` is the companion page for resumable service blueprints. It lists active and completed instances and resolves the correct `touchpointPage` URL for each instance by matching `blueprintKey`.
+`serviceRequestHub` is the companion page for resumable service blueprints. It lists active and completed instances and resolves the correct `stagePage` URL for each instance by matching `blueprintKey`.
 
 This matters most when you use:
 

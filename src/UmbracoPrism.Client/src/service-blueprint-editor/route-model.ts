@@ -5,7 +5,7 @@ import type {
   AuthoredServiceBlueprint,
   RouteView,
 } from './types.js';
-import { gatewayKind, serviceBlueprintGateways, serviceBlueprintTouchpoints } from './types.js';
+import { gatewayKind, serviceBlueprintGateways, serviceBlueprintStages } from './types.js';
 
 function routeIdFor(sourceKey: string, route: Pick<AuthoredRoute, 'id' | 'trigger' | 'target'>): string {
   return route.id || `${sourceKey || 'unknown'}--${route.trigger || 'continue'}--${route.target || 'unknown'}`;
@@ -15,12 +15,12 @@ type RouteOwner =
   | { kind: 'state'; key: string; route: AuthoredRoute }
   | { kind: 'gateway'; key: string; route: AuthoredRoute };
 
-function routeOwners(serviceBlueprint: Pick<AuthoredServiceBlueprint, 'touchpoints' | 'gateways'> | null | undefined): RouteOwner[] {
+function routeOwners(serviceBlueprint: Pick<AuthoredServiceBlueprint, 'stages' | 'gateways'> | null | undefined): RouteOwner[] {
   if (!serviceBlueprint) {
     return [];
   }
 
-  const stateOwners = serviceBlueprintTouchpoints(serviceBlueprint).flatMap(stage =>
+  const stateOwners = serviceBlueprintStages(serviceBlueprint).flatMap(stage =>
     (stage.routes ?? []).map(route => ({ kind: 'state' as const, key: stage.stateKey, route }))
   );
   const gatewayOwners = serviceBlueprintGateways(serviceBlueprint).flatMap(gateway =>
@@ -30,7 +30,7 @@ function routeOwners(serviceBlueprint: Pick<AuthoredServiceBlueprint, 'touchpoin
   return [...stateOwners, ...gatewayOwners];
 }
 
-function mapRouteView(owner: RouteOwner, serviceBlueprint: Pick<AuthoredServiceBlueprint, 'touchpoints' | 'gateways'>, routeIndex: number): RouteView {
+function mapRouteView(owner: RouteOwner, serviceBlueprint: Pick<AuthoredServiceBlueprint, 'stages' | 'gateways'>, routeIndex: number): RouteView {
   const gatewayKeys = new Set(serviceBlueprintGateways(serviceBlueprint).map(gateway => gateway.key));
   const fromGateway = owner.kind === 'gateway' ? owner.key : undefined;
   const toGateway = gatewayKeys.has(owner.route.target) ? owner.route.target : undefined;
@@ -53,7 +53,7 @@ function mapRouteView(owner: RouteOwner, serviceBlueprint: Pick<AuthoredServiceB
 }
 
 export function flattenRoutes(
-  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'touchpoints' | 'gateways'> | null | undefined
+  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'stages' | 'gateways'> | null | undefined
 ): RouteView[] {
   if (!serviceBlueprint) {
     return [];
@@ -67,7 +67,7 @@ export function routeAddressFromView(view: RouteView): { routeId: string } {
 }
 
 export function findRoute(
-  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'touchpoints' | 'gateways'>,
+  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'stages' | 'gateways'>,
   routeId: string
 ): { route: AuthoredRoute; routeIndex: number } | null {
   const owners = routeOwners(serviceBlueprint);
@@ -87,7 +87,7 @@ function mutateRouteOwners(
   routeId: string,
   mutator: (route: AuthoredRoute) => AuthoredRoute | null
 ): AuthoredServiceBlueprint {
-  const nextStates = serviceBlueprintTouchpoints(serviceBlueprint).map(stage => ({
+  const nextStates = serviceBlueprintStages(serviceBlueprint).map(stage => ({
     ...stage,
     routes: (stage.routes ?? []).flatMap(route => {
       const nextRoute = routeIdFor(stage.stateKey, route) === routeId ? mutator(route) : route;
@@ -104,7 +104,7 @@ function mutateRouteOwners(
 
   return {
     ...serviceBlueprint,
-    touchpoints: nextStates,
+    stages: nextStates,
     gateways: nextGateways,
   };
 }
@@ -149,7 +149,7 @@ export function findOrCreateSplitGateway(
 ): { serviceBlueprint: AuthoredServiceBlueprint; gatewayKey: string } {
   const existingGateway = serviceBlueprintGateways(serviceBlueprint).find(gateway =>
     gatewayKind(gateway) === 'Split'
-    && serviceBlueprintTouchpoints(serviceBlueprint)
+    && serviceBlueprintStages(serviceBlueprint)
       .find(stage => stage.stateKey === sourceStageKey)
       ?.routes?.some(route => route.target === gateway.key)
   );
@@ -158,7 +158,7 @@ export function findOrCreateSplitGateway(
     return { serviceBlueprint, gatewayKey: existingGateway.key };
   }
 
-  const stage = serviceBlueprintTouchpoints(serviceBlueprint).find(candidate => candidate.stateKey === sourceStageKey);
+  const stage = serviceBlueprintStages(serviceBlueprint).find(candidate => candidate.stateKey === sourceStageKey);
   const gatewayKey = `route-from-${sourceStageKey}`;
   const gateway: AuthoredGateway = {
     key: gatewayKey,
@@ -171,7 +171,7 @@ export function findOrCreateSplitGateway(
     routes: [],
   };
 
-  const anchoredStates = serviceBlueprintTouchpoints(serviceBlueprint).map(candidate =>
+  const anchoredStates = serviceBlueprintStages(serviceBlueprint).map(candidate =>
     candidate.stateKey === sourceStageKey
       ? {
           ...candidate,
@@ -192,7 +192,7 @@ export function findOrCreateSplitGateway(
   return {
     serviceBlueprint: {
       ...serviceBlueprint,
-      touchpoints: anchoredStates,
+      stages: anchoredStates,
       gateways: [...serviceBlueprintGateways(serviceBlueprint), gateway],
     },
     gatewayKey,
@@ -200,14 +200,14 @@ export function findOrCreateSplitGateway(
 }
 
 export function outgoingRouteViews(
-  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'touchpoints' | 'gateways'>,
+  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'stages' | 'gateways'>,
   stageKey: string
 ): RouteView[] {
   return flattenRoutes(serviceBlueprint).filter(view => view.fromStage === stageKey);
 }
 
 export function inboundRouteViews(
-  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'touchpoints' | 'gateways'>,
+  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'stages' | 'gateways'>,
   stageKey: string
 ): RouteView[] {
   return flattenRoutes(serviceBlueprint).filter(view => view.toStage === stageKey);

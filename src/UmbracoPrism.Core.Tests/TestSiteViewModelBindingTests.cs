@@ -21,7 +21,7 @@ public class TestSiteViewModelBindingTests
         Path.Combine(RepoRoot, "src", "UmbracoPrism.TestSite", "Views");
 
     [Theory]
-    [InlineData("touchpointPage")]
+    [InlineData("stagePage")]
     [InlineData("serviceRequestHub")]
     public void TestSite_ServiceRequestViews_MustExist(string documentTypeAlias)
     {
@@ -32,7 +32,7 @@ public class TestSiteViewModelBindingTests
     }
 
     [Theory]
-    [InlineData("touchpointPage", "TouchpointViewModel", "ContentModels.TouchpointPage")]
+    [InlineData("stagePage", "StageViewModel", "ContentModels.StagePage")]
     [InlineData("serviceRequestHub", "ServiceRequestHubViewModel", "ContentModels.ServiceRequestHub")]
     public void TestSite_ServiceRequestViews_MustUseTypedViewModels(string documentTypeAlias, string expectedType, string forbiddenType)
     {
@@ -51,7 +51,7 @@ public class TestSiteViewModelBindingTests
     }
 
     [Theory]
-    [InlineData("touchpointPage")]
+    [InlineData("stagePage")]
     [InlineData("serviceRequestHub")]
     public void TestSite_ServiceRequestViews_MustUseSharedMasterLayout(string documentTypeAlias)
     {
@@ -63,17 +63,17 @@ public class TestSiteViewModelBindingTests
     }
 
     [Fact]
-    public void TouchpointPageView_MustCompose_PrismTouchpointShells()
+    public void StagePageView_MustCompose_PrismStageShells()
     {
-        var viewPath = Path.Combine(TestSiteViewsPath, "touchpointPage.cshtml");
+        var viewPath = Path.Combine(TestSiteViewsPath, "stagePage.cshtml");
         var content = File.ReadAllText(viewPath);
 
         content.Should().Contain("ServiceRequestRenderShellResolver.ResolveShell",
-            because: "the TestSite touchpoint page should keep using the shared Core shell selection logic");
+            because: "the TestSite stage page should keep using the shared Core shell selection logic");
         content.Should().Contain("Html.PartialAsync(partialName, Model)",
-            because: "the TestSite touchpoint page should render the reusable Core shell partials");
+            because: "the TestSite stage page should render the reusable Core shell partials");
         content.Should().Contain("Html.PartialAsync(\"_ServiceRequestHub-InstancePicker\", Model)",
-            because: "prompt-style touchpoints should still offer the instance picker experience");
+            because: "prompt-style stages should still offer the instance picker experience");
     }
 
     [Fact]

@@ -5,7 +5,7 @@ import {
   type AuthoredAction,
   type AuthoredGateway,
   type AuthoredRoute,
-  type AuthoredTouchpoint,
+  type AuthoredStage,
   type AuthoredServiceBlueprint,
   type ServiceBlueprintNodePosition,
   hydrateServiceBlueprintDefinition,
@@ -17,14 +17,14 @@ import { ServiceBlueprintSaveError, normaliseServiceBlueprintSaveError, type Ser
 import type { ServiceBlueprintActionCatalog } from './action-catalog.js';
 import { BuiltInServiceBlueprintActionCatalog } from './action-catalog.js';
 import type { ServiceBlueprintAuthorContext } from './service-blueprint-author-context.js';
-import type { QueueDefinition } from './touchpoint-assignment.js';
+import type { QueueDefinition } from './stage-assignment.js';
 import { availableContexts, contextForTiming, timingForContext, updateActionSummary } from './action-editing.js';
 import { isTerminalStage, validateServiceBlueprint, type ServiceBlueprintValidationIssue } from './service-blueprint-validation.js';
 import { flattenRoutes, newRouteId } from './route-model.js';
 import { findServiceBlueprintShortcut, matchesShortcut, SERVICE_BLUEPRINT_SHORTCUT_GROUPS } from './editor-shortcuts.js';
 import './prism-service-blueprint-graph.js';
 import './prism-step-inspector.js';
-import './prism-touchpoint-preview.js';
+import './prism-stage-preview.js';
 import './prism-service-blueprint-simulation.js';
 import './prism-service-blueprint-outline.js';
 import './prism-confidence-tabs.js';
@@ -59,8 +59,8 @@ type ActionSelection = {
 } | null;
 
 type ClipboardEntry =
-  | { kind: 'stage'; stage: AuthoredTouchpoint; label: string }
-  | { kind: 'subgraph'; stages: AuthoredTouchpoint[]; gateways: AuthoredGateway[]; label: string }
+  | { kind: 'stage'; stage: AuthoredStage; label: string }
+  | { kind: 'subgraph'; stages: AuthoredStage[]; gateways: AuthoredGateway[]; label: string }
   | { kind: 'action'; action: AuthoredAction; label: string; sourceTarget: 'stage' | 'transition' };
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -87,8 +87,8 @@ function cloneSelection(selection: ServiceBlueprintSelection): ServiceBlueprintS
   return selection ? { ...selection } : null;
 }
 
-function cloneStage(stage: AuthoredTouchpoint): AuthoredTouchpoint {
-  return JSON.parse(JSON.stringify(stage)) as AuthoredTouchpoint;
+function cloneStage(stage: AuthoredStage): AuthoredStage {
+  return JSON.parse(JSON.stringify(stage)) as AuthoredStage;
 }
 
 function cloneAction(action: AuthoredAction): AuthoredAction {
@@ -116,7 +116,7 @@ function selectionsEqual(left: ServiceBlueprintSelection, right: ServiceBlueprin
 }
 
 function makeCopiedStageKey(baseStageKey: string, serviceBlueprint: AuthoredServiceBlueprint): string {
-  const usedKeys = new Set(serviceBlueprint.touchpoints.map(stage => stage.stateKey));
+  const usedKeys = new Set(serviceBlueprint.stages.map(stage => stage.stateKey));
   let candidate = `${baseStageKey}-copy`;
   let suffix = 2;
   while (usedKeys.has(candidate)) {
@@ -138,8 +138,8 @@ function makeCopiedStageKey(baseStageKey: string, serviceBlueprint: AuthoredServ
  * Prop: initialServiceBlueprint — set directly for Storybook / offline use; skips API fetch.
  *
  * Test hooks:
- *   data-prism-component="serviceBlueprint-editor"
- *   data-prism-serviceBlueprint-loaded="{key}" (reflected on the custom-element host once ready)
+ *   data-prism-component="service-blueprint-editor"
+ *   data-prism-service-blueprint-loaded="{key}" (reflected on the custom-element host once ready)
  *   data-prism-toast  (on the toast confirmation banner)
  *   data-prism-save-error (on the persistent save error surface)
  */
@@ -175,7 +175,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
   availableQueues: QueueDefinition[] = [];
 
   /**
-   * If set, the component uses this serviceBlueprint directly instead of fetching from
+   * If set, the component uses this service blueprint directly instead of fetching from
    * the API.  Designed for Storybook stories and offline walkthrough fixtures.
    */
   @property({ attribute: false })
@@ -218,7 +218,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
   @state() private _definitionParseError: string | null = null;
   @state() private _definitionSchemaIssues: DefinitionLint[] = [];
   @state() private _definitionAnnouncement = '';
-  /** Canonical JSON of the serviceBlueprint at the moment a Definition→Visual sync was committed. */
+  /** Canonical JSON of the service blueprint at the moment a Definition→Visual sync was committed. */
   private _lastAppliedDefinitionCanonical = '';
   private _definitionDebounceHandle: number | null = null;
 
@@ -355,7 +355,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     this._definitionParseError = null;
     this._definitionSchemaIssues = [];
     this._applySelection(null, this._serviceBlueprint);
-    this._announceHistory('ServiceBlueprint loaded. Undo history is ready for your next edit.');
+    this._announceHistory('Service blueprint loaded. Undo history is ready for your next edit.');
     this._serviceBlueprintStale = false;
     this._staleCurrentVersion = null;
     this._staleBannerDismissed = false;
@@ -365,19 +365,19 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
   private _reflectServiceBlueprintLoadedState() {
     const loadedKey = this.blueprintKey?.trim() || this._serviceBlueprint?.definitionKey?.trim();
     if (loadedKey) {
-      this.setAttribute('data-prism-serviceBlueprint-loaded', loadedKey);
+      this.setAttribute('data-prism-service-blueprint-loaded', loadedKey);
       return;
     }
 
-    this.removeAttribute('data-prism-serviceBlueprint-loaded');
+    this.removeAttribute('data-prism-service-blueprint-loaded');
   }
 
-  private get _selectedStage(): AuthoredTouchpoint | null {
+  private get _selectedStage(): AuthoredStage | null {
     if (!this._serviceBlueprint || !this._selectedStageKey) {
       return null;
     }
 
-    return this._serviceBlueprint.touchpoints.find(stage => stage.stateKey === this._selectedStageKey) ?? null;
+    return this._serviceBlueprint.stages.find(stage => stage.stateKey === this._selectedStageKey) ?? null;
   }
 
   private get _previewedStage(): ProjectedServiceBlueprintState | null {
@@ -386,7 +386,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       return null;
     }
 
-    return this._projectedServiceBlueprintPreview.file.touchpoints.find(state => state.stateKey === selectedStage.stateKey) ?? null;
+    return this._projectedServiceBlueprintPreview.file.stages.find(state => state.stateKey === selectedStage.stateKey) ?? null;
   }
 
   private get _previewedTransitions(): ProjectedServiceBlueprintTransition[] {
@@ -396,7 +396,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     }
 
     const gatewayMap = new Map(serviceBlueprintGateways(this._serviceBlueprint).map(g => [g.key, g]));
-    const stageRoutes = (this._projectedServiceBlueprintPreview.file.touchpoints.find(stage => stage.stateKey === selectedStage.stateKey)?.routes ?? [])
+    const stageRoutes = (this._projectedServiceBlueprintPreview.file.stages.find(stage => stage.stateKey === selectedStage.stateKey)?.routes ?? [])
       .filter(route => route.target.trim().length > 0);
 
     return stageRoutes.flatMap(route => {
@@ -408,21 +408,21 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     });
   }
 
-  private get _initialSimulationStage(): AuthoredTouchpoint | null {
+  private get _initialSimulationStage(): AuthoredStage | null {
     if (!this._serviceBlueprint) {
       return null;
     }
 
-    return this._serviceBlueprint.touchpoints.find(stage => stage.stateKey === this._serviceBlueprint?.initialTouchpointKey) ?? null;
+    return this._serviceBlueprint.stages.find(stage => stage.stateKey === this._serviceBlueprint?.initialStage) ?? null;
   }
 
-  private get _simulationCurrentStage(): AuthoredTouchpoint | null {
+  private get _simulationCurrentStage(): AuthoredStage | null {
     const simulation = this._simulation;
     if (!this._serviceBlueprint || !simulation) {
       return null;
     }
 
-    return this._serviceBlueprint.touchpoints.find(stage => stage.stateKey === simulation.currentStageKey) ?? null;
+    return this._serviceBlueprint.stages.find(stage => stage.stateKey === simulation.currentStageKey) ?? null;
   }
 
   private _announceSimulation(message: string) {
@@ -452,7 +452,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     }
 
     return this._validationIssues.find(issue => issue.code === 'initial-stage-missing')?.message
-      ?? 'Pick an initial stage before you simulate this serviceBlueprint.';
+      ?? 'Pick an initial stage before you simulate this service blueprint.';
   }
 
   private get _simulationCanStart() {
@@ -469,7 +469,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       return ['This transition is no longer available.'];
     }
 
-    const targetStage = this._serviceBlueprint.touchpoints.find(stage => stage.stateKey === transition.toStage);
+    const targetStage = this._serviceBlueprint.stages.find(stage => stage.stateKey === transition.toStage);
     const blockingIssues = this._blockingValidationIssues.filter(issue => {
       if (issue.location.kind === 'route') {
         return issue.location.routeId === transition.key
@@ -519,14 +519,14 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       .map((transition, transitionIndex) => ({ transition, transitionIndex }))
       .filter(({ transition }) => transition.fromStage === this._simulationCurrentStage?.stateKey)
       .map(({ transition, transitionIndex }) => {
-        const targetStage = this._serviceBlueprint?.touchpoints.find(stage => stage.stateKey === transition.toStage) ?? null;
+        const targetStage = this._serviceBlueprint?.stages.find(stage => stage.stateKey === transition.toStage) ?? null;
         const blockerMessages = this._simulationBlockersForTransition(transitionIndex);
         return {
           transitionIndex,
           label: transition.action,
           targetStageKey: transition.toStage,
           targetStageLabel: targetStage?.displayName ?? transition.toStage,
-          targetTouchpointKind: targetStage?.kind,
+          targetStageKind: targetStage?.kind,
           blocked: blockerMessages.length > 0,
           blockerMessages,
           conditionSummary: transition.condition ? `Condition: ${transition.condition}` : undefined,
@@ -562,7 +562,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     }
 
     if (selection?.kind === 'stage') {
-      const exists = serviceBlueprint.touchpoints.some(stage => stage.stateKey === selection.stageKey);
+      const exists = serviceBlueprint.stages.some(stage => stage.stateKey === selection.stageKey);
       this._selection = exists ? { kind: 'stage', stageKey: selection.stageKey } : null;
       this._selectedTransitionIndex = null;
       this._syncStagePreview();
@@ -611,7 +611,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
   }
 
   /**
-   * Proactive staleness check, not just reactive-on-save: while a serviceBlueprint is open, poll
+   * Proactive staleness check, not just reactive-on-save: while a service blueprint is open, poll
    * every 15s for whether someone else (a human, or an AI agent) has saved a newer version.
    * MVP — a `checkVersion(key) => { version }` scalar poll is cheap enough that it doesn't
    * need push infrastructure; Server-Sent Events is the natural upgrade path if that ever
@@ -720,7 +720,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       this._projectedServiceBlueprintPreview = preview;
       this._stagePreviewState = 'ready';
 
-      if (!preview.file.touchpoints.some(state => state.stateKey === this._selectedStage?.stateKey)) {
+      if (!preview.file.stages.some(state => state.stateKey === this._selectedStage?.stateKey)) {
         this._stagePreviewState = 'error';
         this._stagePreviewError = `The selected stage could not be found in the projected runtime preview.`;
       }
@@ -768,7 +768,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
 
   private get _historyStatusSummary() {
     if (!this._serviceBlueprint) {
-      return 'History unavailable until the serviceBlueprint loads.';
+      return 'History unavailable until the service blueprint loads.';
     }
 
     if (this._undoHistory.length === 0 && this._redoHistory.length === 0) {
@@ -833,7 +833,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
 
   private get _dirtyStateSummary() {
     if (!this._serviceBlueprint) {
-      return 'ServiceBlueprint not loaded yet.';
+      return 'Service blueprint not loaded yet.';
     }
 
     return this._isDirty ? 'Unsaved changes' : 'All changes saved';
@@ -841,11 +841,11 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
 
   private get _validationStatusSummary() {
     if (!this._serviceBlueprint) {
-      return 'Validation will appear when the serviceBlueprint loads.';
+      return 'Validation will appear when the service blueprint loads.';
     }
 
     if (this._validationIssues.length === 0) {
-      return 'No validation issues. The serviceBlueprint is ready to save.';
+      return 'No validation issues. The service blueprint is ready to save.';
     }
 
     const parts: string[] = [];
@@ -864,7 +864,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     }
 
     if (this._saveState === 'saved') {
-      return this._saveMessage ?? 'ServiceBlueprint changes saved.';
+      return this._saveMessage ?? 'Service blueprint changes saved.';
     }
 
     if (this._saveState === 'error') {
@@ -902,7 +902,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     this._serviceBlueprint = nextServiceBlueprint;
     this._saveState = 'idle';
     this._saveMessage = null;
-    this._resetSimulation(this._simulation ? 'Simulation reset because the serviceBlueprint changed.' : undefined);
+    this._resetSimulation(this._simulation ? 'Simulation reset because the service blueprint changed.' : undefined);
     this._applySelection(nextSelection, nextServiceBlueprint);
     this._announceHistory(`Change recorded. ${this._historyStatusSummary}`);
   }
@@ -913,7 +913,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     }
 
     if (this._actionSelection.target === 'stage' && this._selectedStageKey) {
-      const stage = this._serviceBlueprint.touchpoints.find(candidate => candidate.stateKey === this._selectedStageKey);
+      const stage = this._serviceBlueprint.stages.find(candidate => candidate.stateKey === this._selectedStageKey);
       const action = stage?.actions?.[this._actionSelection.index];
       return action ? { action, target: 'stage' } : null;
     }
@@ -1018,7 +1018,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     this._redoHistory = this._redoHistory.slice(0, -1);
     this._undoHistory = [...this._undoHistory, current].slice(-HISTORY_LIMIT);
     this._restoreHistoryEntry(next);
-    this._announceHistory(`Redid the serviceBlueprint change. ${this._historyStatusSummary}`);
+    this._announceHistory(`Redid the service blueprint change. ${this._historyStatusSummary}`);
   };
 
   private _isEditableTarget(event: KeyboardEvent) {
@@ -1298,7 +1298,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     // Mark the canonical so the visual→definition sync doesn't echo this back.
     this._lastAppliedDefinitionCanonical = serializeAuthoredServiceBlueprint(next);
     this._commitServiceBlueprintUpdate(next, this._currentSelection());
-    const stageCount = next.touchpoints.length;
+    const stageCount = next.stages.length;
     const gatewayCount = next.metadata?.gateways?.length ?? 0;
     this._announceDefinition(
       `Definition updated. ${stageCount} ${stageCount === 1 ? 'stage' : 'stages'}, ${gatewayCount} ${gatewayCount === 1 ? 'gateway' : 'gateways'}.`
@@ -1325,7 +1325,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     this._lastAppliedDefinitionCanonical = canonical;
     this._definitionParseError = null;
     this._definitionSchemaIssues = [];
-    this._announceDefinition('Definition reverted to the current serviceBlueprint.');
+    this._announceDefinition('Definition reverted to the current service blueprint.');
   }
 
   private _applyDefinitionTextImmediately() {
@@ -1384,7 +1384,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
 
     if (this._graphMultiSelection.length >= 2) {
       const selectedKeys = this._graphMultiSelection.map(parseGraphNodeId);
-      const stages = this._serviceBlueprint.touchpoints.filter(stage =>
+      const stages = this._serviceBlueprint.stages.filter(stage =>
         selectedKeys.some(parsed => parsed.kind === 'stage' && parsed.key === stage.stateKey));
       const gateways = serviceBlueprintGateways(this._serviceBlueprint).filter(gateway =>
         selectedKeys.some(parsed => parsed.kind === 'gateway' && parsed.key === gateway.key));
@@ -1408,7 +1408,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       return false;
     }
 
-    const stage = this._serviceBlueprint.touchpoints.find(candidate => candidate.stateKey === this._selectedStageKey);
+    const stage = this._serviceBlueprint.stages.find(candidate => candidate.stateKey === this._selectedStageKey);
     if (!stage) {
       return false;
     }
@@ -1435,7 +1435,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     const serviceBlueprint = this._serviceBlueprint;
 
     const usedKeys = new Set<string>([
-      ...serviceBlueprint.touchpoints.map(stage => stage.stateKey),
+      ...serviceBlueprint.stages.map(stage => stage.stateKey),
       ...serviceBlueprintGateways(serviceBlueprint).map(gateway => gateway.key),
     ]);
     const uniqueKey = (base: string) => {
@@ -1459,7 +1459,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
         return { ...route, target, id: newRouteId(ownerNewKey, route.trigger, target) };
       });
 
-    const pastedStages: AuthoredTouchpoint[] = entry.stages.map(stage => {
+    const pastedStages: AuthoredStage[] = entry.stages.map(stage => {
       const stateKey = keyMap.get(stage.stateKey)!;
       return { ...cloneStage(stage), stateKey, routes: remapRoutes(stateKey, stage.routes) };
     });
@@ -1485,7 +1485,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
 
     const next: AuthoredServiceBlueprint = {
       ...serviceBlueprint,
-      touchpoints: [...serviceBlueprint.touchpoints, ...pastedStages],
+      stages: [...serviceBlueprint.stages, ...pastedStages],
       gateways: [...serviceBlueprintGateways(serviceBlueprint), ...pastedGateways],
       layout: Object.keys(layoutNodes).length > 0 ? { nodes: layoutNodes } : serviceBlueprint.layout,
     };
@@ -1511,19 +1511,19 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     if (this._clipboard.kind === 'stage') {
       const copiedStage = cloneStage(this._clipboard.stage);
       const stageKey = makeCopiedStageKey(copiedStage.stateKey, this._serviceBlueprint);
-      const pastedStage: AuthoredTouchpoint = {
+      const pastedStage: AuthoredStage = {
         ...copiedStage,
-        stageKey,
+        stateKey: stageKey,
       };
 
-      const stages = [...this._serviceBlueprint.touchpoints];
+      const stages = [...this._serviceBlueprint.stages];
       const selectedStageIndex = this._selectedStageKey
         ? stages.findIndex(stage => stage.stateKey === this._selectedStageKey)
         : -1;
       const insertIndex = selectedStageIndex >= 0 ? selectedStageIndex + 1 : stages.length;
       stages.splice(insertIndex, 0, pastedStage);
 
-      this._commitServiceBlueprintUpdate({ ...this._serviceBlueprint, touchpoints: stages }, { kind: 'stage', stageKey });
+      this._commitServiceBlueprintUpdate({ ...this._serviceBlueprint, stages: stages }, { kind: 'stage', stageKey });
       this._showToast(`Pasted stage ${pastedStage.displayName}.`);
       this._handleInspectorRequested();
       return true;
@@ -1540,15 +1540,15 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       return false;
     }
 
-    const stageIndex = this._serviceBlueprint.touchpoints.findIndex(stage => stage.stateKey === currentSelection.stageKey);
+    const stageIndex = this._serviceBlueprint.stages.findIndex(stage => stage.stateKey === currentSelection.stageKey);
     if (stageIndex < 0) {
       return false;
     }
 
-    const stages = [...this._serviceBlueprint.touchpoints];
+    const stages = [...this._serviceBlueprint.stages];
     const nextActions = [...(stages[stageIndex].actions ?? []), pastedAction];
     stages[stageIndex] = { ...stages[stageIndex], actions: nextActions };
-    this._commitServiceBlueprintUpdate({ ...this._serviceBlueprint, touchpoints: stages }, currentSelection);
+    this._commitServiceBlueprintUpdate({ ...this._serviceBlueprint, stages: stages }, currentSelection);
     this._actionSelection = { target: 'stage', index: nextActions.length - 1 };
     this._showToast(`Pasted action ${this._clipboard.label} into ${stages[stageIndex].displayName}.`);
     return true;
@@ -1583,7 +1583,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       }
 
       requestAnimationFrame(() => {
-        const actionEditor = inspector?.shadowRoot?.querySelector<HTMLElement>('prism-touchpoint-action-editor');
+        const actionEditor = inspector?.shadowRoot?.querySelector<HTMLElement>('prism-stage-action-editor');
         const selector = actionLocation.fieldKey && actionLocation.fieldKey !== 'fields'
           ? `[data-prism-action-param="${actionLocation.actionIndex}-${actionLocation.fieldKey}"]`
           : typeof actionLocation.formFieldIndex === 'number'
@@ -1670,7 +1670,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     if (this._hasBlockingValidationIssues) {
       this._saveState = 'error';
       this._saveError = new ServiceBlueprintSaveError({
-        title: 'Can’t save this serviceBlueprint yet',
+        title: 'Can’t save this service blueprint yet',
         summary: 'Fix the blocking validation errors first.',
         detailLines: ['Open Validation to review each blocking error before trying again.'],
       });
@@ -1687,8 +1687,8 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       this._saveState = 'error';
       this._saveError = new ServiceBlueprintSaveError({
         title: 'Save unavailable',
-        summary: 'No serviceBlueprint source is wired to the editor.',
-        detailLines: ['Connect a serviceBlueprint source before trying to save.'],
+        summary: 'No service blueprint source is wired to the editor.',
+        detailLines: ['Connect a service blueprint source before trying to save.'],
       });
       this._saveMessage = this._saveError.summary;
       this._saveErrorCopyStatus = null;
@@ -1707,7 +1707,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       this._serviceBlueprint = cloneServiceBlueprint({ ...this._serviceBlueprint, version: this._serviceBlueprint.version + 1 });
       this._savedServiceBlueprintSnapshot = cloneServiceBlueprint(this._serviceBlueprint);
       this._saveState = 'saved';
-      this._saveMessage = 'ServiceBlueprint saved.';
+      this._saveMessage = 'Service blueprint saved.';
       this._saveError = null;
       this._saveErrorCopyStatus = null;
       this._showToast(this._saveMessage);
@@ -1806,7 +1806,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       return;
     }
 
-    const nextStage = this._serviceBlueprint.touchpoints.find(stage => stage.stateKey === transition.toStage);
+    const nextStage = this._serviceBlueprint.stages.find(stage => stage.stateKey === transition.toStage);
     if (!nextStage) {
       this._announceSimulation(`Transition ${transition.action} cannot continue because the target stage is missing.`);
       return;
@@ -1866,7 +1866,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       <section class="validation-panel" aria-labelledby="service-blueprint-validation-panel-title" data-prism-validation-rail>
         <div class="validation-panel-header">
           <div>
-            <h2 id="service-blueprint-validation-panel-title" class="validation-panel-title">ServiceBlueprint validation</h2>
+            <h2 id="service-blueprint-validation-panel-title" class="validation-panel-title">Service Blueprint validation</h2>
             <p class="validation-panel-summary">${this._validationStatusSummary}</p>
           </div>
           <div class="validation-panel-meta">
@@ -1908,12 +1908,12 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
   private _renderDefinitionPanel() {
     if (!this._serviceBlueprint) {
       return html`<div class="definition-empty" data-prism-definition-empty>
-        Loading the serviceBlueprint definition…
+        Loading the service blueprint definition…
       </div>`;
     }
 
     const banner = this._renderDefinitionBanner();
-    const stageCount = this._serviceBlueprint.touchpoints.length;
+    const stageCount = this._serviceBlueprint.stages.length;
     const gatewayCount = this._serviceBlueprint.metadata?.gateways?.length ?? 0;
 
     return html`
@@ -1957,7 +1957,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     }
     const summary = this._definitionParseError
       ? `JSON is not valid: ${this._definitionParseError}`
-      : this._definitionSchemaIssues[0]?.message ?? 'Definition does not match the serviceBlueprint schema.';
+      : this._definitionSchemaIssues[0]?.message ?? 'Definition does not match the service blueprint schema.';
     const additional = !this._definitionParseError && this._definitionSchemaIssues.length > 1
       ? html`<ul class="definition-banner-list">
           ${this._definitionSchemaIssues.slice(1, 5).map(issue => html`<li>${issue.message}</li>`)}
@@ -2016,16 +2016,16 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
           class="shortcut-dialog"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="serviceBlueprint-shortcut-title"
-          aria-describedby="serviceBlueprint-shortcut-copy"
+          aria-labelledby="service-blueprint-shortcut-title"
+          aria-describedby="service-blueprint-shortcut-copy"
           data-prism-shortcut-dialog
           @keydown=${(event: KeyboardEvent) => this._handleDialogKeydown(event, () => this._closeShortcutGuide())}
         >
           <div class="shortcut-dialog-header">
             <div>
               <p class="shortcut-dialog-eyebrow">Help and shortcuts</p>
-              <h2 id="serviceBlueprint-shortcut-title" class="shortcut-dialog-title">ServiceBlueprint editor keyboard reference</h2>
-              <p id="serviceBlueprint-shortcut-copy" class="shortcut-dialog-copy">
+              <h2 id="service-blueprint-shortcut-title" class="shortcut-dialog-title">Service Blueprint editor keyboard reference</h2>
+              <p id="service-blueprint-shortcut-copy" class="shortcut-dialog-copy">
                 These shortcuts stay visible in the editor so authors do not have to memorise them. Open this guide any time with F1.
               </p>
             </div>
@@ -2072,13 +2072,13 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
   private _renderStagePreview() {
     const selectedStage = this._selectedStage;
     return html`
-      <prism-touchpoint-preview
+      <prism-stage-preview
         .stage=${selectedStage}
         .projectedState=${this._previewedStage}
         .outgoingTransitions=${this._previewedTransitions}
         .previewState=${this._stagePreviewState}
         .errorMessage=${this._stagePreviewError ?? ''}
-      ></prism-touchpoint-preview>
+      ></prism-stage-preview>
     `;
   }
 
@@ -2097,8 +2097,8 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
   render() {
     return html`
       <div
-        data-prism-component="serviceBlueprint-editor"
-        data-prism-serviceBlueprint-loaded="${this.blueprintKey || this._serviceBlueprint?.definitionKey || ''}"
+        data-prism-component="service-blueprint-editor"
+        data-prism-service-blueprint-loaded="${this.blueprintKey || this._serviceBlueprint?.definitionKey || ''}"
         class="editor-root"
       >
         ${this._renderToast()}
@@ -2132,7 +2132,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
                       ? nothing
                       : html`
                           <p class="panel-subtitle">
-                            ${(this._serviceBlueprint?.touchpoints.length ?? 0)} ${(this._serviceBlueprint?.touchpoints.length ?? 0) === 1 ? 'stage' : 'stages'}
+                            ${(this._serviceBlueprint?.stages.length ?? 0)} ${(this._serviceBlueprint?.stages.length ?? 0) === 1 ? 'stage' : 'stages'}
                             ${this._serviceBlueprint?.metadata?.gateways?.length ? ` · ${this._serviceBlueprint.metadata?.gateways.length} gateways` : ''}
                           </p>
                         `}
@@ -2141,7 +2141,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
                     type="button"
                     class="panel-toggle"
                     data-prism-outline-toggle
-                    aria-controls="serviceBlueprint-editor-outline-panel"
+                    aria-controls="service-blueprint-editor-outline-panel"
                     aria-expanded=${String(!this._outlineCollapsed)}
                     aria-label=${this._outlineCollapsed ? 'Expand outline panel' : 'Collapse outline panel'}
                     @click=${this._toggleOutlineCollapsed}
@@ -2151,7 +2151,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
                   </button>
                 </div>
                 <div
-                  id="serviceBlueprint-editor-outline-panel"
+                  id="service-blueprint-editor-outline-panel"
                   class="panel-body"
                   ?hidden=${this._outlineCollapsed}
                 >
@@ -2174,8 +2174,8 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
               <!-- Center: graph workspace + toolbar -->
               <div class="editor-center">
                 <div class="editor-header" role="none">
-                  <h1 id="serviceBlueprint-editor-title" class="editor-title">
-                    ${this._serviceBlueprint?.displayName ?? 'ServiceBlueprint Editor'}
+                  <h1 id="service-blueprint-editor-title" class="editor-title">
+                    ${this._serviceBlueprint?.displayName ?? 'Service Blueprint Editor'}
                   </h1>
                   <div class="editor-toolbar" role="toolbar" aria-label="ServiceBlueprint editor tools">
                     <button
@@ -2284,7 +2284,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
                   @stage-selected="${this._handleStageSelected}"
                   @gateway-selected="${this._handleGatewaySelected}"
                   @transition-selected="${this._handleTransitionSelected}"
-                  @serviceBlueprint-updated="${this._handleServiceBlueprintUpdated}"
+                  @service-blueprint-updated="${this._handleServiceBlueprintUpdated}"
                   @inspector-requested="${this._handleInspectorRequested}"
                   @graph-multi-selection="${(event: CustomEvent<{ nodeIds: string[] }>) => {
                     this._graphMultiSelection = event.detail.nodeIds;
@@ -2305,7 +2305,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
                     type="button"
                     class="panel-toggle"
                     data-prism-inspector-toggle
-                    aria-controls="serviceBlueprint-editor-inspector-panel"
+                    aria-controls="service-blueprint-editor-inspector-panel"
                     aria-expanded=${String(!this._inspectorCollapsed)}
                     aria-label=${this._inspectorCollapsed ? 'Expand properties drawer' : 'Collapse properties drawer'}
                     @click=${this._toggleInspectorCollapsed}
@@ -2315,7 +2315,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
                   </button>
                 </div>
                 <div
-                  id="serviceBlueprint-editor-inspector-panel"
+                  id="service-blueprint-editor-inspector-panel"
                   class="panel-body"
                   ?hidden=${this._inspectorCollapsed}
                 >
@@ -2329,7 +2329,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
                     .selectedActionIndex=${this._selectedActionIndex}
                     .selectedActionTransitionIndex=${this._selectedTransitionIndex}
                     .actionCatalog=${this._actionCatalog}
-                    @serviceBlueprint-updated=${this._handleServiceBlueprintUpdated}
+                    @service-blueprint-updated=${this._handleServiceBlueprintUpdated}
                     @action-selected=${this._handleActionSelected}
                   ></prism-step-inspector>
                 </div>
@@ -2379,15 +2379,15 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
 
     return html`
       <section
-        class="stale-serviceBlueprint-banner"
-        aria-labelledby="serviceBlueprint-stale-title"
+        class="stale-service-blueprint-banner"
+        aria-labelledby="service-blueprint-stale-title"
         tabindex="-1"
-        data-prism-stale-serviceBlueprint-banner
+        data-prism-stale-service-blueprint-banner
       >
-        <div class="stale-serviceBlueprint-header">
-          <p class="stale-serviceBlueprint-eyebrow">Changed elsewhere</p>
-          <h2 id="serviceBlueprint-stale-title" class="stale-serviceBlueprint-title">This serviceBlueprint was updated elsewhere</h2>
-          <p class="stale-serviceBlueprint-summary" role="alert">
+        <div class="stale-service-blueprint-header">
+          <p class="stale-service-blueprint-eyebrow">Changed elsewhere</p>
+          <h2 id="service-blueprint-stale-title" class="stale-service-blueprint-title">This service blueprint was updated elsewhere</h2>
+          <p class="stale-service-blueprint-summary" role="alert">
             Someone else — a person in the editor, or an AI agent — saved a newer version
             ${this._staleCurrentVersion != null ? html`(now at version ${this._staleCurrentVersion})` : ''}
             while you were editing. The editor is read-only until you reload; reloading
@@ -2395,7 +2395,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
             keep first.
           </p>
         </div>
-        <div class="stale-serviceBlueprint-actions">
+        <div class="stale-service-blueprint-actions">
           <button
             type="button"
             class="toolbar-btn govuk-button"
@@ -2431,12 +2431,12 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     }
 
     return html`
-      <div class="stale-serviceBlueprint-overlay" data-prism-stale-serviceBlueprint-overlay>
-        <div class="stale-serviceBlueprint-overlay-ribbon" role="status">
-          <span>Read-only — this serviceBlueprint changed elsewhere.</span>
+      <div class="stale-service-blueprint-overlay" data-prism-stale-service-blueprint-overlay>
+        <div class="stale-service-blueprint-overlay-ribbon" role="status">
+          <span>Read-only — this service blueprint changed elsewhere.</span>
           <button
             type="button"
-            class="toolbar-btn govuk-button stale-serviceBlueprint-overlay-reload"
+            class="toolbar-btn govuk-button stale-service-blueprint-overlay-reload"
             data-prism-reload-after-conflict-overlay
             @click=${this._handleReloadAfterConflict}
           >
@@ -2455,13 +2455,13 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
     return html`
       <section
         class="save-error-surface"
-        aria-labelledby="serviceBlueprint-save-error-title"
+        aria-labelledby="service-blueprint-save-error-title"
         tabindex="-1"
         data-prism-save-error
       >
         <div class="save-error-header">
           <p class="save-error-eyebrow">Save problem</p>
-          <h2 id="serviceBlueprint-save-error-title" class="save-error-title">${this._saveError.title}</h2>
+          <h2 id="service-blueprint-save-error-title" class="save-error-title">${this._saveError.title}</h2>
           ${this._saveError.summaryStageKey
             ? html`
                 <p class="save-error-summary" role="alert">
@@ -2507,9 +2507,9 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
           ? html`<p class="save-error-trace"><strong>Reference:</strong> ${this._saveError.traceId}</p>`
           : nothing}
 
-        <label class="save-error-copy-label" for="serviceBlueprint-save-error-details">Copyable save error details</label>
+        <label class="save-error-copy-label" for="service-blueprint-save-error-details">Copyable save error details</label>
         <textarea
-          id="serviceBlueprint-save-error-details"
+          id="service-blueprint-save-error-details"
           class="save-error-copy-field"
           readonly
           rows="6"
@@ -2731,7 +2731,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
 
     /* ---- Stale serviceBlueprint (version conflict) ---- */
 
-    .stale-serviceBlueprint-banner {
+    .stale-service-blueprint-banner {
       margin: 1rem;
       padding: 1rem 1.25rem 1.25rem;
       border: 4px solid #f47738;
@@ -2741,22 +2741,22 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       box-shadow: 0 1px 4px rgba(11, 12, 12, 0.08);
     }
 
-    .stale-serviceBlueprint-banner:focus-visible {
+    .stale-service-blueprint-banner:focus-visible {
       outline: 3px solid #ffdd00;
       outline-offset: 0;
     }
 
-    .stale-serviceBlueprint-header {
+    .stale-service-blueprint-header {
       display: grid;
       gap: 0.5rem;
     }
 
-    .stale-serviceBlueprint-eyebrow,
-    .stale-serviceBlueprint-summary {
+    .stale-service-blueprint-eyebrow,
+    .stale-service-blueprint-summary {
       margin: 0;
     }
 
-    .stale-serviceBlueprint-eyebrow {
+    .stale-service-blueprint-eyebrow {
       font-weight: 700;
       text-transform: uppercase;
       font-size: 0.8rem;
@@ -2764,12 +2764,12 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       color: #b35900;
     }
 
-    .stale-serviceBlueprint-title {
+    .stale-service-blueprint-title {
       margin: 0;
       font-size: 1.2rem;
     }
 
-    .stale-serviceBlueprint-actions {
+    .stale-service-blueprint-actions {
       display: flex;
       gap: 0.75rem;
       flex-wrap: wrap;
@@ -2783,7 +2783,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       flex-direction: column;
     }
 
-    .stale-serviceBlueprint-overlay {
+    .stale-service-blueprint-overlay {
       position: absolute;
       inset: 0;
       z-index: 150;
@@ -2794,7 +2794,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       align-items: center;
     }
 
-    .stale-serviceBlueprint-overlay-ribbon {
+    .stale-service-blueprint-overlay-ribbon {
       margin-top: 0.75rem;
       background: #f47738;
       color: #0b0c0c;
@@ -2808,7 +2808,7 @@ export class PrismServiceBlueprintEditorElement extends LitElement {
       cursor: default;
     }
 
-    .stale-serviceBlueprint-overlay-reload {
+    .stale-service-blueprint-overlay-reload {
       flex-shrink: 0;
     }
 

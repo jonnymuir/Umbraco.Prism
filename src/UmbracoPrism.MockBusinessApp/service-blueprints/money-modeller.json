@@ -4,7 +4,7 @@
   "version": 1,
   "description": "Interactive pension benefit modeller: model retirement scenarios from your record or a formal quote, then hand a chosen scenario to the scheme administrators as a quote request.",
   "schemaVersion": "1.0",
-  "initialTouchpoint": "choose-start",
+  "initialStage": "choose-start",
   "requestPolicy": "single",
   "calculations": {
     "tables": {
@@ -173,22 +173,22 @@
   "queues": [
     {
       "key": "web-user",
-      "displayName": "Member",
+      "displayName": "Member touchpoints",
       "description": "Scheme member exploring retirement scenarios.",
       "actor": "member"
     },
     {
       "key": "business-user",
-      "displayName": "Scheme administrators",
+      "displayName": "Scheme administrators touchpoints",
       "description": "Back-office queue handling formal quote requests.",
       "actor": "reviewer"
     }
   ],
-  "touchpoints": [
+  "stages": [
     {
-      "touchpointKey": "choose-start",
+      "stageKey": "choose-start",
       "displayName": "Model your money",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "member",
       "queueKey": "web-user",
       "components": [
@@ -219,9 +219,9 @@
       ]
     },
     {
-      "touchpointKey": "enter-quote",
+      "stageKey": "enter-quote",
       "displayName": "Enter your retirement quote",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "member",
       "queueKey": "web-user",
       "components": [
@@ -287,9 +287,9 @@
       ]
     },
     {
-      "touchpointKey": "model",
+      "stageKey": "model",
       "displayName": "Your money, modelled",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "member",
       "queueKey": "web-user",
       "components": [
@@ -459,9 +459,9 @@
       ]
     },
     {
-      "touchpointKey": "quote-requested",
+      "stageKey": "quote-requested",
       "displayName": "Quote request sent",
-      "touchpointType": "Confirmation",
+      "stageType": "Confirmation",
       "actor": "member",
       "queueKey": "web-user",
       "components": [
@@ -477,10 +477,10 @@
       "routes": []
     },
     {
-      "touchpointKey": "review-quote-request",
+      "stageKey": "review-quote-request",
       "displayName": "Review quote request",
       "description": "Back-office review of a member's modelled scenario before issuing a formal quote.",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "reviewer",
       "queueKey": "business-user",
       "roleGates": [
@@ -539,9 +539,9 @@
       ]
     },
     {
-      "touchpointKey": "quote-sent",
+      "stageKey": "quote-sent",
       "displayName": "Formal quote issued",
-      "touchpointType": "Confirmation",
+      "stageType": "Confirmation",
       "actor": "reviewer",
       "queueKey": "business-user",
       "components": [

@@ -83,7 +83,7 @@ The projector:
 
 | Authored | Runtime |
 |----------|---------|
-| `AuthoredTouchpoint` | `StepDefinition` |
+| `AuthoredStage` | `StageDefinition` |
 | `AuthoredGateway.routes[]` | `ServiceBlueprintRouteDefinition[]` (one per route, `from = gateway.source`, `to = route.target`) |
 | `AuthoredRoute.trigger` | `ServiceBlueprintRouteDefinition.Trigger` |
 | `AuthoredRoute.condition` | `ServiceBlueprintRouteDefinition.condition` |

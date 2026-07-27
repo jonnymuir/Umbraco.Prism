@@ -4,14 +4,14 @@
   "version": 2,
   "description": "Standard planning application workflow for submitting and tracking planning permission requests.",
   "schemaVersion": "1.0",
-  "initialTouchpoint": "declaration",
+  "initialStage": "declaration",
   "requestPolicy": "single",
-  "touchpoints": [
+  "stages": [
     {
-      "touchpointKey": "declaration",
+      "stageKey": "declaration",
       "displayName": "Declaration",
       "description": "Collects applicant and site identity before the full planning form.",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "web-user",
       "actions": [
@@ -55,10 +55,10 @@
       ]
     },
     {
-      "touchpointKey": "application-form",
+      "stageKey": "application-form",
       "displayName": "Application Form",
       "description": "Captures the substantive planning request.",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "web-user",
       "actions": [
@@ -108,10 +108,10 @@
       ]
     },
     {
-      "touchpointKey": "check-answers",
+      "stageKey": "check-answers",
       "displayName": "Check your answers",
       "description": "Summarises captured answers before final submission.",
-      "touchpointType": "CheckAnswers",
+      "stageType": "CheckAnswers",
       "actor": "applicant",
       "queueKey": "web-user",
       "components": [
@@ -175,9 +175,9 @@
       ]
     },
     {
-      "touchpointKey": "id-verification",
+      "stageKey": "id-verification",
       "displayName": "Identity Verification",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "queueKey": "web-user",
       "components": [
         {
@@ -201,10 +201,10 @@
       ]
     },
     {
-      "touchpointKey": "submitted",
+      "stageKey": "submitted",
       "displayName": "Application submitted",
       "description": "Confirms receipt and moves the case into reviewer handling.",
-      "touchpointType": "Confirmation",
+      "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "web-user",
       "components": [
@@ -219,7 +219,7 @@
   "queues": [
     {
       "key": "web-user",
-      "displayName": "Applicant",
+      "displayName": "Applicant touchpoints",
       "description": "Web user completing the planning application.",
       "actor": "applicant"
     }

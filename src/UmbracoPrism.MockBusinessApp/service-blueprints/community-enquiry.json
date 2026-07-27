@@ -3,13 +3,13 @@
   "displayName": "Get in Touch",
   "version": 1,
   "schemaVersion": "1.0",
-  "initialTouchpoint": "collecting-details",
+  "initialStage": "collecting-details",
   "requestPolicy": "single",
-  "touchpoints": [
+  "stages": [
     {
-      "touchpointKey": "collecting-details",
+      "stageKey": "collecting-details",
       "displayName": "Your details",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "web-user",
       "components": [
@@ -142,9 +142,9 @@
       ]
     },
     {
-      "touchpointKey": "submitted",
+      "stageKey": "submitted",
       "displayName": "Thank you",
-      "touchpointType": "Confirmation",
+      "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "web-user",
       "components": [
@@ -172,7 +172,7 @@
   "queues": [
     {
       "key": "web-user",
-      "displayName": "Enquirer",
+      "displayName": "Enquirer touchpoints",
       "description": "Web user submitting and tracking a community enquiry.",
       "actor": "applicant"
     }

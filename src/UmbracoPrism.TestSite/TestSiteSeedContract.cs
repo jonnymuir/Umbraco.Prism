@@ -18,13 +18,13 @@ public static class TestSiteSeedContract
     public const string SettingsAlias = "settings";
     public const string SettingsName = "Settings";
 
-    public const string TouchpointPageAlias = "touchpointPage";
-    public const string TouchpointPageName = "Get in Touch";
+    public const string StagePageAlias = "stagePage";
+    public const string StagePageName = "Get in Touch";
     public const string ServiceRequestPageUrl = "/get-in-touch";
     public const string BlueprintKey = "community-enquiry";
 
-    public const string PlanningTouchpointPageName = "Apply for Planning Permission";
-    public const string PlanningTouchpointPageUrl = "/apply-for-planning-permission";
+    public const string PlanningStagePageName = "Apply for Planning Permission";
+    public const string PlanningStagePageUrl = "/apply-for-planning-permission";
     public const string PlanningBlueprintKey = "planning";
 
     public const string PaymentDemoPageName = "Payment Demo";
@@ -66,10 +66,10 @@ public static class TestSiteSeedContract
     public static IContent? FindServiceRequestContent(IContentService contentService, string blueprintKey)
         => EnumerateContentTree(contentService)
                .FirstOrDefault(content =>
-                   content.ContentType.Alias == TouchpointPageAlias
+                   content.ContentType.Alias == StagePageAlias
                    && string.Equals(content.GetValue<string>("blueprintKey"), blueprintKey, StringComparison.OrdinalIgnoreCase));
 
-    // cmsServiceRequestPage is a distinct doc type from touchpointPage above (Prism's newer,
+    // cmsServiceRequestPage is a distinct doc type from stagePage above (Prism's newer,
     // Umbraco-only-hosted CMS Service Blueprint, not the older business-service-blueprint demos) — and more than
     // one cmsServiceRequestPage instance can now exist (apply-for-a-juggling-licence,
     // transfer-a-juggling-licence), so a seeder checking "does my page already exist" must
@@ -86,11 +86,11 @@ public static class TestSiteSeedContract
             .SelectMany(root => root.DescendantsOrSelf())
             .FirstOrDefault(content => content.ContentType.Alias == alias);
 
-    public static IPublishedContent? FindPublishedTouchpointPage(IEnumerable<IPublishedContent> roots, string blueprintKey)
+    public static IPublishedContent? FindPublishedStagePage(IEnumerable<IPublishedContent> roots, string blueprintKey)
         => roots
                .SelectMany(root => root.DescendantsOrSelf())
                .FirstOrDefault(content =>
-                    content.ContentType.Alias == TouchpointPageAlias
+                    content.ContentType.Alias == StagePageAlias
                     && string.Equals(content.Value<string>("blueprintKey"), blueprintKey, StringComparison.OrdinalIgnoreCase));
 
     public static string ResolveUrl(IPublishedContent? content, string fallback)

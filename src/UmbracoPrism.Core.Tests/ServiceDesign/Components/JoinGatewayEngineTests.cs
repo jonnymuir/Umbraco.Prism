@@ -200,7 +200,7 @@ public class JoinGatewayEngineTests
         DefinitionKey = "gateway-test",
         DisplayName = "Gateway Test",
         Version = 1,
-        InitialTouchpoint = "submit",
+        InitialStage = "submit",
         RequestPolicy = "single",
         Queues =
         [
@@ -208,30 +208,30 @@ public class JoinGatewayEngineTests
             new QueueDefinition { Key = "finance", DisplayName = "Finance", Actor = "finance-officer" },
             new QueueDefinition { Key = "planning", DisplayName = "Planning", Actor = "planning-officer" }
         ],
-        Touchpoints = [
-            new StepDefinition
+        Stages = [
+            new StageDefinition
             {
-                TouchpointKey = "submit",
+                StageKey = "submit",
                 DisplayName = "Submit",
                 Components = [new FieldsetComponent()]
             },
-            new StepDefinition
+            new StageDefinition
             {
-                TouchpointKey = "finance-review",
+                StageKey = "finance-review",
                 DisplayName = "Finance Review",
                 Components = [new FieldsetComponent()],
                 QueueKey = "finance"
             },
-            new StepDefinition
+            new StageDefinition
             {
-                TouchpointKey = "planning-review",
+                StageKey = "planning-review",
                 DisplayName = "Planning Review",
                 Components = [new FieldsetComponent()],
                 QueueKey = "planning"
             },
-            new StepDefinition
+            new StageDefinition
             {
-                TouchpointKey = "decision",
+                StageKey = "decision",
                 DisplayName = "Decision",
                 Components = [new PanelComponent { Heading = "Approved" }]
             }

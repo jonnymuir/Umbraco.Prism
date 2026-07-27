@@ -40,7 +40,7 @@ function makeElement(args: StoryArgs): PrismStepInspectorElement {
 }
 
 const meta: Meta<StoryArgs> = {
-  title: 'ServiceBlueprint Editor/Step Inspector',
+  title: 'Service Blueprint Editor/Step Inspector',
   component: 'prism-step-inspector',
   tags: ['autodocs'],
   parameters: {
@@ -100,7 +100,7 @@ export const EditableStage: Story = {
     stageType.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
     await el.updateComplete;
 
-    const actionEditor = root.querySelector('prism-touchpoint-action-editor')!;
+    const actionEditor = root.querySelector('prism-stage-action-editor')!;
     await expect(actionEditor).not.toBeNull();
     await expect(actionEditor.shadowRoot?.querySelectorAll('[data-prism-stage-action]').length).toBe(2);
     await expect(actionEditor.shadowRoot?.querySelector('[data-prism-action-forms-editor="1"]')).not.toBeNull();
@@ -123,8 +123,8 @@ const GATEWAY_ROUTE_SERVICE_BLUEPRINT = {
   displayName: 'Gateway route action fixture',
   version: 1,
   requestPolicy: 'single',
-  initialTouchpointKey: 'submitted',
-  touchpoints: [
+  initialStage: 'submitted',
+  stages: [
     {
       stateKey: 'submitted',
       displayName: 'Submitted',

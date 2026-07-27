@@ -878,13 +878,13 @@ public class Phase1SecurityRegressionTests : IDisposable
                 DefinitionKey = "sec003-test",
                 DisplayName = "SEC-003 Test",
                 Version = 1,
-                InitialTouchpoint = "step-1",
+                InitialStage = "step-1",
                 RequestPolicy = "single",
-                Touchpoints = new[]
+                Stages = new[]
                 {
-                    new StepDefinition
+                    new StageDefinition
                     {
-                        TouchpointKey = "step-1",
+                        StageKey = "step-1",
                         DisplayName = "Step 1",
                         Components = new PrismComponent[]
                         {

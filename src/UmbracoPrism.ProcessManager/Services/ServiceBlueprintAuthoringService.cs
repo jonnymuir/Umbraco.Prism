@@ -98,7 +98,7 @@ public sealed class ServiceBlueprintAuthoringService(
         var diagnostics = new List<ServiceBlueprintDiagnostic>(blueprint.ValidateGatewayRouting());
         diagnostics.AddRange(blueprint.ValidateDataDisplayBindings());
         diagnostics.AddRange(blueprint.ValidateReachability());
-        diagnostics.AddRange(blueprint.ValidateTouchpointVocabulary());
+        diagnostics.AddRange(blueprint.ValidateStageVocabulary());
         diagnostics.AddRange(ValidateQueueCapabilities(blueprint));
         foreach (var validator in _structuralValidators)
         {
@@ -163,9 +163,9 @@ public sealed class ServiceBlueprintAuthoringService(
             showWhenScope = mergedScope;
         }
 
-        foreach (var touchpoint in blueprint.Touchpoints)
+        foreach (var stage in blueprint.Stages)
         {
-            foreach (var (component, path) in touchpoint.Components.FlattenWithPaths($"touchpoints.{touchpoint.TouchpointKey}.components"))
+            foreach (var (component, path) in stage.Components.FlattenWithPaths($"stages.{stage.StageKey}.components"))
             {
                 if (string.IsNullOrWhiteSpace(component.ShowWhen))
                 {
@@ -188,7 +188,7 @@ public sealed class ServiceBlueprintAuthoringService(
     }
 
     /// <summary>
-    /// When a host registers <see cref="IQueueCapabilitiesProvider"/>, reject any touchpoint whose
+    /// When a host registers <see cref="IQueueCapabilitiesProvider"/>, reject any stage whose
     /// components exceed what its queue's host can actually render — otherwise a blueprint can
     /// be authored/saved with a component that silently renders as nothing at runtime. A queue
     /// with no declaration at all is unrestricted (not this host's concern).
@@ -200,15 +200,15 @@ public sealed class ServiceBlueprintAuthoringService(
             yield break;
         }
 
-        foreach (var touchpoint in blueprint.Touchpoints)
+        foreach (var stage in blueprint.Stages)
         {
-            var supportedTypes = queueCapabilities.GetSupportedComponentTypes(touchpoint.QueueKey);
+            var supportedTypes = queueCapabilities.GetSupportedComponentTypes(stage.QueueKey);
             if (supportedTypes is null)
             {
                 continue;
             }
 
-            foreach (var (component, path) in touchpoint.Components.FlattenWithPaths($"touchpoints.{touchpoint.TouchpointKey}.components"))
+            foreach (var (component, path) in stage.Components.FlattenWithPaths($"stages.{stage.StageKey}.components"))
             {
                 var discriminator = PrismComponentTypeCatalog.DiscriminatorFor(component);
                 if (supportedTypes.Contains(discriminator, StringComparer.Ordinal))
@@ -219,8 +219,8 @@ public sealed class ServiceBlueprintAuthoringService(
                 yield return new ServiceBlueprintDiagnostic(
                     "QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT",
                     path,
-                    $"State '{touchpoint.TouchpointKey}' uses component type '{discriminator}', which queue " +
-                    $"'{touchpoint.QueueKey}''s host does not declare support for " +
+                    $"State '{stage.StageKey}' uses component type '{discriminator}', which queue " +
+                    $"'{stage.QueueKey}''s host does not declare support for " +
                     (supportedTypes.Count == 0
                         ? "(it currently supports no component types at all). "
                         : $"(it supports: {string.Join(", ", supportedTypes)}). ") +

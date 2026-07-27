@@ -30,13 +30,13 @@ const REVIEW_LOOP_SERVICE_BLUEPRINT: RawServiceBlueprint = {
   definitionKey: 'review-loop',
   displayName: 'Review Loop',
   version: 1,
-  initialTouchpointKey: 'draft',
+  initialStage: 'draft',
   requestPolicy: 'single',
   queues: [
     { key: 'web-user', displayName: 'Applicant' },
     { key: 'admin', displayName: 'Reviewer' },
   ],
-  touchpoints: [
+  stages: [
     {
       stateKey: 'draft',
       displayName: 'Draft',
@@ -88,7 +88,7 @@ function hydrate(raw: RawServiceBlueprint): AuthoredServiceBlueprint {
 }
 
 function assertCommonInvariants(name: string, serviceBlueprint: AuthoredServiceBlueprint, options: { strictRanks: boolean }) {
-  // Queue labels resolve from the serviceBlueprint's own queues; the standalone
+  // Queue labels resolve from the service blueprint's own queues; the standalone
   // availableQueues list is exercised by the host component, not here.
   const { topology, layout } = computeServiceBlueprintGraphLayout(serviceBlueprint, []);
 
@@ -156,7 +156,7 @@ export function run(fixtures: LayoutTestFixtures): number {
     check('planning: exactly one lane', layout.lanes.length === 1,
       `lanes: ${layout.lanes.map(lane => lane.key).join(', ')}`);
 
-    const initial = layout.placements.get(stageNodeId(serviceBlueprint.initialTouchpointKey));
+    const initial = layout.placements.get(stageNodeId(serviceBlueprint.initialStage));
     check('planning: initial state sits on the first row band',
       initial !== undefined && initial.y === TOP_PADDING + LANE_HEADER_OFFSET
         && initial.rowRank === 0);
@@ -226,7 +226,7 @@ export function run(fixtures: LayoutTestFixtures): number {
 
     check('money-modeller: every rank is a finite number',
       [...topology.ranks.values()].every(rank => Number.isFinite(rank)));
-    check('money-modeller: all six touchpoints and six gateways are in the topology',
+    check('money-modeller: all six stages and six gateways are in the topology',
       topology.nodes.filter(node => node.kind === 'stage').length === 6
       && topology.nodes.filter(node => node.kind === 'gateway').length === 6);
   }
@@ -237,7 +237,7 @@ export function run(fixtures: LayoutTestFixtures): number {
     const serviceBlueprint = hydrate(fixtures.paymentDemo);
     const topology = computeTopology(serviceBlueprint, []);
     const derived = mergeLayout(topology, undefined);
-    const firstStageId = stageNodeId(serviceBlueprint.initialTouchpointKey);
+    const firstStageId = stageNodeId(serviceBlueprint.initialStage);
     const derivedPlacement = derived.placements.get(firstStageId)!;
 
     const draggedX = derivedPlacement.x + 400;
@@ -275,7 +275,7 @@ export function run(fixtures: LayoutTestFixtures): number {
 
     const pruned = pruneLayout({
       ...moved,
-      touchpoints: moved.touchpoints.filter(stage => stage.stateKey !== serviceBlueprint.initialTouchpointKey),
+      stages: moved.stages.filter(stage => stage.stateKey !== serviceBlueprint.initialStage),
     });
     check('layout-block: pruneLayout drops entries for deleted nodes',
       pruned.layout === undefined);

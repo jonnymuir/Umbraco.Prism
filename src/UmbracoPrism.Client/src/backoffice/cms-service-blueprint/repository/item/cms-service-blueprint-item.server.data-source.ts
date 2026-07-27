@@ -6,7 +6,7 @@ import { UMB_CMS_SERVICE_BLUEPRINT_ENTITY_TYPE, type CmsServiceBlueprintEntityMo
 type ServerSummary = { definitionKey: string; displayName: string };
 
 /**
- * Only used by the built-in `kind: 'delete'` entityAction, to show the serviceBlueprint's display name
+ * Only used by the built-in `kind: 'delete'` entityAction, to show the service blueprint's display name
  * in its confirmation dialog — this entity has no picker/relation use case, so nothing else
  * needs this tier. Reuses the list endpoint (list is already cheap and small; no bespoke
  * "get by ids" endpoint needed).

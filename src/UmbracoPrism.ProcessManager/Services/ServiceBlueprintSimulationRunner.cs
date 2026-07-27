@@ -8,14 +8,14 @@ namespace UmbracoPrism.ProcessManager.Services;
 
 /// <summary>
 /// One action to advance a simulated service request, optionally supplying field values
-/// for the touchpoint being submitted.
+/// for the stage being submitted.
 /// </summary>
 public sealed record ProcessManagerSimulationStep(string Action, Dictionary<string, object?>? FieldValues = null);
 
 /// <summary>
 /// Raw calculated values for one step of a simulation trace — the same
 /// <see cref="CalculationResult"/> the real engine computed, not the display-formatted
-/// values baked into rendered components. <c>null</c> when the step's touchpoint had no
+/// values baked into rendered components. <c>null</c> when the step's stage had no
 /// calculations block, or evaluation failed.
 /// </summary>
 public sealed record ServiceBlueprintSimulationStepCalculations(
@@ -23,10 +23,10 @@ public sealed record ServiceBlueprintSimulationStepCalculations(
     IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyDictionary<string, object?>>> Series);
 
 /// <summary>
-/// Result of a <see cref="ServiceBlueprintSimulationRunner.Run"/> call — the touchpoint trace, exactly as
+/// Result of a <see cref="ServiceBlueprintSimulationRunner.Run"/> call — the stage trace, exactly as
 /// <c>IProcessManager.GetCurrent</c>/<c>Advance</c> would report to a real client, plus
 /// the raw calculated values for each step (parallel to <see cref="Trace"/>; entries are
-/// <c>null</c> for steps whose touchpoint has no calculations block or whose calculations failed).
+/// <c>null</c> for steps whose stage has no calculations block or whose calculations failed).
 /// </summary>
 public sealed record ServiceBlueprintSimulationResult(
     IReadOnlyList<ServiceRequestResponseEnvelope> Trace,
@@ -35,7 +35,7 @@ public sealed record ServiceBlueprintSimulationResult(
 /// <summary>
 /// Dry-runs a <see cref="ServiceBlueprint"/> through the real <see cref="ProcessManagerEngine"/> —
 /// no persistence, no host, no HTTP. Lets a caller (e.g. an AI authoring tool) script a sequence of
-/// actions against a definition and inspect the resulting touchpoint trace, exactly as
+/// actions against a definition and inspect the resulting stage trace, exactly as
 /// <c>IProcessManager.GetCurrent</c>/<c>Advance</c> would report to a real client.
 /// </summary>
 public sealed class ServiceBlueprintSimulationRunner

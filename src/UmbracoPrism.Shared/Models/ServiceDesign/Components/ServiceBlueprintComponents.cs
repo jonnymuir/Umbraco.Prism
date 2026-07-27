@@ -11,7 +11,7 @@ public sealed record WaitingComponent : PrismComponent
     /// <summary>Expected wait time in seconds, used for user expectation management.</summary>
     public int ExpectedWaitSeconds { get; init; }
 
-    /// <summary>How often the client should poll for a touchpoint change, in milliseconds (default: 3000).</summary>
+    /// <summary>How often the client should poll for a stage change, in milliseconds (default: 3000).</summary>
     public int PollIntervalMs { get; init; } = 3000;
 
     /// <summary>Whether to show the "leave and return later" defer option (default: true).</summary>
@@ -29,11 +29,11 @@ public sealed record SummaryListComponent : PrismComponent
     /// <summary>
     /// Inline polymorphic input definitions to summarise. The summary-list carries its
     /// own field schemas (label, type, options, conditional reveals) so the engine can
-    /// render payloads directly without resolving keys against another touchpoint.
+    /// render payloads directly without resolving keys against another stage.
     /// </summary>
     public IReadOnlyList<PrismComponent> Children { get; init; } = Array.Empty<PrismComponent>();
 
-    /// <summary>The touchpoint key the "Change" links navigate to.</summary>
+    /// <summary>The stage key the "Change" links navigate to.</summary>
     public string? ChangeStateKey { get; init; }
 
     /// <summary>Optional title displayed above the summary list.</summary>
@@ -46,7 +46,7 @@ public sealed record SummaryListComponent : PrismComponent
 public sealed record TaskListComponent : PrismComponent
 {
     /// <summary>
-    /// Task sections. If null or empty, the engine auto-generates sections from blueprint touchpoints.
+    /// Task sections. If null or empty, the engine auto-generates sections from blueprint stages.
     /// </summary>
     public IReadOnlyList<TaskSection>? Sections { get; init; }
 }
@@ -71,10 +71,10 @@ public sealed record TaskItem
     /// <summary>The task label shown to the user.</summary>
     public string Label { get; init; } = "";
 
-    /// <summary>Links to a blueprint touchpoint (engine resolves to URL).</summary>
-    public string? TouchpointKey { get; init; }
+    /// <summary>Links to a blueprint stage (engine resolves to URL).</summary>
+    public string? StageKey { get; init; }
 
-    /// <summary>Direct URL for this task (alternative to TouchpointKey).</summary>
+    /// <summary>Direct URL for this task (alternative to StageKey).</summary>
     public string? Href { get; init; }
 }
 

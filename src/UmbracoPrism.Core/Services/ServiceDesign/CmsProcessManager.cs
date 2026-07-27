@@ -23,7 +23,7 @@ public sealed class CmsProcessManager(
     IServiceContentSanitizer sanitizer,
     IServiceRequestStore instanceStore,
     IHttpContextAccessor httpContextAccessor,
-    Func<ServiceRequest, ServiceBlueprint, StepDefinition, IReadOnlyDictionary<string, object?>?>? serviceInputsResolver = null)
+    Func<ServiceRequest, ServiceBlueprint, StageDefinition, IReadOnlyDictionary<string, object?>?>? serviceInputsResolver = null)
     : ProcessManagerEngine(logger, definitionStore, sanitizer, serviceInputsResolver, instanceStore)
 {
     /// <summary>

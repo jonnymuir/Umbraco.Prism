@@ -85,8 +85,8 @@ implementation detail.
 * **Visual → Definition sync:** every visual edit (stage add/rename/move,
   gateway add/edit, route change, undo, redo) re-serializes the serviceBlueprint in
   canonical form (top-level key order: `definitionKey`, `displayName`,
-  `version`, `schemaVersion`, `requestPolicy`, `initialTouchpointKey`, `roles`,
-  `touchpoints`, `gateways`, `transitions`; nested keys alphabetical; 2-space
+  `version`, `schemaVersion`, `requestPolicy`, `initialStage`, `roles`,
+  `stages`, `gateways`, `transitions`; nested keys alphabetical; 2-space
   indent) and pushes the new text into the editor.
 * **Definition → Visual sync:** typing is debounced by **250 ms**. On
   settling:
@@ -199,7 +199,7 @@ A typical read-only embed:
 ```html
 <prism-service-blueprint-graph
   read-only
-  service-blueprint-json='{"blueprintKey":"planning","touchpoints":[...],"transitions":[...],"gateways":[...]}'>
+  service-blueprint-json='{"blueprintKey":"planning","stages":[...],"transitions":[...],"gateways":[...]}'>
 </prism-service-blueprint-graph>
 ```
 
@@ -214,10 +214,10 @@ notice:
 * `<prism-step-inspector>`
 * `<prism-confidence-tabs>`
 * `<prism-help-panel>`
-* `<prism-touchpoint-preview>`
+* `<prism-stage-preview>`
 * `<prism-service-blueprint-simulation>`
 * `<prism-service-blueprint-outline>`
-* `<prism-touchpoint-action-editor>`
+* `<prism-stage-action-editor>`
 * `<prism-inline-help>`
 * `<prism-definition-editor>` — JSON twin-pane for the Definition tab
 

@@ -70,12 +70,12 @@ public class MockBusinessAppPlanningWorkflowSeedTests
 
         planningWorkflow.Should().NotBeNull();
         planningWorkflow!.DefinitionKey.Should().Be("planning");
-        planningWorkflow.Touchpoints.Should().NotBeEmpty();
+        planningWorkflow.Stages.Should().NotBeEmpty();
         planningWorkflow.Queues.Should().NotBeNullOrEmpty(
             because: "planning workflow v3 uses the queues/routes format — top-level Transitions are no longer used");
-        planningWorkflow.Touchpoints.Should().AllSatisfy(s =>
+        planningWorkflow.Stages.Should().AllSatisfy(s =>
             s.Routes.Should().NotBeNull(
-                because: $"every state in the new format must have a Routes list (state: '{s.TouchpointKey}')"));
+                because: $"every state in the new format must have a Routes list (state: '{s.StageKey}')"));
     }
 
     [Fact]

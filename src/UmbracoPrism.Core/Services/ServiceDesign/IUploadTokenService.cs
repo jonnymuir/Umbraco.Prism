@@ -6,7 +6,7 @@ namespace UmbracoPrism.Core.Services;
 /// Binds a file already saved by the async upload endpoint to an opaque, short-lived token a
 /// client carries in a hidden field — so the stage's eventual whole-page submission
 /// (<c>PrismServiceRequestPageController.HandlePost</c>) can recognize "this field is already
-/// satisfied" without re-uploading the bytes. Mirrors <see cref="ITouchpointNonceService"/>'s
+/// satisfied" without re-uploading the bytes. Mirrors <see cref="IStageNonceService"/>'s
 /// shape exactly, for the same reason: a random, server-issued, cache-backed token that only
 /// resolves to something meaningful for the requester who was just issued it.
 /// </summary>

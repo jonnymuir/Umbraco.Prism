@@ -1,7 +1,6 @@
 using FluentAssertions;
 using UmbracoPrism.Shared.Models.ServiceDesign;
 using UmbracoPrism.Shared.Models.ServiceDesign.Components;
-using UmbracoPrism.ServiceBlueprintEditor.Authoring;
 using UmbracoPrism.ProcessManager.Abstractions;
 using UmbracoPrism.ProcessManager.Services;
 
@@ -93,39 +92,33 @@ public class ServiceBlueprintAuthoringServiceQueueCapabilitiesTests
         capabilities["business-user"].Should().BeEquivalentTo(new[] { "text", "decimal" });
     }
 
-    private static ServiceBlueprint ProjectWorkflowWithFieldsetOnBusinessUser()
+    private static ServiceBlueprint ProjectWorkflowWithFieldsetOnBusinessUser() => new()
     {
-        var authored = new AuthoredServiceBlueprint
-        {
-            Id = Guid.NewGuid(),
-            DefinitionKey = "queue-capabilities-test",
-            DisplayName = "Queue Capabilities Test",
-            Version = 1,
-            InitialTouchpointKey = "review",
-            RequestPolicy = "single",
-            Queues = [new AuthoredQueue { Key = "business-user", DisplayName = "Business User", Actor = "reviewer" }],
-            Touchpoints =
-            [
-                new AuthoredTouchpoint
-                {
-                    TouchpointKey = "review",
-                    DisplayName = "Review",
-                    Kind = TouchpointKind.Question,
-                    QueueKey = "business-user",
-                    Components =
-                    [
-                        new FieldsetComponent
-                        {
-                            Legend = "Details",
-                            Children = [new TextInputComponent { FieldKey = "reference", Label = "Reference" }]
-                        }
-                    ]
-                }
-            ]
-        };
-
-        return new ServiceBlueprintProjector().Project(authored).File;
-    }
+        DefinitionKey = "queue-capabilities-test",
+        DisplayName = "Queue Capabilities Test",
+        Version = 1,
+        InitialStage = "review",
+        RequestPolicy = "single",
+        Queues = [new QueueDefinition { Key = "business-user", DisplayName = "Business User", Actor = "reviewer" }],
+        Stages =
+        [
+            new StageDefinition
+            {
+                StageKey = "review",
+                DisplayName = "Review",
+                StageType = "Question",
+                QueueKey = "business-user",
+                Components =
+                [
+                    new FieldsetComponent
+                    {
+                        Legend = "Details",
+                        Children = [new TextInputComponent { FieldKey = "reference", Label = "Reference" }]
+                    }
+                ]
+            }
+        ]
+    };
 
     private sealed class InMemoryServiceBlueprintSourceStore : IServiceBlueprintSourceStore
     {

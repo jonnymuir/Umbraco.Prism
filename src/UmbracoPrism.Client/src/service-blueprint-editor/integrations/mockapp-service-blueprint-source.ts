@@ -1,6 +1,6 @@
 // Host integration EXAMPLE — not part of the `@umbraco-prism/client` boundary
 // surface. The reference MockBusinessApp uses this implementation to wire its
-// `/mockapp/serviceBlueprints/*` endpoints into the editor's `ServiceBlueprintSource` contract.
+// `/mockapp/service-blueprints/*` endpoints into the editor's `ServiceBlueprintSource` contract.
 // Real downstream apps fork/copy this file into their own bundle.
 
 import {
@@ -29,7 +29,7 @@ type ProblemDetailsPayload = {
 };
 
 // The shape UmbracoPrism.ProcessManager.Services.ServiceBlueprintSaveOutcome serializes to — returned
-// by both /mockapp/serviceBlueprints/{key} and /prism/serviceBlueprint-authoring/serviceBlueprints/{key} on a version
+// by both /mockapp/service-blueprints/{key} and /prism/service-blueprint-authoring/blueprints/{key} on a version
 // conflict (409). Not a ProblemDetails payload, so it's parsed separately.
 type ServiceBlueprintSaveOutcomePayload = {
   status?: unknown;
@@ -45,7 +45,7 @@ function parseConflictOutcome(payload: ServiceBlueprintSaveOutcomePayload, bluep
     ?? `“${blueprintKey}” was changed elsewhere since you loaded it${currentVersion != null ? ` (now at version ${currentVersion})` : ''}.`;
 
   return new ServiceBlueprintSaveError({
-    title: 'This serviceBlueprint changed elsewhere',
+    title: 'This service blueprint changed elsewhere',
     summary,
     detailLines: detailLines.filter(line => line !== summary),
     statusCode: 409,
@@ -79,7 +79,7 @@ function readStructuredErrorLines(value: unknown): string[] {
 
 function parseProblemDetails(payload: ProblemDetailsPayload, statusCode: number, blueprintKey: string): ServiceBlueprintSaveError {
   const title = sanitiseServiceBlueprintSaveErrorText(typeof payload.title === 'string' ? payload.title : null)
-    ?? 'We couldn’t save this serviceBlueprint';
+    ?? 'We couldn’t save this service blueprint';
   const summary = sanitiseServiceBlueprintSaveErrorText(
     typeof payload.summary === 'string'
       ? payload.summary
@@ -130,7 +130,7 @@ async function buildSaveError(response: Response, blueprintKey: string): Promise
   }
 
   return new ServiceBlueprintSaveError({
-    title: 'We couldn’t save this serviceBlueprint',
+    title: 'We couldn’t save this service blueprint',
     summary: fallbackSummary,
     statusCode: response.status,
   });
@@ -149,19 +149,19 @@ export class MockBusinessAppServiceBlueprintSource implements ServiceBlueprintSo
   }
 
   async list(): Promise<ServiceBlueprintSummary[]> {
-    const response = await fetch(`${this.base}/mockapp/serviceBlueprints`, {
+    const response = await fetch(`${this.base}/mockapp/service-blueprints`, {
       headers: { Accept: 'application/json' },
       credentials: 'same-origin',
     });
     if (!response.ok) {
-      throw new Error(`Failed to list serviceBlueprints (${response.status} ${response.statusText}).`);
+      throw new Error(`Failed to list service blueprints (${response.status} ${response.statusText}).`);
     }
-    // /mockapp/serviceBlueprints serializes ServiceBlueprintSourceSummary(DefinitionKey, DisplayName) — there's no
+    // /mockapp/service-blueprints serializes ServiceBlueprintSourceSummary(DefinitionKey, DisplayName) — there's no
     // separate "host-facing key" concept on this host, so blueprintKey and definitionKey are the
     // same string here. The naive `as ServiceBlueprintSummary[]` this replaced compiled fine (TypeScript
     // doesn't check across a JSON boundary) but left every option's `blueprintKey` undefined at
     // runtime, so the shell's `option.blueprintKey === this._draftBlueprintKey` selected-match never
-    // fired and the <select> silently fell back to its first option regardless of which serviceBlueprint
+    // fired and the <select> silently fell back to its first option regardless of which service blueprint
     // was actually loaded.
     const summaries = (await response.json()) as Array<{ definitionKey: string; displayName: string }>;
     return summaries.map(({ definitionKey, displayName }) => ({
@@ -172,12 +172,12 @@ export class MockBusinessAppServiceBlueprintSource implements ServiceBlueprintSo
   }
 
   async load(blueprintKey: string): Promise<AuthoredServiceBlueprint> {
-    const response = await fetch(`${this.base}/mockapp/serviceBlueprints/${encodeURIComponent(blueprintKey)}`, {
+    const response = await fetch(`${this.base}/mockapp/service-blueprints/${encodeURIComponent(blueprintKey)}`, {
       headers: { Accept: 'application/json' },
       credentials: 'same-origin',
     });
     if (!response.ok) {
-      throw new Error(`Failed to load serviceBlueprint '${blueprintKey}' (${response.status} ${response.statusText}).`);
+      throw new Error(`Failed to load service blueprint '${blueprintKey}' (${response.status} ${response.statusText}).`);
     }
     const payload = (await response.json()) as Record<string, unknown>;
     return hydrateServiceBlueprintDefinition(payload as unknown as AuthoredServiceBlueprint);
@@ -185,7 +185,7 @@ export class MockBusinessAppServiceBlueprintSource implements ServiceBlueprintSo
 
   async save(blueprintKey: string, serviceBlueprint: AuthoredServiceBlueprint): Promise<void> {
     const body = serializeAuthoredServiceBlueprint(serviceBlueprint);
-    const response = await fetch(`${this.base}/mockapp/serviceBlueprints/${encodeURIComponent(blueprintKey)}`, {
+    const response = await fetch(`${this.base}/mockapp/service-blueprints/${encodeURIComponent(blueprintKey)}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -201,12 +201,12 @@ export class MockBusinessAppServiceBlueprintSource implements ServiceBlueprintSo
 
   /**
    * Cheap poll target: reads just the version, not the full definition. Uses the
-   * definitionKey-keyed toolkit route rather than /mockapp/serviceBlueprints/* — both read from the
+   * definitionKey-keyed toolkit route rather than /mockapp/service-blueprints/* — both read from the
    * same underlying store, so either is correct, but this one exists specifically for this.
    */
   async checkVersion(blueprintKey: string): Promise<number | null> {
     const response = await fetch(
-      `${this.base}/prism/serviceBlueprint-authoring/serviceBlueprints/${encodeURIComponent(blueprintKey)}/version`,
+      `${this.base}/prism/service-blueprint-authoring/blueprints/${encodeURIComponent(blueprintKey)}/version`,
       { headers: { Accept: 'application/json' }, credentials: 'same-origin' }
     );
     if (!response.ok) {

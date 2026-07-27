@@ -18,11 +18,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "result",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "result",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -53,17 +53,17 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "capture",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "capture",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "capture",
+                    StageKey = "capture",
                     DisplayName = "Capture",
                     Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins" }]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -87,11 +87,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "result",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "result",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -109,7 +109,7 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         errors.Should().ContainSingle(d =>
             d.Code == "DATA_DISPLAY_UNKNOWN_FIELD" &&
             d.Message.Contains("'fee'") &&
-            d.Path == "touchpoints.result.components[0].items[0].fieldKey");
+            d.Path == "stages.result.components[0].items[0].fieldKey");
     }
 
     [Fact]
@@ -119,11 +119,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "result",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "result",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components = [new ChartComponent { Title = "Projection", Series = "projection" }]
                 }
@@ -144,11 +144,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "result",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "result",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components = [new ChartComponent { Title = "Projection", Series = "projection" }]
                 }
@@ -176,11 +176,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "result",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "result",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components = [new TextInputComponent { FieldKey = "feeDisplay", Label = "Your fee" }]
                 }
@@ -199,11 +199,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "result",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "result",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components = [new StatGroupComponent { Title = "Fee", Items = [] }]
                 }
@@ -224,11 +224,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "result",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "result",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components = [new SummaryListComponent { Title = "Fee", Children = [] }]
                 }
@@ -245,11 +245,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "result",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "result",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -268,7 +268,7 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         errors.Should().ContainSingle(d =>
             d.Code == "DATA_DISPLAY_UNKNOWN_FIELD" &&
             d.Message.Contains("'fee'") &&
-            d.Path == "touchpoints.result.components[0].children[0].fieldKey");
+            d.Path == "stages.result.components[0].children[0].fieldKey");
     }
 
     [Fact]
@@ -278,11 +278,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "result",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "result",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -314,12 +314,12 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "capture",
-            Touchpoints = [
-                new StepDefinition { TouchpointKey = "capture", DisplayName = "Capture" },
-                new StepDefinition
+            InitialStage = "capture",
+            Stages = [
+                new StageDefinition { StageKey = "capture", DisplayName = "Capture" },
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -338,7 +338,7 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
 
         errors.Should().ContainSingle(d =>
             d.Code == "DATA_DISPLAY_UNKNOWN_CHANGE_STATE" &&
-            d.Path == "touchpoints.result.components[0].changeStateKey");
+            d.Path == "stages.result.components[0].changeStateKey");
     }
 
     [Fact]
@@ -352,13 +352,13 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "how-many-bins",
-            Touchpoints = [
-                new StepDefinition { TouchpointKey = "how-many-bins", DisplayName = "Bins" },
-                new StepDefinition { TouchpointKey = "property-address", DisplayName = "Address" },
-                new StepDefinition
+            InitialStage = "how-many-bins",
+            Stages = [
+                new StageDefinition { StageKey = "how-many-bins", DisplayName = "Bins" },
+                new StageDefinition { StageKey = "property-address", DisplayName = "Address" },
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -386,7 +386,7 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
 
         errors.Should().ContainSingle(d =>
             d.Code == "DATA_DISPLAY_UNKNOWN_CHANGE_STATE" &&
-            d.Path == "touchpoints.result.components[0].children[1].changeStateKey");
+            d.Path == "stages.result.components[0].children[1].changeStateKey");
     }
 
     [Fact]
@@ -396,23 +396,23 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "how-many-bins",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "how-many-bins",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "how-many-bins",
+                    StageKey = "how-many-bins",
                     DisplayName = "Bins",
                     Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins" }]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "property-address",
+                    StageKey = "property-address",
                     DisplayName = "Address",
                     Components = [new TextInputComponent { FieldKey = "propertyAddress", Label = "Address" }]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "result",
+                    StageKey = "result",
                     DisplayName = "Result",
                     Components =
                     [
@@ -450,11 +450,11 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "capture",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "capture",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "capture",
+                    StageKey = "capture",
                     DisplayName = "Capture",
                     Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins" }]
                 }
@@ -483,8 +483,8 @@ public class ServiceBlueprintDataDisplayBindingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "result",
-            Touchpoints = [new StepDefinition { TouchpointKey = "result", DisplayName = "Result" }],
+            InitialStage = "result",
+            Stages = [new StageDefinition { StageKey = "result", DisplayName = "Result" }],
             Calculations = new ServiceBlueprintCalculationSet
             {
                 Fields = new Dictionary<string, ServiceBlueprintCalculationField>

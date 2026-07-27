@@ -12,17 +12,17 @@
     var serviceRequestHubUrl = TestSiteSeedContract.ResolveUrl(
         TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.ServiceRequestHubAlias),
         TestSiteSeedContract.ServiceRequestHubUrl);
-    var touchpointPageUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedTouchpointPage(rootContent, TestSiteSeedContract.BlueprintKey),
+    var stagePageUrl = TestSiteSeedContract.ResolveUrl(
+        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.BlueprintKey),
         TestSiteSeedContract.ServiceRequestPageUrl);
     var paymentDemoUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedTouchpointPage(rootContent, TestSiteSeedContract.PaymentDemoBlueprintKey),
+        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.PaymentDemoBlueprintKey),
         TestSiteSeedContract.PaymentDemoPageUrl);
     var planningUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedTouchpointPage(rootContent, TestSiteSeedContract.PlanningBlueprintKey),
-        TestSiteSeedContract.PlanningTouchpointPageUrl);
+        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.PlanningBlueprintKey),
+        TestSiteSeedContract.PlanningStagePageUrl);
     var informationRequestUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedTouchpointPage(rootContent, TestSiteSeedContract.InformationRequestBlueprintKey),
+        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.InformationRequestBlueprintKey),
         TestSiteSeedContract.InformationRequestPageUrl);
 }
 
@@ -67,7 +67,7 @@
                     <div class="dash-card__icon dash-card__icon--service-request">📝</div>
                     <h3>Get in Touch</h3>
                     <p>Multi-step community enquiry with pre-filled member details and question components.</p>
-                    <a href="@touchpointPageUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
+                    <a href="@stagePageUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
                 </div>
                 <div class="dash-card dash-card--cta">
                     <div class="dash-card__icon dash-card__icon--service-request">🏗️</div>

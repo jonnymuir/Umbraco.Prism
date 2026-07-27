@@ -57,7 +57,7 @@ public sealed class FormsLoadWorkflowActionHandler : WorkflowActionHandlerBase
     {
         var formDefinitionId = WorkflowActionParameterReader.GetRequiredString(action, "formDefinitionId");
         return Task.FromResult(WorkflowActionExecutionResult.Success(
-            $"Loaded forms definition '{formDefinitionId}' for state '{context.TargetState.TouchpointKey}'.",
+            $"Loaded forms definition '{formDefinitionId}' for state '{context.TargetState.StageKey}'.",
             new Dictionary<string, object?>
             {
                 ["operation"] = "load",

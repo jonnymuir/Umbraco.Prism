@@ -3,10 +3,10 @@
   "displayName": "Apply for Planning Permission",
   "version": 1,
   "requestPolicy": "single",
-  "initialTouchpoint": "project-details",
-  "touchpoints": [
+  "initialStage": "project-details",
+  "stages": [
     {
-      "touchpointKey": "project-details",
+      "stageKey": "project-details",
       "displayName": "Describe your project",
       "components": [
         {
@@ -42,7 +42,7 @@
       ]
     },
     {
-      "touchpointKey": "work-type",
+      "stageKey": "work-type",
       "displayName": "Type of work",
       "components": [
         {
@@ -92,7 +92,7 @@
       ]
     },
     {
-      "touchpointKey": "timeline-cost",
+      "stageKey": "timeline-cost",
       "displayName": "Timeline and cost",
       "components": [
         {
@@ -129,7 +129,7 @@
       ]
     },
     {
-      "touchpointKey": "affected-parties",
+      "stageKey": "affected-parties",
       "displayName": "Affected parties",
       "components": [
         {
@@ -168,7 +168,7 @@
       ]
     },
     {
-      "touchpointKey": "check-answers",
+      "stageKey": "check-answers",
       "displayName": "Check your answers",
       "components": [
         {
@@ -316,7 +316,7 @@
       ]
     },
     {
-      "touchpointKey": "complete",
+      "stageKey": "complete",
       "displayName": "Application received",
       "components": [
         {

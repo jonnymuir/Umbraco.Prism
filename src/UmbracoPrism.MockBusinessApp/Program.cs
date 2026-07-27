@@ -7,13 +7,11 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.MockBusinessApp.Services;
-using UmbracoPrism.MockBusinessApp.Services.Publishing;
 using UmbracoPrism.MockBusinessApp.Services.Actions;
 using UmbracoPrism.Shared.Extensions;
 using UmbracoPrism.Shared.Models.ServiceDesign;
 using UmbracoPrism.Shared.Models.ServiceDesign.Components;
 using UmbracoPrism.Shared.Services.Sanitization;
-using UmbracoPrism.ServiceBlueprintEditor.Extensions;
 using UmbracoPrism.ProcessManager.Abstractions;
 using UmbracoPrism.ProcessManager.Api;
 using UmbracoPrism.ProcessManager.Extensions;
@@ -38,19 +36,14 @@ builder.Services.AddSingleton<IServiceContentSanitizer, PassthroughSanitizer>();
 
 // The reference app keeps the demo service blueprints in memory. `/mockapp/service-blueprints/*` (the
 // editor's own save endpoint) and the AI/tooling authoring surface below share this same
-// IServiceBlueprintSourceStore — they used to be two separate stores that both silently mutated
-// the live engine with no idea the other existed; unified so a save from either surface
-// is immediately visible to both (InMemoryRuntimePublishedServiceBlueprintStore.SaveAsync calls
-// engine.UpdateDefinition). See MapPrismServiceBlueprintAuthoringApi()/MapPrismServiceBlueprintAuthoringMcp() below.
+// IServiceBlueprintSourceStore, so a save from either surface is immediately visible to both
+// (InMemoryRuntimePublishedServiceBlueprintStore.SaveAsync calls engine.UpdateDefinition). See
+// MapPrismServiceBlueprintAuthoringApi()/MapPrismServiceBlueprintAuthoringMcp() below.
 builder.Services.AddSingleton<IServiceBlueprintSourceStore, InMemoryRuntimePublishedServiceBlueprintStore>();
 builder.Services.AddSingleton<IQueueCapabilitiesProvider>(ReferenceQueues.CapabilitiesProvider());
 builder.Services.AddPrismServiceBlueprintAuthoring();
 builder.Services.AddPrismServiceBlueprintAuthoringMcp();
 
-// Editor library — projector / patch / simulation / action catalog only.
-builder.Services.AddPrismServiceBlueprintEditor();
-// Publish service moved into MockBusinessApp in Slice B (it was always host-policy code).
-builder.Services.AddSingleton<IServiceBlueprintPublishService, ServiceBlueprintPublishService>();
 builder.Services.AddBusinessAppActions();
 
 // Business App process manager — singleton so in-memory instance state survives across requests.
@@ -496,8 +489,8 @@ app.MapGet("/admin/service-desk", async (BusinessAppProcessManager engine, IServ
         {
             var shortId = item.InstanceId.Length > 12 ? item.InstanceId[..8] + "…" : item.InstanceId;
             defsByKey.TryGetValue(item.BlueprintKey, out var itemDef);
-            var state = itemDef?.Touchpoints.FirstOrDefault(
-                s => string.Equals(s.TouchpointKey, item.TouchpointKey, StringComparison.OrdinalIgnoreCase));
+            var state = itemDef?.Stages.FirstOrDefault(
+                s => string.Equals(s.StageKey, item.StageKey, StringComparison.OrdinalIgnoreCase));
             instancesById.TryGetValue(item.InstanceId, out var instanceState);
             var fieldValues = instanceState?.FieldValues ?? new Dictionary<string, object?>();
 
@@ -529,7 +522,7 @@ app.MapGet("/admin/service-desk", async (BusinessAppProcessManager engine, IServ
               </td>
               <td>
                 <span class="badge">{Esc(item.StateDisplayName)}</span>
-                <span style="color:#bbb;font-size:.73rem;display:block">{Esc(item.TouchpointKey)}</span>
+                <span style="color:#bbb;font-size:.73rem;display:block">{Esc(item.StageKey)}</span>
               </td>
               <td>{Esc(item.QueueName ?? "default")}</td>
               <td>{Esc(item.TenantId)}</td>
@@ -543,18 +536,18 @@ app.MapGet("/admin/service-desk", async (BusinessAppProcessManager engine, IServ
         : string.Join("\n", instances.Select((inst, n) =>
         {
             defsByKey.TryGetValue(inst.BlueprintKey, out var def);
-            var stateDisplay = def?.Touchpoints
-                .FirstOrDefault(s => string.Equals(s.TouchpointKey, inst.CurrentTouchpoint, StringComparison.OrdinalIgnoreCase))
-                ?.DisplayName ?? inst.CurrentTouchpoint;
+            var stateDisplay = def?.Stages
+                .FirstOrDefault(s => string.Equals(s.StageKey, inst.CurrentStage, StringComparison.OrdinalIgnoreCase))
+                ?.DisplayName ?? inst.CurrentStage;
             var shortId = inst.InstanceId.Length > 12 ? inst.InstanceId[..8] + "…" : inst.InstanceId;
             return $"""
-            <tr data-blueprint-key="{Esc(inst.BlueprintKey)}" data-current-state="{Esc(inst.CurrentTouchpoint)}">
+            <tr data-blueprint-key="{Esc(inst.BlueprintKey)}" data-current-state="{Esc(inst.CurrentStage)}">
               <td>{n + 1}</td>
               <td style="font-family:monospace;font-size:.8em"><span title="{Esc(inst.InstanceId)}">{Esc(shortId)}</span></td>
               <td>{Esc(inst.BlueprintKey)}</td>
               <td>
                 <span class="badge">{Esc(stateDisplay)}</span>
-                <span style="color:#bbb;font-size:.73rem;display:block">{Esc(inst.CurrentTouchpoint)}</span>
+                <span style="color:#bbb;font-size:.73rem;display:block">{Esc(inst.CurrentStage)}</span>
               </td>
               <td>{Esc(inst.TenantId)}</td>
               <td class="actions">
@@ -727,8 +720,8 @@ app.MapPost("/admin/service-desk/{instanceId}/advance", async (string instanceId
     // Recover the state's declared component types so a "decimal" field posts as a real
     // number rather than a raw string — everything else (text/textarea) passes through as-is.
     var definition = engine.GetDefinition(instance.BlueprintKey);
-    var state = definition?.Touchpoints.FirstOrDefault(
-        s => string.Equals(s.TouchpointKey, instance.CurrentTouchpoint, StringComparison.OrdinalIgnoreCase));
+    var state = definition?.Stages.FirstOrDefault(
+        s => string.Equals(s.StageKey, instance.CurrentStage, StringComparison.OrdinalIgnoreCase));
     var decimalFieldKeys = state?.Components.GetAllInputs()
         .Where(c => c is DecimalInputComponent)
         .Select(c => c.FieldKey)
@@ -770,7 +763,7 @@ app.MapPost("/admin/service-desk/reset-all", (BusinessAppProcessManager engine) 
 // on-screen counterpart to what a script previously had to do off-camera via a raw PUT. Genuinely
 // generic, not demo-specific: the graph's own "add stage" affordance sets `initialState` to the
 // first stage's key the moment one gets created (see prism-service-blueprint-graph.ts), so an empty
-// `touchpoints`/`initialTouchpoint` shell is a real, supported starting point for any new service blueprint, not a
+// `stages`/`initialStage` shell is a real, supported starting point for any new service blueprint, not a
 // special case this endpoint invents. Memory-only, same as every other authoring write in this
 // reference app — nothing here touches disk.
 app.MapPost("/admin/service-desk/create", async (HttpRequest request, IServiceBlueprintSourceStore store, CancellationToken ct) =>
@@ -799,9 +792,9 @@ app.MapPost("/admin/service-desk/create", async (HttpRequest request, IServiceBl
         DefinitionKey = definitionKey,
         DisplayName = displayName,
         Version = 0,
-        InitialTouchpoint = "",
+        InitialStage = "",
         RequestPolicy = "single",
-        Touchpoints = [],
+        Stages = [],
         Queues = [new QueueDefinition { Key = "web-user", DisplayName = "Member", Actor = "member" }]
     };
 

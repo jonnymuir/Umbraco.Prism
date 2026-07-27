@@ -18,15 +18,15 @@ public class ReachabilityValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "start-to-gw", Target = "gw", Trigger = "continue" }]
                 },
-                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
+                new StageDefinition { StageKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
@@ -54,11 +54,11 @@ public class ReachabilityValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "model",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "model",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "model",
+                    StageKey = "model",
                     DisplayName = "Model",
                     Routes =
                     [
@@ -66,7 +66,7 @@ public class ReachabilityValidationTests
                         new ServiceBlueprintRouteDefinition { Id = "finish", Target = "to-end", Trigger = "finish" }
                     ]
                 },
-                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
+                new StageDefinition { StageKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
@@ -105,11 +105,11 @@ public class ReachabilityValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "assess",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "assess",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "assess",
+                    StageKey = "assess",
                     DisplayName = "Assess evidence and record the decision",
                     QueueKey = "business-user",
                     Routes =
@@ -133,7 +133,7 @@ public class ReachabilityValidationTests
 
         var errors = workflow.ValidateReachability();
 
-        errors.Should().Contain(d => d.Code == "STATE_UNREACHABLE_TERMINAL" && d.Path == "touchpoints.assess");
+        errors.Should().Contain(d => d.Code == "STAGE_UNREACHABLE_TERMINAL" && d.Path == "stages.assess");
         errors.Should().Contain(d => d.Code == "GATEWAY_UNREACHABLE_TERMINAL" && d.Path == "gateways[0]");
     }
 
@@ -148,11 +148,11 @@ public class ReachabilityValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
@@ -160,7 +160,7 @@ public class ReachabilityValidationTests
                         new ServiceBlueprintRouteDefinition { Id = "start-to-gw", Target = "gw", Trigger = "continue" }
                     ]
                 },
-                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
+                new StageDefinition { StageKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [

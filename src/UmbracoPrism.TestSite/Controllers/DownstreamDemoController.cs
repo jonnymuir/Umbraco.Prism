@@ -734,29 +734,29 @@ public class DownstreamDemoController(
             TestSiteSeedContract.DashboardAlias,
             TestSiteSeedContract.DashboardName,
             TestSiteSeedContract.DashboardUrl);
-        var touchpointPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedTouchpointPage(roots, TestSiteSeedContract.BlueprintKey),
-            TestSiteSeedContract.TouchpointPageAlias,
-            TestSiteSeedContract.TouchpointPageName,
+        var stagePage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.BlueprintKey),
+            TestSiteSeedContract.StagePageAlias,
+            TestSiteSeedContract.StagePageName,
             TestSiteSeedContract.ServiceRequestPageUrl);
         var serviceRequestHub = BuildSeededRoute(
             TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.ServiceRequestHubAlias),
             TestSiteSeedContract.ServiceRequestHubAlias,
             TestSiteSeedContract.ServiceRequestHubName,
             TestSiteSeedContract.ServiceRequestHubUrl);
-        var planningTouchpointPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedTouchpointPage(roots, TestSiteSeedContract.PlanningBlueprintKey),
-            TestSiteSeedContract.TouchpointPageAlias,
-            TestSiteSeedContract.PlanningTouchpointPageName,
-            TestSiteSeedContract.PlanningTouchpointPageUrl);
+        var planningStagePage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.PlanningBlueprintKey),
+            TestSiteSeedContract.StagePageAlias,
+            TestSiteSeedContract.PlanningStagePageName,
+            TestSiteSeedContract.PlanningStagePageUrl);
         var paymentDemoPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedTouchpointPage(roots, TestSiteSeedContract.PaymentDemoBlueprintKey),
-            TestSiteSeedContract.TouchpointPageAlias,
+            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.PaymentDemoBlueprintKey),
+            TestSiteSeedContract.StagePageAlias,
             TestSiteSeedContract.PaymentDemoPageName,
             TestSiteSeedContract.PaymentDemoPageUrl);
         var informationRequestPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedTouchpointPage(roots, TestSiteSeedContract.InformationRequestBlueprintKey),
-            TestSiteSeedContract.TouchpointPageAlias,
+            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.InformationRequestBlueprintKey),
+            TestSiteSeedContract.StagePageAlias,
             TestSiteSeedContract.InformationRequestPageName,
             TestSiteSeedContract.InformationRequestPageUrl);
         var settings = TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.SettingsAlias);
@@ -770,9 +770,9 @@ public class DownstreamDemoController(
         var routeContractReady =
             home.MatchesExpected &&
             dashboard.MatchesExpected &&
-            touchpointPage.MatchesExpected &&
+            stagePage.MatchesExpected &&
             serviceRequestHub.MatchesExpected &&
-            planningTouchpointPage.MatchesExpected &&
+            planningStagePage.MatchesExpected &&
             paymentDemoPage.MatchesExpected &&
             informationRequestPage.MatchesExpected &&
             mobileNav.Ready;
@@ -783,9 +783,9 @@ public class DownstreamDemoController(
             Auth: new SeedAuthStatus("/auth/login", "/auth/logout", challengePath),
             Home: home,
             Dashboard: dashboard,
-            TouchpointPage: touchpointPage,
+            StagePage: stagePage,
             ServiceRequestHub: serviceRequestHub,
-            PlanningTouchpointPage: planningTouchpointPage,
+            PlanningStagePage: planningStagePage,
             PaymentDemoPage: paymentDemoPage,
             InformationRequestPage: informationRequestPage,
             MobileNav: mobileNav);
@@ -834,9 +834,9 @@ public class DownstreamDemoController(
         SeedAuthStatus Auth,
         SeededRouteStatus Home,
         SeededRouteStatus Dashboard,
-        SeededRouteStatus TouchpointPage,
+        SeededRouteStatus StagePage,
         SeededRouteStatus ServiceRequestHub,
-        SeededRouteStatus PlanningTouchpointPage,
+        SeededRouteStatus PlanningStagePage,
         SeededRouteStatus PaymentDemoPage,
         SeededRouteStatus InformationRequestPage,
         MobileNavStatus MobileNav);

@@ -1,4 +1,4 @@
-using UmbracoPrism.ServiceBlueprintEditor.Authoring;
+using UmbracoPrism.MockBusinessApp.Services.Actions.ActionCatalog;
 
 namespace UmbracoPrism.MockBusinessApp.Services.Actions;
 

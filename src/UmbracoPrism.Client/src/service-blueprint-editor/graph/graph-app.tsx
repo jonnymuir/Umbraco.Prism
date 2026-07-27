@@ -15,7 +15,7 @@ import {
 import { GraphCallbacksContext, type GraphNodeMove, type GraphProps } from './graph-callbacks.js';
 import { buildGraphModel, type GraphFlowNode, type GraphModel } from './graph-model.js';
 import type { GraphBridge } from './graph-bridge.js';
-import { StageNode } from './nodes/touchpoint-node.js';
+import { StageNode } from './nodes/stage-node.js';
 import { GatewayNode } from './nodes/gateway-node.js';
 import { RouteEdge } from './edges/route-edge.js';
 import { LaneLayer } from './lanes/lane-layer.js';

@@ -31,7 +31,7 @@ export class UmbCmsServiceBlueprintWorkspaceContext extends UmbEntityDetailWorks
     ]);
   }
 
-  /** Definition key of the serviceBlueprint currently loaded into this workspace, if any. */
+  /** Definition key of the service blueprint currently loaded into this workspace, if any. */
   getDefinitionKey(): string | undefined {
     return this.getData()?.definitionKey;
   }

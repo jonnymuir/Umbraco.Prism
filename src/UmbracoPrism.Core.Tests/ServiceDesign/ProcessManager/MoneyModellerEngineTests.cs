@@ -179,7 +179,7 @@ public class MoneyModellerEngineTests
                     AllowOutOfOrderMetadataProperties = true
                 })!;
 
-            WriteSeed(contentRootPath, seed with { DefinitionKey = "money-modeller", InitialTouchpoint = "model" });
+            WriteSeed(contentRootPath, seed with { DefinitionKey = "money-modeller", InitialStage = "model" });
 
             var mockEnvironment = new Mock<IWebHostEnvironment>();
             mockEnvironment.Setup(environment => environment.ContentRootPath).Returns(contentRootPath);

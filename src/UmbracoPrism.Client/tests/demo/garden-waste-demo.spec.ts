@@ -302,7 +302,7 @@ test.describe.serial('garden waste permit demo', () => {
     await humanClick(page, page.getByRole('button', { name: 'Create service blueprint' }));
 
     // The create form is a plain HTML POST (no client JS), so submitting it is a real navigation
-    // — the server scaffolds a zero-states shell (initialTouchpointKey left blank; the graph's own "add
+    // — the server scaffolds a zero-states shell (initialStage left blank; the graph's own "add
     // stage" affordance fills it in the moment a first stage is created) and redirects straight
     // into the editor for it.
     await page.waitForURL(/service-blueprint-editor/, { timeout: 15_000 });

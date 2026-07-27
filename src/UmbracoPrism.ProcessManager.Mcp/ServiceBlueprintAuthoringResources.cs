@@ -32,8 +32,8 @@ public static class ServiceBlueprintAuthoringResources
         Title = "Prism Blueprint Authoring Contract",
         MimeType = "text/markdown")]
     [System.ComponentModel.Description(
-        "The full ServiceBlueprint JSON contract: touchpoints, routes, gateways and the gateway " +
-        "routing rule, queues, the component catalog, response touchpoints, and the save/conflict protocol.")]
+        "The full ServiceBlueprint JSON contract: stages, routes, gateways and the gateway " +
+        "routing rule, queues, the component catalog, response stages, and the save/conflict protocol.")]
     public static string AuthoringGuide() => ReadEmbeddedDoc("reference-service-blueprint-contract.md");
 
     [McpServerResource(

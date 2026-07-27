@@ -290,7 +290,7 @@ This is a **domain-driven design** boundary. Two domains:
 This is what Prism **is**:
 
 - The visual editor (canvas, inspector, validation)
-- The authored model (`AuthoredServiceBlueprint`, `AuthoredTouchpoint`, `AuthoredGateway`, `AuthoredRoute`)
+- The authored model (`AuthoredServiceBlueprint`, `AuthoredStage`, `AuthoredGateway`, `AuthoredRoute`)
 - The JSON schema (`authored-service-blueprint.schema.json`)
 - The validator (schema validation + structural linting)
 - The projector (convert authored model to runtime model)

@@ -38,7 +38,7 @@ Prism never trusts the browser to describe the form it rendered. It stores autho
 
 Sources:
 
-- `src/UmbracoPrism.Core/Services/ServiceDesign/TouchpointNonceService.cs`
+- `src/UmbracoPrism.Core/Services/ServiceDesign/StageNonceService.cs`
 - `src/UmbracoPrism.Core/Services/ServiceDesign/ServiceRequestFieldValidator.cs`
 
 ### 4. State transitions use optimistic concurrency

@@ -51,19 +51,19 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
             DefinitionKey = "test-workflow-single",
             DisplayName = "Test Workflow Single",
             Version = 1,
-            InitialTouchpoint = "step-1",
+            InitialStage = "step-1",
             RequestPolicy = "single",
-            Touchpoints = new[]
+            Stages = new[]
             {
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "step-1",
+                    StageKey = "step-1",
                     DisplayName = "Step 1",
                     Components = Array.Empty<PrismComponent>()
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "done",
+                    StageKey = "done",
                     DisplayName = "Done",
                     Components = new PrismComponent[] { new PanelComponent { Heading = "Complete" } }
                 }
@@ -85,19 +85,19 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
             DefinitionKey = "test-workflow-multiple",
             DisplayName = "Test Workflow Multiple",
             Version = 1,
-            InitialTouchpoint = "step-1",
+            InitialStage = "step-1",
             RequestPolicy = "multiple",
-            Touchpoints = new[]
+            Stages = new[]
             {
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "step-1",
+                    StageKey = "step-1",
                     DisplayName = "Step 1",
                     Components = Array.Empty<PrismComponent>()
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "done",
+                    StageKey = "done",
                     DisplayName = "Done",
                     Components = new PrismComponent[] { new PanelComponent { Heading = "Complete" } }
                 }
@@ -119,19 +119,19 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
             DefinitionKey = "test-workflow-prompt",
             DisplayName = "Test Workflow Prompt",
             Version = 1,
-            InitialTouchpoint = "step-1",
+            InitialStage = "step-1",
             RequestPolicy = "prompt",
-            Touchpoints = new[]
+            Stages = new[]
             {
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "step-1",
+                    StageKey = "step-1",
                     DisplayName = "Step 1",
                     Components = Array.Empty<PrismComponent>()
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "done",
+                    StageKey = "done",
                     DisplayName = "Done",
                     Components = new PrismComponent[] { new PanelComponent { Heading = "Complete" } }
                 }

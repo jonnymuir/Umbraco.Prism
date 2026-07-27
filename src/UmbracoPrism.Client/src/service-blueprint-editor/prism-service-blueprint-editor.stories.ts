@@ -5,7 +5,7 @@ import type { PrismServiceBlueprintEditorElement } from './prism-service-bluepri
 import { PLANNING_SERVICE_BLUEPRINT, LEAVE_REQUEST_STARTER_SERVICE_BLUEPRINT, cloneAuthoredServiceBlueprint } from './fixtures/index.js';
 import type { AuthoredServiceBlueprint } from './types.js';
 import { InMemoryServiceBlueprintSource } from './in-memory-service-blueprint-source.js';
-import type { QueueDefinition } from './touchpoint-assignment.js';
+import type { QueueDefinition } from './stage-assignment.js';
 
 const STORY_QUEUES: QueueDefinition[] = [
   { queueName: 'web-user', displayName: 'Applicant' },
@@ -19,7 +19,7 @@ const STORY_QUEUES: QueueDefinition[] = [
 
 function makeEditor(serviceBlueprint: AuthoredServiceBlueprint = PLANNING_SERVICE_BLUEPRINT): PrismServiceBlueprintEditorElement {
   const el = document.createElement('prism-service-blueprint-editor') as PrismServiceBlueprintEditorElement;
-  // Stories drive the editor by injecting the serviceBlueprint directly. The Save
+  // Stories drive the editor by injecting the service blueprint directly. The Save
   // button still needs a `serviceBlueprintSource` to resolve, so wire an in-memory
   // one seeded with the same serviceBlueprint — this proves the integrator pattern.
   el.serviceBlueprintSource = new InMemoryServiceBlueprintSource([serviceBlueprint]);
@@ -35,8 +35,8 @@ function makeEmptyServiceBlueprint(): AuthoredServiceBlueprint {
   return {
     ...serviceBlueprint,
     displayName: 'Empty ServiceBlueprint',
-    initialTouchpointKey: '',
-    touchpoints: [],
+    initialStage: '',
+    stages: [],
     gateways: [],
   };
 }
@@ -44,9 +44,9 @@ function makeEmptyServiceBlueprint(): AuthoredServiceBlueprint {
 function makeSimulationBranchServiceBlueprint(): AuthoredServiceBlueprint {
   const serviceBlueprint = JSON.parse(JSON.stringify(PLANNING_SERVICE_BLUEPRINT)) as AuthoredServiceBlueprint;
   serviceBlueprint.displayName = 'Planning Application Simulation';
-  serviceBlueprint.touchpoints = [
-    serviceBlueprint.touchpoints[0],
-    serviceBlueprint.touchpoints[1],
+  serviceBlueprint.stages = [
+    serviceBlueprint.stages[0],
+    serviceBlueprint.stages[1],
     {
       stateKey: 'review-decision',
       displayName: 'Reviewer decision',
@@ -148,7 +148,7 @@ function makeSimulationBlockerServiceBlueprint(): AuthoredServiceBlueprint {
 }
 
 const meta: Meta = {
-  title: 'ServiceBlueprint Editor/Editor Host',
+  title: 'Service Blueprint Editor/Editor Host',
   component: 'prism-service-blueprint-editor',
   tags: ['autodocs'],
   parameters: {
@@ -228,7 +228,7 @@ export const WithStageSelected: Story = {
     await waitFor(() =>
       expect(
         root
-          .querySelector('prism-touchpoint-preview')
+          .querySelector('prism-stage-preview')
           ?.shadowRoot
           ?.querySelector('[data-prism-preview-stage-name]')
           ?.textContent

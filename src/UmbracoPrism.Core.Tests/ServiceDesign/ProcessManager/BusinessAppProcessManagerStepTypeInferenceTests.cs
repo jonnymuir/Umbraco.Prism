@@ -20,12 +20,12 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
             DefinitionKey = "inferred-authoring",
             DisplayName = "Inferred Authoring",
             Version = 1,
-            InitialTouchpoint = "enter-details",
+            InitialStage = "enter-details",
             RequestPolicy = "single",
-            Touchpoints = [
-                new StepDefinition
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "enter-details",
+                    StageKey = "enter-details",
                     DisplayName = "Enter details",
                     Components =
                     [
@@ -44,9 +44,9 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                         }
                     ]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "check-details",
+                    StageKey = "check-details",
                     DisplayName = "Check details",
                     Components =
                     [
@@ -58,9 +58,9 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                         }
                     ]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "done",
+                    StageKey = "done",
                     DisplayName = "Done",
                     Components =
                     [
@@ -121,12 +121,12 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
             DefinitionKey = "component-waiting",
             DisplayName = "Component Waiting",
             Version = 1,
-            InitialTouchpoint = "processing",
+            InitialStage = "processing",
             RequestPolicy = "single",
-            Touchpoints = [
-                new StepDefinition
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "processing",
+                    StageKey = "processing",
                     DisplayName = "Processing payment",
                     Components =
                     [
@@ -144,9 +144,9 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                         }
                     ]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "done",
+                    StageKey = "done",
                     DisplayName = "Payment complete",
                     Components =
                     [

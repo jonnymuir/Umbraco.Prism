@@ -1,7 +1,6 @@
 using FluentAssertions;
 using UmbracoPrism.Shared.Models.ServiceDesign;
 using UmbracoPrism.Shared.Models.ServiceDesign.Calculations;
-using UmbracoPrism.ServiceBlueprintEditor.Authoring;
 using UmbracoPrism.ProcessManager.Abstractions;
 using UmbracoPrism.ProcessManager.Services;
 
@@ -126,8 +125,8 @@ public class ServiceBlueprintAuthoringServiceTests
         var workflow = ProjectLinearWorkflow();
         workflow = workflow with
         {
-            Touchpoints = workflow.Touchpoints
-                .Select(s => s.TouchpointKey == "done" ? s with { TouchpointType = "Outcome" } : s)
+            Stages = workflow.Stages
+                .Select(s => s.StageKey == "done" ? s with { StageType = "Outcome" } : s)
                 .ToList()
         };
 
@@ -135,88 +134,76 @@ public class ServiceBlueprintAuthoringServiceTests
 
         outcome.Status.Should().Be(ServiceBlueprintSaveStatus.Invalid);
         outcome.Diagnostics.Should().ContainSingle(d =>
-            d.Code == "STATE_UNKNOWN_STAGE_TYPE" && d.Message.Contains("'Outcome'"));
+            d.Code == "STAGE_UNKNOWN_TYPE" && d.Message.Contains("'Outcome'"));
         (await store.LoadAsync(workflow.DefinitionKey)).Should().BeNull();
     }
 
-    private static ServiceBlueprint ProjectLinearWorkflow()
+    private static ServiceBlueprint ProjectLinearWorkflow() => new()
     {
-        var authored = new AuthoredServiceBlueprint
-        {
-            Id = Guid.NewGuid(),
-            DefinitionKey = "authoring-service-valid",
-            DisplayName = "Authoring Service Valid",
-            Version = 1,
-            InitialTouchpointKey = "start",
-            RequestPolicy = "single",
-            Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" }],
-            Gateways =
-            [
-                new AuthoredGateway
-                {
-                    GatewayKey = "to-done",
-                    DisplayName = "Route to done",
-                    Kind = GatewayKind.Split,
-                    QueueKey = "applicant",
-                    Routes = [new AuthoredRoute { Id = "release", Target = "done", Trigger = "submit" }]
-                }
-            ],
-            Touchpoints =
-            [
-                new AuthoredTouchpoint
-                {
-                    TouchpointKey = "start",
-                    DisplayName = "Start",
-                    Kind = TouchpointKind.Question,
-                    QueueKey = "applicant",
-                    Routes = [new AuthoredRoute { Id = "start-submit", Target = "to-done", Trigger = "submit" }]
-                },
-                new AuthoredTouchpoint
-                {
-                    TouchpointKey = "done",
-                    DisplayName = "Done",
-                    Kind = TouchpointKind.Confirmation,
-                    QueueKey = "applicant"
-                }
-            ]
-        };
+        DefinitionKey = "authoring-service-valid",
+        DisplayName = "Authoring Service Valid",
+        Version = 1,
+        InitialStage = "start",
+        RequestPolicy = "single",
+        Queues = [new QueueDefinition { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" }],
+        Gateways =
+        [
+            new ServiceBlueprintGatewayDefinition
+            {
+                Key = "to-done",
+                DisplayName = "Route to done",
+                GatewayType = "Split",
+                QueueKey = "applicant",
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "release", Target = "done", Trigger = "submit" }]
+            }
+        ],
+        Stages =
+        [
+            new StageDefinition
+            {
+                StageKey = "start",
+                DisplayName = "Start",
+                StageType = "Question",
+                QueueKey = "applicant",
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "start-submit", Target = "to-done", Trigger = "submit" }]
+            },
+            new StageDefinition
+            {
+                StageKey = "done",
+                DisplayName = "Done",
+                StageType = "Confirmation",
+                QueueKey = "applicant"
+            }
+        ]
+    };
 
-        return new ServiceBlueprintProjector().Project(authored).File;
-    }
-
-    private static ServiceBlueprint ProjectDirectStateToStateWorkflow()
+    private static ServiceBlueprint ProjectDirectStateToStateWorkflow() => new()
     {
-        var authored = new AuthoredServiceBlueprint
-        {
-            Id = Guid.NewGuid(),
-            DefinitionKey = "authoring-service-invalid",
-            DisplayName = "Authoring Service Invalid",
-            Version = 1,
-            InitialTouchpointKey = "start",
-            RequestPolicy = "single",
-            Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" }],
-            Touchpoints =
-            [
-                new AuthoredTouchpoint
-                {
-                    TouchpointKey = "start",
-                    DisplayName = "Start",
-                    Kind = TouchpointKind.Question,
-                    QueueKey = "applicant",
-                    Routes = [new AuthoredRoute { Id = "start-submit", Target = "done", Trigger = "submit" }]
-                },
-                new AuthoredTouchpoint
-                {
-                    TouchpointKey = "done",
-                    DisplayName = "Done",
-                    Kind = TouchpointKind.Confirmation,
-                    QueueKey = "applicant"
-                }
-            ]
-        };
-
-        return new ServiceBlueprintProjector().Project(authored).File;
-    }
+        DefinitionKey = "authoring-service-invalid",
+        DisplayName = "Authoring Service Invalid",
+        Version = 1,
+        InitialStage = "start",
+        RequestPolicy = "single",
+        Queues = [new QueueDefinition { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" }],
+        Stages =
+        [
+            new StageDefinition
+            {
+                StageKey = "start",
+                DisplayName = "Start",
+                StageType = "Question",
+                QueueKey = "applicant",
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "start-submit", Target = "done", Trigger = "submit" }]
+            },
+            new StageDefinition
+            {
+                StageKey = "done",
+                DisplayName = "Done",
+                StageType = "Confirmation",
+                QueueKey = "applicant"
+            }
+        ]
+    };
 
     private sealed class InMemoryServiceBlueprintSourceStore : IServiceBlueprintSourceStore
     {

@@ -16,7 +16,7 @@ import type { AuthoredServiceBlueprint } from './types.js';
 
 /**
  * One save-error detail line, optionally locating the stage it came from — a server-side
- * diagnostic's `path` (e.g. `touchpoints.licence-details.components[0].items[0].fieldKey`) names a
+ * diagnostic's `path` (e.g. `stages.licence-details.components[0].items[0].fieldKey`) names a
  * real stage the editor can jump to, the way the Validation rail's structural issues already
  * do. A diagnostic with no resolvable stage (e.g. a `calculations.fields.X` path) just has no
  * `stageKey` — still shown, just not clickable.
@@ -37,7 +37,7 @@ export interface ServiceBlueprintSaveErrorOptions {
   traceId?: string | null;
   statusCode?: number;
   /**
-   * True when the save failed because the serviceBlueprint's `version` no longer matched what's
+   * True when the save failed because the service blueprint's `version` no longer matched what's
    * currently persisted (HTTP 409) — someone else (a human in the editor, or an AI agent)
    * saved a newer version. Distinct from a validation failure: reload and reapply the
    * change rather than just fixing the payload and retrying.
@@ -141,14 +141,14 @@ export class ServiceBlueprintSaveError extends Error {
 
 export function normaliseServiceBlueprintSaveError(
   error: unknown,
-  fallbackSummary = 'We couldn’t save this serviceBlueprint.'
+  fallbackSummary = 'We couldn’t save this service blueprint.'
 ): ServiceBlueprintSaveError {
   if (error instanceof ServiceBlueprintSaveError) {
     return error;
   }
 
   const candidate = (typeof error === 'object' && error !== null ? error : {}) as ServiceBlueprintSaveErrorLike;
-  const title = sanitiseServiceBlueprintSaveErrorText(candidate.title) ?? 'We couldn’t save this serviceBlueprint';
+  const title = sanitiseServiceBlueprintSaveErrorText(candidate.title) ?? 'We couldn’t save this service blueprint';
   const summary = sanitiseServiceBlueprintSaveErrorText(candidate.summary)
     ?? sanitiseServiceBlueprintSaveErrorText(candidate.message)
     ?? fallbackSummary;
@@ -174,7 +174,7 @@ export interface ServiceBlueprintSummary {
   blueprintKey: string;
   /** Stable identity of the authored document, when the host tracks one. */
   id?: string;
-  /** Definition key embedded in the serviceBlueprint body. */
+  /** Definition key embedded in the service blueprint body. */
   definitionKey: string;
   /** Display name shown in serviceBlueprint pickers. */
   displayName: string;
@@ -190,14 +190,14 @@ export interface ServiceBlueprintSource {
   /**
    * Persists the authored serviceBlueprint back to the host. The host enforces save permissions.
    * Hosts may throw `ServiceBlueprintSaveError` with a user-facing title/summary/detail payload
-   * (with `isConflict: true` when the serviceBlueprint's `version` no longer matched — see
+   * (with `isConflict: true` when the service blueprint's `version` no longer matched — see
    * `AuthoredServiceBlueprint.version` and the host's optimistic-concurrency contract).
    */
   save(key: string, serviceBlueprint: AuthoredServiceBlueprint): Promise<void>;
 
   /**
-   * Optional: returns the currently-persisted version of a serviceBlueprint, for a client that wants
-   * to proactively detect staleness (e.g. poll while a serviceBlueprint is open) rather than only
+   * Optional: returns the currently-persisted version of a service blueprint, for a client that wants
+   * to proactively detect staleness (e.g. poll while a service blueprint is open) rather than only
    * finding out via a `save` conflict. Hosts that don't support versioning can omit this.
    */
   checkVersion?(key: string): Promise<number | null>;

@@ -103,12 +103,12 @@ test.describe('ServiceBlueprint editor shell proof', () => {
     await expect(editor.locator('[data-prism-save]')).toBeEnabled();
 
     await editor.locator('[data-prism-save]').click();
-    await expect(editor.locator('[data-prism-toast]')).toContainText('ServiceBlueprint saved.');
+    await expect(editor.locator('[data-prism-toast]')).toContainText('Service blueprint saved.');
     await expect(editor.locator('[data-prism-save]')).toBeEnabled();
 
     await page.getByRole('tab', { name: 'Validation' }).click();
     await expect(page.locator('[data-prism-validation-issue]')).toHaveCount(0);
-    await expect(page.locator('[data-prism-save-status]')).toContainText('ServiceBlueprint saved.');
+    await expect(page.locator('[data-prism-save-status]')).toContainText('Service blueprint saved.');
   });
 
   test.fixme('payment demo graph keeps node copy readable without overlap', async ({ page }) => {
@@ -208,7 +208,7 @@ test.describe('ServiceBlueprint editor shell proof', () => {
     expect(graphCopy.subtitle).toBe('Visual service blueprint map');
     expect(graphCopy.hint).not.toContain('queue-owned stages');
     expect(graphCopy.hint).not.toContain('outgoing routes');
-    expect(graphCopy.roledescription).toBe('ServiceBlueprint graph editor');
+    expect(graphCopy.roledescription).toBe('Service blueprint graph editor');
     expect(graphCopy.gatewayBadges).toEqual([]);
     expect(graphCopy.metaCopy.join(' ')).not.toContain('related route');
     expect(graphCopy.metaCopy.join(' ')).not.toContain('Split gateway');

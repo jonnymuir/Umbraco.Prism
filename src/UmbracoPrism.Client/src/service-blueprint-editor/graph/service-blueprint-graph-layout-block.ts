@@ -1,6 +1,6 @@
 import type { AuthoredServiceBlueprint, ServiceBlueprintNodePosition } from '../types.js';
 import { serviceBlueprintGateways } from '../types.js';
-import type { QueueDefinition } from '../touchpoint-assignment.js';
+import type { QueueDefinition } from '../stage-assignment.js';
 import {
   computeDerivedLayout,
   computeTopology,
@@ -11,7 +11,7 @@ import {
 /**
  * Immutable helpers for the definition's `layout` block. Positions are stored
  * in whole flow pixels keyed by prefixed node id; queue membership stays on
- * the touchpoints/gateways themselves.
+ * the stages/gateways themselves.
  */
 
 function roundPosition(position: ServiceBlueprintNodePosition): ServiceBlueprintNodePosition {
@@ -45,7 +45,7 @@ export function pruneLayout(serviceBlueprint: AuthoredServiceBlueprint): Authore
   }
 
   const liveIds = new Set<string>([
-    ...serviceBlueprint.touchpoints.map(stage => stageNodeId(stage.stateKey)),
+    ...serviceBlueprint.stages.map(stage => stageNodeId(stage.stateKey)),
     ...serviceBlueprintGateways(serviceBlueprint).map(gateway => gatewayNodeId(gateway.key)),
   ]);
   const nodes: Record<string, ServiceBlueprintNodePosition> = {};

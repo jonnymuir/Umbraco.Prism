@@ -21,14 +21,14 @@ The member surface lives in your Umbraco site. The business app is a separate AS
 
 Prism ships two document types for the member surface:
 
-- **`touchpointPage`** — a single service blueprint entry point. Each service blueprint gets one `touchpointPage` node in your content tree.
+- **`stagePage`** — a single service blueprint entry point. Each service blueprint gets one `stagePage` node in your content tree.
 - **`serviceRequestHub`** — a dashboard showing all service blueprints the user has started. One hub node per site.
 
 These document types are seeded automatically by `PrismContentTypeSeeder`. You do not create them manually.
 
 ### How It Works
 
-1. You create a `touchpointPage` node in the Umbraco tree.
+1. You create a `stagePage` node in the Umbraco tree.
 2. You set the `blueprintKey` property to match a blueprint key your business app knows about (e.g., `"planning"`, `"leave-request"`).
 3. Users navigate to that page. Prism loads the service blueprint from your business app and renders the form.
 4. Users fill in the form. Prism saves their progress to an instance store.
@@ -36,16 +36,16 @@ These document types are seeded automatically by `PrismContentTypeSeeder`. You d
 
 ### Route Hijacking
 
-Prism uses **route hijacking** to intercept requests to `touchpointPage` and `serviceRequestHub` nodes. You do not write Razor templates for these pages. Prism ships embedded templates.
+Prism uses **route hijacking** to intercept requests to `stagePage` and `serviceRequestHub` nodes. You do not write Razor templates for these pages. Prism ships embedded templates.
 
 The controllers:
 
-- **`TouchpointPageController`** (in your site) — extends `PrismServiceRequestPageController<TViewModel>` from Core.
+- **`StagePageController`** (in your site) — extends `PrismServiceRequestPageController<TViewModel>` from Core.
 - **`ServiceRequestHubController`** (in Core) — already implemented.
 
 Both extend `RenderController`. Both require authentication via `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`.
 
-Your site can override `PrePopulateFields()` in `TouchpointPageController` to inject claims-based data (e.g., email, name) into read-only fields.
+Your site can override `PrePopulateFields()` in `StagePageController` to inject claims-based data (e.g., email, name) into read-only fields.
 
 ---
 
@@ -87,15 +87,15 @@ The business app uses its own authentication. MockBusinessApp has no authenticat
 
 ## Public Entry Points (Optional)
 
-Some service blueprints start from public pages (no login required). You create a public content node (any document type) with a link to the protected `touchpointPage`. When an anonymous user clicks the link, they get a login challenge.
+Some service blueprints start from public pages (no login required). You create a public content node (any document type) with a link to the protected `stagePage`. When an anonymous user clicks the link, they get a login challenge.
 
 Example:
 
 ```html
-<a href="@linkedTouchpointPage.Url()">Start your application</a>
+<a href="@linkedStagePage.Url()">Start your application</a>
 ```
 
-The `linkedTouchpointPage` is a content picker property pointing at a `touchpointPage` node. Umbraco resolves the URL. The challenge redirect happens automatically.
+The `linkedStagePage` is a content picker property pointing at a `stagePage` node. Umbraco resolves the URL. The challenge redirect happens automatically.
 
 ---
 

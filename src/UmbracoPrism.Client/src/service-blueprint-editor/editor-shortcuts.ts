@@ -78,7 +78,7 @@ export const SERVICE_BLUEPRINT_SHORTCUT_GROUPS: ServiceBlueprintShortcutGroup[] 
         id: 'help',
         command: 'Open help and shortcuts',
         context: 'Anywhere in the editor',
-        description: 'Opens the shortcut reference without leaving the serviceBlueprint.',
+        description: 'Opens the shortcut reference without leaving the service blueprint.',
         labels: ['F1'],
         ariaKeys: 'F1',
         matchers: [{ key: 'f1' }],
@@ -133,7 +133,7 @@ export const SERVICE_BLUEPRINT_SHORTCUT_GROUPS: ServiceBlueprintShortcutGroup[] 
         id: 'reorder-stage',
         command: 'Reorder a stage',
         context: 'List workspace',
-        description: 'Moves the focused stage earlier or later in the serviceBlueprint.',
+        description: 'Moves the focused stage earlier or later in the service blueprint.',
         labels: ['Alt+↑', 'Alt+↓'],
         matchers: [
           { key: 'arrowup', alt: true },

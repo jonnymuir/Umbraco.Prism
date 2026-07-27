@@ -2,14 +2,14 @@
   "definitionKey": "information-request",
   "displayName": "Information Request",
   "version": 1,
-  "initialTouchpoint": "collecting-info",
+  "initialStage": "collecting-info",
   "requestPolicy": "single",
   "schemaVersion": "1.0",
   "queues": [
     {
       "actor": "applicant",
       "description": "Web user submitting and tracking an information request.",
-      "displayName": "Requestor",
+      "displayName": "Requestor touchpoints",
       "key": "web-user",
       "queueName": "web-user",
       "roleGates": [],
@@ -18,14 +18,14 @@
     {
       "actor": "reviewer",
       "description": "Back-office team reviewing and responding to requests.",
-      "displayName": "Review team",
+      "displayName": "Review team touchpoints",
       "key": "business-user",
       "queueName": "business-user",
       "roleGates": [],
       "tags": {}
     }
   ],
-  "touchpoints": [
+  "stages": [
     {
       "actions": [],
       "actor": "applicant",
@@ -111,8 +111,8 @@
           "trigger": "submit"
         }
       ],
-      "touchpointType": "Question",
-      "touchpointKey": "collecting-info"
+      "stageType": "Question",
+      "stageKey": "collecting-info"
     },
     {
       "actions": [],
@@ -137,8 +137,8 @@
           "trigger": "approve"
         }
       ],
-      "touchpointType": "Question",
-      "touchpointKey": "under-review"
+      "stageType": "Question",
+      "stageKey": "under-review"
     },
     {
       "actions": [],
@@ -166,8 +166,8 @@
       "queueKey": "web-user",
       "roleGates": [],
       "routes": [],
-      "touchpointType": "Confirmation",
-      "touchpointKey": "complete"
+      "stageType": "Confirmation",
+      "stageKey": "complete"
     }
   ],
   "gateways": [

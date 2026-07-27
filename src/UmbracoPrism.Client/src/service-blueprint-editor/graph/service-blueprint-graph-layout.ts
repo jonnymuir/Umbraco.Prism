@@ -1,6 +1,6 @@
 import type {
   AuthoredGateway,
-  AuthoredTouchpoint,
+  AuthoredStage,
   AuthoredServiceBlueprint,
   RouteView,
   ServiceBlueprintLayoutBlock,
@@ -12,16 +12,16 @@ import {
 } from '../gateway-representation.js';
 import { flattenRoutes } from '../route-model.js';
 import {
-  touchpointQueueDescription,
-  touchpointQueueKey,
-  touchpointQueueLabel,
-  touchpointSurface,
-  type TouchpointSurface,
+  stageQueueDescription,
+  stageQueueKey,
+  stageQueueLabel,
+  stageSurface,
+  type StageSurface,
   type QueueDefinition,
-} from '../touchpoint-assignment.js';
+} from '../stage-assignment.js';
 
 /**
- * Pure derived layout for the serviceBlueprint graph. Extracted from the original
+ * Pure derived layout for the service blueprint graph. Extracted from the original
  * hand-drawn canvas so the same top-to-bottom, queue-swim-lane reading order
  * drives React Flow node positions: vertical lane columns per queue (first
  * appearance order), Kahn's longest-path row ranking with Join loop-back
@@ -68,9 +68,9 @@ export function parseGraphNodeId(id: string): { kind: GraphNodeKind; key: string
 export type StageTopologyNode = {
   id: string;
   kind: 'stage';
-  stage: AuthoredTouchpoint;
+  stage: AuthoredStage;
   stageIndex: number;
-  surface: TouchpointSurface;
+  surface: StageSurface;
   queueKey: string;
   queueLabel: string;
   width: number;
@@ -82,7 +82,7 @@ export type GatewayTopologyNode = {
   kind: 'gateway';
   gateway: AuthoredGateway;
   binding: GatewayBinding;
-  surface: TouchpointSurface;
+  surface: StageSurface;
   queueKey: string;
   queueLabel: string;
   width: number;
@@ -123,7 +123,7 @@ export type GraphQueueInfo = {
   key: string;
   label: string;
   description: string;
-  surface: TouchpointSurface;
+  surface: StageSurface;
   stageCount: number;
 };
 
@@ -152,7 +152,7 @@ export type LaneGeometry = {
   key: string;
   label: string;
   description: string;
-  surface: TouchpointSurface;
+  surface: StageSurface;
   columnIndex: number;
   x: number;
   width: number;
@@ -211,8 +211,8 @@ export function laneForPosition(lanes: LaneGeometry[], centerX: number): LaneGeo
   })[0];
 }
 
-function touchpointQueueKeyWithFallback(stage: AuthoredTouchpoint, surface: TouchpointSurface): string {
-  return touchpointQueueKey(stage) || (surface === 'back-stage' ? 'reviewer' : 'public');
+function stageQueueKeyWithFallback(stage: AuthoredStage, surface: StageSurface): string {
+  return stageQueueKey(stage) || (surface === 'back-stage' ? 'reviewer' : 'public');
 }
 
 function gatewayQueueKeyWithFallback(gateway: AuthoredGateway): string {
@@ -223,16 +223,16 @@ export function computeTopology(
   serviceBlueprint: AuthoredServiceBlueprint | null,
   availableQueues: QueueDefinition[] = []
 ): GraphTopology {
-  const stages = serviceBlueprint?.touchpoints ?? [];
+  const stages = serviceBlueprint?.stages ?? [];
   const transitions = flattenRoutes(serviceBlueprint);
   const gatewayBindings = serviceBlueprint ? deriveGatewayBindings(serviceBlueprint) : [];
-  const labelForQueue = (queueKey: string) => touchpointQueueLabel(serviceBlueprint, queueKey, availableQueues);
+  const labelForQueue = (queueKey: string) => stageQueueLabel(serviceBlueprint, queueKey, availableQueues);
 
   // 1. Lane entries: keep first-appearance order so the canvas reads left to
   //    right in the order the author introduced lanes.
   const stageNodes: StageTopologyNode[] = stages.map((stage, stageIndex) => {
-    const surface = touchpointSurface(stage);
-    const queueKey = touchpointQueueKeyWithFallback(stage, surface);
+    const surface = stageSurface(stage);
+    const queueKey = stageQueueKeyWithFallback(stage, surface);
     return {
       id: stageNodeId(stage.stateKey),
       kind: 'stage',
@@ -246,7 +246,7 @@ export function computeTopology(
     };
   });
   const gatewayNodes: GatewayTopologyNode[] = gatewayBindings.map(binding => {
-    const surface = touchpointSurface(binding.gateway);
+    const surface = stageSurface(binding.gateway);
     const queueKey = binding.queueKey || gatewayQueueKeyWithFallback(binding.gateway);
     const size = gatewayNodeSize(binding.gateway);
     return {
@@ -263,9 +263,9 @@ export function computeTopology(
     };
   });
 
-  const queueStateByKey = new Map<string, { surface: TouchpointSurface; stageCount: number }>();
+  const queueStateByKey = new Map<string, { surface: StageSurface; stageCount: number }>();
   const queueOrder: string[] = [];
-  const ensureQueue = (queueKey: string, surface: TouchpointSurface, isStage: boolean) => {
+  const ensureQueue = (queueKey: string, surface: StageSurface, isStage: boolean) => {
     const existing = queueStateByKey.get(queueKey);
     if (existing) {
       if (isStage) {
@@ -545,7 +545,7 @@ export function computeTopology(
     return {
       key: queueKey,
       label: labelForQueue(queueKey),
-      description: touchpointQueueDescription(serviceBlueprint, queueKey, availableQueues),
+      description: stageQueueDescription(serviceBlueprint, queueKey, availableQueues),
       surface: queueState.surface,
       stageCount: queueState.stageCount,
     };

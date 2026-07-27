@@ -4,7 +4,7 @@
   "version": 1,
   "schemaVersion": "1.0",
   "description": "Prism CMS Workflow \u2014 GDS-style public journey for a juggler who already holds a professional licence from an overseas juggling authority, transferring it to the National Juggling Authority.",
-  "initialTouchpoint": "eligibility-professional",
+  "initialStage": "eligibility-professional",
   "requestPolicy": "single",
   "calculations": {
     "fields": {
@@ -22,16 +22,16 @@
   "queues": [
     {
       "key": "cms-visitor",
-      "displayName": "Site visitor",
+      "displayName": "Site visitor touchpoints",
       "description": "The site visitor transferring a professional juggling licence \u2014 anonymous, or a logged-in Prism Member.",
       "actor": "applicant"
     }
   ],
-  "touchpoints": [
+  "stages": [
     {
-      "touchpointKey": "eligibility-professional",
+      "stageKey": "eligibility-professional",
       "displayName": "Have you performed professionally?",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -62,9 +62,9 @@
       ]
     },
     {
-      "touchpointKey": "eligibility-overseas",
+      "stageKey": "eligibility-overseas",
       "displayName": "Where was your licence issued?",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -91,9 +91,9 @@
       ]
     },
     {
-      "touchpointKey": "eligibility-recognised",
+      "stageKey": "eligibility-recognised",
       "displayName": "Is your issuing authority recognised?",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -124,9 +124,9 @@
       ]
     },
     {
-      "touchpointKey": "ineligible-not-professional",
+      "stageKey": "ineligible-not-professional",
       "displayName": "You cannot transfer a licence",
-      "touchpointType": "Confirmation",
+      "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -146,9 +146,9 @@
       "routes": []
     },
     {
-      "touchpointKey": "ineligible-licence-not-overseas",
+      "stageKey": "ineligible-licence-not-overseas",
       "displayName": "You cannot transfer a licence",
-      "touchpointType": "Confirmation",
+      "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -164,9 +164,9 @@
       "routes": []
     },
     {
-      "touchpointKey": "ineligible-authority-not-recognised",
+      "stageKey": "ineligible-authority-not-recognised",
       "displayName": "You cannot transfer a licence",
-      "touchpointType": "Confirmation",
+      "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -186,9 +186,9 @@
       "routes": []
     },
     {
-      "touchpointKey": "guidance",
+      "stageKey": "guidance",
       "displayName": "Before you continue",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -236,9 +236,9 @@
       ]
     },
     {
-      "touchpointKey": "licence-details",
+      "stageKey": "licence-details",
       "displayName": "Your existing licence",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -351,9 +351,9 @@
       ]
     },
     {
-      "touchpointKey": "upload-evidence",
+      "stageKey": "upload-evidence",
       "displayName": "Upload your evidence",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -463,9 +463,9 @@
       ]
     },
     {
-      "touchpointKey": "check-answers",
+      "stageKey": "check-answers",
       "displayName": "Check your answers",
-      "touchpointType": "CheckAnswers",
+      "stageType": "CheckAnswers",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -630,9 +630,9 @@
       ]
     },
     {
-      "touchpointKey": "declaration",
+      "stageKey": "declaration",
       "displayName": "Declaration",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -689,9 +689,9 @@
       ]
     },
     {
-      "touchpointKey": "confirmation",
+      "stageKey": "confirmation",
       "displayName": "Transfer application submitted",
-      "touchpointType": "Confirmation",
+      "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [

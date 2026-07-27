@@ -12,7 +12,7 @@ public class CmsSingleQueueValidatorTests
     {
         DefinitionKey = "apply-for-a-juggling-licence",
         DisplayName = "Apply for a juggling licence",
-        InitialTouchpoint = "eligibility",
+        InitialStage = "eligibility",
         Queues = queues
     };
 

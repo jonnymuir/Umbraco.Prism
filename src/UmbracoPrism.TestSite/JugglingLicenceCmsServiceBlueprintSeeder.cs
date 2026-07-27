@@ -14,7 +14,7 @@ namespace UmbracoPrism.TestSite;
 /// <summary>
 /// Seeds the "Apply for a juggling licence" CMS Workflow demo — the reference example proving
 /// Prism CMS Workflow's backoffice-authored, uSync-portable, in-Umbraco-only implementation.
-/// Mirrors <see cref="TouchpointPageSeeder"/>'s convention exactly: C# seeders own initial demo
+/// Mirrors <see cref="StagePageSeeder"/>'s convention exactly: C# seeders own initial demo
 /// data; uSync only captures subsequent portable edits made through the backoffice.
 /// </summary>
 /// <remarks>

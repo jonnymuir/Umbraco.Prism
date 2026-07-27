@@ -5,12 +5,12 @@ import type {
   AuthoredAction,
   AuthoredComponent,
   AuthoredGateway,
-  AuthoredTouchpoint,
+  AuthoredStage,
   RouteView,
   AuthoredServiceBlueprint,
   EditorStageType,
 } from './types.js';
-import { serviceBlueprintGateways } from './types.js';
+import { serviceBlueprintGateways, serviceBlueprintStages } from './types.js';
 import { NODE_ICONS, defaultIconForGateway, defaultIconForStage, type NodeIconDef, type NodeIconName } from './graph/node-icons.js';
 
 function renderNodeIconSvg(icon: NodeIconDef) {
@@ -51,16 +51,16 @@ function describeComponent(component: AuthoredComponent): string {
   }
 }
 import {
-  editorStageTypeToTouchpointKind,
+  editorStageTypeToStageKind,
   stageKindToEditorStageType,
 } from './types.js';
 import {
-  applyQueueToTouchpoint,
-  touchpointQueueKey,
-  touchpointQueueLabel,
+  applyQueueToStage,
+  stageQueueKey,
+  stageQueueLabel,
   type QueueDefinition,
   serviceBlueprintQueueOptions,
-} from './touchpoint-assignment.js';
+} from './stage-assignment.js';
 import { deriveGatewayBindings, gatewayQueueKey, type GatewayBinding } from './gateway-representation.js';
 import {
   parseTransitionCondition,
@@ -77,7 +77,7 @@ import {
   serviceBlueprintUnreachableStages,
 } from './service-blueprint-validation.js';
 import { addRoute, deleteRoute, findOrCreateSplitGateway, flattenRoutes, newRouteId, updateRoute } from './route-model.js';
-import './prism-touchpoint-action-editor.js';
+import './prism-stage-action-editor.js';
 import './prism-inline-help.js';
 
 const STAGE_TYPE_OPTIONS: Array<{ value: EditorStageType; label: string }> = [
@@ -140,12 +140,12 @@ export class PrismStepInspectorElement extends LitElement {
   /** Tracks the route id of a just-created route so updated() can focus its target picker. */
   private _newlyAddedRouteId: string | null = null;
 
-  private get _selectedStage(): AuthoredTouchpoint | null {
+  private get _selectedStage(): AuthoredStage | null {
     if (!this.serviceBlueprint || !this.selectedStageKey) {
       return null;
     }
 
-    return this.serviceBlueprint.touchpoints.find(stage => stage.stateKey === this.selectedStageKey) ?? null;
+    return this.serviceBlueprint.stages.find(stage => stage.stateKey === this.selectedStageKey) ?? null;
   }
 
   private get _selectedGateway(): AuthoredGateway | null {
@@ -209,7 +209,7 @@ export class PrismStepInspectorElement extends LitElement {
   }
 
   private _stageLabel(stageKey: string) {
-    return this.serviceBlueprint?.touchpoints.find(stage => stage.stateKey === stageKey)?.displayName
+    return this.serviceBlueprint?.stages.find(stage => stage.stateKey === stageKey)?.displayName
       ?? serviceBlueprintGateways(this.serviceBlueprint).find(gateway => gateway.key === stageKey)?.displayName
       ?? stageKey;
   }
@@ -244,8 +244,8 @@ export class PrismStepInspectorElement extends LitElement {
       return [];
     }
 
-    const stage = this.serviceBlueprint.touchpoints.find(candidate => candidate.stateKey === stageKey);
-    const queueKey = stage ? touchpointQueueKey(stage) : '';
+    const stage = this.serviceBlueprint.stages.find(candidate => candidate.stateKey === stageKey);
+    const queueKey = stage ? stageQueueKey(stage) : '';
 
     return deriveGatewayBindings(this.serviceBlueprint)
       .filter(binding => binding.gateway.kind === 'Join')
@@ -253,7 +253,7 @@ export class PrismStepInspectorElement extends LitElement {
       .map(binding => binding.gateway);
   }
 
-  private _selectedStageOutgoing(stage: AuthoredTouchpoint) {
+  private _selectedStageOutgoing(stage: AuthoredStage) {
     return this.serviceBlueprint ? serviceBlueprintOutgoingRoutes(this.serviceBlueprint, stage.stateKey) : [];
   }
 
@@ -292,25 +292,23 @@ export class PrismStepInspectorElement extends LitElement {
     );
   }
 
-  private _replaceSelectedStage(nextStage: AuthoredTouchpoint, previousStageKey = this._selectedStage?.stateKey) {
+  private _replaceSelectedStage(nextStage: AuthoredStage, previousStageKey = this._selectedStage?.stateKey) {
     if (!this.serviceBlueprint || !previousStageKey) {
       return;
     }
 
-    const stageIndex = this.serviceBlueprint.touchpoints.findIndex(stage => stage.stateKey === previousStageKey);
+    const stageIndex = this.serviceBlueprint.stages.findIndex(stage => stage.stateKey === previousStageKey);
     if (stageIndex < 0) {
       return;
     }
 
-    const stages = [...this.serviceBlueprint.touchpoints];
+    let gateways = serviceBlueprintGateways(this.serviceBlueprint);
+    let initialStageKey = this.serviceBlueprint.initialStage;
+    let stages = [...serviceBlueprintStages(this.serviceBlueprint)];
     stages[stageIndex] = nextStage;
 
-    let gateways = serviceBlueprintGateways(this.serviceBlueprint);
-    let initialStageKey = this.serviceBlueprint.initialTouchpointKey;
-    let touchpoints = stages;
-
     if (nextStage.stateKey !== previousStageKey) {
-      touchpoints = stages.map(stage => stage.stateKey === nextStage.stateKey
+      stages = stages.map(stage => stage.stateKey === nextStage.stateKey
         ? stage
         : ({
             ...stage,
@@ -333,8 +331,8 @@ export class PrismStepInspectorElement extends LitElement {
 
     const serviceBlueprint: AuthoredServiceBlueprint = {
       ...this.serviceBlueprint,
-      initialTouchpointKey: initialStageKey,
-      touchpoints,
+      initialStage: initialStageKey,
+      stages,
       gateways,
     };
 
@@ -407,7 +405,7 @@ export class PrismStepInspectorElement extends LitElement {
     this._announce(`${nextTitle} title updated.`);
   }
 
-  private _updateStageIcon(stage: AuthoredTouchpoint, iconName: NodeIconName) {
+  private _updateStageIcon(stage: AuthoredStage, iconName: NodeIconName) {
     if (stage.icon === iconName) {
       return;
     }
@@ -428,7 +426,7 @@ export class PrismStepInspectorElement extends LitElement {
       return;
     }
 
-    const duplicate = this.serviceBlueprint.touchpoints.some(candidate =>
+    const duplicate = this.serviceBlueprint.stages.some(candidate =>
       candidate.stateKey === nextKey && candidate.stateKey !== stage.stateKey
     );
     if (duplicate) {
@@ -473,7 +471,7 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     const queueKey = (event.currentTarget as HTMLInputElement).value;
-    const nextStage = applyQueueToTouchpoint(stage, queueKey);
+    const nextStage = applyQueueToStage(stage, queueKey);
 
     this._replaceSelectedStage(nextStage);
     this._announce(`${stage.displayName} queue updated.`);
@@ -486,8 +484,8 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     const nextType = (event.currentTarget as HTMLSelectElement).value as EditorStageType;
-    const nextKind = editorStageTypeToTouchpointKind(nextType);
-    const nextStage: AuthoredTouchpoint = {
+    const nextKind = editorStageTypeToStageKind(nextType);
+    const nextStage: AuthoredStage = {
       ...stage,
       kind: nextKind,
     };
@@ -695,7 +693,7 @@ export class PrismStepInspectorElement extends LitElement {
 
   private _renderRouteEditor(transition: RouteView, transitionIndex: number) {
     const condition = parseTransitionCondition(transition.condition);
-    const targetOptions = (this.serviceBlueprint?.touchpoints ?? []).filter(stage => stage.stateKey !== transition.fromStage);
+    const targetOptions = (this.serviceBlueprint?.stages ?? []).filter(stage => stage.stateKey !== transition.fromStage);
     const joinGateways = this._availableJoinGatewaysForStage(transition.toStage);
     const idx = String(transitionIndex);
     const ariaId = `route-${transitionIndex}-title`;
@@ -798,7 +796,7 @@ export class PrismStepInspectorElement extends LitElement {
               <span class="field-label">Condition type</span>
               <prism-inline-help
                 label="Condition type help"
-                message="Choose Always available for a standard route, Event for named serviceBlueprint triggers, or Guard expression when runtime data decides whether this route can run."
+                message="Choose Always available for a standard route, Event for named service blueprint triggers, or Guard expression when runtime data decides whether this route can run."
               ></prism-inline-help>
             </span>
             <select
@@ -851,7 +849,7 @@ export class PrismStepInspectorElement extends LitElement {
             <h5 id="section-route-actions-${idx}" class="section-heading">Route actions</h5>
             <span class="section-meta">${transition.actions?.length ?? 0} configured</span>
           </div>
-          <prism-touchpoint-action-editor
+          <prism-stage-action-editor
             data-prism-route-index="${idx}"
             .actions=${transition.actions ?? []}
             .actionCatalog=${this.actionCatalog}
@@ -860,7 +858,7 @@ export class PrismStepInspectorElement extends LitElement {
             subject-label="transition"
             @actions-updated=${this._updateRouteActions}
             @action-selected=${this._handleRouteActionSelected}
-          ></prism-touchpoint-action-editor>
+          ></prism-stage-action-editor>
         </section>
       </article>
     `;
@@ -881,10 +879,10 @@ export class PrismStepInspectorElement extends LitElement {
     const gateways = [...serviceBlueprintGateways(this.serviceBlueprint)];
     gateways[gatewayIndex] = nextGateway;
 
-    let nextStates = this.serviceBlueprint.touchpoints;
+    let nextStates = this.serviceBlueprint.stages;
     let nextGateways = gateways;
     if (nextGateway.key !== previousGatewayKey) {
-      nextStates = this.serviceBlueprint.touchpoints.map(stage => ({
+      nextStates = this.serviceBlueprint.stages.map(stage => ({
         ...stage,
         routes: (stage.routes ?? []).map(route => ({
           ...route,
@@ -901,7 +899,7 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     this._emitServiceBlueprintUpdated(
-      { ...this.serviceBlueprint, touchpoints: nextStates, gateways: nextGateways },
+      { ...this.serviceBlueprint, stages: nextStates, gateways: nextGateways },
       { kind: 'gateway', gatewayKey: nextGateway.key }
     );
   }
@@ -934,7 +932,7 @@ export class PrismStepInspectorElement extends LitElement {
     }
 
     const allKeys = [
-      ...this.serviceBlueprint.touchpoints.map(s => s.stateKey),
+      ...this.serviceBlueprint.stages.map(s => s.stateKey),
       ...serviceBlueprintGateways(this.serviceBlueprint).map(g => g.key).filter(k => k !== gateway.key),
     ];
     if (allKeys.includes(nextKey)) {
@@ -1014,7 +1012,7 @@ export class PrismStepInspectorElement extends LitElement {
     const gateways = serviceBlueprintGateways(this.serviceBlueprint).filter(g => g.key !== gateway.key);
     const nextServiceBlueprint = {
       ...this.serviceBlueprint,
-      touchpoints: this.serviceBlueprint.touchpoints.map(stage => ({
+      stages: this.serviceBlueprint.stages.map(stage => ({
         ...stage,
         routes: (stage.routes ?? []).filter(route => route.target !== gateway.key),
       })),
@@ -1029,7 +1027,7 @@ export class PrismStepInspectorElement extends LitElement {
 
   private _renderGateway(gateway: AuthoredGateway) {
     const queueKey = gatewayQueueKey(gateway);
-    const queueLabel = touchpointQueueLabel(this.serviceBlueprint, queueKey, this.availableQueues);
+    const queueLabel = stageQueueLabel(this.serviceBlueprint, queueKey, this.availableQueues);
     const binding = this.serviceBlueprint
       ? deriveGatewayBindings(this.serviceBlueprint).find(candidate => candidate.gateway.key === gateway.key) ?? null
       : null;
@@ -1102,7 +1100,7 @@ export class PrismStepInspectorElement extends LitElement {
               />
               <datalist id=${queueOptionsId}>
                 ${serviceBlueprintQueueOptions(this.serviceBlueprint, this.availableQueues).map(option => html`
-                  <option value=${option}>${touchpointQueueLabel(this.serviceBlueprint, option, this.availableQueues)}</option>
+                  <option value=${option}>${stageQueueLabel(this.serviceBlueprint, option, this.availableQueues)}</option>
                 `)}
               </datalist>
             </label>
@@ -1262,13 +1260,13 @@ export class PrismStepInspectorElement extends LitElement {
     `;
   }
 
-  private _renderStage(stage: AuthoredTouchpoint) {
+  private _renderStage(stage: AuthoredStage) {
     const components = stage.components ?? [];
     const actions = stage.actions ?? [];
     const outgoing = this._selectedStageOutgoing(stage);
     const stageType = stageKindToEditorStageType(stage.kind ?? 'Question');
-    const queueKey = touchpointQueueKey(stage);
-    const queueLabel = touchpointQueueLabel(this.serviceBlueprint, queueKey, this.availableQueues);
+    const queueKey = stageQueueKey(stage);
+    const queueLabel = stageQueueLabel(this.serviceBlueprint, queueKey, this.availableQueues);
     const queueEyebrow = `${queueLabel} queue`;
     const queueOptionsId = `stage-queue-options-${stage.stateKey}`;
     const unreachable = this.serviceBlueprint
@@ -1282,11 +1280,11 @@ export class PrismStepInspectorElement extends LitElement {
       : false;
     const validationMessages = [
       ...(this._stageKeyError ? [this._stageKeyError] : []),
-      ...(orphaned ? ['This stage is disconnected from the serviceBlueprint. Add at least one route to connect it.'] : []),
+      ...(orphaned ? ['This stage is disconnected from the service blueprint. Add at least one route to connect it.'] : []),
       ...(deadEnd || (outgoing.length === 0 && !isTerminalStage(stage))
         ? ['Add at least one outgoing route before publishing this stage.']
         : []),
-      ...(unreachable ? ['This stage is unreachable from the serviceBlueprint start. Add or retarget an incoming route.'] : []),
+      ...(unreachable ? ['This stage is unreachable from the service blueprint start. Add or retarget an incoming route.'] : []),
     ];
 
     return html`
@@ -1332,7 +1330,7 @@ export class PrismStepInspectorElement extends LitElement {
                 <span class="field-label">Key</span>
                 <prism-inline-help
                   label="Stage key help"
-                  message="Use a stable, machine-friendly key. Transitions, validation links, and saved serviceBlueprint JSON all depend on this value staying predictable."
+                  message="Use a stable, machine-friendly key. Transitions, validation links, and saved service blueprint JSON all depend on this value staying predictable."
                 ></prism-inline-help>
               </span>
               <input
@@ -1367,7 +1365,7 @@ export class PrismStepInspectorElement extends LitElement {
               />
               <datalist id=${queueOptionsId}>
                 ${serviceBlueprintQueueOptions(this.serviceBlueprint, this.availableQueues).map(option => html`
-                  <option value=${option}>${touchpointQueueLabel(this.serviceBlueprint, option, this.availableQueues)}</option>
+                  <option value=${option}>${stageQueueLabel(this.serviceBlueprint, option, this.availableQueues)}</option>
                 `)}
               </datalist>
             </label>
@@ -1402,7 +1400,7 @@ export class PrismStepInspectorElement extends LitElement {
             <h3 id="stage-actions-heading" class="section-heading">Actions</h3>
             <span class="section-meta">${actions.length} configured</span>
           </div>
-          <prism-touchpoint-action-editor
+          <prism-stage-action-editor
             .actions=${actions}
             .actionCatalog=${this.actionCatalog}
             .selectedActionIndex=${this.selectedActionIndex}
@@ -1410,7 +1408,7 @@ export class PrismStepInspectorElement extends LitElement {
             subject-label="stage"
             @actions-updated=${this._updateSelectedStageActions}
             @action-selected=${this._handleActionSelected}
-          ></prism-touchpoint-action-editor>
+          ></prism-stage-action-editor>
         </section>
 
         <section class="inspector-section" aria-labelledby="stage-transitions-heading">

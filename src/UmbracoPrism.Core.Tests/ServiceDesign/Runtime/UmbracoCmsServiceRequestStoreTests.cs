@@ -37,7 +37,7 @@ public class UmbracoCmsServiceRequestStoreTests
             BlueprintKey = "apply-for-a-juggling-licence",
             TenantId = "tenant-1",
             UserId = "user-1",
-            CurrentTouchpoint = "eligibility"
+            CurrentStage = "eligibility"
         }),
         ExpiresUtc = expiresUtc
     };
@@ -53,7 +53,7 @@ public class UmbracoCmsServiceRequestStoreTests
         var found = store.TryGet("instance-1", out var instance);
 
         found.Should().BeTrue();
-        instance.CurrentTouchpoint.Should().Be("eligibility");
+        instance.CurrentStage.Should().Be("eligibility");
         db.Verify(d => d.Execute(
             It.Is<string>(sql => sql.Contains("UPDATE prismCmsServiceRequest SET ExpiresUtc")),
             It.IsAny<object[]>()), Times.Once);
@@ -100,7 +100,7 @@ public class UmbracoCmsServiceRequestStoreTests
             BlueprintKey = "apply-for-a-juggling-licence",
             TenantId = "tenant-1",
             UserId = "user-1",
-            CurrentTouchpoint = "eligibility"
+            CurrentStage = "eligibility"
         });
 
         db.Verify(d => d.Insert(It.Is<PrismCmsServiceRequestSchema>(r =>
@@ -122,7 +122,7 @@ public class UmbracoCmsServiceRequestStoreTests
             BlueprintKey = "apply-for-a-juggling-licence",
             TenantId = "tenant-1",
             UserId = "user-1",
-            CurrentTouchpoint = "check-answers"
+            CurrentStage = "check-answers"
         });
 
         db.Verify(d => d.Insert(It.IsAny<PrismCmsServiceRequestSchema>()), Times.Never);
@@ -144,7 +144,7 @@ public class UmbracoCmsServiceRequestStoreTests
             TenantId = "tenant-1",
             UserId = "member@example.test",
             IsAuthenticated = true,
-            CurrentTouchpoint = "eligibility"
+            CurrentStage = "eligibility"
         });
 
         db.Verify(d => d.Insert(It.Is<PrismCmsServiceRequestSchema>(r =>
@@ -169,7 +169,7 @@ public class UmbracoCmsServiceRequestStoreTests
             TenantId = "tenant-1",
             UserId = "member@example.test",
             IsAuthenticated = true,
-            CurrentTouchpoint = "check-answers"
+            CurrentStage = "check-answers"
         });
 
         capturedExpiresUtc.Should().Be(DateTime.MaxValue);
@@ -193,7 +193,7 @@ public class UmbracoCmsServiceRequestStoreTests
             TenantId = "tenant-1",
             UserId = "anon-cookie-1",
             IsAuthenticated = false,
-            CurrentTouchpoint = "check-answers"
+            CurrentStage = "check-answers"
         });
 
         capturedExpiresUtc.Should().NotBe(DateTime.MaxValue);
@@ -212,7 +212,7 @@ public class UmbracoCmsServiceRequestStoreTests
             TenantId = "tenant-1",
             UserId = "member@example.test",
             IsAuthenticated = true,
-            CurrentTouchpoint = "eligibility"
+            CurrentStage = "eligibility"
         });
         db.Setup(d => d.FirstOrDefault<PrismCmsServiceRequestSchema>(
                 It.IsAny<string>(), It.IsAny<object[]>()))

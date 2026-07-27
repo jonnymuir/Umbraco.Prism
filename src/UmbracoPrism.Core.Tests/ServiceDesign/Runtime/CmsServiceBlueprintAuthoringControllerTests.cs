@@ -25,9 +25,9 @@ public class CmsServiceBlueprintAuthoringControllerTests
         DefinitionKey = "apply-for-a-juggling-licence",
         DisplayName = "Apply for a Juggling Licence",
         Version = version,
-        InitialTouchpoint = "eligibility",
-        Touchpoints = [
-            new StepDefinition { TouchpointKey = "eligibility", DisplayName = "Eligibility", TouchpointType = "Question" }
+        InitialStage = "eligibility",
+        Stages = [
+            new StageDefinition { StageKey = "eligibility", DisplayName = "Eligibility", StageType = "Question" }
         ]
     };
 

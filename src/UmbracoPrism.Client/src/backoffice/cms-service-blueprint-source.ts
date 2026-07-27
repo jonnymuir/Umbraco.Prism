@@ -1,5 +1,5 @@
 // Backoffice ServiceBlueprintSource — the editor host implementation for CMS Service Blueprint, Prism's
-// Umbraco-only serviceBlueprint implementation. Unlike MockBusinessAppServiceBlueprintSource (cookie-auth,
+// Umbraco-only service blueprint implementation. Unlike MockBusinessAppServiceBlueprintSource (cookie-auth,
 // same-origin), the backoffice's Management API is Bearer-token authenticated, and the token
 // can rotate between calls — `getToken` is called fresh on every request rather than captured
 // once at construction, so a long-open editor session never sends a stale token.
@@ -41,13 +41,13 @@ type ServiceBlueprintSaveOutcomePayload = {
 };
 
 // A ServiceBlueprintDiagnostic's `path` names the offending element with stable keys, e.g.
-// "touchpoints.licence-details.components[0].items[0].fieldKey" or "calculations.fields.member".
-// Only the "touchpoints.<key>..." shape names something the canvas can actually jump to.
+// "stages.licence-details.components[0].items[0].fieldKey" or "calculations.fields.member".
+// Only the "stages.<key>..." shape names something the canvas can actually jump to.
 function stageKeyFromDiagnosticPath(path: unknown): string | undefined {
   if (typeof path !== 'string') {
     return undefined;
   }
-  return /^touchpoints\.([^.]+)/.exec(path)?.[1];
+  return /^stages\.([^.]+)/.exec(path)?.[1];
 }
 
 function readStructuredDetails(value: unknown, serviceBlueprint?: AuthoredServiceBlueprint): ServiceBlueprintSaveErrorDetail[] {
@@ -69,7 +69,7 @@ function readStructuredDetails(value: unknown, serviceBlueprint?: AuthoredServic
       entry && typeof entry === 'object' && 'path' in entry
         ? stageKeyFromDiagnosticPath((entry as { path?: unknown }).path)
         : undefined;
-    const stage = rawStageKey ? serviceBlueprint?.touchpoints.find(s => s.stateKey === rawStageKey) : undefined;
+    const stage = rawStageKey ? serviceBlueprint?.stages.find(s => s.stateKey === rawStageKey) : undefined;
 
     // Only offer a jump when the stage actually resolves — a dangling/renamed key isn't
     // navigable, and showing a dead "jump" affordance would be worse than showing none.
@@ -91,7 +91,7 @@ function parseConflictOutcome(payload: ServiceBlueprintSaveOutcomePayload, bluep
     ?? `“${blueprintKey}” was changed elsewhere since you loaded it${currentVersion != null ? ` (now at version ${currentVersion})` : ''}.`;
 
   return new ServiceBlueprintSaveError({
-    title: 'This serviceBlueprint changed elsewhere',
+    title: 'This service blueprint changed elsewhere',
     summary,
     detailLines: detailLines.filter(line => line !== summary),
     statusCode: 409,
@@ -101,10 +101,10 @@ function parseConflictOutcome(payload: ServiceBlueprintSaveOutcomePayload, bluep
 }
 
 // UmbracoPrism.ServiceBlueprintRuntime.Services.ServiceBlueprintSaveOutcome for a real business-validation
-// failure (ServiceBlueprintAuthoringService.Validate rejected the serviceBlueprint) — e.g. a stat-group bound
+// failure (ServiceBlueprintAuthoringService.Validate rejected the service blueprint) — e.g. a stat-group bound
 // to a field that no longer exists, or a showWhen expression referencing an unknown name. This
 // is a genuinely different failure than a malformed request: the JSON was well-formed and
-// reached the server, but the serviceBlueprint's own content is invalid. Distinguished from
+// reached the server, but the service blueprint's own content is invalid. Distinguished from
 // ProblemDetails (a framework-level 400, e.g. a JSON deserialization failure) by payload shape,
 // not HTTP status — both currently arrive as a plain 400.
 function isServiceBlueprintSaveOutcomePayload(payload: unknown): payload is ServiceBlueprintSaveOutcomePayload {
@@ -121,7 +121,7 @@ function parseValidationOutcome(
     ?? `“${blueprintKey}” has a problem that must be fixed before it can be saved.`;
 
   return new ServiceBlueprintSaveError({
-    title: 'This serviceBlueprint can’t be saved yet',
+    title: 'This service blueprint can’t be saved yet',
     summary,
     details: details.filter(detail => detail.message !== summary),
     summaryStageKey: details[0]?.message === summary ? details[0]?.stageKey : undefined,
@@ -131,7 +131,7 @@ function parseValidationOutcome(
 
 function parseProblemDetails(payload: ProblemDetailsPayload, statusCode: number, blueprintKey: string): ServiceBlueprintSaveError {
   const title = sanitiseServiceBlueprintSaveErrorText(typeof payload.title === 'string' ? payload.title : null)
-    ?? 'We couldn’t save this serviceBlueprint';
+    ?? 'We couldn’t save this service blueprint';
   const summary = sanitiseServiceBlueprintSaveErrorText(
     typeof payload.summary === 'string'
       ? payload.summary
@@ -191,7 +191,7 @@ export function buildSaveErrorFromPayload(
   }
 
   return new ServiceBlueprintSaveError({
-    title: 'We couldn’t save this serviceBlueprint',
+    title: 'We couldn’t save this service blueprint',
     summary: fallbackSummary,
     statusCode: status,
   });
@@ -210,7 +210,11 @@ async function buildSaveError(response: Response, blueprintKey: string, serviceB
 }
 
 export class UmbracoBackofficeServiceBlueprintSource implements ServiceBlueprintSource {
-  constructor(private readonly getToken: () => Promise<string | undefined>) {}
+  private readonly getToken: () => Promise<string | undefined>;
+
+  constructor(getToken: () => Promise<string | undefined>) {
+    this.getToken = getToken;
+  }
 
   private async authHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
     const token = await this.getToken();

@@ -9,7 +9,7 @@ import { UMB_CMS_SERVICE_BLUEPRINT_ENTITY_TYPE, type CmsServiceBlueprintEntityMo
  * approach (this endpoint isn't part of Umbraco's OpenAPI-generated surface).
  *
  * Deliberately thin: this backoffice screen (collection + entity actions + workspace routing)
- * only ever needs `definitionKey`/`displayName` to identify and list a serviceBlueprint. The actual
+ * only ever needs `definitionKey`/`displayName` to identify and list a service blueprint. The actual
  * authored JSON is read/written entirely by `<prism-service-blueprint-editor>` via its own
  * `UmbracoBackofficeServiceBlueprintSource` — this data source's `update()` is never called by anything
  * (the workspace registers no generic Save action; the editor's own Save button is the only one),
@@ -51,7 +51,7 @@ export class UmbCmsServiceBlueprintDetailServerDataSource implements UmbDetailDa
   }
 
   /**
-   * Creates the serviceBlueprint with the minimum valid shape `<prism-service-blueprint-editor>` and the CMS
+   * Creates the service blueprint with the minimum valid shape `<prism-service-blueprint-editor>` and the CMS
    * ServiceBlueprint runtime both expect: a single `eligibility` initial state and the one well-known
    * `cms-visitor` queue (see `CmsServiceBlueprintQueue` on the server — `CmsServiceBlueprintSingleQueueValidator`
    * rejects anything else). The author fills in the real content once the editor opens.
@@ -62,10 +62,10 @@ export class UmbCmsServiceBlueprintDetailServerDataSource implements UmbDetailDa
       displayName: model.displayName,
       version: 0,
       schemaVersion: '1.0',
-      initialTouchpoint: 'start',
+      initialStage: 'start',
       requestPolicy: 'single',
       queues: [{ key: 'cms-visitor', displayName: 'Site visitor' }],
-      touchpoints: [
+      stages: [
         {
           stateKey: 'start',
           displayName: model.displayName || model.definitionKey,

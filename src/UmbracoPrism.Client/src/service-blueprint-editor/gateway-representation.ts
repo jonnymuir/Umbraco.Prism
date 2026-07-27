@@ -1,7 +1,7 @@
 import type { AuthoredGateway, AuthoredServiceBlueprint } from './types.js';
 import { serviceBlueprintGateways } from './types.js';
 import { flattenRoutes } from './route-model.js';
-import { normaliseQueueKey, touchpointQueueKey } from './touchpoint-assignment.js';
+import { normaliseQueueKey, stageQueueKey } from './stage-assignment.js';
 
 export interface GatewayBinding {
   gateway: AuthoredGateway;
@@ -32,7 +32,7 @@ export function gatewayQueueKey(gateway: AuthoredGateway): string {
   return normaliseQueueKey(gateway.queueKey) || normaliseQueueKey(gateway.actor);
 }
 
-export function deriveGatewayBindings(serviceBlueprint: Pick<AuthoredServiceBlueprint, 'touchpoints' | 'gateways'>): GatewayBinding[] {
+export function deriveGatewayBindings(serviceBlueprint: Pick<AuthoredServiceBlueprint, 'stages' | 'gateways'>): GatewayBinding[] {
   const outgoingByStage = new Map<string, number[]>();
   const incomingByStage = new Map<string, number[]>();
   const explicitSplitBindings = new Map<string, { anchorStageKey: string | null; relatedTransitionIndices: number[] }>();
@@ -63,9 +63,9 @@ export function deriveGatewayBindings(serviceBlueprint: Pick<AuthoredServiceBlue
   const splitCandidatesByQueue = new Map<string, string[]>();
   const joinCandidatesByQueue = new Map<string, string[]>();
 
-  serviceBlueprint.touchpoints.forEach(stage => {
+  serviceBlueprint.stages.forEach(stage => {
     const stageKey = stage.stateKey;
-    const queueKey = touchpointQueueKey(stage);
+    const queueKey = stageQueueKey(stage);
     const outgoing = outgoingByStage.get(stageKey) ?? [];
     const incoming = incomingByStage.get(stageKey) ?? [];
 

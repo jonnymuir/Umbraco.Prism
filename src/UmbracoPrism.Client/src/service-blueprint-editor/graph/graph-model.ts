@@ -90,7 +90,7 @@ export type GraphModel = {
 };
 
 function labelForNodeKey(serviceBlueprint: AuthoredServiceBlueprint | null, key: string): string {
-  return serviceBlueprint?.touchpoints.find(stage => stage.stateKey === key)?.displayName
+  return serviceBlueprint?.stages.find(stage => stage.stateKey === key)?.displayName
     ?? serviceBlueprint?.metadata?.gateways?.find(gateway => gateway.key === key)?.displayName
     ?? key;
 }
@@ -167,7 +167,7 @@ type HandleAssignment = {
  * genuinely fans out (or in) to several others on the same side, their edges
  * all started from the identical pixel and stayed coincident until they
  * neared their distinct targets — reading as one path, or a route "ghosting"
- * through a sibling's chip, instead of the distinct branches the serviceBlueprint
+ * through a sibling's chip, instead of the distinct branches the service blueprint
  * JSON actually describes. This spreads same-side edges across evenly spaced
  * slots along that side instead, ordered by where the edge's other endpoint
  * sits so the fan reads left-to-right in a sane order. A lone edge on a side

@@ -32,7 +32,7 @@ public class WaitingBuilderTests
             })
             .Build();
 
-        return workflow.Touchpoints.First().Components.OfType<WaitingComponent>().Single();
+        return workflow.Stages.First().Components.OfType<WaitingComponent>().Single();
     }
 
     [Fact]
@@ -146,9 +146,9 @@ public class WaitingBuilderFluentTests
             .AddTransition("processing", "done", "complete")
             .Build();
 
-        workflow.Touchpoints.Should().HaveCount(3);
+        workflow.Stages.Should().HaveCount(3);
         workflow.Transitions.Should().HaveCount(2);
-        var processingState = workflow.Touchpoints.First(s => s.TouchpointKey == "processing");
+        var processingState = workflow.Stages.First(s => s.StageKey == "processing");
         processingState.Components.OfType<WaitingComponent>().Should().ContainSingle();
     }
 }
@@ -197,19 +197,19 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
             DefinitionKey = "test-waiting-workflow",
             DisplayName = "Test Waiting Workflow",
             Version = 1,
-            InitialTouchpoint = "enter-details",
+            InitialStage = "enter-details",
             RequestPolicy = "single",
-            Touchpoints = new[]
+            Stages = new[]
             {
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "enter-details",
+                    StageKey = "enter-details",
                     DisplayName = "Enter Details",
                     Components = Array.Empty<PrismComponent>()
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "processing",
+                    StageKey = "processing",
                     DisplayName = "Processing",
                     Components = new PrismComponent[]
                     {
@@ -223,9 +223,9 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                         }
                     }
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "done",
+                    StageKey = "done",
                     DisplayName = "Done",
                     Components = new PrismComponent[]
                     {
@@ -442,13 +442,13 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                 DefinitionKey = "test-no-defer",
                 DisplayName = "Test No Defer",
                 Version = 1,
-                InitialTouchpoint = "processing",
+                InitialStage = "processing",
                 RequestPolicy = "single",
-                Touchpoints = new[]
+                Stages = new[]
                 {
-                    new StepDefinition
+                    new StageDefinition
                     {
-                        TouchpointKey = "processing",
+                        StageKey = "processing",
                         DisplayName = "Processing",
                         Components = new PrismComponent[]
                         {
@@ -506,13 +506,13 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                 DefinitionKey = "test-null-defer",
                 DisplayName = "Test Null Defer",
                 Version = 1,
-                InitialTouchpoint = "processing",
+                InitialStage = "processing",
                 RequestPolicy = "single",
-                Touchpoints = new[]
+                Stages = new[]
                 {
-                    new StepDefinition
+                    new StageDefinition
                     {
-                        TouchpointKey = "processing",
+                        StageKey = "processing",
                         DisplayName = "Processing",
                         Components = new PrismComponent[]
                         {

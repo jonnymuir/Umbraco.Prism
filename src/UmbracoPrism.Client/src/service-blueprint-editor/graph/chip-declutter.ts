@@ -13,7 +13,7 @@ const centerY = (box: ObstacleBox) => box.y + box.height / 2;
 /**
  * Nudges edge-label chips apart from each other and away from node bodies.
  * Each chip starts at its edge's natural path anchor (plus same-edge
- * stacking, applied by the caller); on a serviceBlueprint with real fan-out/fan-in,
+ * stacking, applied by the caller); on a service blueprint with real fan-out/fan-in,
  * many of those anchors land on top of each other and on top of the gateway
  * they cluster around. Repeated passes of AABB separation (push along the
  * axis of least overlap) settle them into a legible, non-overlapping layout

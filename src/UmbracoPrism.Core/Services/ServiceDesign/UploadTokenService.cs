@@ -8,7 +8,7 @@ namespace UmbracoPrism.Core.Services;
 
 /// <summary>
 /// <see cref="IUploadTokenService"/> backed by <see cref="IDistributedCache"/> — same mechanism
-/// and TTL (<see cref="PrismServiceDesignOptions.NonceExpiry"/>) as <see cref="TouchpointNonceService"/>,
+/// and TTL (<see cref="PrismServiceDesignOptions.NonceExpiry"/>) as <see cref="StageNonceService"/>,
 /// since an uploaded-but-not-yet-submitted file is scoped to the same single stage visit a nonce is.
 /// </summary>
 public class UploadTokenService : IUploadTokenService

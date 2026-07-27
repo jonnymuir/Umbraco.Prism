@@ -5,7 +5,7 @@ import type {
   AuthoredFieldsetComponent,
   AuthoredInputComponent,
   AuthoredPanelComponent,
-  AuthoredTouchpoint,
+  AuthoredStage,
   AuthoredSummaryListComponent,
   AuthoredTaskListComponent,
   AuthoredWaitingComponent,
@@ -30,7 +30,7 @@ export interface ProjectServiceBlueprintResult {
   hasErrors: boolean;
 }
 
-export type ProjectedServiceBlueprintState = AuthoredTouchpoint;
+export type ProjectedServiceBlueprintState = AuthoredStage;
 export type ProjectedServiceBlueprintTransition = AuthoredRoute;
 export type ProjectedInputComponent = AuthoredInputComponent;
 export type ProjectedFieldsetComponent = AuthoredFieldsetComponent;
@@ -45,7 +45,7 @@ export type ProjectedComponent = AuthoredComponent;
 export function projectServiceBlueprintLocally(serviceBlueprint: AuthoredServiceBlueprint): ProjectServiceBlueprintResult {
   const file: ProjectedServiceBlueprintDefinition = {
     ...serviceBlueprint,
-    touchpoints: serviceBlueprint.touchpoints.map(stage => projectStage(stage, serviceBlueprint)),
+    stages: serviceBlueprint.stages.map(stage => projectStage(stage, serviceBlueprint)),
   };
 
   return {
@@ -56,7 +56,7 @@ export function projectServiceBlueprintLocally(serviceBlueprint: AuthoredService
   };
 }
 
-function projectStage(stage: AuthoredTouchpoint, serviceBlueprint: AuthoredServiceBlueprint): AuthoredTouchpoint {
+function projectStage(stage: AuthoredStage, serviceBlueprint: AuthoredServiceBlueprint): AuthoredStage {
   return {
     ...stage,
     components: projectStageComponents(stage, serviceBlueprint),
@@ -69,7 +69,7 @@ function projectStage(stage: AuthoredTouchpoint, serviceBlueprint: AuthoredServi
   };
 }
 
-function projectStageComponents(stage: AuthoredTouchpoint, serviceBlueprint: AuthoredServiceBlueprint): ProjectedComponent[] {
+function projectStageComponents(stage: AuthoredStage, serviceBlueprint: AuthoredServiceBlueprint): ProjectedComponent[] {
   if (stage.components && stage.components.length > 0) {
     return [...stage.components];
   }
@@ -78,7 +78,7 @@ function projectStageComponents(stage: AuthoredTouchpoint, serviceBlueprint: Aut
     case 'CheckAnswers':
       return [{
         type: 'summary-list',
-        children: serviceBlueprint.touchpoints
+        children: serviceBlueprint.stages
           .filter(candidate => stageKind(candidate) === 'Question')
           .sort((left, right) => left.stateKey.localeCompare(right.stateKey))
           .flatMap(candidate => harvestInputs(candidate.components ?? [])),

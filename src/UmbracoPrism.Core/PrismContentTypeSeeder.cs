@@ -40,7 +40,7 @@ public class PrismContentTypeSeeder(
         await EnsureDocumentTypeAsync("homePage", "Home Page", allowedAsRoot: true);
         await EnsureDocumentTypeAsync("memberDashboard", "Member Dashboard", allowedAsRoot: false);
         await EnsureServiceBlueprintDemoPageAsync();
-        await EnsureTouchpointPageAsync();
+        await EnsureStagePageAsync();
         await EnsureCmsServiceRequestPageAsync();
         await EnsureServiceRequestHubAsync();
         await EnsureSettingsDocumentTypeAsync();
@@ -77,7 +77,7 @@ public class PrismContentTypeSeeder(
 
     /// <summary>
     /// Lets the backoffice "Create" dialog under Home actually offer the content types the
-    /// seeded demo content already nests there (touchpointPage, serviceRequestHub, memberDashboard) —
+    /// seeded demo content already nests there (stagePage, serviceRequestHub, memberDashboard) —
     /// without this, those pages only ever exist because host seeders create them directly via
     /// <see cref="IContentService"/>, bypassing the same permission check a real backoffice user
     /// creating a new page under Home would hit.
@@ -87,7 +87,7 @@ public class PrismContentTypeSeeder(
         var homePage = contentTypeService.Get("homePage");
         if (homePage == null) return;
 
-        var childAliases = new[] { "touchpointPage", "cmsServiceRequestPage", "serviceRequestHub", "memberDashboard" };
+        var childAliases = new[] { "stagePage", "cmsServiceRequestPage", "serviceRequestHub", "memberDashboard" };
         var existingAliases = (homePage.AllowedContentTypes ?? []).Select(sort => sort.Alias).ToHashSet();
         if (childAliases.All(existingAliases.Contains)) return;
 
@@ -104,14 +104,14 @@ public class PrismContentTypeSeeder(
         contentTypeService.Save(homePage);
 #pragma warning restore CS0618
 
-        logger.LogInformation("PRISM: homePage now allows touchpointPage/cmsServiceRequestPage/serviceRequestHub/memberDashboard as children");
+        logger.LogInformation("PRISM: homePage now allows stagePage/cmsServiceRequestPage/serviceRequestHub/memberDashboard as children");
         await Task.CompletedTask;
     }
 
-    private async Task EnsureTouchpointPageAsync()
+    private async Task EnsureStagePageAsync()
     {
-        const string alias = "touchpointPage";
-        const string name = "Touchpoint Page";
+        const string alias = "stagePage";
+        const string name = "Stage Page";
 
         var contentType = contentTypeService.Get(alias);
 
@@ -142,7 +142,7 @@ public class PrismContentTypeSeeder(
 
     /// <summary>
     /// The CMS Service Blueprint implementation's own document type — distinct from
-    /// <c>touchpointPage</c> (the business-service-blueprint demo pattern, route-hijacked by a
+    /// <c>stagePage</c> (the business-service-blueprint demo pattern, route-hijacked by a
     /// per-host controller) so Umbraco's naming-convention routing dispatches to
     /// <c>CmsServiceRequestPageController</c> instead, which ships ready to use directly in Core
     /// with no host-side controller needed.
@@ -240,7 +240,7 @@ public class PrismContentTypeSeeder(
 #pragma warning disable CS0618
         contentTypeService.Save(contentType);
 #pragma warning restore CS0618
-        logger.LogInformation("PRISM: blueprintKey property added to touchpointPage content type");
+        logger.LogInformation("PRISM: blueprintKey property added to stagePage content type");
     }
 
     private async Task EnsureServiceBlueprintDemoPageAsync()

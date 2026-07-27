@@ -17,18 +17,18 @@ public class GatewayRoutingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
                         new ServiceBlueprintRouteDefinition { Id = "start-to-gw", Target = "my-gateway", Trigger = "continue" }
                     ]
                 },
-                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
+                new StageDefinition { StageKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
@@ -62,11 +62,11 @@ public class GatewayRoutingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
@@ -100,25 +100,25 @@ public class GatewayRoutingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
                         new ServiceBlueprintRouteDefinition { Id = "start-to-end", Target = "end", Trigger = "continue" }
                     ]
                 },
-                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
+                new StageDefinition { StageKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways = []
         };
 
         var errors = workflow.ValidateGatewayRouting();
 
-        errors.Should().ContainSingle(d => d.Message.Contains("State 'start'") && d.Message.Contains("'end'"),
+        errors.Should().ContainSingle(d => d.Message.Contains("Stage 'start'") && d.Message.Contains("'end'"),
             "a direct state → state route must be flagged");
     }
 
@@ -129,18 +129,18 @@ public class GatewayRoutingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
                         new ServiceBlueprintRouteDefinition { Id = "to-gw", Target = "gw", Trigger = "continue" }
                     ]
                 },
-                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
+                new StageDefinition { StageKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
@@ -171,18 +171,18 @@ public class GatewayRoutingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Routes =
                     [
                         new ServiceBlueprintRouteDefinition { Id = "to-split", Target = "split", Trigger = "submit" }
                     ]
                 },
-                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
+                new StageDefinition { StageKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
@@ -224,27 +224,27 @@ public class GatewayRoutingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "a",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "a",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "a",
+                    StageKey = "a",
                     DisplayName = "A",
                     Routes =
                     [
                         new ServiceBlueprintRouteDefinition { Id = "a-to-b", Target = "b", Trigger = "continue" }
                     ]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "b",
+                    StageKey = "b",
                     DisplayName = "B",
                     Routes =
                     [
                         new ServiceBlueprintRouteDefinition { Id = "b-to-c", Target = "c", Trigger = "continue" }
                     ]
                 },
-                new StepDefinition { TouchpointKey = "c", DisplayName = "C", Routes = [] }
+                new StageDefinition { StageKey = "c", DisplayName = "C", Routes = [] }
             ],
             Gateways = []
         };
@@ -263,9 +263,9 @@ public class GatewayRoutingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "only",
-            Touchpoints = [
-                new StepDefinition { TouchpointKey = "only", DisplayName = "Only State", Routes = [] }
+            InitialStage = "only",
+            Stages = [
+                new StageDefinition { StageKey = "only", DisplayName = "Only State", Routes = [] }
             ],
             Gateways = []
         };
@@ -284,15 +284,15 @@ public class GatewayRoutingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "to-gw", Target = "gw", Trigger = "continue" }]
                 },
-                new StepDefinition { TouchpointKey = "end", DisplayName = "End", Routes = [] }
+                new StageDefinition { StageKey = "end", DisplayName = "End", Routes = [] }
             ],
             Gateways =
             [
@@ -318,11 +318,11 @@ public class GatewayRoutingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "to-gw", Target = "no-such-gateway", Trigger = "continue" }]
                 }
@@ -343,11 +343,11 @@ public class GatewayRoutingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "to-gw", Target = "gw", Trigger = "continue" }]
                 }
@@ -380,11 +380,11 @@ public class GatewayRoutingValidationTests
         {
             DefinitionKey = "test",
             DisplayName = "Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "unwired", Target = "", Trigger = "" }]
                 }

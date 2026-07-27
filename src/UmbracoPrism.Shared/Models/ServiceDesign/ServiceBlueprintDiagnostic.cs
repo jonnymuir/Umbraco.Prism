@@ -18,8 +18,8 @@ public enum ServiceBlueprintDiagnosticSeverity
 /// </summary>
 /// <param name="Code">Machine-readable diagnostic kind, e.g. "CALC_FIELD_ERROR", "SHOW_WHEN_EVAL_ERROR".</param>
 /// <param name="Path">
-/// Document path to the offending element, e.g. <c>touchpoints.review.components[2].showWhen</c> or
-/// <c>calculations.fields.member</c>. Uses stable keys (touchpoint key, field name) over array indices
+/// Document path to the offending element, e.g. <c>stages.review.components[2].showWhen</c> or
+/// <c>calculations.fields.member</c>. Uses stable keys (stage key, field name) over array indices
 /// where a key exists.
 /// </param>
 /// <param name="Message">Human-readable explanation, safe to surface directly to an author.</param>

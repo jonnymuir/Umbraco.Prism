@@ -9,7 +9,7 @@ using UmbracoPrism.MockBusinessApp.Services.Actions;
 using UmbracoPrism.Shared.Models.ServiceDesign;
 using UmbracoPrism.Shared.Models.ServiceDesign.Components;
 using UmbracoPrism.Shared.Services.Sanitization;
-using UmbracoPrism.ServiceBlueprintEditor.Authoring;
+using UmbracoPrism.MockBusinessApp.Services.Actions.ActionCatalog;
 using UmbracoPrism.ProcessManager.Models;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.ProcessManager;
@@ -100,10 +100,10 @@ public class WorkflowActionRegistryTests
                 DefinitionKey = "planning",
                 DisplayName = "Planning",
                 Version = 1,
-                InitialTouchpoint = "start",
-                Touchpoints = [
-                    new StepDefinition { TouchpointKey = "start", DisplayName = "Start", Components = [] },
-                    new StepDefinition { TouchpointKey = "review", DisplayName = "Review", Components = [] }
+                InitialStage = "start",
+                Stages = [
+                    new StageDefinition { StageKey = "start", DisplayName = "Start", Components = [] },
+                    new StageDefinition { StageKey = "review", DisplayName = "Review", Components = [] }
                 ],
                 Transitions =
                 [
@@ -116,13 +116,13 @@ public class WorkflowActionRegistryTests
                 BlueprintKey = "planning",
                 TenantId = "tenant-1",
                 UserId = "user-1",
-                CurrentTouchpoint = "review",
+                CurrentStage = "review",
                 StateVersion = 1,
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
             },
-            SourceState = new StepDefinition { TouchpointKey = "start", DisplayName = "Start", Components = [] },
-            TargetState = new StepDefinition { TouchpointKey = "review", DisplayName = "Review", Components = [] },
+            SourceState = new StageDefinition { StageKey = "start", DisplayName = "Start", Components = [] },
+            TargetState = new StageDefinition { StageKey = "review", DisplayName = "Review", Components = [] },
             Transition = new RouteFile { FromState = "start", ToState = "review", Action = "submit" },
             TriggerAction = "submit",
             FieldValues = new Dictionary<string, object?>
@@ -225,15 +225,15 @@ public class BusinessAppWorkflowEngineActionExecutionTests : IDisposable
             DefinitionKey = "workflow-actions",
             DisplayName = "Workflow Actions",
             Version = 1,
-            InitialTouchpoint = "draft",
+            InitialStage = "draft",
             RequestPolicy = "single",
-            Touchpoints = [
-                new StepDefinition
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "draft",
+                    StageKey = "draft",
                     DisplayName = "Draft",
                     Components = [],
-                    Metadata = new TouchpointMetadata
+                    Metadata = new StageMetadata
                     {
                         Actions =
                         [
@@ -259,12 +259,12 @@ public class BusinessAppWorkflowEngineActionExecutionTests : IDisposable
                         ]
                     }
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "submitted",
+                    StageKey = "submitted",
                     DisplayName = "Submitted",
                     Components = [new PanelComponent { Heading = "Done" }],
-                    Metadata = new TouchpointMetadata
+                    Metadata = new StageMetadata
                     {
                         Actions =
                         [
@@ -345,8 +345,8 @@ public class BusinessAppWorkflowEngineActionExecutionTests : IDisposable
             Invocations.Add(new RecordedInvocation(
                 action.Type,
                 context.TriggerAction,
-                context.SourceState?.TouchpointKey,
-                context.TargetState.TouchpointKey,
+                context.SourceState?.StageKey,
+                context.TargetState.StageKey,
                 new Dictionary<string, object?>(context.FieldValues)));
 
             return Task.FromResult(WorkflowActionExecutionResult.Success(action.Type));

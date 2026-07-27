@@ -6,7 +6,7 @@ import './prism-service-blueprint-editor.js';
 import type { ServiceBlueprintSource, ServiceBlueprintSummary } from './service-blueprint-source.js';
 import type { ServiceBlueprintActionCatalog } from './action-catalog.js';
 import type { ServiceBlueprintAuthorContext } from './service-blueprint-author-context.js';
-import type { QueueDefinition } from './touchpoint-assignment.js';
+import type { QueueDefinition } from './stage-assignment.js';
 
 @customElement('prism-service-blueprint-editor-shell')
 export class PrismServiceBlueprintEditorShellElement extends LitElement {
@@ -128,7 +128,7 @@ export class PrismServiceBlueprintEditorShellElement extends LitElement {
     if (this._sourceError) {
       return html`
         <div class="empty-state" role="alert" data-prism-shell-empty="source-error">
-          <h2>ServiceBlueprint source unavailable</h2>
+          <h2>Service Blueprint source unavailable</h2>
           <p>${this._sourceError}</p>
         </div>
       `;
@@ -150,37 +150,37 @@ export class PrismServiceBlueprintEditorShellElement extends LitElement {
 
   render() {
     return html`
-      <a class="skip-link" href="#serviceBlueprint-editor-reference-main">Skip to editor</a>
+      <a class="skip-link" href="#service-blueprint-editor-reference-main">Skip to editor</a>
 
       <div
         class="shell"
-        data-prism-component="serviceBlueprint-editor-shell"
-        data-prism-active-serviceBlueprint="${this.blueprintKey}"
+        data-prism-component="service-blueprint-editor-shell"
+        data-prism-active-service-blueprint="${this.blueprintKey}"
       >
         <header class="topbar">
           <div class="topbar-content">
-            <h1>ServiceBlueprint Editor</h1>
+            <h1>Service Blueprint Editor</h1>
             ${this._serviceBlueprintOptions.length > 0
              ? html`
                  <select
-                   class="serviceBlueprint-selector"
+                   class="service-blueprint-selector"
                    .value="${live(this._draftBlueprintKey)}"
                    @change="${(event: Event) => {
                      this._draftBlueprintKey = (event.target as HTMLSelectElement).value;
                      this.blueprintKey = this._draftBlueprintKey;
                    }}"
-                   aria-label="Select serviceBlueprint"
+                   aria-label="Select service blueprint"
                  >
                    ${this._renderServiceBlueprintOptions()}
                  </select>
                `
              : this.serviceBlueprintSource
-               ? html`<p class="serviceBlueprint-label">${this.blueprintKey}</p>`
+               ? html`<p class="service-blueprint-label">${this.blueprintKey}</p>`
                : nothing}
           </div>
         </header>
 
-        <main id="serviceBlueprint-editor-reference-main" class="content">
+        <main id="service-blueprint-editor-reference-main" class="content">
           <div class="editor-frame">
             ${this._renderEditorOrPlaceholder()}
           </div>
@@ -274,7 +274,7 @@ export class PrismServiceBlueprintEditorShellElement extends LitElement {
       font-weight: 700;
     }
 
-    .serviceBlueprint-selector {
+    .service-blueprint-selector {
       min-width: 250px;
       padding: 0.625rem 0.75rem;
       border: 2px solid #505a5f;
@@ -285,12 +285,12 @@ export class PrismServiceBlueprintEditorShellElement extends LitElement {
       cursor: pointer;
     }
 
-    .serviceBlueprint-selector:focus-visible {
+    .service-blueprint-selector:focus-visible {
       outline: 3px solid #ffdd00;
       outline-offset: 2px;
     }
 
-    .serviceBlueprint-label {
+    .service-blueprint-label {
       margin: 0;
       font-size: 0.95rem;
       color: #505a5f;
@@ -351,7 +351,7 @@ export class PrismServiceBlueprintEditorShellElement extends LitElement {
         gap: 0.75rem;
       }
 
-      .serviceBlueprint-selector {
+      .service-blueprint-selector {
         width: 100%;
         min-width: auto;
       }

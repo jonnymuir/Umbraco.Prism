@@ -28,7 +28,7 @@ export function lintAuthoredServiceBlueprintDocument(parsed: unknown, source: st
 
   const root = parsed as Record<string, unknown>;
 
-  for (const required of ['definitionKey', 'displayName', 'initialTouchpointKey']) {
+  for (const required of ['definitionKey', 'displayName', 'initialStage']) {
     if (typeof root[required] !== 'string' || !(root[required] as string).trim()) {
       issues.push({
         message: `Missing or empty "${required}".`,
@@ -42,23 +42,27 @@ export function lintAuthoredServiceBlueprintDocument(parsed: unknown, source: st
     issues.push({ message: '"queues" must be an array.', pathHint: 'queues' });
   }
 
-  if (!Array.isArray(root.touchpoints)) {
-    issues.push({ message: '"touchpoints" must be an array.', pathHint: 'touchpoints' });
+  if (!Array.isArray(root.stages)) {
+    issues.push({ message: '"stages" must be an array.', pathHint: 'stages' });
   } else {
     const seenStateKeys = new Set<string>();
-    root.touchpoints.forEach((rawState, index) => {
+    root.stages.forEach((rawState, index) => {
       if (!rawState || typeof rawState !== 'object' || Array.isArray(rawState)) {
         issues.push({ message: `State at index ${index} must be an object.` });
         return;
       }
 
       const state = rawState as Record<string, unknown>;
-      const stateKey = typeof state.stateKey === 'string' ? state.stateKey : '';
+      const stateKey = typeof state.stageKey === 'string'
+        ? state.stageKey
+        : typeof state.stateKey === 'string'
+          ? state.stateKey
+          : '';
       if (!stateKey.trim()) {
-        issues.push({ message: `State at index ${index} is missing "stateKey".` });
+        issues.push({ message: `State at index ${index} is missing "stageKey".` });
       } else if (seenStateKeys.has(stateKey)) {
         issues.push({
-          message: `Duplicate state key "${stateKey}".`,
+          message: `Duplicate stage key "${stateKey}".`,
           line: findLine(source, `"${stateKey}"`),
         });
       } else {
@@ -67,9 +71,13 @@ export function lintAuthoredServiceBlueprintDocument(parsed: unknown, source: st
 
       const kind = typeof state.stageType === 'string' && state.stageType
         ? state.stageType
-        : typeof (state.metadata as Record<string, unknown> | undefined)?.stageType === 'string'
-          ? String((state.metadata as Record<string, unknown>).stageType)
-          : '';
+        : typeof state.stageType === 'string' && state.stageType
+          ? state.stageType
+          : typeof (state.metadata as Record<string, unknown> | undefined)?.stageType === 'string'
+            ? String((state.metadata as Record<string, unknown>).stageType)
+            : typeof (state.metadata as Record<string, unknown> | undefined)?.stageType === 'string'
+              ? String((state.metadata as Record<string, unknown>).stageType)
+              : '';
       if (kind && !ALLOWED_STAGE_KINDS.has(kind)) {
         issues.push({
           message: `State "${stateKey || index}" has unsupported stageType "${kind}". Allowed kinds: ${[...ALLOWED_STAGE_KINDS].join(', ')}.`,
@@ -137,12 +145,12 @@ export function coerceParsedAuthoredServiceBlueprint(parsed: unknown): AuthoredS
     definitionKey: String(root.definitionKey ?? ''),
     displayName: String(root.displayName ?? ''),
     version: typeof root.version === 'number' ? root.version : 1,
-    initialTouchpointKey: String(root.initialTouchpointKey ?? ''),
+    initialStage: String(root.initialStage ?? ''),
     requestPolicy: String(root.requestPolicy ?? 'single'),
     description: typeof root.description === 'string' ? root.description : undefined,
     schemaVersion: typeof root.schemaVersion === 'string' ? root.schemaVersion : undefined,
     queues: Array.isArray(root.queues) ? (root.queues as AuthoredServiceBlueprint['queues']) : [],
-    touchpoints: Array.isArray(root.touchpoints) ? (root.touchpoints as AuthoredServiceBlueprint['touchpoints']) : [],
+    stages: Array.isArray(root.stages) ? (root.stages as AuthoredServiceBlueprint['stages']) : [],
     gateways: Array.isArray(root.gateways) ? (root.gateways as AuthoredServiceBlueprint['gateways']) : [],
     calculations: root.calculations
       ? (root.calculations as AuthoredServiceBlueprint['calculations'])

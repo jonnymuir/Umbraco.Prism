@@ -206,8 +206,8 @@ test.describe('ServiceBlueprint editor validation rail', () => {
     await page.locator('[data-prism-save]').click();
 
     await expect(page.locator('[data-prism-save-error]')).toHaveCount(0);
-    await expect(page.locator('[data-prism-save-status]')).toContainText('ServiceBlueprint saved.');
-    await expect(page.locator('[data-prism-toast]')).toContainText('ServiceBlueprint saved.');
+    await expect(page.locator('[data-prism-save-status]')).toContainText('Service blueprint saved.');
+    await expect(page.locator('[data-prism-toast]')).toContainText('Service blueprint saved.');
   });
 
   test('shows structured save failures in plain language', async ({ page }) => {
@@ -284,8 +284,8 @@ test.describe('ServiceBlueprint editor validation rail', () => {
 
     await page.locator('[data-prism-save]').click();
     await expect(page.locator('[data-prism-save-error]')).toHaveCount(0);
-    await expect(page.locator('[data-prism-save-status]')).toContainText('ServiceBlueprint saved.');
-    await expect(page.locator('[data-prism-toast]')).toContainText('ServiceBlueprint saved.');
+    await expect(page.locator('[data-prism-save-status]')).toContainText('Service blueprint saved.');
+    await expect(page.locator('[data-prism-toast]')).toContainText('Service blueprint saved.');
   });
 
   test('dismiss button removes the save error surface without needing a retry', async ({ page }) => {

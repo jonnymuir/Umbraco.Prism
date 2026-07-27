@@ -18,10 +18,10 @@ public class ServiceBlueprintInferenceTests
           "definitionKey": "test",
           "displayName": "Test",
           "version": 1,
-          "initialTouchpoint": "processing",
-          "touchpoints": [
+          "initialStage": "processing",
+          "stages": [
             {
-              "touchpointKey": "processing",
+              "stageKey": "processing",
               "displayName": "Processing",
               "components": [
                 {
@@ -41,7 +41,7 @@ public class ServiceBlueprintInferenceTests
 
         var workflow = JsonSerializer.Deserialize<ServiceBlueprint>(json, JsonOptions);
 
-        var state = workflow!.Touchpoints.Single();
+        var state = workflow!.Stages.Single();
         // StepType is inferred from components via the InferStepType extension.
         state.Components.InferStepType().Should().Be("status-timeline");
 
@@ -61,11 +61,11 @@ public class ServiceBlueprintInferenceTests
             DefinitionKey = "inference-test",
             DisplayName = "Inference Test",
             Version = 1,
-            InitialTouchpoint = "question",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "question",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "question",
+                    StageKey = "question",
                     DisplayName = "Question",
                     Components =
                     [
@@ -78,24 +78,24 @@ public class ServiceBlueprintInferenceTests
                         }
                     ]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "review",
+                    StageKey = "review",
                     DisplayName = "Review",
                     Components =
                     [
                         new SummaryListComponent { Children = [new TextInputComponent { FieldKey = "name", Label = "Name" }] }
                     ]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "complete",
+                    StageKey = "complete",
                     DisplayName = "Complete",
                     Components = [new PanelComponent { Heading = "Done" }]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "status",
+                    StageKey = "status",
                     DisplayName = "Status",
                     Components = [new BodyComponent { Content = "No action needed." }]
                 }
@@ -103,7 +103,7 @@ public class ServiceBlueprintInferenceTests
             Transitions = []
         };
 
-        workflow.Touchpoints.Select(s => s.Components.InferStepType())
+        workflow.Stages.Select(s => s.Components.InferStepType())
             .Should().ContainInOrder("question", "check-answers", "confirmation", "question");
     }
 
@@ -116,7 +116,7 @@ public class ServiceBlueprintInferenceTests
     {
         using var document = JsonDocument.Parse(File.ReadAllText(GetSeedPath(fileName)));
 
-        foreach (var state in document.RootElement.GetProperty("touchpoints").EnumerateArray())
+        foreach (var state in document.RootElement.GetProperty("stages").EnumerateArray())
         {
             state.TryGetProperty("stepType", out _).Should().BeFalse();
             state.TryGetProperty("waitingConfig", out _).Should().BeFalse();
@@ -130,7 +130,7 @@ public class ServiceBlueprintInferenceTests
             File.ReadAllText(GetSeedPath("community-enquiry.json")),
             JsonOptions);
 
-        var state = workflow!.Touchpoints.Single(s => s.TouchpointKey == "collecting-details");
+        var state = workflow!.Stages.Single(s => s.StageKey == "collecting-details");
 
         // Explanatory copy must live as standalone content components (inset-text, details, warning-text)
         // rather than being embedded inside fieldsets as fields.

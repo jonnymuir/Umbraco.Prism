@@ -35,7 +35,7 @@ public class CmsServiceRequestPageController(
     [FromKeyedServices("cms")] IBusinessAppProcessManagerClient workflowClient,
     IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery,
-    ITouchpointNonceService nonceService,
+    IStageNonceService nonceService,
     IServiceRequestFieldValidator fieldValidator,
     IServiceRequestFileStorage fileStorage,
     IUploadTokenService uploadTokenService)

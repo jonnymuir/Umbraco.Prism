@@ -172,7 +172,7 @@ letting it infer syntax from trial and error:
   `service-blueprint-docs://calculation-language`, so an agent connected only over MCP (no
   repo checkout) can fetch it directly.
 - **[Reference Service Blueprint Contract](./reference-service-blueprint-contract.md)** — the full
-  `ServiceBlueprint` shape: touchpoints, routes, gateways, queues, components,
+  `ServiceBlueprint` shape: stages, routes, gateways, queues, components,
   response states. Also exposed as `service-blueprint-docs://authoring-guide`.
 - **[Service Design Principles](./service-design-principles.md)** — the Design
   Council Double Diamond, the GOV.UK Service Standard, and Lou Downe's 15

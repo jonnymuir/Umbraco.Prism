@@ -47,18 +47,22 @@ function checkRoundTrip(file, pathLabel, original, roundTripped) {
     }
   }
 
-  const originalTouchpoints = original.touchpoints ?? original.states ?? [];
-  const roundTrippedTouchpoints = roundTripped.touchpoints ?? roundTripped.states ?? [];
-  for (const touchpoint of originalTouchpoints) {
-    const touchpointKey = touchpoint.touchpointKey ?? touchpoint.stateKey;
-    const rtTouchpoint = roundTrippedTouchpoints.find((t) => (t.touchpointKey ?? t.stateKey) === touchpointKey);
-    if (!rtTouchpoint) {
-      fail(file, pathLabel, `touchpoint '${touchpointKey}' missing after round-trip`);
+  const originalStages = original.stages ?? [];
+  const roundTrippedStages = roundTripped.stages ?? [];
+  if (originalStages.length === 0) {
+    fail(file, pathLabel, `seed has no "stages" array — round-trip check has nothing to verify (check the seed's own shape)`);
+    return;
+  }
+  for (const stage of originalStages) {
+    const stageKey = stage.stageKey;
+    const rtStage = roundTrippedStages.find((s) => s.stageKey === stageKey);
+    if (!rtStage) {
+      fail(file, pathLabel, `stage '${stageKey}' missing after round-trip`);
       continue;
     }
 
-    for (const route of touchpoint.routes ?? []) {
-      const rtRoute = (rtTouchpoint.routes ?? []).find((r) => r.id === route.id);
+    for (const route of stage.routes ?? []) {
+      const rtRoute = (rtStage.routes ?? []).find((r) => r.id === route.id);
       if (!rtRoute) {
         fail(file, pathLabel, `route '${route.id}' missing after round-trip`);
         continue;
@@ -71,17 +75,17 @@ function checkRoundTrip(file, pathLabel, original, roundTripped) {
     }
 
     // Components must survive byte-identical — the editor passes them through raw.
-    if (JSON.stringify(sortDeep(rtTouchpoint.components ?? [])) !== JSON.stringify(sortDeep(touchpoint.components ?? []))) {
-      fail(file, pathLabel, `components of touchpoint '${touchpointKey}' were altered by the round-trip`);
+    if (JSON.stringify(sortDeep(rtStage.components ?? [])) !== JSON.stringify(sortDeep(stage.components ?? []))) {
+      fail(file, pathLabel, `components of stage '${stageKey}' were altered by the round-trip`);
     }
 
     // Every PrismComponent must serialize with "type" as its first key, or the
     // backoffice save PUT gets rejected with a 400 the editor can't explain.
-    (rtTouchpoint.components ?? []).forEach((component, index) => {
+    (rtStage.components ?? []).forEach((component, index) => {
       if (component && typeof component === 'object' && 'type' in component) {
         const firstKey = Object.keys(component)[0];
         if (firstKey !== 'type') {
-          fail(file, pathLabel, `touchpoint '${touchpointKey}' component[${index}] (type: '${component.type}') ` +
+          fail(file, pathLabel, `stage '${stageKey}' component[${index}] (type: '${component.type}') ` +
             `serializes with '${firstKey}' before 'type' — System.Text.Json will reject this on save`);
         }
       }

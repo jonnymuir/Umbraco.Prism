@@ -70,7 +70,7 @@ public class ServiceRequestHubController : RenderController
             .Select(i => new ServiceRequestViewModel
             {
                 Summary = i,
-                ResumeUrl = ResolveTouchpointPageUrl(i)
+                ResumeUrl = ResolveStagePageUrl(i)
             })
             .ToList();
 
@@ -79,7 +79,7 @@ public class ServiceRequestHubController : RenderController
             .Select(i => new ServiceRequestViewModel
             {
                 Summary = i,
-                ResumeUrl = ResolveTouchpointPageUrl(i)
+                ResumeUrl = ResolveStagePageUrl(i)
             })
             .ToList();
 
@@ -92,7 +92,7 @@ public class ServiceRequestHubController : RenderController
         return CurrentTemplate(vm);
     }
 
-    private string ResolveTouchpointPageUrl(ServiceRequestSummary summary)
+    private string ResolveStagePageUrl(ServiceRequestSummary summary)
     {
         if (!string.IsNullOrWhiteSpace(summary.ServiceRequestPageUrl) && Url.IsLocalUrl(summary.ServiceRequestPageUrl))
         {
@@ -108,16 +108,16 @@ public class ServiceRequestHubController : RenderController
         if (string.IsNullOrWhiteSpace(summary.BlueprintKey))
             return CurrentPage?.Url() ?? "/";
 
-        var touchpointPage = _publishedContentQuery
+        var stagePage = _publishedContentQuery
             .ContentAtRoot()
             .SelectMany(root => root.DescendantsOrSelf())
             .FirstOrDefault(content =>
-                (content.ContentType.Alias == "touchpointPage" || content.ContentType.Alias == "cmsServiceRequestPage")
+                (content.ContentType.Alias == "stagePage" || content.ContentType.Alias == "cmsServiceRequestPage")
                 && string.Equals(content.Value<string>("blueprintKey"), summary.BlueprintKey, StringComparison.OrdinalIgnoreCase));
 
-        if (touchpointPage != null)
+        if (stagePage != null)
         {
-            var baseUrl = touchpointPage.Url();
+            var baseUrl = stagePage.Url();
             // Append instanceId for non-completed instances
             if (!summary.IsCompleted && !string.IsNullOrWhiteSpace(summary.InstanceId))
             {

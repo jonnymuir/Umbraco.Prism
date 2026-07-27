@@ -4,13 +4,13 @@
   "version": 1,
   "description": "Payment flow showing the web queue handing off to the business queue before completion.",
   "schemaVersion": "1.0",
-  "initialTouchpoint": "enter-details",
+  "initialStage": "enter-details",
   "requestPolicy": "single",
-  "touchpoints": [
+  "stages": [
     {
-      "touchpointKey": "enter-details",
+      "stageKey": "enter-details",
       "displayName": "Enter payment details",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "web-user",
       "components": [
@@ -71,10 +71,10 @@
       ]
     },
     {
-      "touchpointKey": "confirm-payment-received",
+      "stageKey": "confirm-payment-received",
       "displayName": "Confirm payment received",
       "description": "Back-office confirmation step for reconciling the payment before the applicant is released.",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "reviewer",
       "queueKey": "business-user",
       "roleGates": [
@@ -124,10 +124,10 @@
       ]
     },
     {
-      "touchpointKey": "payment-complete",
+      "stageKey": "payment-complete",
       "displayName": "Payment complete",
       "description": "Confirms that the payment has been matched and the receipt is on its way.",
-      "touchpointType": "Confirmation",
+      "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "web-user",
       "components": [
@@ -150,13 +150,13 @@
   "queues": [
     {
       "key": "web-user",
-      "displayName": "Applicant",
+      "displayName": "Applicant touchpoints",
       "description": "Web user entering payment details and waiting for confirmation.",
       "actor": "applicant"
     },
     {
       "key": "business-user",
-      "displayName": "Payments team",
+      "displayName": "Payments team touchpoints",
       "description": "Back-office payments queue confirming receipt.",
       "actor": "reviewer"
     }

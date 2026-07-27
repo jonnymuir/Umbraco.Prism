@@ -11,7 +11,7 @@
     <Version>0.1.0</Version>
     <Authors>Jonny Muir</Authors>
     <Company>Umbraco Prism</Company>
-    <Description>Umbraco/Umbraco.Cms-independent GDS-style blueprint touchpoint-machine engine (queue routing, gateway evaluation, instance persistence) used by Umbraco Prism. Reusable by any .NET host building its own blueprint-driven business app.</Description>
+    <Description>Umbraco/Umbraco.Cms-independent GDS-style blueprint state-machine engine (queue routing, gateway evaluation, instance persistence) used by Umbraco Prism. Reusable by any .NET host building its own blueprint-driven business app.</Description>
     <PackageTags>Blueprint;State-machine;GDS;Umbraco-Prism</PackageTags>
     <PackageProjectUrl>https://github.com/jonnymuir/Umbraco.Prism</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jonnymuir/Umbraco.Prism</RepositoryUrl>

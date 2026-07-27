@@ -48,7 +48,7 @@ public abstract class PrismServiceRequestPageController<TViewModel> : RenderCont
     private readonly IBusinessAppProcessManagerClient _processManagerClient;
     private readonly IPublishedValueFallback _publishedValueFallback;
     private readonly IAntiforgery _antiforgery;
-    private readonly ITouchpointNonceService _nonceService;
+    private readonly IStageNonceService _nonceService;
     private readonly IServiceRequestFieldValidator _fieldValidator;
     private readonly IServiceRequestFileStorage _fileStorage;
     private readonly IUploadTokenService _uploadTokenService;
@@ -73,7 +73,7 @@ public abstract class PrismServiceRequestPageController<TViewModel> : RenderCont
         IBusinessAppProcessManagerClient workflowClient,
         IPublishedValueFallback publishedValueFallback,
         IAntiforgery antiforgery,
-        ITouchpointNonceService nonceService,
+        IStageNonceService nonceService,
         IServiceRequestFieldValidator fieldValidator,
         IServiceRequestFileStorage fileStorage,
         IUploadTokenService uploadTokenService)

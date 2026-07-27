@@ -9,7 +9,7 @@ This guide covers the Umbraco-facing side of Prism service blueprints: service r
 That call registers:
 
 - `IBusinessAppWorkflowClient`
-- `ITouchpointNonceService`
+- `IStageNonceService`
 - `IServiceRequestFieldValidator`
 - `IServiceContentSanitizer`
 - `PrismServiceDesignOptions`
@@ -30,10 +30,10 @@ For production, replace the default in-memory distributed cache with a shared ba
 
 | Document type | Purpose |
 | --- | --- |
-| `touchpointPage` | Hosts a single service blueprint journey |
+| `stagePage` | Hosts a single service blueprint journey |
 | `serviceRequestHub` | Lists active and completed service requests |
 
-`touchpointPage` also gets a `blueprintKey` property. That key is the bridge between an Umbraco content node and a service blueprint in the business app.
+`stagePage` also gets a `blueprintKey` property. That key is the bridge between an Umbraco content node and a service blueprint in the business app.
 
 ## Route hijacking controller
 
@@ -68,11 +68,11 @@ protected override ServiceRequestResponseEnvelope PrePopulateFields(ServiceReque
 }
 ```
 
-See `src/UmbracoPrism.TestSite/Controllers/TouchpointPageController.cs` for the real implementation.
+See `src/UmbracoPrism.TestSite/Controllers/StagePageController.cs` for the real implementation.
 
 ## Service Blueprint form tag helper
 
-`prism-service-blueprint-form` is the form wrapper Prism expects. `PrismTouchpointFormTagHelper` writes:
+`prism-service-blueprint-form` is the form wrapper Prism expects. `PrismStageFormTagHelper` writes:
 
 - the antiforgery token,
 - `InstanceId`,
@@ -89,7 +89,7 @@ That means partial views can focus on fields and actions instead of rebuilding h
 
 - calls `GetInstancesAsync()`,
 - splits active vs completed instances,
-- resolves the matching `touchpointPage` by `blueprintKey`,
+- resolves the matching `stagePage` by `blueprintKey`,
 - appends `instanceId` for resumable journeys.
 
 This is the piece that makes `multiple` and `prompt` instance policies user-friendly rather than purely technical.
@@ -99,7 +99,7 @@ This is the piece that makes `multiple` and `prompt` instance policies user-frie
 ```mermaid
 sequenceDiagram
     participant Member as Authenticated member
-    participant Page as touchpointPage
+    participant Page as stagePage
     participant Controller as PrismServiceRequestPageController
     participant Client as IBusinessAppWorkflowClient
     participant API as Business app API

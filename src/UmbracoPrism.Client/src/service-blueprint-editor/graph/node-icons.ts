@@ -1,4 +1,4 @@
-import type { AuthoredGateway, AuthoredTouchpoint, GatewayKind, TouchpointKind } from '../types.js';
+import type { AuthoredGateway, AuthoredStage, GatewayKind, StageKind } from '../types.js';
 
 export type NodeIconDef = { viewBox: string; paths: string[] };
 
@@ -84,7 +84,7 @@ export const NODE_ICONS: Record<string, NodeIconDef> = {
 
 export type NodeIconName = keyof typeof NODE_ICONS;
 
-const STAGE_KIND_ICON: Record<TouchpointKind, NodeIconName> = {
+const STAGE_KIND_ICON: Record<StageKind, NodeIconName> = {
   Question: 'form',
   CheckAnswers: 'checklist',
   Confirmation: 'flagCheck',
@@ -96,7 +96,7 @@ const GATEWAY_KIND_ICON: Record<GatewayKind, NodeIconName> = {
   Join: 'join',
 };
 
-export function defaultIconForStage(stage: Pick<AuthoredTouchpoint, 'kind'>): NodeIconName {
+export function defaultIconForStage(stage: Pick<AuthoredStage, 'kind'>): NodeIconName {
   return (stage.kind && STAGE_KIND_ICON[stage.kind]) || 'form';
 }
 
@@ -105,7 +105,7 @@ export function defaultIconForGateway(gateway: Pick<AuthoredGateway, 'gatewayTyp
   return (kind && GATEWAY_KIND_ICON[kind]) || 'split';
 }
 
-export function iconForStage(stage: Pick<AuthoredTouchpoint, 'icon' | 'kind'>): NodeIconDef {
+export function iconForStage(stage: Pick<AuthoredStage, 'icon' | 'kind'>): NodeIconDef {
   return NODE_ICONS[stage.icon ?? ''] ?? NODE_ICONS[defaultIconForStage(stage)];
 }
 

@@ -69,17 +69,17 @@ export function describeTransitionCondition(condition?: string): string {
 }
 
 export function defaultTransitionTarget(serviceBlueprint: AuthoredServiceBlueprint, sourceStageKey: string): string | null {
-  const currentIndex = serviceBlueprint.touchpoints.findIndex(stage => stage.stateKey === sourceStageKey);
+  const currentIndex = serviceBlueprint.stages.findIndex(stage => stage.stateKey === sourceStageKey);
   if (currentIndex >= 0) {
-    const nextStage = serviceBlueprint.touchpoints[currentIndex + 1];
+    const nextStage = serviceBlueprint.stages[currentIndex + 1];
     if (nextStage) {
       return nextStage.stateKey;
     }
   }
 
-  return serviceBlueprint.touchpoints.find(stage => stage.stateKey !== sourceStageKey)?.stateKey ?? null;
+  return serviceBlueprint.stages.find(stage => stage.stateKey !== sourceStageKey)?.stateKey ?? null;
 }
 
 export function defaultTransitionAction(serviceBlueprint: AuthoredServiceBlueprint, targetStageKey: string): string {
-  return targetStageKey === serviceBlueprint.initialTouchpointKey ? 'return' : 'continue';
+  return targetStageKey === serviceBlueprint.initialStage ? 'return' : 'continue';
 }

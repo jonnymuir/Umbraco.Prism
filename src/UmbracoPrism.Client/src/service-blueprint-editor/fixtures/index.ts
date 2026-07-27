@@ -9,10 +9,10 @@ export const PLANNING_SERVICE_BLUEPRINT: AuthoredServiceBlueprint = hydrateServi
   definitionKey: 'planning-application',
   displayName: 'Planning Application',
   version: 1,
-  initialTouchpointKey: 'declaration',
+  initialStage: 'declaration',
   requestPolicy: 'single',
   queues: [{ key: 'applicant', displayName: 'Applicant', actor: 'applicant', queueName: 'web-user', roleGates: [] }],
-  touchpoints: [
+  stages: [
     {
       stateKey: 'declaration',
       displayName: 'Declaration',
@@ -184,13 +184,13 @@ export const LEAVE_REQUEST_STARTER_SERVICE_BLUEPRINT: AuthoredServiceBlueprint =
   definitionKey: 'leave-request',
   displayName: 'Leave Request',
   version: 1,
-  initialTouchpointKey: 'start-request',
+  initialStage: 'start-request',
   requestPolicy: 'multiple',
   queues: [
     { key: 'applicant', displayName: 'Applicant', actor: 'applicant', queueName: 'web-user', roleGates: [] },
     { key: 'reviewer', displayName: 'Reviewer', actor: 'reviewer', queueName: 'business-user', roleGates: ['reviewer'] },
   ],
-  touchpoints: [
+  stages: [
     { stateKey: 'start-request', displayName: 'Start request', components: [], metadata: { description: 'Collect the request details before the service branches into review work.', stageType: 'Question', actor: 'applicant', queueKey:'applicant', actions: [], roleGates: [] } },
     { stateKey: 'applicant-amendments', displayName: 'Applicant amendments', components: [], metadata: { description: 'Applicant updates the request when more detail is needed.', stageType: 'Question', actor: 'applicant', queueKey:'applicant', actions: [], roleGates: [] } },
     { stateKey: 'upload-evidence', displayName: 'Upload evidence', components: [], metadata: { description: 'Applicant provides the supporting documents for the request.', stageType: 'Question', actor: 'applicant', queueKey:'applicant', actions: [], roleGates: [] } },
@@ -220,7 +220,7 @@ export const PAYMENT_DEMO_SERVICE_BLUEPRINT: AuthoredServiceBlueprint = hydrateS
   definitionKey: 'payment-demo',
   displayName: 'Payment Demo',
   version: 1,
-  initialTouchpointKey: 'enter-details',
+  initialStage: 'enter-details',
   requestPolicy: 'single',
   description: 'Payment flow showing the web queue handing off to the business queue before completion.',
   schemaVersion: '1.0',
@@ -228,7 +228,7 @@ export const PAYMENT_DEMO_SERVICE_BLUEPRINT: AuthoredServiceBlueprint = hydrateS
     { key: 'web-user', displayName: 'Applicant', actor: 'applicant' },
     { key: 'business-user', displayName: 'Payments team', actor: 'reviewer', roleGates: ['reviewer'] },
   ],
-  touchpoints: [
+  stages: [
     {
       stateKey: 'enter-details',
       displayName: 'Enter payment details',
@@ -570,7 +570,7 @@ export const MONEY_MODELLER_SERVICE_BLUEPRINT: AuthoredServiceBlueprint = hydrat
   version: 1,
   description: 'Interactive pension benefit modeller: model retirement scenarios from your record or a formal quote, then hand a chosen scenario to the scheme administrators as a quote request.',
   schemaVersion: '1.0',
-  initialTouchpointKey: 'choose-start',
+  initialStage: 'choose-start',
   requestPolicy: 'single',
   calculations: {
     tables: {
@@ -638,7 +638,7 @@ export const MONEY_MODELLER_SERVICE_BLUEPRINT: AuthoredServiceBlueprint = hydrat
     { key: 'web-user', displayName: 'Member', description: 'Scheme member exploring retirement scenarios.', actor: 'member' },
     { key: 'business-user', displayName: 'Scheme administrators', description: 'Back-office queue handling formal quote requests.', actor: 'reviewer' },
   ],
-  touchpoints: [
+  stages: [
     {
       stateKey: 'choose-start',
       displayName: 'Model your money',

@@ -40,7 +40,7 @@ public class ServiceBlueprintBuilder
     private int _version = 1;
     private string _initialState = "";
     private string _instancePolicy = "single";
-    private readonly List<StepDefinition> _states = new();
+    private readonly List<StageDefinition> _states = new();
     private readonly List<RouteFile> _transitions = new();
 
     /// <summary>Sets the unique key for this service blueprint.</summary>
@@ -52,22 +52,22 @@ public class ServiceBlueprintBuilder
     /// <summary>Sets the version number for this service blueprint.</summary>
     public ServiceBlueprintBuilder Version(int version) { _version = version; return this; }
 
-    /// <summary>Sets the key of the touchpoint where users enter the blueprint.</summary>
-    public ServiceBlueprintBuilder StartsAt(string touchpointKey) { _initialState = touchpointKey; return this; }
+    /// <summary>Sets the key of the stage where users enter the blueprint.</summary>
+    public ServiceBlueprintBuilder StartsAt(string stageKey) { _initialState = stageKey; return this; }
 
     /// <summary>Sets the instance creation policy: "single" | "multiple" | "prompt".</summary>
     public ServiceBlueprintBuilder RequestPolicy(string policy) { _instancePolicy = policy; return this; }
 
-    /// <summary>Adds a touchpoint to this service blueprint.</summary>
-    public ServiceBlueprintBuilder AddState(string touchpointKey, Action<StateBuilder> configure)
+    /// <summary>Adds a stage to this service blueprint.</summary>
+    public ServiceBlueprintBuilder AddState(string stageKey, Action<StateBuilder> configure)
     {
-        var builder = new StateBuilder(touchpointKey);
+        var builder = new StateBuilder(stageKey);
         configure(builder);
         _states.Add(builder.Build());
         return this;
     }
 
-    /// <summary>Adds a transition (edge) between two touchpoints.</summary>
+    /// <summary>Adds a transition (edge) between two stages.</summary>
     public ServiceBlueprintBuilder AddTransition(string fromState, string toState, string action, string? requiresRole = null)
     {
         _transitions.Add(new RouteFile
@@ -86,9 +86,9 @@ public class ServiceBlueprintBuilder
         DefinitionKey = _definitionKey,
         DisplayName = _displayName,
         Version = _version,
-        InitialTouchpoint = _initialState,
+        InitialStage = _initialState,
         RequestPolicy = _instancePolicy,
-        Touchpoints = _states.ToArray(),
+        Stages = _states.ToArray(),
         Transitions = _transitions.ToArray()
     };
 }
@@ -368,22 +368,22 @@ public abstract class ComponentCollectionBuilder<TSelf> where TSelf : ComponentC
     }
 }
 
-/// <summary>Builder for a blueprint touchpoint's <see cref="PrismComponent"/> tree.</summary>
+/// <summary>Builder for a blueprint stage's <see cref="PrismComponent"/> tree.</summary>
 public sealed class StateBuilder : ComponentCollectionBuilder<StateBuilder>
 {
     private readonly string _stateKey;
     private string _displayName = "";
 
-    internal StateBuilder(string touchpointKey) { _stateKey = touchpointKey; }
+    internal StateBuilder(string stageKey) { _stateKey = stageKey; }
 
     protected override StateBuilder Self => this;
 
-    /// <summary>Sets the human-readable display name for this touchpoint.</summary>
+    /// <summary>Sets the human-readable display name for this stage.</summary>
     public StateBuilder DisplayName(string name) { _displayName = name; return this; }
 
-    internal StepDefinition Build() => new()
+    internal StageDefinition Build() => new()
     {
-        TouchpointKey = _stateKey,
+        StageKey = _stateKey,
         DisplayName = _displayName,
         Components = Components.ToArray()
     };
@@ -438,7 +438,7 @@ public sealed class ConditionalChildrenBuilder
 }
 
 /// <summary>
-/// Plain bag of <see cref="PrismComponent"/>s for contexts that aren't a fieldset or touchpoint
+/// Plain bag of <see cref="PrismComponent"/>s for contexts that aren't a fieldset or stage
 /// (e.g., conditional children of a radio option).
 /// </summary>
 public sealed class ChildrenBuilder : ComponentCollectionBuilder<ChildrenBuilder>
@@ -466,8 +466,8 @@ public sealed class SummaryListBuilder
         return this;
     }
 
-    /// <summary>The touchpoint key the "Change" links navigate to.</summary>
-    public SummaryListBuilder ChangeStateKey(string touchpointKey) { _changeStateKey = touchpointKey; return this; }
+    /// <summary>The stage key the "Change" links navigate to.</summary>
+    public SummaryListBuilder ChangeStateKey(string stageKey) { _changeStateKey = stageKey; return this; }
 
     /// <summary>Optional heading shown above the summary list.</summary>
     public SummaryListBuilder Title(string title) { _title = title; return this; }

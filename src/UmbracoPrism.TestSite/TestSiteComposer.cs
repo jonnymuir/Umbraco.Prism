@@ -22,7 +22,7 @@ namespace UmbracoPrism.TestSite;
 /// <para>
 /// <see cref="ComposeAfterAttribute"/> on <see cref="PrismComposer"/> guarantees that
 /// <see cref="PrismContentTypeSeeder"/> is registered — and therefore runs — before any
-/// handler registered here. <see cref="TouchpointPageSeeder"/> depends on <c>touchpointPage</c>
+/// handler registered here. <see cref="StagePageSeeder"/> depends on <c>stagePage</c>
 /// and <c>serviceRequestHub</c> content types created by <see cref="PrismContentTypeSeeder"/>.
 /// Umbraco dispatches <see cref="UmbracoApplicationStartedNotification"/> handlers
 /// sequentially in registration order, so composer ordering is the correct coordination mechanism.
@@ -45,8 +45,8 @@ public class TestSiteComposer : IComposer
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, VinylVaultSeeder>();
         builder.Services.AddHostedService<LimitedEditionDropNotifier>();
 
-        // Touchpoint Page demo — runs after PrismContentTypeSeeder has created the touchpointPage doc type
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, TouchpointPageSeeder>();
+        // Stage Page demo — runs after PrismContentTypeSeeder has created the stagePage doc type
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, StagePageSeeder>();
 
         // Prism CMS Service Blueprint demos ("Apply for a juggling licence" and "Transfer a professional
         // juggling licence") — demonstrates the service-sourced field extension point for a

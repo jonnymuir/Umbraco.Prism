@@ -40,7 +40,7 @@ change and services need to change with them.
 
 **In Prism terms:** Discover and Define happen before you touch the editor or
 `save_service_blueprint` at all — they're conversations and research, not JSON. Develop is
-where you sketch competing shapes for the queues/touchpoints/gateways, ideally more than
+where you sketch competing shapes for the queues/stages/gateways, ideally more than
 one. Deliver is `validate_service_blueprint` and `simulate_service_blueprint`'s job: dry-run a
 candidate through the real engine before anything reaches a live user.
 
@@ -50,14 +50,14 @@ Fourteen points a service should meet. Not all of them are Prism's to enforce �
 some are organisational, not structural — but each should shape how a service blueprint
 gets authored:
 
-1. **Understand users and their needs** — design queues and touchpoints around what the
+1. **Understand users and their needs** — design queues and stages around what the
    people in them are trying to do, not around an internal team's process.
 2. **Solve a whole problem for users** — model the whole journey across every
    queue involved (applicant *and* admin, say), not one team's slice of it.
 3. **Provide a joined-up experience across all channels** — the engine is
    channel-agnostic; design one journey, don't let each channel drift into its
    own variant.
-4. **Make the service simple to use** — fewer touchpoints and routes wins; push
+4. **Make the service simple to use** — fewer stages and routes wins; push
    decision logic into gateways and calculations rather than showing it to users.
 5. **Make sure everyone can use the service** — see
    [Using GDS Design System Components](./service-blueprint-gds-components.md) for the
@@ -111,17 +111,17 @@ a drafted service blueprint rather than a process to follow:
 
 A few map onto concrete authoring decisions worth calling out directly:
 
-- **Have no dead ends** — already structurally enforced: every touchpoint route must
+- **Have no dead ends** — already structurally enforced: every stage route must
   resolve through a gateway (`ValidateGatewayRouting()`), so a service blueprint can't be
   saved with a step that leads nowhere.
-- **Clearly explain why a decision has been made** — any touchpoint that represents a
+- **Clearly explain why a decision has been made** — any stage that represents a
   decision (an approval, a discretionary outcome, an eligibility result) should
   render the *reason*, not just the outcome. If a decision can't be explained in
   the UI, that's a sign the underlying `calculations` block needs a field for it.
 - **Make it easy to get human assistance** — consider whether the service blueprint needs
   an explicit escalation route to a human queue, rather than trusting an
   automated path to cover every case.
-- **Require the minimum possible steps to complete** — before adding a touchpoint, ask
+- **Require the minimum possible steps to complete** — before adding a stage, ask
   whether it needs to be shown to a user at all, or whether a gateway/calculation
   can resolve it silently.
 

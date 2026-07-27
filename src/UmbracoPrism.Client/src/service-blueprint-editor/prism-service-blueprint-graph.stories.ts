@@ -21,8 +21,8 @@ const SAME_LANE_FAN_OUT_SERVICE_BLUEPRINT: AuthoredServiceBlueprint = {
   ...STUB_SERVICE_BLUEPRINT,
   definitionKey: 'leave-request-same-lane-fan-out',
   displayName: 'Leave Request — Same-Lane Fan-Out',
-  initialTouchpointKey: 'draft',
-  touchpoints: [
+  initialStage: 'draft',
+  stages: [
     {
       stateKey: 'draft',
       displayName: 'Draft submission',
@@ -112,7 +112,7 @@ async function waitForGraphReady(canvasElement: HTMLElement): Promise<PrismServi
   const el = canvasElement.querySelector('prism-service-blueprint-graph') as PrismServiceBlueprintGraphElement;
   await el.updateComplete;
   await waitFor(() => {
-    const hasStages = (el.serviceBlueprint?.touchpoints?.length ?? 0) > 0;
+    const hasStages = (el.serviceBlueprint?.stages?.length ?? 0) > 0;
     if (!hasStages || el.hasAttribute('data-prism-graph-ready')) {
       return;
     }
@@ -140,7 +140,7 @@ function fillCreateStageDialog(root: ShadowRoot, name: string, key: string, lane
 }
 
 const meta: Meta<StoryArgs> = {
-  title: 'ServiceBlueprint Editor/ServiceBlueprint Graph',
+  title: 'Service Blueprint Editor/Service Blueprint Graph',
   component: 'prism-service-blueprint-graph',
   tags: ['autodocs'],
   parameters: {
@@ -178,7 +178,7 @@ export const WorkspaceCanvas: Story = {
     const el = await waitForGraphReady(canvasElement);
 
     const root = el.shadowRoot!;
-    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(WORKSPACE_SERVICE_BLUEPRINT.touchpoints.length);
+    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(WORKSPACE_SERVICE_BLUEPRINT.stages.length);
     await expect(root.querySelectorAll('[data-prism-transition]').length).toBeGreaterThanOrEqual(0);
   },
 };
@@ -196,7 +196,7 @@ export const InteractiveWorkspace: Story = {
     fillCreateStageDialog(root, 'Evidence Review', 'evidence-review', 'reviewer', 'review');
     root.querySelector<HTMLButtonElement>('[data-prism-create-stage-submit]')!.click();
     await el.updateComplete;
-    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(WORKSPACE_SERVICE_BLUEPRINT.touchpoints.length + 1);
+    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(WORKSPACE_SERVICE_BLUEPRINT.stages.length + 1);
 
     const declaration = root.querySelector<HTMLElement>('[data-prism-stage="applicant-details"]')!;
     let inspectorOpened = false;
@@ -312,7 +312,7 @@ export const GraphReadOnly: Story = {
         story:
           'Renders a published serviceBlueprint purely from HTML attributes — no JS plumbing. ' +
           'Demonstrates the `<prism-service-blueprint-graph read-only service-blueprint-json="...">` recipe an ' +
-          'integrator can drop into a Razor view to show a serviceBlueprint diagram on a public page.',
+          'integrator can drop into a Razor view to show a service blueprint diagram on a public page.',
       },
     },
   },
@@ -362,7 +362,7 @@ export const GraphReadOnly: Story = {
 function buildLargeServiceBlueprint(): AuthoredServiceBlueprint {
   const lanes = ['intake', 'triage', 'review', 'decision', 'archive'];
   const stagesPerLane = 8;
-  const stages: AuthoredServiceBlueprint['touchpoints'] = [];
+  const stages: AuthoredServiceBlueprint['stages'] = [];
   const gateways: NonNullable<AuthoredServiceBlueprint['gateways']> = [];
 
   for (const lane of lanes) {
@@ -377,7 +377,7 @@ function buildLargeServiceBlueprint(): AuthoredServiceBlueprint {
         actions: [],
         components: [],
         roleGates: [],
-      } as unknown as AuthoredServiceBlueprint['touchpoints'][number]);
+      } as unknown as AuthoredServiceBlueprint['stages'][number]);
       if (i > 0) {
         const prev = `${lane}-step-${i}`;
         gateways.push({
@@ -399,8 +399,8 @@ function buildLargeServiceBlueprint(): AuthoredServiceBlueprint {
     displayName: 'Large synthetic serviceBlueprint',
     version: 1,
     requestPolicy: 'multiple',
-    initialTouchpointKey: `${lanes[0]}-step-1`,
-    touchpoints: stages,
+    initialStage: `${lanes[0]}-step-1`,
+    stages: stages,
     transitions: gateways.flatMap(gateway => gateway.source ? [{ fromState: gateway.source, toState: gateway.key, action: 'route' }, ...((gateway.routes ?? []).map(route => ({ fromState: gateway.key, toState: route.target, action: route.trigger })))] : []),
     metadata: { schemaVersion: '1.0', gateways },
   } as unknown as AuthoredServiceBlueprint;
@@ -423,7 +423,7 @@ export const LargeServiceBlueprint: Story = {
   play: async ({ canvasElement }) => {
     const el = await waitForGraphReady(canvasElement);
     const root = el.shadowRoot!;
-    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(LARGE_SERVICE_BLUEPRINT.touchpoints.length);
+    await expect(root.querySelectorAll('[data-prism-stage]').length).toBe(LARGE_SERVICE_BLUEPRINT.stages.length);
   },
 };
 
@@ -502,7 +502,7 @@ export const MoneyModeller: Story = {
 
     // Transition chips shouldn't pile up on each other or on stage/gateway
     // cards — the exact regression this fixture exists to catch. Some of
-    // this serviceBlueprint's cross-queue routes naturally anchor in the lane gap
+    // this service blueprint's cross-queue routes naturally anchor in the lane gap
     // (36px, narrower than the chip) between two obstacles on either side,
     // so a little unavoidable edge-touching is tolerated. One pairing
     // ("send-quote" against the "quote-sent" card) sits at ~50%: review-

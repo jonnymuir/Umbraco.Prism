@@ -11,7 +11,7 @@ Prism supports two practical authoring styles.
 | JSON seed files | You want simple content-like service blueprints or a demo harness | `src/UmbracoPrism.MockBusinessApp/service-blueprints/*.json` |
 | Fluent builder | You want compile-time help, shared code, or richer composition | `src/UmbracoPrism.Shared/Builders/ServiceBlueprintBuilder.cs` |
 
-Both produce the same runtime shape: `ServiceBlueprint` with `StepDefinition` states and `RouteFile` transitions.
+Both produce the same runtime shape: `ServiceBlueprint` with `StageDefinition` states and `RouteFile` transitions.
 
 ## Definition contract
 
@@ -24,7 +24,7 @@ Source: `src/UmbracoPrism.Shared/Models/ServiceDesign/ServiceBlueprint.cs`
 | `version` | Yes | Definition revision, useful for your own migration/versioning story |
 | `initialState` | Yes | First state for new instances |
 | `instancePolicy` | No (defaults to `single`) | `single`, `multiple`, or `prompt` |
-| `states` | Yes | Array of `StepDefinition` objects |
+| `states` | Yes | Array of `StageDefinition` objects |
 | `transitions` | Yes | Array of permitted action edges |
 
 A state is intentionally small:

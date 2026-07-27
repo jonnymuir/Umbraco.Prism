@@ -27,7 +27,7 @@ public class CmsServiceRequestFileUploadController(
     CmsProcessManager engine,
     CmsServiceRequestVisitorIdentityResolver identityResolver,
     IServiceRequestFileStorage fileStorage,
-    ITouchpointNonceService nonceService,
+    IStageNonceService nonceService,
     IUploadTokenService uploadTokenService,
     IAntiforgery antiforgery) : ControllerBase
 {

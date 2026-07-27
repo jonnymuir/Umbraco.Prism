@@ -31,7 +31,7 @@ public class UmbracoCmsServiceBlueprintStoreTests
         DefinitionKey = "apply-for-a-juggling-licence",
         DisplayName = "Apply for a Juggling Licence",
         Version = version,
-        InitialTouchpoint = "eligibility"
+        InitialStage = "eligibility"
     };
 
     [Fact]

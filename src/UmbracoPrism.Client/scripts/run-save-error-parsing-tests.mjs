@@ -27,9 +27,9 @@ const serviceBlueprint = {
   definitionKey: 'transfer-a-juggling-licence',
   displayName: 'Transfer a Professional Juggling Licence',
   version: 4,
-  initialTouchpointKey: 'eligibility-professional',
+  initialStage: 'eligibility-professional',
   requestPolicy: 'single',
-  touchpoints: [
+  stages: [
     { stateKey: 'licence-details', displayName: 'Your existing licence', components: [], routes: [] },
   ],
 };
@@ -43,14 +43,14 @@ const serviceBlueprint = {
     diagnostics: [
       {
         code: 'DATA_DISPLAY_UNKNOWN_FIELD',
-        path: 'touchpoints.licence-details.components[0].items[0].fieldKey',
+        path: 'stages.licence-details.components[0].items[0].fieldKey',
         message:
           "stat-group item 'Membership tier' binds to field 'membershipTier', which is neither a captured input field nor a calculations.fields entry.",
         severity: 'Error',
       },
       {
         code: 'SHOW_WHEN_EVAL_ERROR',
-        path: 'touchpoints.licence-details.components[0].showWhen',
+        path: 'stages.licence-details.components[0].showWhen',
         message: "Unknown name 'isMember' in expression 'isMember'.",
         severity: 'Error',
       },
@@ -64,7 +64,7 @@ const serviceBlueprint = {
 
   // The first diagnostic becomes the headline `summary` (matching the existing conflict-parsing
   // convention) — `details` holds the rest, so nothing duplicates between summary and list.
-  assert('Invalid outcome is not mistaken for a generic ProblemDetails', error.title === 'This serviceBlueprint can’t be saved yet');
+  assert('Invalid outcome is not mistaken for a generic ProblemDetails', error.title === 'This service blueprint can’t be saved yet');
   assert(
     'the first diagnostic becomes the summary, prefixed with its stage name',
     error.summary.startsWith('Your existing licence:') && error.summary.includes("binds to field 'membershipTier'")

@@ -13,13 +13,13 @@ public record ServiceRequestResponseEnvelope
     public required string InstanceId { get; init; }
 
     /// <summary>
-    /// Gets the response touchpoint indicating what the client should do next.
+    /// Gets the response stage indicating what the client should do next.
     /// Valid values: render, defer, complete, error.
     /// </summary>
     public required string ResponseState { get; init; }
 
     /// <summary>
-    /// Gets the current touchpoint version for optimistic concurrency control.
+    /// Gets the current stage version for optimistic concurrency control.
     /// </summary>
     public required int StateVersion { get; init; }
 
@@ -68,7 +68,7 @@ public record StepContent
     public required string StepType { get; init; }
 
     /// <summary>
-    /// Gets the touchpoint display name.
+    /// Gets the stage display name.
     /// </summary>
     public required string StateDisplayName { get; init; }
 
@@ -110,7 +110,7 @@ public record PrismComponentRenderPayload
     // Summary-list
     /// <summary>Heading above the summary list (overrides the field group DisplayName).</summary>
     public string? Title { get; init; }
-    /// <summary>The touchpoint key the "Change" links navigate to (summary-list only).</summary>
+    /// <summary>The stage key the "Change" links navigate to (summary-list only).</summary>
     public string? SourceStateKey { get; init; }
 
     // Content types
@@ -340,7 +340,7 @@ public record FieldRenderPayload
     public string? Content { get; init; }
 
     /// <summary>
-    /// For a summary-list row: the touchpoint key this row's own "Change" link navigates back to,
+    /// For a summary-list row: the stage key this row's own "Change" link navigates back to,
     /// overriding the parent summary-list's <see cref="PrismComponentRenderPayload.SourceStateKey"/>.
     /// Null outside a summary-list context.
     /// </summary>

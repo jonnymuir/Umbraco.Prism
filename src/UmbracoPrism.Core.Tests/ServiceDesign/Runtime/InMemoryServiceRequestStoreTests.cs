@@ -39,7 +39,7 @@ public class InMemoryServiceRequestStoreTests
         store.Save(CreateInstance("instance-1", currentState: "second"));
 
         store.TryGet("instance-1", out var retrieved).Should().BeTrue();
-        retrieved.CurrentTouchpoint.Should().Be("second");
+        retrieved.CurrentStage.Should().Be("second");
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class InMemoryServiceRequestStoreTests
         BlueprintKey = "test-workflow",
         TenantId = "tenant-1",
         UserId = "user-1",
-        CurrentTouchpoint = currentState,
+        CurrentStage = currentState,
         StateVersion = 1,
         CreatedAt = DateTimeOffset.UtcNow,
         UpdatedAt = DateTimeOffset.UtcNow

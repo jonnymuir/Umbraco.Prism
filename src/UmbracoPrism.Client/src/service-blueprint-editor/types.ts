@@ -1,7 +1,7 @@
 /**
  * Client-side serviceBlueprint definition types aligned with Prism's queue-only
  * authored contract. Canonical JSON serialises top-level queues plus routes
- * owned by touchpoints and gateways.
+ * owned by stages and gateways.
  */
 
 // ---------------------------------------------------------------------------
@@ -12,27 +12,25 @@ export interface AuthoredServiceBlueprint {
   definitionKey: string;
   displayName: string;
   version: number;
-  initialTouchpointKey: string;
+  initialStage: string;
   requestPolicy: string;
   description?: string;
   schemaVersion?: string;
   queues?: QueueDefinition[];
-  touchpoints: AuthoredTouchpoint[];
+  stages: AuthoredStage[];
   gateways?: AuthoredGateway[];
   calculations?: ServiceBlueprintCalculationsBlock;
   parameterSchemas?: AuthoredParameterSchema[];
   layout?: ServiceBlueprintLayoutBlock;
   metadata?: ServiceBlueprintDefinitionMetadata;
   transitions?: AuthoredTransition[];
-  stages?: AuthoredTouchpoint[];
-  initialStageKey?: string;
   authorNote?: string;
 }
 
 /**
  * Editor canvas layout hints — manually arranged node positions keyed by
  * prefixed node id (`stage:<stateKey>` / `gateway:<key>`). Owned by the
- * editor; the serviceBlueprint runtime never reads it. Nodes without an entry fall
+ * editor; the service blueprint runtime never reads it. Nodes without an entry fall
  * back to the derived auto-layout, and queue membership (queueKey) stays
  * authoritative for which swim lane a node belongs to.
  */
@@ -84,15 +82,15 @@ export interface ServiceBlueprintHandoffDefinition {
 }
 
 // ---------------------------------------------------------------------------
-// States / stages
+// Stages
 // ---------------------------------------------------------------------------
 
-export interface AuthoredTouchpoint {
+export interface AuthoredStage {
   stateKey: string;
   displayName: string;
   components?: AuthoredComponent[];
   description?: string;
-  kind?: TouchpointKind;
+  kind?: StageKind;
   actor?: string;
   queueKey?: string;
   routes?: AuthoredRoute[];
@@ -100,14 +98,13 @@ export interface AuthoredTouchpoint {
   roleGates?: string[];
   editorComment?: string;
   metadata?: ServiceBlueprintStateMetadata;
-  stageKey?: string;
   /** Curated icon-set key (see graph/node-icons.ts). Falls back to a kind-based default when unset. */
   icon?: string;
 }
 
 export interface ServiceBlueprintStateMetadata {
   description?: string;
-  stageType?: TouchpointKind;
+  stageType?: StageKind;
   actor?: string;
   queueKey?: string;
   queueName?: string;
@@ -170,8 +167,8 @@ export interface ServiceBlueprintConditionDefinition {
   description?: string;
 }
 
-// Closed union — mirrors the C# TouchpointKind enum exactly.
-export type TouchpointKind =
+// Closed union — mirrors the C# StageKind enum exactly.
+export type StageKind =
   | 'Question'
   | 'CheckAnswers'
   | 'Confirmation'
@@ -185,7 +182,7 @@ export type EditorStageType =
   | 'decision'
   | 'confirmation';
 
-export function stageKindToEditorStageType(kind: TouchpointKind): EditorStageType {
+export function stageKindToEditorStageType(kind: StageKind): EditorStageType {
   switch (kind) {
     case 'CheckAnswers':
       return 'review';
@@ -199,7 +196,7 @@ export function stageKindToEditorStageType(kind: TouchpointKind): EditorStageTyp
   }
 }
 
-export function editorStageTypeToTouchpointKind(type: EditorStageType): TouchpointKind {
+export function editorStageTypeToStageKind(type: EditorStageType): StageKind {
   switch (type) {
     case 'review':
       return 'CheckAnswers';
@@ -259,12 +256,12 @@ export interface WaitingMetadata {
   deferMessage?: string;
 }
 
-export function serviceBlueprintTouchpoints(serviceBlueprint: Pick<AuthoredServiceBlueprint, 'touchpoints'> | null | undefined): AuthoredTouchpoint[] {
-  return serviceBlueprint?.touchpoints ?? [];
+export function serviceBlueprintStages(serviceBlueprint: Pick<AuthoredServiceBlueprint, 'stages'> | null | undefined): AuthoredStage[] {
+  return serviceBlueprint?.stages ?? [];
 }
 
 export function serviceBlueprintTransitions(
-  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'touchpoints' | 'gateways'> | null | undefined
+  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'stages' | 'gateways'> | null | undefined
 ): AuthoredTransition[] {
   return buildLegacyTransitions(serviceBlueprint);
 }
@@ -289,39 +286,39 @@ export function serviceBlueprintQueues(
   return (serviceBlueprint as AuthoredServiceBlueprint | null | undefined)?.queues ?? [];
 }
 
-export function stageActions(stage: Pick<AuthoredTouchpoint, 'actions' | 'metadata'>): AuthoredAction[] {
+export function stageActions(stage: Pick<AuthoredStage, 'actions' | 'metadata'>): AuthoredAction[] {
   return stage.actions ?? stage.metadata?.actions ?? [];
 }
 
-export function touchpointRoleGates(stage: Pick<AuthoredTouchpoint, 'roleGates' | 'metadata'>): string[] {
+export function stageRoleGates(stage: Pick<AuthoredStage, 'roleGates' | 'metadata'>): string[] {
   return stage.roleGates ?? stage.metadata?.roleGates ?? [];
 }
 
-export function stageLane(stage: Pick<AuthoredTouchpoint, 'queueKey' | 'metadata'>): string | undefined {
+export function stageLane(stage: Pick<AuthoredStage, 'queueKey' | 'metadata'>): string | undefined {
   return stage.queueKey ?? stage.metadata?.queueKey ?? stage.metadata?.queueName;
 }
 
-export function touchpointActor(stage: Pick<AuthoredTouchpoint, 'actor' | 'metadata'>): string | undefined {
+export function stageActor(stage: Pick<AuthoredStage, 'actor' | 'metadata'>): string | undefined {
   return stage.actor ?? stage.metadata?.actor;
 }
 
-export function stageKind(stage: Pick<AuthoredTouchpoint, 'kind' | 'metadata'>): TouchpointKind {
+export function stageKind(stage: Pick<AuthoredStage, 'kind' | 'metadata'>): StageKind {
   return stage.kind ?? stage.metadata?.stageType ?? 'Question';
 }
 
-export function stageDescription(stage: Pick<AuthoredTouchpoint, 'description' | 'metadata'>): string | undefined {
+export function stageDescription(stage: Pick<AuthoredStage, 'description' | 'metadata'>): string | undefined {
   return stage.description ?? stage.metadata?.description;
 }
 
-export function stageEditorComment(stage: Pick<AuthoredTouchpoint, 'editorComment' | 'metadata'>): string | undefined {
+export function stageEditorComment(stage: Pick<AuthoredStage, 'editorComment' | 'metadata'>): string | undefined {
   return stage.editorComment ?? stage.metadata?.editorComment;
 }
 
-export function stageWaiting(stage: Pick<AuthoredTouchpoint, 'metadata'>): WaitingMetadata | undefined {
+export function stageWaiting(stage: Pick<AuthoredStage, 'metadata'>): WaitingMetadata | undefined {
   return stage.metadata?.waiting;
 }
 
-export function withStageMetadata(stage: AuthoredTouchpoint, metadata: ServiceBlueprintStateMetadata): AuthoredTouchpoint {
+export function withStageMetadata(stage: AuthoredStage, metadata: ServiceBlueprintStateMetadata): AuthoredStage {
   return hydrateStage({
     ...stage,
     description: metadata.description ?? stage.description,
@@ -334,11 +331,11 @@ export function withStageMetadata(stage: AuthoredTouchpoint, metadata: ServiceBl
   });
 }
 
-export function withTouchpointKind(stage: AuthoredTouchpoint, nextKind: TouchpointKind): AuthoredTouchpoint {
+export function withStageKind(stage: AuthoredStage, nextKind: StageKind): AuthoredStage {
   return hydrateStage({ ...stage, kind: nextKind });
 }
 
-export function withTouchpointAssignment(stage: AuthoredTouchpoint, queueKey: string, actor?: string, roleGates: string[] = []): AuthoredTouchpoint {
+export function withStageAssignment(stage: AuthoredStage, queueKey: string, actor?: string, roleGates: string[] = []): AuthoredStage {
   return hydrateStage({
     ...stage,
     queueKey,
@@ -347,7 +344,7 @@ export function withTouchpointAssignment(stage: AuthoredTouchpoint, queueKey: st
   });
 }
 
-export function withStageKey(stage: AuthoredTouchpoint, stateKey: string): AuthoredTouchpoint {
+export function withStageKey(stage: AuthoredStage, stateKey: string): AuthoredStage {
   return hydrateStage({ ...stage, stateKey });
 }
 
@@ -392,7 +389,7 @@ function defineCompatGetter(target: object, key: string, getter: () => unknown) 
 export function hydrateServiceBlueprintDefinition<T extends AuthoredServiceBlueprint>(serviceBlueprint: T): T {
   const root = serviceBlueprint as unknown as Record<string, unknown>;
   const metadata = asRecord(root.metadata);
-  const rawStates = asArray<Record<string, unknown>>(root.touchpoints ?? root.stages);
+  const rawStates = asArray<Record<string, unknown>>(root.stages);
   const rawGateways = asArray<Record<string, unknown>>(root.gateways ?? metadata.gateways);
   const rawTransitions = asArray<Record<string, unknown>>(root.transitions);
   const rawQueues = dedupeByKey(
@@ -408,16 +405,12 @@ export function hydrateServiceBlueprintDefinition<T extends AuthoredServiceBluep
     definitionKey: typeof root.definitionKey === 'string' ? root.definitionKey : '',
     displayName: typeof root.displayName === 'string' ? root.displayName : '',
     version: typeof root.version === 'number' ? root.version : 1,
-    initialTouchpointKey: typeof root.initialTouchpointKey === 'string'
-      ? root.initialTouchpointKey
-      : typeof root.initialStageKey === 'string'
-        ? root.initialStageKey
-        : normalisedStates[0]?.stateKey ?? '',
+    initialStage: firstString(root.initialStage) ?? normalisedStates[0]?.stateKey ?? '',
     requestPolicy: typeof root.requestPolicy === 'string' ? root.requestPolicy : 'single',
     description: firstString(root.description, metadata.description, root.authorNote),
     schemaVersion: firstString(root.schemaVersion, metadata.schemaVersion),
     queues: rawQueues,
-    touchpoints: normalisedStates,
+    stages: normalisedStates,
     gateways: normalisedGateways,
     calculations: root.calculations && typeof root.calculations === 'object' && !Array.isArray(root.calculations)
       ? root.calculations as ServiceBlueprintCalculationsBlock
@@ -432,8 +425,6 @@ export function hydrateServiceBlueprintDefinition<T extends AuthoredServiceBluep
     tags: asRecord(metadata.tags) as Record<string, string>,
   };
 
-  defineCompatGetter(normalisedServiceBlueprint, 'stages', () => normalisedServiceBlueprint.touchpoints);
-  defineCompatGetter(normalisedServiceBlueprint, 'initialStageKey', () => normalisedServiceBlueprint.initialTouchpointKey);
   defineCompatGetter(normalisedServiceBlueprint, 'authorNote', () => normalisedServiceBlueprint.description);
   defineCompatGetter(normalisedServiceBlueprint, 'metadata', () => legacyMetadata);
   defineCompatGetter(legacyMetadata, 'description', () => normalisedServiceBlueprint.description);
@@ -603,9 +594,9 @@ function normaliseStage(
   queueLookup: Map<string, string>,
   rawTransitions: Array<Record<string, unknown>>,
   rawGateways: Array<Record<string, unknown>>
-): AuthoredTouchpoint {
+): AuthoredStage {
   const metadata = asRecord(rawStage.metadata);
-  const stateKey = firstString(rawStage.touchpointKey, rawStage.stateKey, rawStage.stageKey, rawStage.key) ?? '';
+  const stateKey = firstString(rawStage.stageKey, rawStage.stateKey, rawStage.key) ?? '';
   const transitionRoutes = rawTransitions
     .filter(transition => firstString(transition.fromState) === stateKey)
     .map(transition => normaliseLegacyTransitionRoute(stateKey, transition));
@@ -635,7 +626,7 @@ function normaliseStage(
     displayName: firstString(rawStage.displayName, rawStage.title) ?? stateKey,
     components: asArray<AuthoredComponent>(rawStage.components),
     description: firstString(rawStage.description, metadata.description),
-    kind: firstString(rawStage.touchpointType, rawStage.kind, rawStage.stageType, rawStage.type, metadata.stageType) as TouchpointKind | undefined,
+    kind: firstString(rawStage.stageType, rawStage.kind, rawStage.type, metadata.stageType) as StageKind | undefined,
     actor: firstString(rawStage.actor, metadata.actor),
     queueKey: resolveQueueKey(rawStage, queueLookup),
     routes,
@@ -701,7 +692,7 @@ function normaliseGateway(
   });
 }
 
-function hydrateStage(stage: AuthoredTouchpoint): AuthoredTouchpoint {
+function hydrateStage(stage: AuthoredStage): AuthoredStage {
   const hydrated = {
     ...stage,
     components: stage.components ?? [],
@@ -709,7 +700,7 @@ function hydrateStage(stage: AuthoredTouchpoint): AuthoredTouchpoint {
     actions: stage.actions ?? [],
     roleGates: stage.roleGates ?? [],
     routes: stage.routes ?? [],
-  } as AuthoredTouchpoint;
+  } as AuthoredStage;
 
   defineCompatGetter(hydrated, 'stageKey', () => hydrated.stateKey);
   defineCompatGetter(hydrated, 'metadata', () => ({
@@ -750,13 +741,13 @@ function hydrateGateway(gateway: AuthoredGateway): AuthoredGateway {
 }
 
 function buildLegacyTransitions(
-  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'touchpoints' | 'gateways'> | null | undefined
+  serviceBlueprint: Pick<AuthoredServiceBlueprint, 'stages' | 'gateways'> | null | undefined
 ): AuthoredTransition[] {
   if (!serviceBlueprint) {
     return [];
   }
 
-  const stageTransitions = serviceBlueprint.touchpoints.flatMap(stage =>
+  const stageTransitions = serviceBlueprint.stages.flatMap(stage =>
     (stage.routes ?? []).map(route => {
       const metadata: ServiceBlueprintTransitionMetadata = {
         conditions: route.condition
@@ -1322,8 +1313,8 @@ export const STUB_SERVICE_BLUEPRINT: AuthoredServiceBlueprint = hydrateServiceBl
   displayName: 'Planning Permission Application',
   version: 1,
   requestPolicy: 'single',
-  initialTouchpointKey: 'applicant-details',
-  touchpoints: [
+  initialStage: 'applicant-details',
+  stages: [
     {
       stateKey: 'applicant-details',
       displayName: 'Applicant Details',

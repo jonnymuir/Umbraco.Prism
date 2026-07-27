@@ -1,4 +1,4 @@
-import type { AuthoredGateway, AuthoredRoute, AuthoredTouchpoint, AuthoredServiceBlueprint } from './types.js';
+import type { AuthoredGateway, AuthoredRoute, AuthoredStage, AuthoredServiceBlueprint } from './types.js';
 
 /**
  * Stable, deterministic JSON serialization for the flattened serviceBlueprint definition
@@ -8,13 +8,13 @@ const TOP_LEVEL_KEY_ORDER: readonly string[] = [
   'definitionKey',
   'displayName',
   'version',
-  'initialTouchpointKey',
+  'initialStage',
   'requestPolicy',
   'description',
   'schemaVersion',
   'calculations',
   'queues',
-  'touchpoints',
+  'stages',
   'gateways',
   'parameterSchemas',
   'layout',
@@ -34,9 +34,9 @@ function serialisableRoute(route: AuthoredRoute): Record<string, unknown> {
   };
 }
 
-function serialisableState(stage: AuthoredTouchpoint): Record<string, unknown> {
+function serialisableState(stage: AuthoredStage): Record<string, unknown> {
   return {
-    stateKey: stage.stateKey,
+    stageKey: stage.stateKey,
     displayName: stage.displayName,
     components: stage.components ?? [],
     description: stage.description,
@@ -76,12 +76,12 @@ function serialisableServiceBlueprint(serviceBlueprint: AuthoredServiceBlueprint
     definitionKey: serviceBlueprint.definitionKey,
     displayName: serviceBlueprint.displayName,
     version: serviceBlueprint.version,
-    initialTouchpointKey: serviceBlueprint.initialTouchpointKey,
+    initialStage: serviceBlueprint.initialStage,
     requestPolicy: serviceBlueprint.requestPolicy,
     description: serviceBlueprint.description,
     schemaVersion: serviceBlueprint.schemaVersion,
     queues: serviceBlueprint.queues ?? [],
-    touchpoints: serviceBlueprint.touchpoints.map(serialisableState),
+    stages: serviceBlueprint.stages.map(serialisableState),
     gateways: (serviceBlueprint.gateways ?? []).map(serialisableGateway),
     calculations: serviceBlueprint.calculations,
     parameterSchemas: serviceBlueprint.parameterSchemas,

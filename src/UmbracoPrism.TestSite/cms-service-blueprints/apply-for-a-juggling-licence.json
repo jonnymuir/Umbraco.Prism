@@ -4,7 +4,7 @@
   "version": 1,
   "schemaVersion": "1.0",
   "description": "Prism CMS Workflow reference example — a GDS-style public application journey, entirely hosted and authored in Umbraco with no separate business app.",
-  "initialTouchpoint": "eligibility",
+  "initialStage": "eligibility",
   "requestPolicy": "single",
   "calculations": {
     "fields": {
@@ -20,17 +20,17 @@
   "queues": [
     {
       "key": "cms-visitor",
-      "displayName": "Site visitor",
+      "displayName": "Site visitor touchpoints",
       "description": "The site visitor applying for a juggling licence — anonymous, or a logged-in Prism Member.",
       "actor": "applicant"
     }
   ],
-  "touchpoints": [
+  "stages": [
     {
-      "touchpointKey": "eligibility",
+      "stageKey": "eligibility",
       "displayName": "Eligibility",
       "description": "Confirms the applicant meets the basic eligibility rules before collecting any details.",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -65,9 +65,9 @@
       ]
     },
     {
-      "touchpointKey": "applicant-details",
+      "stageKey": "applicant-details",
       "displayName": "Your details",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -107,9 +107,9 @@
       ]
     },
     {
-      "touchpointKey": "licence-details",
+      "stageKey": "licence-details",
       "displayName": "Licence type",
-      "touchpointType": "Question",
+      "stageType": "Question",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -166,9 +166,9 @@
       ]
     },
     {
-      "touchpointKey": "check-answers",
+      "stageKey": "check-answers",
       "displayName": "Check your answers",
-      "touchpointType": "CheckAnswers",
+      "stageType": "CheckAnswers",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [
@@ -223,9 +223,9 @@
       ]
     },
     {
-      "touchpointKey": "confirmation",
+      "stageKey": "confirmation",
       "displayName": "Application submitted",
-      "touchpointType": "Confirmation",
+      "stageType": "Confirmation",
       "actor": "applicant",
       "queueKey": "cms-visitor",
       "components": [

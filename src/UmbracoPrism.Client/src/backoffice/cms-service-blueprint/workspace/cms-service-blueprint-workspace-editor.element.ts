@@ -11,7 +11,7 @@ import { UmbElementMixin } from '@umbraco-cms/backoffice/element-api';
 import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
 import '../../../service-blueprint-editor/prism-service-blueprint-editor.js';
 import { UmbracoBackofficeServiceBlueprintSource } from '../../cms-service-blueprint-source.js';
-import type { QueueDefinition } from '../../../service-blueprint-editor/touchpoint-assignment.js';
+import type { QueueDefinition } from '../../../service-blueprint-editor/stage-assignment.js';
 import type { UmbCmsServiceBlueprintWorkspaceContext } from './cms-service-blueprint-workspace.context.js';
 import { UMB_WORKSPACE_CONTEXT } from '@umbraco-cms/backoffice/workspace';
 

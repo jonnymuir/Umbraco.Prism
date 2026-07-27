@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { AuthoredTouchpoint, TouchpointKind } from './types.js';
+import type { AuthoredStage, StageKind } from './types.js';
 
 export type ServiceBlueprintSimulationStopReason = 'waiting' | 'terminal' | 'no-transitions' | null;
 
@@ -16,7 +16,7 @@ export interface ServiceBlueprintSimulationTransitionOption {
   label: string;
   targetStageKey: string;
   targetStageLabel: string;
-  targetTouchpointKind?: TouchpointKind;
+  targetStageKind?: StageKind;
   blocked: boolean;
   blockerMessages: string[];
   conditionSummary?: string;
@@ -35,10 +35,10 @@ const STOP_COPY: Record<Exclude<ServiceBlueprintSimulationStopReason, null>, str
 @customElement('prism-service-blueprint-simulation')
 export class PrismServiceBlueprintSimulationElement extends LitElement {
   @property({ attribute: false })
-  initialStage: AuthoredTouchpoint | null = null;
+  initialStage: AuthoredStage | null = null;
 
   @property({ attribute: false })
-  currentStage: AuthoredTouchpoint | null = null;
+  currentStage: AuthoredStage | null = null;
 
   @property({ attribute: false })
   history: ServiceBlueprintSimulationHistoryEntry[] = [];
@@ -129,7 +129,7 @@ export class PrismServiceBlueprintSimulationElement extends LitElement {
             `
           : html`
               <p class="simulation-empty">
-                Choose an initial stage before you simulate this serviceBlueprint.
+                Choose an initial stage before you simulate this service blueprint.
               </p>
             `}
 

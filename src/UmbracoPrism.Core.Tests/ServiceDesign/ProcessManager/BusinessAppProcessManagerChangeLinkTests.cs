@@ -66,20 +66,20 @@ public class BusinessAppWorkflowEngineChangeLinkTests : IDisposable
             DefinitionKey = "change-link-business-app-test",
             DisplayName = "Change Link Business App Test",
             Version = 1,
-            InitialTouchpoint = "how-many-bins",
+            InitialStage = "how-many-bins",
             RequestPolicy = "single",
             Queues = [new QueueDefinition { Key = "web-user", DisplayName = "Member", Actor = "member" }],
-            Touchpoints = [
-                new StepDefinition
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "how-many-bins",
+                    StageKey = "how-many-bins",
                     DisplayName = "How many bins do you have?",
                     QueueKey = "web-user",
                     Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins", Required = true }]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "collection-fee",
+                    StageKey = "collection-fee",
                     DisplayName = "Collection Fee",
                     QueueKey = "web-user",
                     Components =

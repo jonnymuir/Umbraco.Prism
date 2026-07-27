@@ -1,20 +1,8 @@
-/* prism-forms.css — Form & touchpoint component styles */
+/* prism-forms.css — Form component styles */
 
 /* --------------------------------------------------------------------------
    @property declarations for form-specific custom properties
    -------------------------------------------------------------------------- */
-
-@property --prism-touchpoint-max-width {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 640px;
-}
-
-@property --prism-touchpoint-padding {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 1.5rem;
-}
 
 @property --prism-form-group-spacing {
   syntax: '<length>';
@@ -147,8 +135,6 @@
    -------------------------------------------------------------------------- */
 
 :root {
-    --prism-touchpoint-max-width: 40rem; /* ~640px: matches GDS form measure */
-    --prism-touchpoint-padding: 0;
     --prism-form-group-spacing: 20px;
     --prism-input-border: 2px solid var(--prism-text);
     --prism-input-border-radius: 0;
@@ -173,22 +159,9 @@
 }
 
 /* --------------------------------------------------------------------------
-   Workflow container
-   -------------------------------------------------------------------------- */
-
-.prism-touchpoint {
-    width: 100%;
-    max-width: var(--prism-touchpoint-max-width);
-    padding: var(--prism-touchpoint-padding);
-    margin: 0;
-    box-sizing: border-box;
-}
-
-/* --------------------------------------------------------------------------
    Fieldset / legend
    -------------------------------------------------------------------------- */
 
-.prism-touchpoint__fieldset,
 .prism-fieldset {
     border: 0;
     padding: 0;
@@ -196,7 +169,6 @@
     min-inline-size: 0;
 }
 
-.prism-touchpoint__legend,
 .prism-legend {
     font-size: var(--prism-text-size-lg);
     font-weight: 700;
@@ -208,12 +180,6 @@
     display: table;
     max-width: 100%;
     box-sizing: border-box;
-}
-
-.prism-touchpoint__heading {
-    font-size: 1.5rem;
-    font-weight: 700;
-    margin-bottom: 1rem;
 }
 
 /* --------------------------------------------------------------------------
@@ -381,18 +347,6 @@
 }
 
 /* --------------------------------------------------------------------------
-   Actions row
-   -------------------------------------------------------------------------- */
-
-.prism-touchpoint__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-top: 30px;
-    padding-top: 15px;
-}
-
-/* --------------------------------------------------------------------------
    Buttons
    -------------------------------------------------------------------------- */
 
@@ -475,10 +429,6 @@
    Review step
    -------------------------------------------------------------------------- */
 
-.prism-touchpoint--review {
-    /* inherits container styles from .prism-touchpoint */
-}
-
 .prism-review__group {
     margin-bottom: 2rem;
 }
@@ -528,10 +478,6 @@
 /* --------------------------------------------------------------------------
    Completion / confirmation panel
    -------------------------------------------------------------------------- */
-
-.prism-touchpoint--complete {
-    /* inherits container styles from .prism-touchpoint */
-}
 
 .prism-panel--confirmation {
     background-color: var(--prism-panel-confirmation-bg);
@@ -586,10 +532,6 @@
    -------------------------------------------------------------------------- */
 
 @media (max-width: 640px) {
-    .prism-touchpoint {
-        padding: 1rem;
-    }
-
     .prism-input,
     .prism-textarea,
     .prism-select {
@@ -601,10 +543,6 @@
         grid-template-columns: 1fr;
     }
 
-    .prism-touchpoint__actions {
-        flex-direction: column;
-    }
-
     .prism-button {
         width: 100%;
         justify-content: center;
@@ -612,19 +550,19 @@
 }
 
 /* --------------------------------------------------------------------------
-   Page container (WorkflowPage layout)
+   Page container (StagePage layout)
    -------------------------------------------------------------------------- */
 
-.touchpoint-page {
+.stage-page {
     margin: 0;
 }
 
-.touchpoint-page__header {
+.stage-page__header {
     margin-bottom: var(--prism-section-gap);
     padding-top: 0;
 }
 
-.touchpoint-page__title {
+.stage-page__title {
     font-size: clamp(32px, 5vw, var(--prism-text-size-xl));
     font-weight: 700;
     line-height: 1.1;
@@ -636,32 +574,32 @@
    Alerts
    -------------------------------------------------------------------------- */
 
-.touchpoint-alert {
+.stage-alert {
     border-left: 5px solid;
     padding: 15px 20px;
     margin-bottom: 30px;
     font-size: var(--prism-text-size-md);
 }
 
-.touchpoint-alert--error {
+.stage-alert--error {
     border-color: var(--prism-danger);
     background: color-mix(in srgb, var(--prism-danger) 8%, var(--prism-surface));
     color: var(--prism-text);
 }
 
-.touchpoint-alert--error p {
+.stage-alert--error p {
     color: var(--prism-danger);
     font-weight: 700;
     margin: 0;
 }
 
-.touchpoint-alert--warn {
+.stage-alert--warn {
     border-color: var(--prism-warning);
     background: color-mix(in srgb, var(--prism-warning) 10%, var(--prism-surface));
     color: var(--prism-text);
 }
 
-.touchpoint-alert--warn p {
+.stage-alert--warn p {
     margin: 0;
 }
 
@@ -696,11 +634,6 @@
 /* --------------------------------------------------------------------------
    Status timeline step
    -------------------------------------------------------------------------- */
-
-.prism-touchpoint--status {
-    text-align: center;
-    padding: 3rem 1rem;
-}
 
 .prism-status__icon {
     font-size: 3rem;
@@ -841,7 +774,7 @@ textarea[aria-invalid="true"] {
 }
 
 /* --------------------------------------------------------------------------
-   Workflow Hub
+   Service Request Hub
    -------------------------------------------------------------------------- */
 
 .prism-service-request-hub {

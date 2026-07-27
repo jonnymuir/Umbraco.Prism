@@ -53,14 +53,14 @@ export class PrismCreateCmsServiceBlueprintModalElement extends UmbElementMixin(
       const { error } = await repository.create(model, null);
 
       if (error) {
-        this._error = error instanceof Error ? error.message : 'Failed to create the serviceBlueprint.';
+        this._error = error instanceof Error ? error.message : 'Failed to create the service blueprint.';
         return;
       }
 
       this.modalContext?.submit();
       window.location.href = `/umbraco/${UMB_CMS_SERVICE_BLUEPRINT_EDIT_PATH_PREFIX}${encodeURIComponent(this._definitionKey)}`;
     } catch (err) {
-      this._error = err instanceof Error ? err.message : 'Failed to create the serviceBlueprint.';
+      this._error = err instanceof Error ? err.message : 'Failed to create the service blueprint.';
     } finally {
       this._saving = false;
     }
@@ -85,7 +85,7 @@ export class PrismCreateCmsServiceBlueprintModalElement extends UmbElementMixin(
             <uui-label slot="label" for="definitionKey" required>Definition key</uui-label>
             <span slot="description">
               A stable, url-safe identifier — used in the page's <code>blueprintKey</code> property and cannot
-              be changed later without deleting and recreating the serviceBlueprint.
+              be changed later without deleting and recreating the service blueprint.
             </span>
             <uui-input
               id="definitionKey"

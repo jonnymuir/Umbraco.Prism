@@ -9,12 +9,4 @@
     <EnableDefaultContentItems>false</EnableDefaultContentItems>
   </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="Authoring/Schemas/*.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
 </Project>

@@ -81,9 +81,9 @@ public abstract record InputComponent : PrismComponent
     public string? DefaultFrom { get; init; }
 
     /// <summary>
-    /// When this component appears as a summary-list row, the touchpoint key its own "Change" link
+    /// When this component appears as a summary-list row, the stage key its own "Change" link
     /// navigates back to — overriding the summary-list's own <c>ChangeStateKey</c> for rows
-    /// summarising fields captured on a different earlier touchpoint. Ignored outside a summary-list.
+    /// summarising fields captured on a different earlier stage. Ignored outside a summary-list.
     /// </summary>
     public string? ChangeStateKey { get; init; }
 }

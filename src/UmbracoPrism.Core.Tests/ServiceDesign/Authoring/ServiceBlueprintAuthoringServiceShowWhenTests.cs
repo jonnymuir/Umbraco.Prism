@@ -27,11 +27,11 @@ public class ServiceBlueprintAuthoringServiceShowWhenTests
         {
             DefinitionKey = "showwhen-test",
             DisplayName = "ShowWhen Test",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Components =
                     [
@@ -47,7 +47,7 @@ public class ServiceBlueprintAuthoringServiceShowWhenTests
         outcome.IsValid.Should().BeFalse();
         outcome.Diagnostics.Should().ContainSingle(d =>
             d.Code == "SHOW_WHEN_EVAL_ERROR"
-            && d.Path == "touchpoints.start.components[0].showWhen"
+            && d.Path == "stages.start.components[0].showWhen"
             && d.Message.Contains("nosuchfield"));
     }
 
@@ -58,11 +58,11 @@ public class ServiceBlueprintAuthoringServiceShowWhenTests
         {
             DefinitionKey = "showwhen-ok",
             DisplayName = "ShowWhen OK",
-            InitialTouchpoint = "start",
-            Touchpoints = [
-                new StepDefinition
+            InitialStage = "start",
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Components =
                     [

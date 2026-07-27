@@ -22,7 +22,7 @@ public static class ServiceDesignBuilderExtensions
     /// <remarks>
     /// Registers:
     /// - <see cref="IBusinessAppProcessManagerClient"/> (scoped) — HTTP client for calling the Business App
-    /// - <see cref="ITouchpointNonceService"/> (singleton) — Nonce generation and validation for tamper-proof forms
+    /// - <see cref="IStageNonceService"/> (singleton) — Nonce generation and validation for tamper-proof forms
     /// - <see cref="IDistributedCache"/> (singleton) — In-memory cache (replace with Redis/SQL for multi-server)
     /// - <see cref="PrismServiceDesignOptions"/> — Configuration from "Prism:Workflow" section
     /// 
@@ -46,7 +46,7 @@ public static class ServiceDesignBuilderExtensions
             builder.Config.GetSection("Prism:Workflow"));
 
         // Workflow nonce service for tamper-proof form submission
-        builder.Services.AddSingleton<ITouchpointNonceService, TouchpointNonceService>();
+        builder.Services.AddSingleton<IStageNonceService, StageNonceService>();
 
         // Workflow field validator for server-side structural validation
         builder.Services.AddTransient<IServiceRequestFieldValidator, ServiceRequestFieldValidator>();

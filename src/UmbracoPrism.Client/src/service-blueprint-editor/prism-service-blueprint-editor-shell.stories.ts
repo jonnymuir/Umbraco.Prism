@@ -2,9 +2,9 @@ import type { Meta, StoryObj } from '@storybook/web-components';
 import './prism-service-blueprint-editor-shell.js';
 import type { PrismServiceBlueprintEditorShellElement } from './prism-service-blueprint-editor-shell.js';
 import { PAYMENT_DEMO_SERVICE_BLUEPRINT, PLANNING_SERVICE_BLUEPRINT, cloneAuthoredServiceBlueprint } from './fixtures/index.js';
-import type { AuthoredTouchpoint, AuthoredServiceBlueprint } from './types.js';
+import type { AuthoredStage, AuthoredServiceBlueprint } from './types.js';
 import { InMemoryServiceBlueprintSource } from './in-memory-service-blueprint-source.js';
-import type { QueueDefinition } from './touchpoint-assignment.js';
+import type { QueueDefinition } from './stage-assignment.js';
 
 type ServiceBlueprintSeed = {
   blueprintKey: string;
@@ -13,8 +13,8 @@ type ServiceBlueprintSeed = {
   stages: Array<{
     stateKey: string;
     displayName: string;
-    actor?: AuthoredTouchpoint['actor'];
-    kind?: AuthoredTouchpoint['kind'];
+    actor?: AuthoredStage['actor'];
+    kind?: AuthoredStage['kind'];
     roleGates?: string[];
   }>;
   transitionActions: string[];
@@ -27,7 +27,7 @@ function cloneServiceBlueprint<T>(value: T): T {
 function buildServiceBlueprint(seed: ServiceBlueprintSeed): AuthoredServiceBlueprint {
   const serviceBlueprint = cloneServiceBlueprint(PLANNING_SERVICE_BLUEPRINT);
   const stages = seed.stages.map((stageSeed, index) => {
-    const baseStage = serviceBlueprint.touchpoints[Math.min(index, serviceBlueprint.touchpoints.length - 1)];
+    const baseStage = serviceBlueprint.stages[Math.min(index, serviceBlueprint.stages.length - 1)];
     return {
       ...baseStage,
       stateKey: stageSeed.stateKey,
@@ -43,8 +43,8 @@ function buildServiceBlueprint(seed: ServiceBlueprintSeed): AuthoredServiceBluep
     ...serviceBlueprint,
     definitionKey: seed.definitionKey,
     displayName: seed.displayName,
-    initialTouchpointKey: builtStages[0]?.stateKey ?? serviceBlueprint.initialTouchpointKey,
-    touchpoints: builtStages,
+    initialStage: builtStages[0]?.stateKey ?? serviceBlueprint.initialStage,
+    stages: builtStages,
     transitions: builtStages.slice(0, -1).flatMap((stage, index) => {
       const gatewayKey = `route-from-${stage.stateKey}`;
       const targetKey = builtStages[index + 1].stateKey;
@@ -147,7 +147,7 @@ function makeShell(): PrismServiceBlueprintEditorShellElement {
 }
 
 const meta: Meta = {
-  title: 'ServiceBlueprint Editor/Editor Shell',
+  title: 'Service Blueprint Editor/Editor Shell',
   component: 'prism-service-blueprint-editor-shell',
   tags: ['autodocs'],
   parameters: {

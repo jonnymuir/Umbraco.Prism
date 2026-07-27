@@ -105,12 +105,12 @@ public class WorkflowDefinitionUpdateTests : IDisposable
             DefinitionKey = "payment-demo",
             DisplayName = "Payment Demo",
             Version = 1,
-            InitialTouchpoint = "enter-details",
+            InitialStage = "enter-details",
             RequestPolicy = "single",
-            Touchpoints = [
-                new StepDefinition
+            Stages = [
+                new StageDefinition
                 {
-                    TouchpointKey = "enter-details",
+                    StageKey = "enter-details",
                     DisplayName = "Enter payment details",
                     Components =
                     [
@@ -133,9 +133,9 @@ public class WorkflowDefinitionUpdateTests : IDisposable
                         new ServiceBlueprintRouteDefinition { Id = "route-1", Target = "done", Trigger = "submit" }
                     ]
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "done",
+                    StageKey = "done",
                     DisplayName = "Done",
                     Components = [new PanelComponent { Heading = "Complete" }]
                 }
@@ -155,7 +155,7 @@ public class WorkflowDefinitionUpdateTests : IDisposable
 
     private static InputComponent? FindInputByFieldKey(ServiceBlueprint definition, string fieldKey)
     {
-        foreach (var state in definition.Touchpoints)
+        foreach (var state in definition.Stages)
         {
             var match = FindInComponents(state.Components, fieldKey);
             if (match is not null)

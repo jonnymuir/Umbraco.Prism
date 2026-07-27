@@ -17,9 +17,9 @@ namespace UmbracoPrism.Core.Tests.ServiceDesign.Components;
 /// workflow routes state-to-state through a gateway (required by
 /// <see cref="ServiceBlueprint.ValidateGatewayRouting"/>), which means <c>instance.Cursors</c>
 /// is populated by the time a user reaches a review/summary stage — but the render is built from
-/// <c>Cursors</c>, not <c>CurrentTouchpoint</c>, once any cursor exists
+/// <c>Cursors</c>, not <c>CurrentStage</c>, once any cursor exists
 /// (<c>ProcessManagerEngine.FindAccessibleWorkItems</c>). The original "change:" handler only
-/// updated <c>CurrentTouchpoint</c>, so the jump was a silent no-op for any workflow with a gateway in
+/// updated <c>CurrentStage</c>, so the jump was a silent no-op for any workflow with a gateway in
 /// its path — which is effectively all of them — and the user landed right back where they
 /// started. Confirmed live via a direct <c>simulate_workflow</c>/browser reproduction before fixing.
 /// </summary>
@@ -50,7 +50,7 @@ public class RequestChangeLinkCursorTests
         // the time we reach the review stage, because every hop above went through a gateway.
         var instanceBeforeChange = engine.GetAllInstances().Single(i => i.InstanceId == afterAddress.InstanceId);
         instanceBeforeChange.Cursors.Should().NotBeEmpty(
-            "gateway-routed stages populate cursors — this is what made the old CurrentTouchpoint-only fix a no-op");
+            "gateway-routed stages populate cursors — this is what made the old CurrentStage-only fix a no-op");
 
         var afterChange = engine.Advance(
             afterAddress.InstanceId, Tenant, User, "change:how-many-bins", afterAddress.StateVersion, null);
@@ -118,27 +118,27 @@ public class RequestChangeLinkCursorTests
         DefinitionKey = "change-link-test",
         DisplayName = "Change Link Test",
         Version = 1,
-        InitialTouchpoint = "how-many-bins",
+        InitialStage = "how-many-bins",
         RequestPolicy = "single",
         Queues = [new QueueDefinition { Key = "web-user", DisplayName = "Member", Actor = "member" }],
-        Touchpoints = [
-            new StepDefinition
+        Stages = [
+            new StageDefinition
             {
-                TouchpointKey = "how-many-bins",
+                StageKey = "how-many-bins",
                 DisplayName = "How many bins do you have?",
                 QueueKey = "web-user",
                 Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins", Required = true }]
             },
-            new StepDefinition
+            new StageDefinition
             {
-                TouchpointKey = "property-address",
+                StageKey = "property-address",
                 DisplayName = "What's the property address?",
                 QueueKey = "web-user",
                 Components = [new TextInputComponent { FieldKey = "propertyAddress", Label = "Address", Required = true }]
             },
-            new StepDefinition
+            new StageDefinition
             {
-                TouchpointKey = "collection-fee",
+                StageKey = "collection-fee",
                 DisplayName = "Collection Fee",
                 QueueKey = "web-user",
                 Components =

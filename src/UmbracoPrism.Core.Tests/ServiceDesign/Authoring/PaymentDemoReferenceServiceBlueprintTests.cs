@@ -26,17 +26,17 @@ public class PaymentDemoReferenceWorkflowTests
             .Value;
 
         definition.Queues.Should().ContainSingle(queue =>
-            queue.Key == MockReferenceWorkflowQueues.WebUser && queue.DisplayName == "Applicant");
+            queue.Key == MockReferenceWorkflowQueues.WebUser && queue.DisplayName == "Applicant touchpoints");
         definition.Queues.Should().ContainSingle(queue =>
-            queue.Key == MockReferenceWorkflowQueues.BusinessUser && queue.DisplayName == "Payments team");
+            queue.Key == MockReferenceWorkflowQueues.BusinessUser && queue.DisplayName == "Payments team touchpoints");
 
-        definition.Touchpoints.Single(state => state.TouchpointKey == "enter-details").QueueKey
+        definition.Stages.Single(state => state.StageKey == "enter-details").QueueKey
             .Should().Be(MockReferenceWorkflowQueues.WebUser);
-        definition.Touchpoints.Single(state => state.TouchpointKey == "confirm-payment-received").QueueKey
+        definition.Stages.Single(state => state.StageKey == "confirm-payment-received").QueueKey
             .Should().Be(MockReferenceWorkflowQueues.BusinessUser);
-        definition.Touchpoints.Single(state => state.TouchpointKey == "enter-details").Routes.Should().ContainSingle(route =>
+        definition.Stages.Single(state => state.StageKey == "enter-details").Routes.Should().ContainSingle(route =>
             route.Target == "submit-payment" && route.Trigger == "submit");
-        definition.Touchpoints.Single(state => state.TouchpointKey == "confirm-payment-received").Routes.Should().ContainSingle(route =>
+        definition.Stages.Single(state => state.StageKey == "confirm-payment-received").Routes.Should().ContainSingle(route =>
             route.Target == "await-payment-confirmation" && route.Trigger == "confirm");
         definition.Gateways!.Should().NotContain(gateway => gateway.Key == "confirm-payment-route");
 
@@ -110,7 +110,7 @@ public class PaymentDemoReferenceWorkflowTests
         queueWork.Items.Should().ContainSingle(item =>
             item.InstanceId == current.InstanceId
             && item.QueueName == MockReferenceWorkflowQueues.BusinessUser
-            && item.TouchpointKey == "confirm-payment-received"
+            && item.StageKey == "confirm-payment-received"
             && item.AvailableActions.Any(action => action.ActionKey == "confirm"));
 
         var workItem = queueWork.Items.Single(item => item.InstanceId == current.InstanceId);
@@ -139,7 +139,7 @@ public class PaymentDemoReferenceWorkflowTests
         definition.Gateways.Should().NotContain(gateway => gateway.Key == "confirm-payment-route");
         definition.Gateways.Should().HaveCount(2);
 
-        definition.Touchpoints.Single(state => state.TouchpointKey == "confirm-payment-received")
+        definition.Stages.Single(state => state.StageKey == "confirm-payment-received")
             .Routes.Should().ContainSingle(route =>
                 route.Target == "await-payment-confirmation"
                 && route.Trigger == "confirm"
@@ -154,7 +154,7 @@ public class PaymentDemoReferenceWorkflowTests
             DefinitionKey = "queue-test",
             DisplayName = "Queue Test",
             Version = 1,
-            InitialTouchpoint = "citizen-start",
+            InitialStage = "citizen-start",
             RequestPolicy = "single",
             Queues = new[]
             {
@@ -169,11 +169,11 @@ public class PaymentDemoReferenceWorkflowTests
                     DisplayName = "Finance queue"
                 }
             },
-            Touchpoints = new[]
+            Stages = new[]
             {
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "citizen-start",
+                    StageKey = "citizen-start",
                     DisplayName = "Citizen start",
                     QueueKey = "citizen-queue",
                     Components = new PrismComponent[] { new FieldsetComponent() },
@@ -187,9 +187,9 @@ public class PaymentDemoReferenceWorkflowTests
                         }
                     }
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "finance-review",
+                    StageKey = "finance-review",
                     DisplayName = "Finance review",
                     QueueKey = "finance-queue",
                     Components = new PrismComponent[] { new FieldsetComponent() },
@@ -204,9 +204,9 @@ public class PaymentDemoReferenceWorkflowTests
                         }
                     }
                 },
-                new StepDefinition
+                new StageDefinition
                 {
-                    TouchpointKey = "done",
+                    StageKey = "done",
                     DisplayName = "Done",
                     QueueKey = "citizen-queue",
                     Components = new PrismComponent[] { new PanelComponent { Heading = "Done" } }
@@ -323,8 +323,8 @@ public class PaymentDemoReferenceWorkflowTests
     }
 
     private static string[] InputFieldKeys(ServiceBlueprint workflow, string stageKey) =>
-        workflow.Touchpoints
-            .Single(stage => stage.TouchpointKey == stageKey)
+        workflow.Stages
+            .Single(stage => stage.StageKey == stageKey)
             .Components
             .OfType<FieldsetComponent>()
             .SelectMany(fieldset => fieldset.Children.OfType<InputComponent>())

@@ -278,7 +278,7 @@ public class ComponentPolymorphismTests
                         Heading = "Before you start",
                         Tasks = new List<TaskItem>
                         {
-                            new() { Label = "Check eligibility", TouchpointKey = "eligibility" },
+                            new() { Label = "Check eligibility", StageKey = "eligibility" },
                             new() { Label = "Read guidance", Href = "/guidance" }
                         }
                     }
@@ -329,13 +329,13 @@ public class ComponentPolymorphismTests
             DefinitionKey = "test-workflow",
             DisplayName = "Test Workflow",
             Version = 1,
-            InitialTouchpoint = "start",
+            InitialStage = "start",
             RequestPolicy = "single",
-            Touchpoints = new List<StepDefinition>
+            Stages = new List<StageDefinition>
             {
                 new()
                 {
-                    TouchpointKey = "start",
+                    StageKey = "start",
                     DisplayName = "Start",
                     Components = new List<PrismComponent>
                     {
@@ -354,7 +354,7 @@ public class ComponentPolymorphismTests
                 },
                 new()
                 {
-                    TouchpointKey = "check",
+                    StageKey = "check",
                     DisplayName = "Check your answers",
                     Components = new List<PrismComponent>
                     {
@@ -372,7 +372,7 @@ public class ComponentPolymorphismTests
                 },
                 new()
                 {
-                    TouchpointKey = "complete",
+                    StageKey = "complete",
                     DisplayName = "Complete",
                     Components = new List<PrismComponent>
                     {

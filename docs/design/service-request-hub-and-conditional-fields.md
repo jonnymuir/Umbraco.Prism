@@ -10,7 +10,7 @@ The service request hub is the package's answer to "where does the user go when 
 
 - fetch all service requests for the authenticated member,
 - split them into in-progress and completed lists,
-- resolve the matching `touchpointPage` by `blueprintKey`,
+- resolve the matching `stagePage` by `blueprintKey`,
 - append `instanceId` so users continue the right instance.
 
 ### Instance policies and the hub

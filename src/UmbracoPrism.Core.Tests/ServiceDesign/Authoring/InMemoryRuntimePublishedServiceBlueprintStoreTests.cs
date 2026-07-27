@@ -98,8 +98,8 @@ public sealed class InMemoryRuntimePublishedWorkflowStoreTests : IDisposable
         DefinitionKey = definitionKey,
         DisplayName = displayName,
         Version = 1,
-        InitialTouchpoint = "start",
-        Touchpoints = [],
+        InitialStage = "start",
+        Stages = [],
         Transitions = []
     };
 }

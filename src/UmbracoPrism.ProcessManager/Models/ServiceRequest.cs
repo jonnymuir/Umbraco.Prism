@@ -3,7 +3,7 @@ using UmbracoPrism.Shared.Services.Calculations;
 namespace UmbracoPrism.ProcessManager.Models;
 
 /// <summary>
-/// Runtime touchpoint for a service request held in-memory by the host application.
+/// Runtime stage for a service request held in-memory by the host application.
 /// </summary>
 public record ServiceRequest
 {
@@ -26,10 +26,10 @@ public record ServiceRequest
 
     /// <summary>
     /// Primary cursor position. In single-queue blueprints this is the only position.
-    /// In multi-cursor mode this reflects the first active touchpoint cursor for backward-compatibility
+    /// In multi-cursor mode this reflects the first active stage cursor for backward-compatibility
     /// with API consumers that read only this field.
     /// </summary>
-    public string CurrentTouchpoint { get; init; } = "";
+    public string CurrentStage { get; init; } = "";
 
     public int StateVersion { get; init; }
 
@@ -54,7 +54,7 @@ public record ServiceRequest
         = new Dictionary<string, IReadOnlyList<string>>();
 
     /// <summary>
-    /// The most recently computed calculation result for this instance's current touchpoint, if
+    /// The most recently computed calculation result for this instance's current stage, if
     /// its definition has a calculations block and it last evaluated cleanly. Not part of the
     /// public runtime contract — internal bookkeeping so a composed caller (e.g. the
     /// simulation runner) can read raw calculated values without duplicating evaluation.

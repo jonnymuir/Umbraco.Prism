@@ -16,7 +16,7 @@ namespace UmbracoPrism.ProcessManager.Mcp;
 [McpServerToolType]
 public static class ServiceBlueprintAuthoringTools
 {
-    // ServiceBlueprint.Touchpoints[].Components is a [JsonPolymorphic] PrismComponent
+    // ServiceBlueprint.Stages[].Components is a [JsonPolymorphic] PrismComponent
     // hierarchy. The MCP SDK's own tool-argument binding doesn't set
     // AllowOutOfOrderMetadataProperties (github.com/modelcontextprotocol/csharp-sdk#795 —
     // no supported hook to configure it), so it fails whenever a component's "type"
@@ -46,7 +46,7 @@ public static class ServiceBlueprintAuthoringTools
         service.ReadAsync(definitionKey, ct);
 
     private const string CalculationsShapeReminder =
-        "A `calculations` block is a sibling of `touchpoints`/`gateways`/`queues`, not an action or a " +
+        "A `calculations` block is a sibling of `stages`/`gateways`/`queues`, not an action or a " +
         "component property: { \"tables\": {}, \"fields\": { \"<fieldName>\": { \"expr\": \"<expression>\" } }, " +
         "\"series\": {} } — `fields` is a JSON OBJECT keyed by field name, each value an object with an " +
         "`expr` string (NOT a list of {name, expression} pairs). Only `stat-group`, `chart`, and " +
@@ -57,7 +57,7 @@ public static class ServiceBlueprintAuthoringTools
         "entry with `\"source\": \"service\"`; that marker is only for a value an external system supplies " +
         "(e.g. a lookup), and doing this to your own captured input makes it permanently unresolvable. A " +
         "gateway needs a real, unique `key` (a keyless one can never be a route target), and every route's " +
-        "`target` must actually match an existing gateway/touchpoint key — an empty target is fine mid-edit but " +
+        "`target` must actually match an existing gateway/stage key — an empty target is fine mid-edit but " +
         "must be wired up before you consider the blueprint finished. " +
         "Read service-blueprint-docs://calculation-language before writing or editing a calculations block; it " +
         "has the full grammar and a worked example.";
@@ -68,7 +68,7 @@ public static class ServiceBlueprintAuthoringTools
         "and which PrismComponent \"type\" discriminators (e.g. \"text\", \"summary-list\", " +
         "\"panel\") are supported for each. A queue key NOT present in this result is " +
         "unrestricted from this toolkit's point of view — not a declared concern of this host " +
-        "(e.g. served by a different downstream app). Check this before drafting a touchpoint for a " +
+        "(e.g. served by a different downstream app). Check this before drafting a stage for a " +
         "queue you haven't authored for before, rather than finding out from validate_service_blueprint's " +
         "QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT diagnostic after the fact.")]
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> ListQueueCapabilities(
@@ -77,13 +77,13 @@ public static class ServiceBlueprintAuthoringTools
 
     [McpServerTool(Name = "validate_service_blueprint")]
     [Description(
-        "Validate a service blueprint JSON — checks that every touchpoint route targets a gateway " +
-        "(never another touchpoint directly), that any calculations block evaluates cleanly, and that " +
+        "Validate a service blueprint JSON — checks that every stage route targets a gateway " +
+        "(never another stage directly), that any calculations block evaluates cleanly, and that " +
         "every stat-group/chart/summary-list component's bound field or series actually exists. " +
         "Does not save. Returns { isValid, diagnostics }, each diagnostic { code, path, message, severity } " +
         "— severity \"Warning\" (e.g. an unverifiable service-sourced field) does not block isValid. " +
         "When the host declares queue render capabilities, also checks that every component in a " +
-        "touchpoint is actually supported by that touchpoint's queue (QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT " +
+        "stage is actually supported by that stage's queue (QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT " +
         "— call list_queue_capabilities first to check what a queue supports). " +
         CalculationsShapeReminder + " " +
         "See also service-blueprint-docs://authoring-guide for the full contract shape.")]
@@ -129,8 +129,8 @@ public static class ServiceBlueprintAuthoringTools
     [McpServerTool(Name = "simulate_service_blueprint")]
     [Description(
         "Dry-run a sequence of actions through a service blueprint with no persistence — " +
-        "returns { trace, calculations }: trace is the touchpoint trace (one entry per step: " +
-        "response touchpoint, available actions, problems) exactly as the real runtime would " +
+        "returns { trace, calculations }: trace is the stage trace (one entry per step: " +
+        "response stage, available actions, problems) exactly as the real runtime would " +
         "report to a client; calculations is the raw calculated field/series values per step " +
         "(parallel to trace, null for steps with no calculations block), so you can check the " +
         "maths directly instead of parsing rendered UI text. A definition with a " +
@@ -139,7 +139,7 @@ public static class ServiceBlueprintAuthoringTools
         "them — are simply unresolved, the same as against a host with no data for them. Use " +
         "this to check a definition actually behaves as intended before saving it. The trace " +
         "follows a single cursor: if a Split's business-side branch routes to both a Join and " +
-        "its own separate terminal touchpoint, only one branch is followed and the other's actions " +
+        "its own separate terminal stage, only one branch is followed and the other's actions " +
         "go unverified — route a reviewer/business action only into the Join, matching " +
         "payment-demo/information-request's convention, rather than giving it a parallel terminal.")]
     public static ServiceBlueprintSimulationResult SimulateServiceBlueprint(

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.ServiceBlueprintEditor.Authoring;
+using UmbracoPrism.Shared.Models.ServiceDesign.Components;
 using UmbracoPrism.ProcessManager.Services;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Simulation;
@@ -11,11 +11,8 @@ public class ServiceBlueprintSimulationRunnerTests
     [Fact]
     public void Run_LinearWorkflow_WalksThroughGatewayToCompletion()
     {
-        var projection = new ServiceBlueprintProjector().Project(BuildLinearWorkflow());
-        projection.HasErrors.Should().BeFalse();
-
         var result = new ServiceBlueprintSimulationRunner().Run(
-            projection.File,
+            BuildLinearWorkflow(),
             [new ProcessManagerSimulationStep("submit")]);
 
         result.Trace.Should().HaveCount(2, "the initial GetCurrent plus one Advance step should each produce an envelope");
@@ -74,42 +71,42 @@ public class ServiceBlueprintSimulationRunnerTests
             "the 'member' field is service-sourced and unresolved without mockServiceInputs");
     }
 
-    private static AuthoredServiceBlueprint BuildLinearWorkflow() => new()
+    private static ServiceBlueprint BuildLinearWorkflow() => new()
     {
-        Id = Guid.NewGuid(),
         DefinitionKey = "simulation-smoke-test",
         DisplayName = "Simulation Smoke Test",
         Version = 1,
-        InitialTouchpointKey = "start",
+        InitialStage = "start",
         RequestPolicy = "single",
-        Queues = [new AuthoredQueue { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" }],
+        Queues = [new QueueDefinition { Key = "applicant", DisplayName = "Applicant", Actor = "applicant" }],
         Gateways =
         [
-            new AuthoredGateway
+            new ServiceBlueprintGatewayDefinition
             {
-                GatewayKey = "to-done",
+                Key = "to-done",
                 DisplayName = "Route to done",
-                Kind = GatewayKind.Split,
+                GatewayType = "Split",
                 QueueKey = "applicant",
-                Routes = [new AuthoredRoute { Id = "release", Target = "done", Trigger = "submit" }]
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "release", Target = "done", Trigger = "submit" }]
             }
         ],
-        Touchpoints =
+        Stages =
         [
-            new AuthoredTouchpoint
+            new StageDefinition
             {
-                TouchpointKey = "start",
+                StageKey = "start",
                 DisplayName = "Start",
-                Kind = TouchpointKind.Question,
+                StageType = "Question",
                 QueueKey = "applicant",
-                Routes = [new AuthoredRoute { Id = "start-submit", Target = "to-done", Trigger = "submit" }]
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "start-submit", Target = "to-done", Trigger = "submit" }]
             },
-            new AuthoredTouchpoint
+            new StageDefinition
             {
-                TouchpointKey = "done",
+                StageKey = "done",
                 DisplayName = "Done",
-                Kind = TouchpointKind.Confirmation,
-                QueueKey = "applicant"
+                StageType = "Confirmation",
+                QueueKey = "applicant",
+                Components = [new PanelComponent { Heading = "Application submitted" }]
             }
         ]
     };

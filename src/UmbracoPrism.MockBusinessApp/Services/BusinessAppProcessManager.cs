@@ -106,14 +106,14 @@ public class BusinessAppProcessManager : ProcessManagerEngine
                 "INVALID_TRANSITION");
         }
 
-        var transition = GetOutgoingTransitions(definition, visibleWorkItem.TouchpointKey).FirstOrDefault(
-            t => t.FromState == visibleWorkItem.TouchpointKey
+        var transition = GetOutgoingTransitions(definition, visibleWorkItem.StageKey).FirstOrDefault(
+            t => t.FromState == visibleWorkItem.StageKey
                  && t.Action == action);
 
         if (transition == null)
         {
             return ErrorEnvelope(
-                $"Action '{action}' is not valid from state '{visibleWorkItem.TouchpointKey}'.",
+                $"Action '{action}' is not valid from state '{visibleWorkItem.StageKey}'.",
                 "INVALID_TRANSITION");
         }
 
@@ -128,15 +128,15 @@ public class BusinessAppProcessManager : ProcessManagerEngine
             return base.Advance(instanceId, tenantId, userId, accessProfile, action, expectedStateVersion, fieldValues);
         }
 
-        var sourceState = definition.Touchpoints.FirstOrDefault(s => s.TouchpointKey == visibleWorkItem.TouchpointKey);
+        var sourceState = definition.Stages.FirstOrDefault(s => s.StageKey == visibleWorkItem.StageKey);
         if (sourceState == null)
         {
             return ErrorEnvelope(
-                $"State '{visibleWorkItem.TouchpointKey}' not found in definition '{definition.DefinitionKey}'.",
+                $"State '{visibleWorkItem.StageKey}' not found in definition '{definition.DefinitionKey}'.",
                 "STATE_NOT_FOUND");
         }
 
-        var targetState = definition.Touchpoints.FirstOrDefault(s => s.TouchpointKey == transition.ToState);
+        var targetState = definition.Stages.FirstOrDefault(s => s.StageKey == transition.ToState);
         if (targetState == null)
         {
             return ErrorEnvelope(
@@ -147,7 +147,7 @@ public class BusinessAppProcessManager : ProcessManagerEngine
         var mergedFieldValues = Merge(instance.FieldValues, fieldValues);
         var updated = instance with
         {
-            CurrentTouchpoint = transition.ToState,
+            CurrentStage = transition.ToState,
             StateVersion = instance.StateVersion + 1,
             UpdatedAt = DateTimeOffset.UtcNow,
             FieldValues = mergedFieldValues
@@ -170,7 +170,7 @@ public class BusinessAppProcessManager : ProcessManagerEngine
         Logger.LogInformation(
             "Advanced instance {Id}: {From} → {To}",
             instanceId,
-            visibleWorkItem.TouchpointKey,
+            visibleWorkItem.StageKey,
             transition.ToState);
 
         return BuildEnvelope(updated, definition, accessProfile, allowFallbackWhenHidden: true);
@@ -201,7 +201,7 @@ public class BusinessAppProcessManager : ProcessManagerEngine
     protected override IReadOnlyDictionary<string, object?>? ResolveServiceInputs(
         ServiceRequest instance,
         ServiceBlueprint definition,
-        StepDefinition state)
+        StageDefinition state)
     {
         if (_memberRecords is null
             || !string.Equals(definition.DefinitionKey, "money-modeller", StringComparison.OrdinalIgnoreCase))
@@ -301,11 +301,11 @@ public class BusinessAppProcessManager : ProcessManagerEngine
             return null;
         }
 
-        var initialState = definition.Touchpoints.FirstOrDefault(state => state.TouchpointKey == instance.CurrentTouchpoint);
+        var initialState = definition.Stages.FirstOrDefault(state => state.StageKey == instance.CurrentStage);
         if (initialState == null)
         {
             return ErrorEnvelope(
-                $"State '{instance.CurrentTouchpoint}' not found in definition '{definition.DefinitionKey}'.",
+                $"State '{instance.CurrentStage}' not found in definition '{definition.DefinitionKey}'.",
                 "STATE_NOT_FOUND");
         }
 
@@ -323,8 +323,8 @@ public class BusinessAppProcessManager : ProcessManagerEngine
     private ServiceRequestResponseEnvelope? ExecuteRegisteredActions(
         ServiceRequest updatedInstance,
         ServiceBlueprint definition,
-        StepDefinition? sourceState,
-        StepDefinition targetState,
+        StageDefinition? sourceState,
+        StageDefinition targetState,
         RouteFile? transition,
         string? triggerAction,
         IReadOnlyDictionary<string, object?> fieldValues,
@@ -379,9 +379,9 @@ public class BusinessAppProcessManager : ProcessManagerEngine
     }
 
     private static IReadOnlyList<ActionDefinition> GetOrderedActions(
-        StepDefinition sourceState,
+        StageDefinition sourceState,
         RouteFile transition,
-        StepDefinition targetState)
+        StageDefinition targetState)
     {
         var actions = new List<ActionDefinition>();
         AddMatchingActions(actions, sourceState.Metadata?.Actions, "OnExit");
@@ -390,7 +390,7 @@ public class BusinessAppProcessManager : ProcessManagerEngine
         return actions;
     }
 
-    private static IReadOnlyList<ActionDefinition> GetStateEntryActions(StepDefinition targetState)
+    private static IReadOnlyList<ActionDefinition> GetStateEntryActions(StageDefinition targetState)
     {
         var actions = new List<ActionDefinition>();
         AddMatchingActions(actions, targetState.Metadata?.Actions, "OnEntry");

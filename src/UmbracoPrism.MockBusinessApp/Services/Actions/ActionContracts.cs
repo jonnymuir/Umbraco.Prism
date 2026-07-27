@@ -1,5 +1,5 @@
 using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.ServiceBlueprintEditor.Authoring;
+using UmbracoPrism.MockBusinessApp.Services.Actions.ActionCatalog;
 using UmbracoPrism.ProcessManager.Models;
 
 namespace UmbracoPrism.MockBusinessApp.Services.Actions;
@@ -27,9 +27,9 @@ public sealed record WorkflowActionExecutionContext
 
     public required ServiceRequest Instance { get; init; }
 
-    public StepDefinition? SourceState { get; init; }
+    public StageDefinition? SourceState { get; init; }
 
-    public required StepDefinition TargetState { get; init; }
+    public required StageDefinition TargetState { get; init; }
 
     public RouteFile? Transition { get; init; }
 

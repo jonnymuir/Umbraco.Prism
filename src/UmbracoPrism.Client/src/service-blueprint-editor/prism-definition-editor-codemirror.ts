@@ -98,7 +98,7 @@ export function createDefinitionView({
       history(),
       readOnlyCompartment.of(EditorState.readOnly.of(readOnly)),
       EditorView.contentAttributes.of({
-        'aria-label': 'ServiceBlueprint definition JSON editor',
+        'aria-label': 'Service blueprint definition JSON editor',
         'data-prism-definition-editor-input': 'true',
         'spellcheck': 'false',
       }),

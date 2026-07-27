@@ -13,9 +13,9 @@ public record RequestCursor
     /// <summary>The queue this cursor belongs to.</summary>
     public string QueueKey { get; init; } = "";
 
-    /// <summary>The touchpoint or gateway key where this cursor is currently positioned.</summary>
+    /// <summary>The stage or gateway key where this cursor is currently positioned.</summary>
     public string CurrentNodeKey { get; init; } = "";
 
-    /// <summary>True when this cursor is positioned at a gateway node rather than a touchpoint.</summary>
+    /// <summary>True when this cursor is positioned at a gateway node rather than a stage.</summary>
     public bool IsAtGateway { get; init; }
 }

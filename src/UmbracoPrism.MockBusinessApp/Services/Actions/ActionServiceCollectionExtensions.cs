@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using UmbracoPrism.ServiceBlueprintEditor.Authoring;
+using UmbracoPrism.MockBusinessApp.Services.Actions.ActionCatalog;
 
 namespace UmbracoPrism.MockBusinessApp.Services.Actions;
 
@@ -8,6 +8,10 @@ public static class ActionServiceCollectionExtensions
     public static IServiceCollection AddBusinessAppActions(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        services.AddSingleton<IParameterWidgetMapper, DefaultParameterWidgetMapper>();
+        services.AddSingleton<BuiltInActionCatalogProvider>();
+        services.AddSingleton<IActionCatalogProvider>(sp => sp.GetRequiredService<BuiltInActionCatalogProvider>());
 
         services.AddSingleton<IWorkflowActionHandler, FormsLoadWorkflowActionHandler>();
         services.AddSingleton<IWorkflowActionHandler, FormsSaveWorkflowActionHandler>();

@@ -21,13 +21,13 @@ public class ProcessManagerEngine : IProcessManager
     private readonly IServiceContentSanitizer _sanitizer;
     private readonly Dictionary<string, ServiceBlueprint> _definitions = new(StringComparer.OrdinalIgnoreCase);
     private readonly IServiceRequestStore _instanceStore;
-    private readonly Func<ServiceRequest, ServiceBlueprint, StepDefinition, IReadOnlyDictionary<string, object?>?>? _serviceInputsResolver;
+    private readonly Func<ServiceRequest, ServiceBlueprint, StageDefinition, IReadOnlyDictionary<string, object?>?>? _serviceInputsResolver;
 
     public ProcessManagerEngine(
         ILogger logger,
         IServiceBlueprintStore definitionStore,
         IServiceContentSanitizer sanitizer,
-        Func<ServiceRequest, ServiceBlueprint, StepDefinition, IReadOnlyDictionary<string, object?>?>? serviceInputsResolver = null,
+        Func<ServiceRequest, ServiceBlueprint, StageDefinition, IReadOnlyDictionary<string, object?>?>? serviceInputsResolver = null,
         IServiceRequestStore? instanceStore = null)
     {
         Logger = logger;
@@ -156,7 +156,7 @@ public class ProcessManagerEngine : IProcessManager
         {
             if (existingInstance is not null)
             {
-                var currentTouchpoint = definition.Touchpoints.FirstOrDefault(s => s.TouchpointKey == existingInstance.CurrentTouchpoint);
+                var currentStage = definition.Stages.FirstOrDefault(s => s.StageKey == existingInstance.CurrentStage);
 
                 if (!IsTerminalInstance(existingInstance, definition))
                 {
@@ -175,8 +175,8 @@ public class ProcessManagerEngine : IProcessManager
                         RequestPolicy = "prompt",
                         Render = new StepContent
                         {
-                            StepType = currentTouchpoint?.Components.InferStepType() ?? "question",
-                            StateDisplayName = currentTouchpoint?.DisplayName ?? definition.DisplayName,
+                            StepType = currentStage?.Components.InferStepType() ?? "question",
+                            StateDisplayName = currentStage?.DisplayName ?? definition.DisplayName,
                             Components = Array.Empty<PrismComponentRenderPayload>(),
                             AvailableActions = Array.Empty<ServiceRequestAction>()
                         }
@@ -210,7 +210,7 @@ public class ProcessManagerEngine : IProcessManager
         }
 
         // "single" means at most one instance per user for this blueprint, full stop — once it
-        // reaches a terminal touchpoint it keeps being shown on every subsequent visit (the community
+        // reaches a terminal stage it keeps being shown on every subsequent visit (the community
         // enquiry demo depends on this: a member returning to the page sees "Thank you", not a
         // silently-reset blank form). PrismServiceRequestPageController's PRG redirect after a POST
         // relies on this same fallthrough to show the confirmation page for the visit that just
@@ -267,32 +267,32 @@ public class ProcessManagerEngine : IProcessManager
 
         if (action.StartsWith("change:", StringComparison.OrdinalIgnoreCase))
         {
-            var targetTouchpointKey = action["change:".Length..];
-            var targetTouchpoint = definition.Touchpoints.FirstOrDefault(s => s.TouchpointKey == targetTouchpointKey);
-            if (targetTouchpoint is null)
+            var targetStageKey = action["change:".Length..];
+            var targetStage = definition.Stages.FirstOrDefault(s => s.StageKey == targetStageKey);
+            if (targetStage is null)
             {
-                return ErrorEnvelope($"State '{targetTouchpointKey}' not found in definition.", "STATE_NOT_FOUND");
+                return ErrorEnvelope($"State '{targetStageKey}' not found in definition.", "STATE_NOT_FOUND");
             }
 
             // FindAccessibleWorkItems (called by BuildEnvelope below) renders from instance.Cursors,
-            // not instance.CurrentTouchpoint, the moment ANY cursor exists — which happens for every
+            // not instance.CurrentStage, the moment ANY cursor exists — which happens for every
             // blueprint that's passed through a gateway, i.e. effectively all of them, since Prism
-            // requires touchpoint routes to always target a gateway. Updating only CurrentTouchpoint left a
-            // "change:" jump a silent no-op past the first touchpoint: the render kept coming from the
+            // requires stage routes to always target a gateway. Updating only CurrentStage left a
+            // "change:" jump a silent no-op past the first stage: the render kept coming from the
             // stale cursor position and the user landed right back where they started (confirmed
-            // live). Move whichever active, non-gateway cursor belongs to the target touchpoint's own
+            // live). Move whichever active, non-gateway cursor belongs to the target stage's own
             // queue — same cursor a normal forward Advance would move — so the jump actually takes.
             var updatedCursors = instance.Cursors.Count == 0
                 ? instance.Cursors
                 : MoveCursor(
                     instance.Cursors,
-                    instance.Cursors.FirstOrDefault(c => !c.IsAtGateway && c.QueueKey == GetQueueKey(targetTouchpoint))?.CursorId,
-                    targetTouchpointKey,
+                    instance.Cursors.FirstOrDefault(c => !c.IsAtGateway && c.QueueKey == GetQueueKey(targetStage))?.CursorId,
+                    targetStageKey,
                     isAtGateway: false);
 
             var jumped = instance with
             {
-                CurrentTouchpoint = targetTouchpointKey,
+                CurrentStage = targetStageKey,
                 Cursors = updatedCursors,
                 StateVersion = instance.StateVersion + 1,
                 UpdatedAt = DateTimeOffset.UtcNow
@@ -300,9 +300,9 @@ public class ProcessManagerEngine : IProcessManager
 
             SaveInstance(jumped);
             Logger.LogInformation(
-                "Change-link: jumped instance {Id} to touchpoint '{State}'",
+                "Change-link: jumped instance {Id} to stage '{State}'",
                 instanceId,
-                targetTouchpointKey);
+                targetStageKey);
             return BuildEnvelope(jumped, definition, accessProfile, allowFallbackWhenHidden: true);
         }
 
@@ -317,14 +317,14 @@ public class ProcessManagerEngine : IProcessManager
                 "INVALID_TRANSITION");
         }
 
-        var transition = GetOutgoingTransitions(definition, visibleWorkItem.TouchpointKey).FirstOrDefault(
-            t => t.FromState == visibleWorkItem.TouchpointKey
+        var transition = GetOutgoingTransitions(definition, visibleWorkItem.StageKey).FirstOrDefault(
+            t => t.FromState == visibleWorkItem.StageKey
                  && t.Action == action);
 
         if (transition == null)
         {
             return ErrorEnvelope(
-                $"Action '{action}' is not valid from touchpoint '{visibleWorkItem.TouchpointKey}'.",
+                $"Action '{action}' is not valid from stage '{visibleWorkItem.StageKey}'.",
                 "INVALID_TRANSITION");
         }
 
@@ -333,7 +333,7 @@ public class ProcessManagerEngine : IProcessManager
             return validationEnvelope;
         }
 
-        // Check if the target is a gateway rather than a plain touchpoint.
+        // Check if the target is a gateway rather than a plain stage.
         var nextGateway = FindGateway(definition, transition.ToState);
         if (nextGateway != null)
         {
@@ -342,17 +342,17 @@ public class ProcessManagerEngine : IProcessManager
                 : HandleJoinGatewayAdvance(instance, definition, transition, nextGateway, fieldValues, accessProfile);
         }
 
-        // Regular touchpoint transition (single- or multi-cursor).
+        // Regular stage transition (single- or multi-cursor).
         if (instance.Cursors.Count > 0)
         {
-            // Multi-cursor: advance only the cursor currently at this touchpoint.
+            // Multi-cursor: advance only the cursor currently at this stage.
             var sourceCursor = instance.Cursors.FirstOrDefault(c =>
-                c.CurrentNodeKey == visibleWorkItem.TouchpointKey && !c.IsAtGateway);
+                c.CurrentNodeKey == visibleWorkItem.StageKey && !c.IsAtGateway);
             var updatedCursors = MoveCursor(instance.Cursors, sourceCursor?.CursorId, transition.ToState, isAtGateway: false);
-            var primaryTouchpoint = FirstActiveTouchpointCursorKey(updatedCursors) ?? transition.ToState;
+            var primaryStage = FirstActiveStageCursorKey(updatedCursors) ?? transition.ToState;
             var updatedMulti = instance with
             {
-                CurrentTouchpoint = primaryTouchpoint,
+                CurrentStage = primaryStage,
                 Cursors = updatedCursors,
                 StateVersion = instance.StateVersion + 1,
                 UpdatedAt = DateTimeOffset.UtcNow,
@@ -367,7 +367,7 @@ public class ProcessManagerEngine : IProcessManager
 
         var updated = instance with
         {
-            CurrentTouchpoint = transition.ToState,
+            CurrentStage = transition.ToState,
             StateVersion = instance.StateVersion + 1,
             UpdatedAt = DateTimeOffset.UtcNow,
             FieldValues = Merge(instance.FieldValues, fieldValues)
@@ -377,7 +377,7 @@ public class ProcessManagerEngine : IProcessManager
         Logger.LogInformation(
             "Advanced instance {Id}: {From} → {To}",
             instanceId,
-            visibleWorkItem.TouchpointKey,
+            visibleWorkItem.StageKey,
             transition.ToState);
 
         return BuildEnvelope(updated, definition, accessProfile, allowFallbackWhenHidden: true);
@@ -393,16 +393,16 @@ public class ProcessManagerEngine : IProcessManager
             .Select(instance =>
             {
                 _definitions.TryGetValue(instance.BlueprintKey, out var definition);
-                var touchpoint = definition?.Touchpoints.FirstOrDefault(s => s.TouchpointKey == instance.CurrentTouchpoint);
-                var stepType = touchpoint?.Components.InferStepType() ?? "question";
+                var stage = definition?.Stages.FirstOrDefault(s => s.StageKey == instance.CurrentStage);
+                var stepType = stage?.Components.InferStepType() ?? "question";
 
                 return new ServiceRequestSummary
                 {
                     InstanceId = instance.InstanceId,
                     BlueprintKey = instance.BlueprintKey,
                     BlueprintDisplayName = definition?.DisplayName ?? instance.BlueprintKey,
-                    CurrentStateKey = instance.CurrentTouchpoint,
-                    CurrentStateDisplayName = touchpoint?.DisplayName ?? instance.CurrentTouchpoint,
+                    CurrentStateKey = instance.CurrentStage,
+                    CurrentStateDisplayName = stage?.DisplayName ?? instance.CurrentStage,
                     StepType = stepType,
                     CreatedAt = instance.CreatedAt.DateTime,
                     LastUpdatedAt = instance.UpdatedAt.DateTime,
@@ -515,7 +515,7 @@ public class ProcessManagerEngine : IProcessManager
     /// <summary>
     /// Removes a definition from the live engine — the delete-side counterpart to
     /// <see cref="UpdateDefinition"/>. Existing instances already running against this key are
-    /// left untouched (they keep whatever touchpoint they have; the definition lookups they depend on,
+    /// left untouched (they keep whatever stage they have; the definition lookups they depend on,
     /// e.g. in <see cref="GetCurrent(string,string,string,ActorProfile,string?,string?)"/>,
     /// will simply start failing with DEFINITION_NOT_FOUND) — deleting a service blueprint that
     /// still has active instances is a host-authoring concern to guard against, not this engine's.
@@ -550,9 +550,9 @@ public class ProcessManagerEngine : IProcessManager
         string? action) => null;
 
     /// <summary>
-    /// Host hook invoked before a touchpoint's components are rendered. Returns structured
+    /// Host hook invoked before a stage's components are rendered. Returns structured
     /// display data for the step (surfaced as <see cref="StepContent.Data"/> and resolved
-    /// into "interactive" components via their DataKey), or null when the touchpoint needs none.
+    /// into "interactive" components via their DataKey), or null when the stage needs none.
     /// Implementations may enrich <paramref name="instance"/>.FieldValues (e.g. with freshly
     /// computed results) before rendering; the shared FieldValues dictionary makes such
     /// enrichment visible to the stored instance.
@@ -560,7 +560,7 @@ public class ProcessManagerEngine : IProcessManager
     protected virtual System.Text.Json.Nodes.JsonObject? BuildRenderData(
         ServiceRequest instance,
         ServiceBlueprint definition,
-        StepDefinition touchpoint) => null;
+        StageDefinition stage) => null;
 
     /// <summary>
     /// Host hook supplying typed values for the definition's <c>source: "service"</c>
@@ -573,7 +573,7 @@ public class ProcessManagerEngine : IProcessManager
     protected virtual IReadOnlyDictionary<string, object?>? ResolveServiceInputs(
         ServiceRequest instance,
         ServiceBlueprint definition,
-        StepDefinition touchpoint) => _serviceInputsResolver?.Invoke(instance, definition, touchpoint);
+        StageDefinition stage) => _serviceInputsResolver?.Invoke(instance, definition, stage);
 
     protected bool TryGetInstance(string instanceId, out ServiceRequest instance) =>
         _instanceStore.TryGet(instanceId, out instance!);
@@ -583,8 +583,8 @@ public class ProcessManagerEngine : IProcessManager
 
     /// <summary>
     /// The most recently computed <see cref="CalculationResult"/> for an instance, if its
-    /// current touchpoint has a calculations block and it evaluated cleanly — <c>null</c> if the
-    /// instance doesn't exist, its touchpoint has no calculations block, or evaluation failed. A
+    /// current stage has a calculations block and it evaluated cleanly — <c>null</c> if the
+    /// instance doesn't exist, its stage has no calculations block, or evaluation failed. A
     /// composed caller (e.g. the simulation runner) uses this to read raw calculated values
     /// without duplicating evaluation itself.
     /// </summary>
@@ -610,37 +610,37 @@ public class ProcessManagerEngine : IProcessManager
 
         if (visibleItem.IsJoinGateway)
         {
-            var joinGateway = FindGateway(definition, visibleItem.TouchpointKey);
+            var joinGateway = FindGateway(definition, visibleItem.StageKey);
             if (joinGateway is not null)
             {
                 return BuildJoinWaitingEnvelope(instance, definition, joinGateway);
             }
         }
 
-        var touchpoint = definition.Touchpoints.FirstOrDefault(s => s.TouchpointKey == visibleItem.TouchpointKey);
-        if (touchpoint == null)
+        var stage = definition.Stages.FirstOrDefault(s => s.StageKey == visibleItem.StageKey);
+        if (stage == null)
         {
             return ErrorEnvelope(
-                $"State '{visibleItem.TouchpointKey}' not found in definition '{definition.DefinitionKey}'.",
+                $"State '{visibleItem.StageKey}' not found in definition '{definition.DefinitionKey}'.",
                 "STATE_NOT_FOUND");
         }
 
-        var renderData = BuildRenderData(instance, definition, touchpoint);
-        var calc = EvaluateDefinitionCalculations(instance, definition, touchpoint);
+        var renderData = BuildRenderData(instance, definition, stage);
+        var calc = EvaluateDefinitionCalculations(instance, definition, stage);
         if (calc is not null)
         {
             renderData ??= new JsonObject();
             renderData["live"] = BuildLiveModel(definition, calc);
         }
 
-        var components = BuildComponents(touchpoint.Components, instance.FieldValues, calc);
-        var effectiveStepType = touchpoint.Components.InferStepType();
-        var waitingComponent = touchpoint.Components.OfType<WaitingComponent>().FirstOrDefault();
+        var components = BuildComponents(stage.Components, instance.FieldValues, calc);
+        var effectiveStepType = stage.Components.InferStepType();
+        var waitingComponent = stage.Components.OfType<WaitingComponent>().FirstOrDefault();
 
         var render = new StepContent
         {
             StepType = effectiveStepType,
-            StateDisplayName = touchpoint.DisplayName,
+            StateDisplayName = stage.DisplayName,
             Components = components,
             AvailableActions = visibleItem.AvailableActions.ToArray(),
             Data = renderData
@@ -683,10 +683,10 @@ public class ProcessManagerEngine : IProcessManager
 
     protected bool CanStartInitialState(ServiceBlueprint definition, ActorProfile accessProfile)
     {
-        var initialTouchpoint = definition.Touchpoints.FirstOrDefault(touchpoint =>
-            string.Equals(touchpoint.TouchpointKey, definition.InitialTouchpoint, StringComparison.Ordinal));
+        var initialStage = definition.Stages.FirstOrDefault(stage =>
+            string.Equals(stage.StageKey, definition.InitialStage, StringComparison.Ordinal));
 
-        var queueName = initialTouchpoint is null ? null : ResolveQueueName(definition, initialTouchpoint);
+        var queueName = initialStage is null ? null : ResolveQueueName(definition, initialStage);
         return accessProfile.CanViewQueue(queueName) && accessProfile.CanStartQueue(queueName);
     }
 
@@ -699,21 +699,21 @@ public class ProcessManagerEngine : IProcessManager
 
         if (instance.Cursors.Count == 0)
         {
-            var touchpoint = definition.Touchpoints.FirstOrDefault(candidate =>
-                string.Equals(candidate.TouchpointKey, instance.CurrentTouchpoint, StringComparison.Ordinal));
+            var stage = definition.Stages.FirstOrDefault(candidate =>
+                string.Equals(candidate.StageKey, instance.CurrentStage, StringComparison.Ordinal));
 
-            if (touchpoint is not null)
+            if (stage is not null)
             {
-                var queueKey = GetQueueKey(touchpoint);
-                var queueName = ResolveQueueName(definition, touchpoint);
+                var queueKey = GetQueueKey(stage);
+                var queueName = ResolveQueueName(definition, stage);
                 if (CanViewQueue(definition, queueKey, queueName, accessProfile))
                 {
                     items.Add(new AccessibleWorkItem(
-                        touchpoint.TouchpointKey,
-                        touchpoint.DisplayName,
+                        stage.StageKey,
+                        stage.DisplayName,
                         queueName,
                         IsJoinGateway: false,
-                        BuildAvailableActions(definition, touchpoint.TouchpointKey, queueName, accessProfile)));
+                        BuildAvailableActions(definition, stage.StageKey, queueName, accessProfile)));
                 }
             }
 
@@ -722,10 +722,10 @@ public class ProcessManagerEngine : IProcessManager
 
         foreach (var cursor in instance.Cursors.Where(candidate => !candidate.IsAtGateway))
         {
-            var touchpoint = definition.Touchpoints.FirstOrDefault(candidate =>
-                string.Equals(candidate.TouchpointKey, cursor.CurrentNodeKey, StringComparison.Ordinal));
+            var stage = definition.Stages.FirstOrDefault(candidate =>
+                string.Equals(candidate.StageKey, cursor.CurrentNodeKey, StringComparison.Ordinal));
 
-            if (touchpoint is null)
+            if (stage is null)
             {
                 continue;
             }
@@ -737,11 +737,11 @@ public class ProcessManagerEngine : IProcessManager
             }
 
             items.Add(new AccessibleWorkItem(
-                touchpoint.TouchpointKey,
-                touchpoint.DisplayName,
+                stage.StageKey,
+                stage.DisplayName,
                 queueName,
                 IsJoinGateway: false,
-                BuildAvailableActions(definition, touchpoint.TouchpointKey, queueName, accessProfile)));
+                BuildAvailableActions(definition, stage.StageKey, queueName, accessProfile)));
         }
 
         foreach (var cursor in instance.Cursors.Where(candidate => candidate.IsAtGateway))
@@ -767,9 +767,9 @@ public class ProcessManagerEngine : IProcessManager
         }
 
         return items
-            .OrderByDescending(item => string.Equals(item.TouchpointKey, instance.CurrentTouchpoint, StringComparison.Ordinal))
+            .OrderByDescending(item => string.Equals(item.StageKey, instance.CurrentStage, StringComparison.Ordinal))
             .ThenBy(item => item.IsJoinGateway)
-            .ThenBy(item => item.TouchpointKey, StringComparer.Ordinal)
+            .ThenBy(item => item.StageKey, StringComparer.Ordinal)
             .ToArray();
     }
 
@@ -778,21 +778,21 @@ public class ProcessManagerEngine : IProcessManager
         ServiceBlueprint definition,
         ActorProfile accessProfile)
     {
-        var fallbackTouchpointCursor = instance.Cursors.FirstOrDefault(candidate => !candidate.IsAtGateway);
-        if (fallbackTouchpointCursor is not null)
+        var fallbackStageCursor = instance.Cursors.FirstOrDefault(candidate => !candidate.IsAtGateway);
+        if (fallbackStageCursor is not null)
         {
-            var touchpoint = definition.Touchpoints.FirstOrDefault(candidate =>
-                string.Equals(candidate.TouchpointKey, fallbackTouchpointCursor.CurrentNodeKey, StringComparison.Ordinal));
+            var stage = definition.Stages.FirstOrDefault(candidate =>
+                string.Equals(candidate.StageKey, fallbackStageCursor.CurrentNodeKey, StringComparison.Ordinal));
 
-            if (touchpoint is not null)
+            if (stage is not null)
             {
-                var queueName = ResolveQueueName(definition, fallbackTouchpointCursor.QueueKey);
+                var queueName = ResolveQueueName(definition, fallbackStageCursor.QueueKey);
                 return new AccessibleWorkItem(
-                    touchpoint.TouchpointKey,
-                    touchpoint.DisplayName,
+                    stage.StageKey,
+                    stage.DisplayName,
                     queueName,
                     IsJoinGateway: false,
-                    BuildAvailableActions(definition, touchpoint.TouchpointKey, queueName, accessProfile));
+                    BuildAvailableActions(definition, stage.StageKey, queueName, accessProfile));
             }
         }
 
@@ -814,21 +814,21 @@ public class ProcessManagerEngine : IProcessManager
             }
         }
 
-        var currentTouchpoint = definition.Touchpoints.FirstOrDefault(candidate =>
-            string.Equals(candidate.TouchpointKey, instance.CurrentTouchpoint, StringComparison.Ordinal));
+        var currentStage = definition.Stages.FirstOrDefault(candidate =>
+            string.Equals(candidate.StageKey, instance.CurrentStage, StringComparison.Ordinal));
 
-        if (currentTouchpoint is null)
+        if (currentStage is null)
         {
             return null;
         }
 
-        var currentQueue = ResolveQueueName(definition, currentTouchpoint);
+        var currentQueue = ResolveQueueName(definition, currentStage);
         return new AccessibleWorkItem(
-            currentTouchpoint.TouchpointKey,
-            currentTouchpoint.DisplayName,
+            currentStage.StageKey,
+            currentStage.DisplayName,
             currentQueue,
             IsJoinGateway: false,
-            BuildAvailableActions(definition, currentTouchpoint.TouchpointKey, currentQueue, accessProfile));
+            BuildAvailableActions(definition, currentStage.StageKey, currentQueue, accessProfile));
     }
 
     protected bool CanViewQueue(
@@ -842,11 +842,11 @@ public class ProcessManagerEngine : IProcessManager
 
     protected IReadOnlyList<ServiceRequestAction> BuildAvailableActions(
         ServiceBlueprint definition,
-        string touchpointKey,
+        string stageKey,
         string? queueName,
         ActorProfile accessProfile)
     {
-        var transitions = GetOutgoingTransitions(definition, touchpointKey);
+        var transitions = GetOutgoingTransitions(definition, stageKey);
 
         if (string.IsNullOrWhiteSpace(queueName))
         {
@@ -894,18 +894,18 @@ public class ProcessManagerEngine : IProcessManager
         return queue?.Key ?? queueKey;
     }
 
-    protected static string? ResolveQueueName(ServiceBlueprint definition, StepDefinition? touchpoint) =>
-        touchpoint is null
+    protected static string? ResolveQueueName(ServiceBlueprint definition, StageDefinition? stage) =>
+        stage is null
             ? null
-            : ResolveQueueName(definition, GetQueueKey(touchpoint));
+            : ResolveQueueName(definition, GetQueueKey(stage));
 
     protected static string? ResolveQueueName(ServiceBlueprint definition, ServiceBlueprintGatewayDefinition? gateway) =>
         gateway is null
             ? null
             : ResolveQueueName(definition, gateway.QueueKey);
 
-    protected static string? GetQueueKey(StepDefinition? touchpoint) =>
-        FirstNonEmpty(touchpoint?.QueueKey, touchpoint?.Metadata?.QueueKey);
+    protected static string? GetQueueKey(StageDefinition? stage) =>
+        FirstNonEmpty(stage?.QueueKey, stage?.Metadata?.QueueKey);
 
     protected static IReadOnlyList<QueueDefinition> GetQueues(ServiceBlueprint definition) =>
         definition.Queues ?? [];
@@ -917,11 +917,11 @@ public class ProcessManagerEngine : IProcessManager
         ServiceBlueprint definition,
         string sourceKey)
     {
-        var touchpoint = definition.Touchpoints.FirstOrDefault(candidate =>
-            string.Equals(candidate.TouchpointKey, sourceKey, StringComparison.Ordinal));
-        if (touchpoint?.Routes is { Count: > 0 })
+        var stage = definition.Stages.FirstOrDefault(candidate =>
+            string.Equals(candidate.StageKey, sourceKey, StringComparison.Ordinal));
+        if (stage?.Routes is { Count: > 0 })
         {
-            return touchpoint.Routes
+            return stage.Routes
                 .Select(route => new RouteFile
                 {
                     FromState = sourceKey,
@@ -1026,7 +1026,7 @@ public class ProcessManagerEngine : IProcessManager
 
 
     protected sealed record AccessibleWorkItem(
-        string TouchpointKey,
+        string StageKey,
         string DisplayName,
         string? QueueName,
         bool IsJoinGateway,
@@ -1040,7 +1040,7 @@ public class ProcessManagerEngine : IProcessManager
                 InstanceId = instance.InstanceId,
                 BlueprintKey = instance.BlueprintKey,
                 BlueprintDisplayName = definition.DisplayName,
-                TouchpointKey = TouchpointKey,
+                StageKey = StageKey,
                 StateDisplayName = DisplayName,
                 QueueName = QueueName,
                 TenantId = instance.TenantId,
@@ -1072,7 +1072,7 @@ public class ProcessManagerEngine : IProcessManager
         params object?[] additionalLogArgs)
     {
         var instance = CreateNewInstance(
-            blueprintKey, tenantId, userId, definition.InitialTouchpoint, ResolveIsAuthenticated(tenantId, userId));
+            blueprintKey, tenantId, userId, definition.InitialStage, ResolveIsAuthenticated(tenantId, userId));
         if (InitializeNewInstance(instance, definition, action) is { } error)
         {
             return error;
@@ -1088,7 +1088,7 @@ public class ProcessManagerEngine : IProcessManager
         string blueprintKey,
         string tenantId,
         string userId,
-        string initialTouchpoint,
+        string initialStage,
         bool isAuthenticated)
     {
         var now = DateTimeOffset.UtcNow;
@@ -1099,7 +1099,7 @@ public class ProcessManagerEngine : IProcessManager
             TenantId = tenantId,
             UserId = userId,
             IsAuthenticated = isAuthenticated,
-            CurrentTouchpoint = initialTouchpoint,
+            CurrentStage = initialStage,
             StateVersion = 0,
             CreatedAt = now,
             UpdatedAt = now
@@ -1115,7 +1115,7 @@ public class ProcessManagerEngine : IProcessManager
     /// </summary>
     protected virtual bool ResolveIsAuthenticated(string tenantId, string userId) => false;
 
-    /// <summary>Evaluated calculation touchpoint for one render pass.</summary>
+    /// <summary>Evaluated calculation stage for one render pass.</summary>
     protected sealed record CalculationRenderContext(
         ServiceBlueprintCalculationSet Set,
         IReadOnlyDictionary<string, object?> Scope,
@@ -1127,7 +1127,7 @@ public class ProcessManagerEngine : IProcessManager
     private CalculationRenderContext? EvaluateDefinitionCalculations(
         ServiceRequest instance,
         ServiceBlueprint definition,
-        StepDefinition touchpoint)
+        StageDefinition stage)
     {
         if (definition.Calculations is null)
         {
@@ -1136,7 +1136,7 @@ public class ProcessManagerEngine : IProcessManager
 
         try
         {
-            var serviceInputs = ResolveServiceInputs(instance, definition, touchpoint);
+            var serviceInputs = ResolveServiceInputs(instance, definition, stage);
             var scope = CalculationScopeBuilder.Build(definition, instance.FieldValues, serviceInputs);
             var result = _calculationEvaluator.Evaluate(definition.Calculations, scope);
 
@@ -1167,9 +1167,9 @@ public class ProcessManagerEngine : IProcessManager
         {
             Logger.LogWarning(
                 exception,
-                "Calculation evaluation failed for blueprint {Key}, touchpoint {State}; rendering without calculated values.",
+                "Calculation evaluation failed for blueprint {Key}, stage {State}; rendering without calculated values.",
                 definition.DefinitionKey,
-                touchpoint.TouchpointKey);
+                stage.StageKey);
             return null;
         }
     }
@@ -1406,7 +1406,7 @@ public class ProcessManagerEngine : IProcessManager
                             Tasks = section.Tasks.Select(task => new PrismTaskItem
                             {
                                 Label = task.Label,
-                                Href = task.Href ?? task.TouchpointKey,
+                                Href = task.Href ?? task.StageKey,
                                 Status = "not-started"
                             }).ToArray()
                         }).ToArray()
@@ -1778,7 +1778,7 @@ public class ProcessManagerEngine : IProcessManager
             .FirstOrDefault(c => c.CurrentNodeKey == arrivingTransition.FromState && !c.IsAtGateway);
         var sourceCursorId = sourceCursor?.CursorId;
 
-        // Remove the arriving cursor (or primary touchpoint in single-cursor mode) and fan out.
+        // Remove the arriving cursor (or primary stage in single-cursor mode) and fan out.
         var remainingCursors = sourceCursorId != null
             ? instance.Cursors.Where(c => c.CursorId != sourceCursorId).ToList()
             : new List<RequestCursor>();
@@ -1790,7 +1790,7 @@ public class ProcessManagerEngine : IProcessManager
                 string.Equals(targetGateway?.GatewayType, "Join", StringComparison.OrdinalIgnoreCase)
                     ? sourceCursor?.QueueKey
                     : targetGateway?.QueueKey,
-                GetQueueKey(definition.Touchpoints.FirstOrDefault(touchpoint => touchpoint.TouchpointKey == t.ToState)),
+                GetQueueKey(definition.Stages.FirstOrDefault(stage => stage.StageKey == t.ToState)),
                 sourceCursor?.QueueKey,
                 splitGateway.QueueKey);
 
@@ -1804,7 +1804,7 @@ public class ProcessManagerEngine : IProcessManager
         }).ToList();
 
         var allCursors = remainingCursors.Concat(newCursors).ToArray();
-        var primaryTouchpoint = FirstActiveTouchpointCursorKey(allCursors) ?? newCursors[0].CurrentNodeKey;
+        var primaryStage = FirstActiveStageCursorKey(allCursors) ?? newCursors[0].CurrentNodeKey;
         var joinArrivals = new Dictionary<string, IReadOnlyList<string>>(instance.JoinArrivals);
 
         foreach (var joinGroup in newCursors
@@ -1830,7 +1830,7 @@ public class ProcessManagerEngine : IProcessManager
 
         var updated = instance with
         {
-            CurrentTouchpoint = primaryTouchpoint,
+            CurrentStage = primaryStage,
             Cursors = allCursors,
             JoinArrivals = joinArrivals,
             StateVersion = instance.StateVersion + 1,
@@ -1881,7 +1881,7 @@ public class ProcessManagerEngine : IProcessManager
             {
                 CursorId = Guid.NewGuid().ToString(),
                 QueueKey = FirstNonEmpty(
-                               GetQueueKey(definition.Touchpoints.FirstOrDefault(touchpoint => touchpoint.TouchpointKey == arrivingTransition.FromState)),
+                               GetQueueKey(definition.Stages.FirstOrDefault(stage => stage.StageKey == arrivingTransition.FromState)),
                                joinGateway.QueueKey)
                            ?? string.Empty,
                 CurrentNodeKey = arrivingTransition.FromState,
@@ -1924,7 +1924,7 @@ public class ProcessManagerEngine : IProcessManager
             // Waiting — record arrival but do not release.
             var waitingInstance = instance with
             {
-                CurrentTouchpoint = FirstActiveTouchpointCursorKey(cursorsAfterArrival) ?? gatewayKey,
+                CurrentStage = FirstActiveStageCursorKey(cursorsAfterArrival) ?? gatewayKey,
                 Cursors = cursorsAfterArrival,
                 JoinArrivals = updatedArrivals,
                 StateVersion = instance.StateVersion + 1,
@@ -1942,7 +1942,7 @@ public class ProcessManagerEngine : IProcessManager
 
         var arrivedInstance = instance with
         {
-            CurrentTouchpoint = FirstActiveTouchpointCursorKey(cursorsAfterArrival) ?? gatewayKey,
+            CurrentStage = FirstActiveStageCursorKey(cursorsAfterArrival) ?? gatewayKey,
             Cursors = cursorsAfterArrival,
             JoinArrivals = updatedArrivals,
             StateVersion = instance.StateVersion + 1,
@@ -2056,7 +2056,7 @@ public class ProcessManagerEngine : IProcessManager
                 CursorId = Guid.NewGuid().ToString(),
                 QueueKey = FirstNonEmpty(
                                targetGateway?.QueueKey,
-                               GetQueueKey(definition.Touchpoints.FirstOrDefault(touchpoint => touchpoint.TouchpointKey == transition.ToState)),
+                               GetQueueKey(definition.Stages.FirstOrDefault(stage => stage.StageKey == transition.ToState)),
                                joinGateway.QueueKey)
                            ?? string.Empty,
                 CurrentNodeKey = transition.ToState,
@@ -2070,7 +2070,7 @@ public class ProcessManagerEngine : IProcessManager
 
         var releasedInstance = instance with
         {
-            CurrentTouchpoint = FirstActiveTouchpointCursorKey(releasedCursors) ?? outgoing[0].ToState,
+            CurrentStage = FirstActiveStageCursorKey(releasedCursors) ?? outgoing[0].ToState,
             Cursors = releasedCursors,
             JoinArrivals = cleanedArrivals
         };
@@ -2095,7 +2095,7 @@ public class ProcessManagerEngine : IProcessManager
             .ToArray();
     }
 
-    private static string? FirstActiveTouchpointCursorKey(IReadOnlyList<RequestCursor> cursors) =>
+    private static string? FirstActiveStageCursorKey(IReadOnlyList<RequestCursor> cursors) =>
         cursors.FirstOrDefault(c => !c.IsAtGateway)?.CurrentNodeKey;
 
     private static string? FirstNonEmpty(params string?[] values) =>
@@ -2105,8 +2105,8 @@ public class ProcessManagerEngine : IProcessManager
 
     private static bool IsTerminalInstance(ServiceRequest instance, ServiceBlueprint definition)
     {
-        var currentTouchpoint = definition.Touchpoints.FirstOrDefault(s => s.TouchpointKey == instance.CurrentTouchpoint);
-        return currentTouchpoint != null && currentTouchpoint.Components.InferStepType() == "confirmation";
+        var currentStage = definition.Stages.FirstOrDefault(s => s.StageKey == instance.CurrentStage);
+        return currentStage != null && currentStage.Components.InferStepType() == "confirmation";
     }
 
     private ServiceRequest? FindLatestInstance(string tenantId, string userId, string blueprintKey) =>

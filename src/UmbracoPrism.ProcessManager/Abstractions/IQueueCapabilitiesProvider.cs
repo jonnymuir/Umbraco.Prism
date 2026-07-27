@@ -22,7 +22,7 @@ public interface IQueueCapabilitiesProvider
 
     /// <summary>
     /// Every queue this host has an explicit declaration for, keyed by queue key. Backs
-    /// discovering what's safe to author for a queue before drafting a touchpoint for it.
+    /// discovering what's safe to author for a queue before drafting a stage for it.
     /// </summary>
     IReadOnlyDictionary<string, IReadOnlyList<string>> GetAllDeclaredCapabilities();
 }
@@ -31,7 +31,7 @@ public interface IQueueCapabilitiesProvider
 /// Dictionary-backed reference implementation for hosts with a fixed, compile-time-known
 /// capability set — the common case, since a host's rendering surface doesn't usually change
 /// at runtime. Pass an <see cref="StringComparer.OrdinalIgnoreCase"/>-keyed dictionary,
-/// matching <c>StepDefinition.QueueKey</c>/<c>ActorProfile</c>'s own
+/// matching <c>StageDefinition.QueueKey</c>/<c>ActorProfile</c>'s own
 /// case-insensitivity convention.
 /// </summary>
 public sealed class StaticQueueCapabilitiesProvider(

@@ -24,9 +24,9 @@ public static class CalculationScopeBuilder
         ServiceBlueprint definition)
     {
         var inputs = new Dictionary<string, (string, string?)>(StringComparer.Ordinal);
-        foreach (var touchpoint in definition.Touchpoints)
+        foreach (var stage in definition.Stages)
         {
-            foreach (var input in touchpoint.Components.GetAllInputs())
+            foreach (var input in stage.Components.GetAllInputs())
             {
                 if (string.IsNullOrWhiteSpace(input.FieldKey) || inputs.ContainsKey(input.FieldKey))
                 {

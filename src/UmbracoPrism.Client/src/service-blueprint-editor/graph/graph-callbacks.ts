@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { AuthoredServiceBlueprint } from '../types.js';
-import type { QueueDefinition } from '../touchpoint-assignment.js';
+import type { QueueDefinition } from '../stage-assignment.js';
 
 /**
  * Props snapshot pushed from the Lit wrapper into the React canvas on every

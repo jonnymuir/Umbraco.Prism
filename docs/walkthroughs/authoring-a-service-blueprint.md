@@ -98,14 +98,14 @@ Subclass `PrismServiceRequestPageController<T>` for your service blueprint page 
 using UmbracoPrism.Core.Controllers;
 using UmbracoPrism.Core.Models.Service-Blueprint;
 
-public class TouchpointPageController(
+public class StagePageController(
     ILogger<RenderController> logger,
     ICompositeViewEngine compositeViewEngine,
     IUmbracoContextAccessor umbracoContextAccessor,
     IBusinessAppWorkflowClient workflowClient,
     IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery,
-    ITouchpointNonceService nonceService,
+    IStageNonceService nonceService,
     IServiceRequestFieldValidator fieldValidator)
     : PrismServiceRequestPageController<PrismServiceRequestViewModel>(
         logger, compositeViewEngine, umbracoContextAccessor,
@@ -116,7 +116,7 @@ public class TouchpointPageController(
 }
 ```
 
-TestSite's `TouchpointPageController` is the reference. It pre-populates a few fields from claims; everything else is base-class behaviour.
+TestSite's `StagePageController` is the reference. It pre-populates a few fields from claims; everything else is base-class behaviour.
 
 ---
 

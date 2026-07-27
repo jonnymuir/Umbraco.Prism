@@ -159,10 +159,10 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
     {
         var existingJson = await _client.GetStringAsync("/mockapp/service-blueprints/payment-demo");
         var payload = JsonNode.Parse(existingJson)!.AsObject();
-        var states = payload["touchpoints"]!.AsArray();
+        var states = payload["stages"]!.AsArray();
         var stage = states
             .Select(node => node!.AsObject())
-            .Single(node => node["touchpointKey"]!.GetValue<string>() == "confirm-payment-received");
+            .Single(node => node["stageKey"]!.GetValue<string>() == "confirm-payment-received");
 
         stage["displayName"] = "Confirm payment received (saved)";
 
@@ -185,7 +185,7 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
 
             var reloaded = await _client.GetFromJsonAsync<ServiceBlueprint>("/mockapp/service-blueprints/payment-demo");
             reloaded.Should().NotBeNull();
-            reloaded!.Touchpoints.Single(state => state.TouchpointKey == "confirm-payment-received")
+            reloaded!.Stages.Single(state => state.StageKey == "confirm-payment-received")
                 .DisplayName.Should().Be("Confirm payment received (saved)");
             reloaded.Layout.Should().NotBeNull();
             reloaded.Layout!.Nodes.Should().ContainKey("stage:confirm-payment-received")
@@ -211,7 +211,7 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
     {
         var existingJson = await _client.GetStringAsync("/mockapp/service-blueprints/payment-demo");
         var payload = JsonNode.Parse(existingJson)!.AsObject();
-        var firstState = payload["touchpoints"]!.AsArray()[0]!.AsObject();
+        var firstState = payload["stages"]!.AsArray()[0]!.AsObject();
         var firstComponent = firstState["components"]!.AsArray()[0]!.AsObject();
         firstComponent.Remove("type");
 
@@ -233,7 +233,7 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
         var errors = root.GetProperty("errors");
         errors.GetArrayLength().Should().BeGreaterThan(0);
         errors[0].GetProperty("code").GetString().Should().Be("component-type-missing");
-        errors[0].GetProperty("path").GetString().Should().Be("$.touchpoints[0].components[0]");
+        errors[0].GetProperty("path").GetString().Should().Be("$.stages[0].components[0]");
         errors[0].GetProperty("message").GetString().Should().Be("Service blueprint components must declare a supported 'type' value.");
     }
 
@@ -248,9 +248,9 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
     {
         var existingJson = await _client.GetStringAsync("/mockapp/service-blueprints/planning");
         var payload = JsonNode.Parse(existingJson)!.AsObject();
-        var states = payload["touchpoints"]!.AsArray();
+        var states = payload["stages"]!.AsArray();
         var declaration = states.Select(n => n!.AsObject())
-            .Single(n => n["touchpointKey"]!.GetValue<string>() == "declaration");
+            .Single(n => n["stageKey"]!.GetValue<string>() == "declaration");
         var route = declaration["routes"]!.AsArray()[0]!.AsObject();
         route["target"] = "application-form"; // a state key, not a gateway key
 
@@ -268,7 +268,7 @@ public class FourServiceBlueprintReferenceContractTests : IClassFixture<FourServ
         var errors = root.GetProperty("errors");
         errors.GetArrayLength().Should().BeGreaterThan(0);
         errors[0].GetProperty("message").GetString().Should().Contain(
-            "Routes from touchpoints must always target a gateway",
+            "Routes from stages must always target a gateway",
             because: "this is the same message ValidateGatewayRouting() produces for the AI-toolkit path");
     }
 

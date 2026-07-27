@@ -1,6 +1,6 @@
 // ⚠️ MOBILE BOUNDARY: No @umbraco-cms imports allowed in this directory.
 //
-// Generic live-form runtime. Progressive enhancement for any touchpoint whose
+// Generic live-form runtime. Progressive enhancement for any stage whose
 // definition declares a calculations block:
 //
 //  - reads the embedded live model ([data-prism-live-model]): the calculation set,

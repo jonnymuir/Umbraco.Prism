@@ -88,13 +88,15 @@ node scripts/validate-aspire-prereqs.mjs
 
 The canonical service blueprint contract is `ServiceBlueprint` (C#) / `AuthoredServiceBlueprint` (TypeScript). Key fields:
 
-- **`queues`** — named work queues (e.g. `web-user`, `admin`). Each touchpoint belongs to one queue via `queueKey`.
-- **`touchpoints`** — service blueprint stages, each owning their own `routes` array (replacing the old flat `transitions` array).
-- **`gateways`** — first-class Split/Join gateway nodes. Touchpoint routes must target a gateway; gateway routes may target touchpoints or other gateways.
-- **`initialTouchpoint`** — key of the starting touchpoint (`initialTouchpointKey` on the authored/design-time model).
+- **`queues`** — named work queues (e.g. `web-user`, `admin`). Each stage belongs to one queue via `queueKey`.
+- **`stages`** — service blueprint stages, each owning their own `routes` array (replacing the old flat `transitions` array).
+- **`gateways`** — first-class Split/Join gateway nodes. Stage routes must target a gateway; gateway routes may target stages or other gateways.
+- **`initialStage`** — key of the starting stage.
 - **`requestPolicy`** — `"single"` (one active service request per user) or `"multiple"`.
 
-Touchpoint routes must always point to a gateway, never directly to another touchpoint. `ValidateGatewayRouting()` enforces this at save time.
+Stage routes must always point to a gateway, never directly to another stage. `ValidateGatewayRouting()` enforces this at save time.
+
+**"Stage" vs "touchpoint":** a stage is the generic graph node — the thing that happens at one point in a blueprint, regardless of who or what is acting. "Touchpoint" is a narrower service-design term for a point of *customer contact*, so it doesn't fit every stage (a hypothetical future automated/system queue would have stages with no touchpoint at all). Queue `displayName`s may still say "touchpoints" where that's accurate — e.g. `web-user`/`business-user` queues are named "... touchpoints" in the demo seeds, because those queues genuinely are all customer- or staff-facing contact points — but the type name and field names are `Stage`/`stageKey` everywhere, not `Touchpoint`.
 
 **Response states:** `"render"` (show this step), `"defer"` (wait), `"complete"`, `"error"`.
 
@@ -112,7 +114,7 @@ The shared runtime does NOT enforce queue-level access control — that's the ho
 
 Web components in `src/UmbracoPrism.Client/src/service-blueprint-editor/`:
 - `prism-service-blueprint-editor.ts` — main editor component
-- `prism-service-blueprint-graph.ts` — canvas with lane bands, touchpoint nodes, gateway nodes, route edges. Uses longest-path Kahn's algorithm for Y-rank; backward edges (Join loop-backs) are detected and removed from the ranking graph before layout.
+- `prism-service-blueprint-graph.ts` — canvas with lane bands, stage nodes, gateway nodes, route edges. Uses longest-path Kahn's algorithm for Y-rank; backward edges (Join loop-backs) are detected and removed from the ranking graph before layout.
 - `prism-service-blueprint-editor-shell.ts` — standalone shell for embedding the editor
 - `types.ts` — canonical TypeScript types; includes compatibility getters for older `lane`/`transition` naming
 

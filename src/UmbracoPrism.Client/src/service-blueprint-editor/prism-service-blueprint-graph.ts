@@ -2,21 +2,21 @@ import { LitElement, css, html, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type {
   AuthoredGateway,
-  AuthoredTouchpoint,
+  AuthoredStage,
   RouteView,
   AuthoredServiceBlueprint,
   EditorStageType,
 } from './types.js';
-import { editorStageTypeToTouchpointKind } from './types.js';
+import { editorStageTypeToStageKind } from './types.js';
 import {
-  applyQueueToTouchpoint,
-  touchpointQueueKey,
-  touchpointQueueLabel,
-  touchpointSurface,
-  type TouchpointSurface,
+  applyQueueToStage,
+  stageQueueKey,
+  stageQueueLabel,
+  stageSurface,
+  type StageSurface,
   type QueueDefinition,
   serviceBlueprintQueueOptions,
-} from './touchpoint-assignment.js';
+} from './stage-assignment.js';
 import { serviceBlueprintGateways } from './types.js';
 import { gatewayQueueKey } from './gateway-representation.js';
 import {
@@ -56,7 +56,7 @@ type ContextMenuState = ContextMenuTarget & {
 };
 
 type CreateStageDialogState = {
-  surfaceHint: TouchpointSurface;
+  surfaceHint: StageSurface;
   position: 'append' | 'before' | 'after';
   referenceStageKey: string | null;
   title: string;
@@ -93,7 +93,7 @@ const EDGE_LABEL_HEIGHT = 22;
  *  - transition-selected CustomEvent<{ transitionIndex: number }>
  *  - selection-change CustomEvent<GraphSelectionDetail>
  *  - inspector-requested CustomEvent<GraphSelectionDetail>
- *  - serviceBlueprint-updated CustomEvent<ServiceBlueprintUpdatedDetail>
+ *  - service-blueprint-updated CustomEvent<ServiceBlueprintUpdatedDetail>
  */
 @customElement('prism-service-blueprint-graph')
 export class PrismServiceBlueprintGraphElement extends LitElement {
@@ -205,7 +205,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
       this._selectedGatewayKey = this.selectedGatewayKey ?? null;
     }
 
-    const stages = this.serviceBlueprint?.touchpoints ?? [];
+    const stages = this.serviceBlueprint?.stages ?? [];
     const transitions = flattenRoutes(this.serviceBlueprint);
     const gateways = this.serviceBlueprint?.metadata?.gateways ?? [];
 
@@ -396,8 +396,8 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
       if (parsed.kind === 'stage') {
         next = {
           ...next,
-          touchpoints: next.touchpoints.map(stage =>
-            stage.stateKey === parsed.key ? applyQueueToTouchpoint(stage, move.queueKey!) : stage
+          stages: next.stages.map(stage =>
+            stage.stateKey === parsed.key ? applyQueueToStage(stage, move.queueKey!) : stage
           ),
         };
       } else {
@@ -462,7 +462,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
     if (ownerKey === source.key && source.kind === 'stage') {
       serviceBlueprint = {
         ...serviceBlueprint,
-        touchpoints: serviceBlueprint.touchpoints.map(stage =>
+        stages: serviceBlueprint.stages.map(stage =>
           stage.stateKey === source.key
             ? { ...stage, routes: [...(stage.routes ?? []), route] }
             : stage
@@ -501,8 +501,8 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
     requestAnimationFrame(() => this._bridge?.fitView());
   }
 
-  private _surfaceForTouchpoint(stage: AuthoredTouchpoint): TouchpointSurface {
-    return touchpointSurface(stage);
+  private _surfaceForStage(stage: AuthoredStage): StageSurface {
+    return stageSurface(stage);
   }
 
   private _queueKeyForGateway(gateway: AuthoredGateway) {
@@ -510,7 +510,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
   }
 
   private _roleLabelForQueue(queueKey: string) {
-    return touchpointQueueLabel(this.serviceBlueprint, queueKey, this.availableQueues);
+    return stageQueueLabel(this.serviceBlueprint, queueKey, this.availableQueues);
   }
 
   private _availableQueueKeys() {
@@ -624,7 +624,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
   private _emitServiceBlueprintUpdated(serviceBlueprint: AuthoredServiceBlueprint, selection?: GraphSelectionDetail | null) {
     this.serviceBlueprint = serviceBlueprint;
     this.dispatchEvent(
-      new CustomEvent<ServiceBlueprintUpdatedDetail>('serviceBlueprint-updated', {
+      new CustomEvent<ServiceBlueprintUpdatedDetail>('service-blueprint-updated', {
         detail: { serviceBlueprint, selection },
         bubbles: true,
         composed: true,
@@ -633,13 +633,13 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
   }
 
   private _labelForStage(stageKey: string): string {
-    return this.serviceBlueprint?.touchpoints.find(stage => stage.stateKey === stageKey)?.displayName
+    return this.serviceBlueprint?.stages.find(stage => stage.stateKey === stageKey)?.displayName
       ?? this.serviceBlueprint?.metadata?.gateways?.find(gateway => gateway.key === stageKey)?.displayName
       ?? stageKey;
   }
 
   private _makeUniqueStageKey(base: string) {
-    const usedKeys = new Set(this.serviceBlueprint?.touchpoints.map(stage => stage.stateKey) ?? []);
+    const usedKeys = new Set(this.serviceBlueprint?.stages.map(stage => stage.stateKey) ?? []);
     let candidate = base;
     let suffix = 2;
     while (usedKeys.has(candidate)) {
@@ -659,20 +659,20 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
     return this._makeUniqueStageKey(slug);
   }
 
-  private _defaultQueueForSurface(surface: TouchpointSurface) {
+  private _defaultQueueForSurface(surface: StageSurface) {
     return surface === 'back-stage' ? 'reviewer' : 'public';
   }
 
   private _openCreateStageDialog(
-    surfaceHint: TouchpointSurface,
+    surfaceHint: StageSurface,
     position: 'append' | 'before' | 'after',
     referenceStageKey: string | null,
     returnTarget?: HTMLElement | null
   ) {
     const referenceStage = referenceStageKey
-      ? this.serviceBlueprint?.touchpoints.find(stage => stage.stateKey === referenceStageKey) ?? null
+      ? this.serviceBlueprint?.stages.find(stage => stage.stateKey === referenceStageKey) ?? null
       : null;
-    const defaultQueueKey = referenceStage ? touchpointQueueKey(referenceStage) : this._defaultQueueForSurface(surfaceHint);
+    const defaultQueueKey = referenceStage ? stageQueueKey(referenceStage) : this._defaultQueueForSurface(surfaceHint);
     const baseTitle = 'New stage';
     this._dialogReturnTarget = returnTarget ?? this._contextReturnTarget ?? null;
     this._createStageDialog = {
@@ -727,7 +727,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
       return;
     }
 
-    const previewStage = applyQueueToTouchpoint({
+    const previewStage = applyQueueToStage({
       stateKey: '',
       displayName: '',
       metadata: { stageType: 'Question', actions: [], roleGates: [] },
@@ -739,7 +739,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
     this._createStageDialog = {
       ...this._createStageDialog,
       queueKey: value,
-      surfaceHint: touchpointSurface(previewStage),
+      surfaceHint: stageSurface(previewStage),
       error: null,
     };
   }
@@ -769,24 +769,24 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
       return;
     }
 
-    if (this.serviceBlueprint.touchpoints.some(stage => stage.stateKey === stageKey)) {
+    if (this.serviceBlueprint.stages.some(stage => stage.stateKey === stageKey)) {
       this._createStageDialog = { ...this._createStageDialog, error: 'Stage key must be unique.' };
       return;
     }
 
-    const newStage = applyQueueToTouchpoint({
+    const newStage = applyQueueToStage({
       stateKey: stageKey,
       displayName: title,
       components: [],
       metadata: {
-        stageType: editorStageTypeToTouchpointKind(dialog.stageType),
+        stageType: editorStageTypeToStageKind(dialog.stageType),
         actions: [],
         roleGates: [],
         editorComment: 'Created from the graph workspace.',
       },
-    } as unknown as AuthoredTouchpoint, dialog.queueKey);
+    } as unknown as AuthoredStage, dialog.queueKey);
 
-    const stages = [...this.serviceBlueprint.touchpoints];
+    const stages = [...this.serviceBlueprint.stages];
     let insertIndex = stages.length;
     if (dialog.referenceStageKey) {
       const referenceIndex = stages.findIndex(stage => stage.stateKey === dialog.referenceStageKey);
@@ -798,8 +798,8 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
 
     const serviceBlueprint: AuthoredServiceBlueprint = {
       ...this.serviceBlueprint,
-      initialTouchpointKey: this.serviceBlueprint.initialTouchpointKey || newStage.stateKey,
-      touchpoints: stages,
+      initialStage: this.serviceBlueprint.initialStage || newStage.stateKey,
+      stages: stages,
     };
 
     this._selectedStageKey = newStage.stateKey;
@@ -821,11 +821,11 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
     }
     this._dialogReturnTarget = returnTarget ?? null;
     // Prefer a queue an existing stage already lives in — defaulting to
-    // availableQueues[0] can pick a host-supplied queue the serviceBlueprint itself
+    // availableQueues[0] can pick a host-supplied queue the service blueprint itself
     // never uses, which silently creates a same-labelled duplicate lane
     // (the new gateway's queue key looks identical to an existing one in
     // the UI but isn't, since lanes group by key, not label).
-    const defaultQueue = touchpointQueueKey(this.serviceBlueprint.touchpoints[0])
+    const defaultQueue = stageQueueKey(this.serviceBlueprint.stages[0])
       || serviceBlueprintQueueOptions(this.serviceBlueprint, this.availableQueues)[0]
       || 'public';
     this._createGatewayDialog = {
@@ -867,7 +867,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
     }
 
     const usedKeys = [
-      ...this.serviceBlueprint.touchpoints.map(s => s.stateKey),
+      ...this.serviceBlueprint.stages.map(s => s.stateKey),
       ...(this.serviceBlueprint.metadata?.gateways ?? []).map(g => g.key),
     ];
     if (usedKeys.includes(key)) {
@@ -932,11 +932,11 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
     const stageKey = this._deleteStageDialog.stageKey;
     const deletedLabel = this._labelForStage(stageKey);
     const transitionCount = this._deleteStageDialog.affectedTransitions.length;
-    const stages = this.serviceBlueprint.touchpoints.filter(stage => stage.stateKey !== stageKey);
+    const stages = this.serviceBlueprint.stages.filter(stage => stage.stateKey !== stageKey);
 
     // Drop any gateway whose source was this stage, and remove any route
     // that targeted this stage. The derived `transitions` view is rebuilt
-    // by `withDerivedTransitions` before we hand the serviceBlueprint downstream.
+    // by `withDerivedTransitions` before we hand the service blueprint downstream.
     const gateways = serviceBlueprintGateways(this.serviceBlueprint)
       .filter(gateway => gateway.key !== stageKey)
       .map(gateway => ({
@@ -950,12 +950,12 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
 
     const serviceBlueprint: AuthoredServiceBlueprint = pruneLayout({
       ...this.serviceBlueprint,
-      touchpoints: stagesWithRoutes,
+      stages: stagesWithRoutes,
       gateways,
-      initialTouchpointKey:
-        this.serviceBlueprint.initialTouchpointKey === stageKey
+      initialStage:
+        this.serviceBlueprint.initialStage === stageKey
           ? stages[0]?.stateKey ?? ''
-          : this.serviceBlueprint.initialTouchpointKey,
+          : this.serviceBlueprint.initialStage,
     });
 
     this._selectedStageKey = null;
@@ -968,7 +968,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
   }
 
   private async _copyStage(stageKey: string) {
-    const stage = this.serviceBlueprint?.touchpoints.find(candidate => candidate.stateKey === stageKey);
+    const stage = this.serviceBlueprint?.stages.find(candidate => candidate.stateKey === stageKey);
     if (!stage) {
       return;
     }
@@ -1069,10 +1069,10 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
     if (action === 'add-stage') {
       const referenceStageKey = target.kind === 'stage' ? target.stageKey : this._selectedStageKey;
       const referenceStage = referenceStageKey
-        ? this.serviceBlueprint?.touchpoints.find(stage => stage.stateKey === referenceStageKey) ?? null
+        ? this.serviceBlueprint?.stages.find(stage => stage.stateKey === referenceStageKey) ?? null
         : null;
       this._openCreateStageDialog(
-        referenceStage ? this._surfaceForTouchpoint(referenceStage) : 'front-stage',
+        referenceStage ? this._surfaceForStage(referenceStage) : 'front-stage',
         target.kind === 'stage' ? 'after' : 'append',
         target.kind === 'stage' ? target.stageKey : null
       );
@@ -1445,7 +1445,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
   }
 
   private _renderGraph() {
-    const stages = this.serviceBlueprint?.touchpoints ?? [];
+    const stages = this.serviceBlueprint?.stages ?? [];
     const gateways = serviceBlueprintGateways(this.serviceBlueprint);
     const isEmpty = stages.length === 0 && gateways.length === 0;
 
@@ -1460,9 +1460,9 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
                   class="hud-button"
                   data-prism-add-stage
                   @click=${(event: Event) => {
-                    const selectedStage = this.serviceBlueprint?.touchpoints.find(stage => stage.stateKey === this._selectedStageKey) ?? null;
+                    const selectedStage = this.serviceBlueprint?.stages.find(stage => stage.stateKey === this._selectedStageKey) ?? null;
                     this._openCreateStageDialog(
-                      selectedStage ? this._surfaceForTouchpoint(selectedStage) : 'front-stage',
+                      selectedStage ? this._surfaceForStage(selectedStage) : 'front-stage',
                       this._selectedStageKey ? 'after' : 'append',
                       this._selectedStageKey,
                       event.currentTarget as HTMLElement
@@ -1515,11 +1515,11 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
             class="graph-canvas"
             role="application"
             tabindex="0"
-            aria-label=${`ServiceBlueprint graph canvas — ${this.serviceBlueprint?.displayName ?? 'serviceBlueprint'}`}
-            aria-roledescription=${this.readOnly ? 'ServiceBlueprint graph viewer' : 'ServiceBlueprint graph editor'}
+            aria-label=${`Service blueprint graph canvas — ${this.serviceBlueprint?.displayName ?? "service blueprint"}`}
+            aria-roledescription=${this.readOnly ? 'Service blueprint graph viewer' : 'Service blueprint graph editor'}
             @click=${() => this._dismissContextMenu(false)}
           >
-            <div class="graph-react-host" data-prism-component="serviceBlueprint-graph" data-prism-mode="graph"></div>
+            <div class="graph-react-host" data-prism-component="service-blueprint-graph" data-prism-mode="graph"></div>
           </div>`}
     `;
   }
@@ -1532,7 +1532,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
   private _renderWorkspaceEmptyState() {
     return html`
       <section class="workspace-empty-state" role="status" data-prism-empty-state="graph">
-        <h2 class="workspace-empty-title">${this.readOnly ? 'No stages to display' : 'Start building your serviceBlueprint'}</h2>
+        <h2 class="workspace-empty-title">${this.readOnly ? 'No stages to display' : 'Start building your service blueprint'}</h2>
         <p class="workspace-empty-copy">
           ${this.readOnly
             ? 'This serviceBlueprint has no stages.'
@@ -1564,11 +1564,11 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
 
   render() {
     return html`
-      <div class="serviceBlueprint-graph-root" data-prism-component="serviceBlueprint-graph" data-prism-mode="graph" data-prism-read-only=${String(this.readOnly)}>
+      <div class="service-blueprint-graph-root" data-prism-component="service-blueprint-graph" data-prism-mode="graph" data-prism-read-only=${String(this.readOnly)}>
         <div class="toolbar">
           <div class="toolbar-title-block">
-            <span class="serviceBlueprint-title">${this.serviceBlueprint?.displayName ?? 'No serviceBlueprint loaded'}</span>
-            <span class="serviceBlueprint-subtitle">${this.readOnly ? 'Published serviceBlueprint — read-only viewer' : 'Visual serviceBlueprint map'}</span>
+            <span class="service-blueprint-title">${this.serviceBlueprint?.displayName ?? 'No service blueprint loaded'}</span>
+            <span class="service-blueprint-subtitle">${this.readOnly ? 'Published service blueprint — read-only viewer' : 'Visual service blueprint map'}</span>
           </div>
         </div>
 
@@ -1605,7 +1605,7 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
       border: 0;
     }
 
-    .serviceBlueprint-graph-root {
+    .service-blueprint-graph-root {
       position: relative;
       display: flex;
       flex-direction: column;
@@ -1635,13 +1635,13 @@ export class PrismServiceBlueprintGraphElement extends LitElement {
       min-width: 0;
     }
 
-    .serviceBlueprint-title {
+    .service-blueprint-title {
       font-size: 1rem;
       font-weight: 700;
       color: #0f172a;
     }
 
-    .serviceBlueprint-subtitle {
+    .service-blueprint-subtitle {
       font-size: 0.8125rem;
       color: #475569;
     }

@@ -22,10 +22,10 @@ For the embedded expression language used in `calculations` and `showWhen`, see
   "displayName": "Money Modeller",
   "version": 1,                        // optimistic-concurrency version — see "Saving and conflicts" below
   "description": "...",                // optional
-  "initialTouchpoint": "choose-start", // must match a touchpoints[].touchpointKey
+  "initialStage": "choose-start", // must match a stages[].stageKey
   "requestPolicy": "single",           // "single" (one active service request per user) or "multiple"
   "queues": [ /* QueueDefinition[] — see Queues */ ],
-  "touchpoints": [ /* StepDefinition[] — see Touchpoints and routes */ ],
+  "stages": [ /* StageDefinition[] — see Stages and routes */ ],
   "gateways": [ /* ServiceBlueprintGatewayDefinition[] — see Gateways and routing */ ],
   "calculations": { /* ServiceBlueprintCalculationSet — see calculation-language.md */ },
   "handoffs": [ /* optional, actor-change annotations */ ],
@@ -44,18 +44,18 @@ responsibility. A queue is:
 { "key": "web-user", "displayName": "Member", "description": "...", "actor": "member", "roleGates": ["..."] }
 ```
 
-Every touchpoint and gateway declares which queue it belongs to via `queueKey`.
+Every stage and gateway declares which queue it belongs to via `queueKey`.
 `money-modeller.json`, for example, has a `web-user` queue (the member modelling
 their own benefits) and a `business-user` queue (scheme administrators reviewing a
 formal quote request) — two independent perspectives on the same service request.
 
-## Touchpoints and routes
+## Stages and routes
 
-A touchpoint (`StepDefinition`) is one stage of the service blueprint:
+A stage (`StageDefinition`) is one stage of the service blueprint:
 
 ```json
 {
-  "touchpointKey": "model",
+  "stageKey": "model",
   "displayName": "Your money, modelled",
   "stageType": "Question",
   "actor": "member",
@@ -74,15 +74,15 @@ A touchpoint (`StepDefinition`) is one stage of the service blueprint:
 
 ### The gateway routing rule
 
-**A touchpoint's routes must always target a gateway, never another touchpoint directly.**
-Gateway routes, in turn, may target either a touchpoint or another gateway. This is
+**A stage's routes must always target a gateway, never another stage directly.**
+Gateway routes, in turn, may target either a stage or another gateway. This is
 enforced by `ServiceBlueprint.ValidateGatewayRouting()` — called by
-`validate_service_blueprint`/`save_service_blueprint` — and is not optional: a route from a touchpoint
-straight to another touchpoint is always a validation error. Even the simplest
+`validate_service_blueprint`/`save_service_blueprint` — and is not optional: a route from a stage
+straight to another stage is always a validation error. Even the simplest
 one-route stage needs a trivial pass-through gateway between it and its
 destination (see `to-model-from-record` in `money-modeller.json`, a `Split`
 gateway with a single `continue` route). This uniform shape is what lets a single
-gateway later grow branching or join logic without restructuring every touchpoint that
+gateway later grow branching or join logic without restructuring every stage that
 points at it.
 
 ## Gateways and routing
@@ -110,11 +110,11 @@ A gateway (`ServiceBlueprintGatewayDefinition`) is a routing node — not a rend
   `waitingPollIntervalMs`, `waitingAllowDefer`, `waitingDeferMessage`,
   `requiredIncomingQueues`).
 - A route's `trigger` on a gateway is typically `"continue"` — gateways aren't
-  usually waiting on user choice the way a touchpoint's routes are, they're evaluating
+  usually waiting on user choice the way a stage's routes are, they're evaluating
   where an already-triggered action goes next.
 
 **Convention for a business-side/reviewer action after a Split:** route it
-*only* into the Join, never fan it out to its own separate terminal touchpoint as
+*only* into the Join, never fan it out to its own separate terminal stage as
 well. `simulate_service_blueprint`'s trace follows a single cursor — if the business
 side's action routes to both a Join and its own terminal, the trace can only
 follow one of those branches, silently leaving the other's actions
@@ -127,18 +127,18 @@ adding a parallel terminal for the business queue.
 can have every route resolve to a real target and still be a dead end in
 practice — e.g. a business-side stage that requests more information by
 routing to a gateway that only ever loops back within the *same* queue, with
-no touchpoint anywhere that the other queue's actor could actually answer from.
+no stage anywhere that the other queue's actor could actually answer from.
 Nothing about that is structurally invalid (every gateway has outgoing
 routes, every target exists), so it isn't caught by the routing checks above
 — but no real instance that takes that branch can ever complete.
 `validate_service_blueprint`/`save_service_blueprint` also run `ValidateReachability()`, which
-checks that every touchpoint and gateway has *some* path to a terminal touchpoint (one
+checks that every stage and gateway has *some* path to a terminal stage (one
 with no outgoing routes) — not that every path does, so a deliberate
 self-loop like `money-modeller`'s `recalculate` route is fine as long as
 another route out of the same stage still leads somewhere. A node with no
-path at all is flagged as `STATE_UNREACHABLE_TERMINAL` /
+path at all is flagged as `STAGE_UNREACHABLE_TERMINAL` /
 `GATEWAY_UNREACHABLE_TERMINAL`. It can't tell you *why* the loop is a dead
-end (usually: the loop needed to hand off to a touchpoint in the other queue and
+end (usually: the loop needed to hand off to a stage in the other queue and
 never did) — only that structurally, nothing escapes it.
 
 ## Response states
@@ -155,7 +155,7 @@ returns per step) carries a `responseState` — what the client should do next:
 
 ## Components
 
-`touchpoints[].components` is a list of `PrismComponent` — a polymorphic type
+`stages[].components` is a list of `PrismComponent` — a polymorphic type
 discriminated by `"type"`. The full catalog:
 
 **Input components** (declare a `fieldKey`, participate in the calculation scope —
@@ -188,14 +188,14 @@ render a calculated result.
 
 `summary-list` specifically is for **reviewing already-captured input values**, not
 for presenting a calculated result — each child is an inline input-type component
-(its own `fieldKey`, `label`, type) with an optional "Change" link back to the touchpoint
+(its own `fieldKey`, `label`, type) with an optional "Change" link back to the stage
 that captured it, GOV.UK's standard check-your-answers pattern. Set `changeStateKey`
 on the summary-list itself when every row was captured on the *same* earlier stage;
 when rows summarise fields captured on *different* stages (e.g. a bin count captured
 on `how-many-bins`, an address captured on a separate `property-address` stage), give
 the individual child its own `changeStateKey` instead — it overrides the summary-list's
 own default for that one row. `validate_service_blueprint`/`save_service_blueprint` check both the
-component-level and any per-row `changeStateKey` against the service blueprint's actual touchpoint
+component-level and any per-row `changeStateKey` against the service blueprint's actual stage
 keys and flag a dangling target as `DATA_DISPLAY_UNKNOWN_CHANGE_STATE`. A summary-list
 row *can* bind its `fieldKey` to a `calculations.fields` entry instead of a captured
 input, but there's nothing sensible for a "Change" link to navigate to for a derived
@@ -240,14 +240,14 @@ component catalog, versus an admin surface that only supports a generic
 register an `IQueueCapabilitiesProvider` (`UmbracoPrism.ProcessManager.Abstractions`)
 declaring, per queue key, which component `"type"` discriminators it actually
 renders. When registered, `validate_service_blueprint`/`save_service_blueprint` check every
-component in every touchpoint against its queue's declared capability list and
+component in every stage against its queue's declared capability list and
 reject (`QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT`) a component type the queue's
 host can't render — instead of letting you author something that silently
 renders as nothing. A queue key with **no** declared entry is unrestricted —
 not this host's concern (e.g. a queue actually served by a different app); an
 entry with an **empty** list means the host genuinely supports zero component
 types for that queue today. Use `list_queue_capabilities` to discover a
-queue's supported types before drafting a touchpoint for it.
+queue's supported types before drafting a stage for it.
 
 Capabilities are a contract each host declares about itself, never a runtime
 call to another host's process. `PrismComponentTypeCatalog`

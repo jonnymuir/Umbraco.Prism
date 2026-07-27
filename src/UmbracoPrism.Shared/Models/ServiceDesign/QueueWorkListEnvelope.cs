@@ -15,7 +15,7 @@ public record QueueWorkItem
 
     public string BlueprintDisplayName { get; init; } = "";
 
-    public string TouchpointKey { get; init; } = "";
+    public string StageKey { get; init; } = "";
 
     public string StateDisplayName { get; init; } = "";
 

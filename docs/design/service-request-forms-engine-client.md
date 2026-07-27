@@ -5,13 +5,13 @@ Prism's client story is intentionally server-rendered: the business app returns 
 ## Rendering flow
 
 1. `PrismServiceRequestPageController` populates `PrismPrismServiceRequestViewModel`.
-2. `Views/touchpointPage.cshtml` decides which shell to use.
+2. `Views/stagePage.cshtml` decides which shell to use.
 3. The chosen partial renders top-level components and action buttons.
 4. Field values and validation errors are taken from the view model, not from browser-authored metadata.
 
 ## Shell selection
 
-`src/UmbracoPrism.Core/Views/touchpointPage.cshtml` and `src/UmbracoPrism.Core/Models/ServiceDesign/ServiceRequestRenderShellResolver.cs` are the main routing points.
+`src/UmbracoPrism.Core/Views/stagePage.cshtml` and `src/UmbracoPrism.Core/Models/ServiceDesign/ServiceRequestRenderShellResolver.cs` are the main routing points.
 
 Current shell mapping:
 
@@ -106,7 +106,7 @@ Prism uses POST-Redirect-Get rather than rendering validation errors directly fr
 
 Pre-population happens before nonce creation, so the rendered field definition and the later POST validation still agree.
 
-The example override in `src/UmbracoPrism.TestSite/Controllers/TouchpointPageController.cs` sets claim-derived defaults for `full-name` and `email-address`, then marks them read-only.
+The example override in `src/UmbracoPrism.TestSite/Controllers/StagePageController.cs` sets claim-derived defaults for `full-name` and `email-address`, then marks them read-only.
 
 ## Practical guidance
 

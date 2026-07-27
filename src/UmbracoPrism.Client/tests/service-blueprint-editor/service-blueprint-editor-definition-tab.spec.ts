@@ -54,7 +54,7 @@ test.describe('Definition (JSON twin-pane) tab', () => {
 
     const text = await readDefinitionText(page);
     expect(text).toContain('"definitionKey"');
-    expect(text).toContain('"states"');
+    expect(text).toContain('"stages"');
     // 2-space indent — first nested key sits at two spaces.
     expect(text).toMatch(/\n {2}"/);
   });

@@ -4,7 +4,7 @@ import type { AuthoredGateway, RouteView, AuthoredServiceBlueprint } from './typ
 import { serviceBlueprintGateways } from './types.js';
 import { deriveGatewayBindings } from './gateway-representation.js';
 import { flattenRoutes } from './route-model.js';
-import { touchpointQueueKey, touchpointQueueLabel, type QueueDefinition } from './touchpoint-assignment.js';
+import { stageQueueKey, stageQueueLabel, type QueueDefinition } from './stage-assignment.js';
 
 /**
  * @internal Composition detail of <prism-service-blueprint-editor>; not part of the public API surface.
@@ -105,9 +105,9 @@ export class PrismServiceBlueprintOutline extends LitElement {
       return [];
     }
 
-    const groups = new Map<string, { key: string; label: string; stages: AuthoredServiceBlueprint['touchpoints'] }>();
-    for (const stage of this.serviceBlueprint.touchpoints) {
-      const queueKey = touchpointQueueKey(stage) || stage.actor || 'public';
+    const groups = new Map<string, { key: string; label: string; stages: AuthoredServiceBlueprint['stages'] }>();
+    for (const stage of this.serviceBlueprint.stages) {
+      const queueKey = stageQueueKey(stage) || stage.actor || 'public';
       const existing = groups.get(queueKey);
       if (existing) {
         existing.stages.push(stage);
@@ -116,7 +116,7 @@ export class PrismServiceBlueprintOutline extends LitElement {
 
       groups.set(queueKey, {
         key: queueKey,
-        label: touchpointQueueLabel(this.serviceBlueprint, queueKey, this.availableQueues),
+        label: stageQueueLabel(this.serviceBlueprint, queueKey, this.availableQueues),
         stages: [stage],
       });
     }
@@ -133,14 +133,14 @@ export class PrismServiceBlueprintOutline extends LitElement {
       `;
     }
 
-    const stages = this.serviceBlueprint.touchpoints || [];
+    const stages = this.serviceBlueprint.stages || [];
     const laneGroups = this._queueGroups();
 
     if (stages.length === 0) {
       return html`
         <div class="outline-empty">
           <p class="outline-empty-text">Start by adding your first stage</p>
-          <p class="outline-empty-hint">The outline will group stages by queue once the serviceBlueprint starts taking shape.</p>
+          <p class="outline-empty-hint">The outline will group stages by queue once the service blueprint starts taking shape.</p>
         </div>
       `;
     }
@@ -167,7 +167,7 @@ export class PrismServiceBlueprintOutline extends LitElement {
                 <p class="outline-lane-meta">Read top to bottom</p>
               </div>
               <ol class="outline-stage-list">
-                ${group.stages.map((stage: AuthoredServiceBlueprint['touchpoints'][number]) => {
+                ${group.stages.map((stage: AuthoredServiceBlueprint['stages'][number]) => {
             const isSelected = this.selectedStageKey === stage.stateKey;
             const transitions = this._stageOutboundTransitions(stage.stateKey);
             const splitGateways = this._splitGatewaysForStage(stage.stateKey);
