@@ -2,6 +2,28 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v2.0.0] — 2026-07-28
+
+### Breaking Changes
+
+- **"Workflow" is now "Service Design" vocabulary throughout the package.** Types, namespaces, wire format field names, MCP/REST routes, and backoffice labels have all been renamed end-to-end, to stop colliding with Umbraco's own official "Workflow" package (a completely different concept — content-editor approval). There are no compatibility shims, so saved definitions, MCP clients, and custom code built against the old contract all need to move to the new one:
+  - Wire format: `touchpoints`/`touchpointKey`/`touchpointType`/`initialTouchpointKey` are now `stages`/`stageKey`/`stageType`/`initialStage`.
+  - C# types: `WorkflowDefinitionFile` → `ServiceBlueprint`, `WorkflowInstanceState` → `ServiceRequest`, `IWorkflowRuntimeEngine` → `IProcessManager`, and equivalent renames across stores, controllers, and the authoring toolkit (now `UmbracoPrism.ProcessManager`, `.ProcessManager.Api`, `.ProcessManager.Mcp`).
+  - MCP tools and REST routes: e.g. `list_workflows` → `list_service_blueprints`, `/prism/workflow-authoring` → `/prism/service-blueprint-authoring`.
+- **"Touchpoint" is now "Stage"** as the generic term for a service blueprint node — a touchpoint specifically means a point of customer contact, which doesn't describe every kind of node. "Touchpoint" still appears where it's accurate, such as queue display names.
+- **Removed the experimental `AuthoredServiceBlueprint`/`IServiceBlueprintProjector` authoring pipeline.** It was dead code — every real authoring surface (the backoffice editor, the MCP/REST toolkit, and the reference business app) already saved the runtime model directly, so this is a cleanup with no capability loss.
+
+### Bug Fixes & Improvements
+
+- Fixes the backoffice canvas silently dropping every stage's key on save, which could make a service blueprint impossible to save at all.
+- Fixes saving a service blueprint from the editor silently blanking its configured start stage.
+- Fixes a copy-paste bug on the canvas that could leave a pasted stage without a valid key.
+- Fixes the CMS backoffice canvas's queue label ignoring a saved display name change — it was reading a fixed value rather than the blueprint's own queue metadata.
+- Fixes false "unreachable stage" validation errors being raised against stages that were genuinely reachable.
+- Fixes one of the reference demo service blueprints ("Request Information") never actually loading at startup, due to a JSON formatting issue that silently broke it on every app start.
+
+---
+
 ## [v1.15.0] — 2026-07-25
 
 ### New Features
