@@ -130,7 +130,7 @@ public abstract class PrismServiceRequestPageController<TViewModel> : RenderCont
         if (string.IsNullOrWhiteSpace(blueprintKey))
         {
             return CurrentTemplate(ErrorViewModel(blueprintKey,
-                "No workflow key configured on this page. Set the 'blueprintKey' property in the backoffice."));
+                "No service blueprint key configured on this page. Set the 'blueprintKey' property in the backoffice."));
         }
 
         var problems = PopProblemsFromTempData();
@@ -311,7 +311,7 @@ public abstract class PrismServiceRequestPageController<TViewModel> : RenderCont
                 .Select(e => new ServiceRequestProblem { FieldKey = e.Key, Message = e.Value, Code = "validation_error" })
                 .ToList();
             TempData["ServiceRequestProblems"] = JsonSerializer.Serialize(problems);
-            TempData["WorkflowFormValues"] = JsonSerializer.Serialize(submittedFields);
+            TempData["ServiceRequestFormValues"] = JsonSerializer.Serialize(submittedFields);
             return Redirect(safeReturnUrl);
         }
 
@@ -367,7 +367,7 @@ public abstract class PrismServiceRequestPageController<TViewModel> : RenderCont
         if (envelope.Problems.Count > 0)
         {
             TempData["ServiceRequestProblems"] = JsonSerializer.Serialize(envelope.Problems);
-            TempData["WorkflowFormValues"] = JsonSerializer.Serialize(submittedFields);
+            TempData["ServiceRequestFormValues"] = JsonSerializer.Serialize(submittedFields);
         }
 
         return Redirect(safeReturnUrl);
@@ -481,7 +481,7 @@ public abstract class PrismServiceRequestPageController<TViewModel> : RenderCont
 
     private IReadOnlyDictionary<string, string> PopFormValuesFromTempData()
     {
-        if (TempData.TryGetValue("WorkflowFormValues", out var raw) && raw is string json)
+        if (TempData.TryGetValue("ServiceRequestFormValues", out var raw) && raw is string json)
         {
             try
             {

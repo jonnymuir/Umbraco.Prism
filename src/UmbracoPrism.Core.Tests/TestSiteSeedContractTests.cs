@@ -10,7 +10,7 @@ public class TestSiteSeedContractTests
     [InlineData("", "/dashboard", "/dashboard")]
     [InlineData("/", "/dashboard", "/dashboard")]
     [InlineData("/dashboard/", "/dashboard", "/dashboard")]
-    [InlineData("/my-workflows/", "/my-workflows", "/my-workflows")]
+    [InlineData("/my-service-requests/", "/my-service-requests", "/my-service-requests")]
     [InlineData("/", "/", "/")]
     public void ResolveUrl_PrefersStableFallbackWhenResolvedRouteIsNotUsable(
         string? resolvedUrl,
