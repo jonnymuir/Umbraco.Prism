@@ -1,11 +1,11 @@
-# AI-Ready Workflow Authoring
+# AI-Ready Service Blueprint Authoring
 
 A guide for integrators. Let an AI agent (Claude Code or any MCP client) list, read,
-validate, simulate, and save your business app's workflow definitions.
+validate, simulate, and save your business app's service blueprints.
 
 Prism doesn't build AI into itself. It ships a toolkit your business app hosts, the same
-way it ships the workflow editor for humans to host (see
-[Embedding the Workflow Editor](./embedding-the-workflow-editor.md)) — you add one or two
+way it ships the service blueprint editor for humans to host (see
+[Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md)) — you add one or two
 lines to your own pipeline, and the AI-facing surface runs inside your app's own process,
 subject to your own auth.
 
@@ -13,76 +13,76 @@ subject to your own auth.
 
 ## What You Get
 
-Three layers, mirroring how the workflow engine itself is already layered:
+Three layers, mirroring how the service blueprint engine itself is already layered:
 
 | Layer | Package | What it does |
 |---|---|---|
-| Reusable authoring logic | `UmbracoPrism.WorkflowRuntime` | `WorkflowAuthoringService` — list/read/validate/save/simulate against an `IWorkflowSourceStore` you implement. `WorkflowSimulationRunner` dry-runs a definition through the real engine with zero persistence. |
-| REST surface | `UmbracoPrism.WorkflowRuntime.Api` | `MapPrismWorkflowAuthoringApi()` — one extension method, maps the same operations as HTTP endpoints. |
-| MCP surface | `UmbracoPrism.WorkflowRuntime.Mcp` | `MapPrismWorkflowAuthoringMcp()` — one extension method, maps the same operations as MCP tools over HTTP, so Claude Code (or any MCP client) can call them directly. |
+| Reusable authoring logic | `UmbracoPrism.ProcessManager` | `ServiceBlueprintAuthoringService` — list/read/validate/save/simulate against an `IServiceBlueprintSourceStore` you implement. `ServiceBlueprintSimulationRunner` dry-runs a definition through the real engine with zero persistence. |
+| REST surface | `UmbracoPrism.ProcessManager.Api` | `MapPrismServiceBlueprintAuthoringApi()` — one extension method, maps the same operations as HTTP endpoints. |
+| MCP surface | `UmbracoPrism.ProcessManager.Mcp` | `MapPrismServiceBlueprintAuthoringMcp()` — one extension method, maps the same operations as MCP tools over HTTP, so Claude Code (or any MCP client) can call them directly. |
 
-Both surfaces call the same `WorkflowAuthoringService`, in-process. That matters: an MCP
+Both surfaces call the same `ServiceBlueprintAuthoringService`, in-process. That matters: an MCP
 server can't run *inside* an externally-spawned stdio process and still see your app's
-live state, but hosted this way, a `save_workflow` tool call reaches your running engine
+live state, but hosted this way, a `save_service_blueprint` tool call reaches your running engine
 immediately — no restart, no separate process to keep track of, no proxying.
 
 `UmbracoPrism.MockBusinessApp` is the reference implementation — see
 [`Program.cs`](../../src/UmbracoPrism.MockBusinessApp/Program.cs) for exactly how it wires
-both surfaces to its own `IWorkflowSourceStore`.
+both surfaces to its own `IServiceBlueprintSourceStore`.
 
 ## What You Write
 
-You need an `IWorkflowSourceStore`:
+You need an `IServiceBlueprintSourceStore`:
 
 ```csharp
-public interface IWorkflowSourceStore
+public interface IServiceBlueprintSourceStore
 {
-    Task<IReadOnlyList<WorkflowSourceSummary>> ListAsync(CancellationToken ct = default);
-    Task<WorkflowDefinitionFile?> LoadAsync(string definitionKey, CancellationToken ct = default);
-    Task<WorkflowSaveResult> SaveAsync(WorkflowDefinitionFile workflow, int expectedVersion, CancellationToken ct = default);
+    Task<IReadOnlyList<ServiceBlueprintSourceSummary>> ListAsync(CancellationToken ct = default);
+    Task<ServiceBlueprint?> LoadAsync(string definitionKey, CancellationToken ct = default);
+    Task<ServiceBlueprintSaveResult> SaveAsync(ServiceBlueprint service-blueprint, int expectedVersion, CancellationToken ct = default);
 }
 ```
 
-Two ready-made implementations already exist in `UmbracoPrism.WorkflowRuntime.Stores`:
-`FilesystemWorkflowSourceStore` (one JSON file per workflow) and, in
-`MockBusinessApp`, `InMemoryRuntimePublishedWorkflowStore` — the pattern to copy if you
+Two ready-made implementations already exist in `UmbracoPrism.ProcessManager.Stores`:
+`FilesystemServiceBlueprintSourceStore` (one JSON file per service blueprint) and, in
+`MockBusinessApp`, `InMemoryRuntimePublishedServiceBlueprintStore` — the pattern to copy if you
 want a save to update your live runtime engine immediately (it calls
 `engine.UpdateDefinition(...)` inside `SaveAsync`). A real app would usually back this
 with a database.
 
 ### `SaveAsync` must be an atomic compare-and-swap
 
-A human in the editor and an AI agent can both be working against the same workflow at
+A human in the editor and an AI agent can both be working against the same service blueprint at
 once — without a real concurrency check, whichever one saves last silently overwrites the
 other with no warning. `SaveAsync` only writes if `expectedVersion` still matches what's
-currently persisted, and returns `WorkflowSaveResult(Saved, CurrentVersion, Location)` so
+currently persisted, and returns `ServiceBlueprintSaveResult(Saved, CurrentVersion, Location)` so
 the caller can tell success from a conflict. **This must be a single atomic operation, not
 a separate read-then-compare-then-write** — the reference implementations use an
 in-process lock (correct for a single-process app only); a real database-backed store
 should use the `WHERE` clause itself as the atomic compare:
 
 ```sql
-UPDATE Workflows SET Definition = @json, Version = Version + 1
+UPDATE Service-Blueprints SET Definition = @json, Version = Version + 1
 WHERE DefinitionKey = @key AND Version = @expectedVersion
 ```
 
 If `0` rows are affected, either the row doesn't exist yet or `Version` had already moved
-on — either way, that's a conflict, not a success. `WorkflowAuthoringService.SaveAsync`
-wraps this into `WorkflowSaveOutcome` (`Status`: `Saved`/`Invalid`/`Conflict`), which both
-the REST `PUT` (409 on conflict) and the MCP `save_workflow` tool already surface — you
+on — either way, that's a conflict, not a success. `ServiceBlueprintAuthoringService.SaveAsync`
+wraps this into `ServiceBlueprintSaveOutcome` (`Status`: `Saved`/`Invalid`/`Conflict`), which both
+the REST `PUT` (409 on conflict) and the MCP `save_service_blueprint` tool already surface — you
 don't need to build this part yourself, just implement the store correctly.
 
 ### Wiring it up
 
 ```csharp
-builder.Services.AddSingleton<IWorkflowSourceStore, YourWorkflowSourceStore>();
-builder.Services.AddPrismWorkflowAuthoring();      // registers WorkflowAuthoringService
-builder.Services.AddPrismWorkflowAuthoringMcp();    // registers the MCP server
+builder.Services.AddSingleton<IServiceBlueprintSourceStore, YourServiceBlueprintSourceStore>();
+builder.Services.AddPrismServiceBlueprintAuthoring();      // registers ServiceBlueprintAuthoringService
+builder.Services.AddPrismServiceBlueprintAuthoringMcp();    // registers the MCP server
 
 var app = builder.Build();
 
-app.MapPrismWorkflowAuthoringApi();   // REST — GET/PUT /prism/workflow-authoring/workflows/*
-app.MapPrismWorkflowAuthoringMcp();   // MCP  — POST   /prism/workflow-authoring/mcp
+app.MapPrismServiceBlueprintAuthoringApi();   // REST — GET/PUT /prism/service-blueprint-authoring/service-blueprints/*
+app.MapPrismServiceBlueprintAuthoringMcp();   // MCP  — POST   /prism/service-blueprint-authoring/mcp
 ```
 
 Both `Map...` calls return a chainable endpoint builder — chain `.RequireAuthorization()`
@@ -95,17 +95,17 @@ without inheriting an authoring policy.
 ## Connect Claude Code
 
 Find your app's URL (under Aspire, `MockBusinessApp`'s dashboard row has a labeled
-"Workflow Authoring MCP (HTTP)" link — use the HTTP one, not HTTPS: most MCP HTTP clients,
+"Service Blueprint Authoring MCP (HTTP)" link — use the HTTP one, not HTTPS: most MCP HTTP clients,
 including Claude Code's, won't trust a local ASP.NET Core dev certificate), then:
 
 ```
-claude mcp add --transport http prism-workflow http://localhost:<port>/prism/workflow-authoring/mcp
+claude mcp add --transport http prism-service-blueprint http://localhost:<port>/prism/service-blueprint-authoring/mcp
 ```
 
 If your endpoints require auth, pass it at registration:
 
 ```
-claude mcp add --transport http prism-workflow <url> --header "Authorization: Bearer <token>"
+claude mcp add --transport http prism-service-blueprint <url> --header "Authorization: Bearer <token>"
 ```
 
 ## Two MCP surfaces in this repo — and how they differ
@@ -115,13 +115,13 @@ own auth. There's no server-side "which one is this" logic — the two are just 
 endpoints on separate processes; the *client* config is where the distinction lives (two
 named entries, per the `claude mcp add` command twice, below).
 
-| | `UmbracoPrism.MockBusinessApp` | `UmbracoPrism.TestSite` (CMS Workflow) |
+| | `UmbracoPrism.MockBusinessApp` | `UmbracoPrism.TestSite` (Cms Service Blueprint) |
 |---|---|---|
-| Endpoint | `MockBusinessApp`'s own port, `/prism/workflow-authoring/mcp` | TestSite's own port, `/prism/workflow-authoring/mcp` |
-| Auth | **None** — intentionally, to prove the toolkit's auth boundary is real without inheriting a policy. Local-dev-only reference host; its `/admin/workflow/*` and `/workflow-editor` routes have no auth either. | **Real backoffice admin auth** — `MapPrismCmsWorkflowAuthoringMcp()` chains `RequireAuthorization(AuthorizationPolicies.BackOfficeAccess, "PrismAdmins")`, the exact same policy stack as `CmsWorkflowAuthoringController` and the native backoffice editor. |
-| Aspire dashboard label | "Workflow Authoring MCP (HTTP)" on the `businessapp` row | "CMS Workflow Authoring MCP (HTTP, requires backoffice admin auth)" on the `testsite` row |
+| Endpoint | `MockBusinessApp`'s own port, `/prism/service-blueprint-authoring/mcp` | TestSite's own port, `/prism/service-blueprint-authoring/mcp` |
+| Auth | **None** — intentionally, to prove the toolkit's auth boundary is real without inheriting a policy. Local-dev-only reference host; its `/admin/service-blueprint/*` and `/service-blueprint-editor` routes have no auth either. | **Real backoffice admin auth** — `MapPrismCmsServiceBlueprintAuthoringMcp()` chains `RequireAuthorization(AuthorizationPolicies.BackOfficeAccess, "PrismAdmins")`, the exact same policy stack as `CmsServiceBlueprintAuthoringController` and the native backoffice editor. |
+| Aspire dashboard label | "Service Blueprint Authoring MCP (HTTP)" on the `businessapp` row | "CMS Service Blueprint Authoring MCP (HTTP, requires backoffice admin auth)" on the `testsite` row |
 
-### Connecting to the CMS Workflow MCP surface (real auth)
+### Connecting to the Cms Service Blueprint MCP surface (real auth)
 
 Umbraco 17 ships a first-class, non-Cloud client-credentials grant on its own Management API
 token endpoint — the exact same OpenIddict flow the interactive backoffice SPA uses for every
@@ -148,17 +148,17 @@ not a parallel scheme.
    ```
    Tokens expire — repeat this to refresh, or automate it in your own MCP client config if it
    supports a token-refresh hook.
-4. **Register it with Claude Code**, distinct from the business-workflow one above:
+4. **Register it with Claude Code**, distinct from the business-service blueprint one above:
    ```
-   claude mcp add --transport http prism-cms-workflow http://localhost:9250/prism/workflow-authoring/mcp \
+   claude mcp add --transport http prism-cms-service-blueprint http://localhost:9250/prism/service-blueprint-authoring/mcp \
      --header "Authorization: Bearer <token-from-step-3>"
    ```
    (Port `9250` matches TestSite's `launchSettings.json` HTTP profile — check the Aspire
-   dashboard's "CMS Workflow Authoring MCP" link on the `testsite` row for the live value, same
+   dashboard's "CMS Service Blueprint Authoring MCP" link on the `testsite` row for the live value, same
    dev-cert-trust reasoning as the HTTP-not-HTTPS note above.)
 
 Verified live (`apply-for-a-juggling-licence.walkthrough.spec.ts`): this endpoint returns `401`
-with no token, exactly like `CmsWorkflowAuthoringController`'s REST surface — there's no gap
+with no token, exactly like `CmsServiceBlueprintAuthoringController`'s REST surface — there's no gap
 between what the backoffice UI enforces and what the MCP surface enforces.
 
 ## Reference material for the agent
@@ -169,15 +169,15 @@ letting it infer syntax from trial and error:
 - **[The Prism Calculation Language](./calculation-language.md)** — the grammar,
   function reference, and worked example for the `calculations` block and
   `showWhen` expressions. Also exposed as an MCP resource,
-  `workflow-docs://calculation-language`, so an agent connected only over MCP (no
+  `service-blueprint-docs://calculation-language`, so an agent connected only over MCP (no
   repo checkout) can fetch it directly.
-- **[Reference Workflow Contract](./reference-workflow-contract.md)** — the full
-  `WorkflowDefinitionFile` shape: states, routes, gateways, queues, components,
-  response states. Also exposed as `workflow-docs://authoring-guide`.
+- **[Reference Service Blueprint Contract](./reference-service-blueprint-contract.md)** — the full
+  `ServiceBlueprint` shape: touchpoints, routes, gateways, queues, components,
+  response states. Also exposed as `service-blueprint-docs://authoring-guide`.
 - **[Service Design Principles](./service-design-principles.md)** — the Design
   Council Double Diamond, the GOV.UK Service Standard, and Lou Downe's 15
   principles of good services, industry-agnostic and mapped to concrete
-  authoring decisions. Also exposed as `workflow-docs://service-design-principles`.
+  authoring decisions. Also exposed as `service-blueprint-docs://service-design-principles`.
   It deliberately stops short of sector-specific regulation or domain best
   practice (FCA Consumer Duty, PASA standards, and the like) — bring that
   yourself, as your own reference material alongside this one.
@@ -187,19 +187,19 @@ letting it infer syntax from trial and error:
 The MCP/REST tools compose into one iteration loop, whether the caller is a human
 using them through a chat interface or an agent driving them directly:
 
-1. **`list_workflows`** → **`read_workflow`** to see what exists and its current
+1. **`list_service_blueprints`** → **`read_service_blueprint`** to see what exists and its current
    shape (and `version`, needed to save later).
-2. **`list_queue_capabilities`**, if you haven't authored for this workflow's
+2. **`list_queue_capabilities`**, if you haven't authored for this service blueprint's
    queues before — check what component types the queue's host actually
    supports before drafting, rather than finding out from
    `QUEUE_CAPABILITY_UNSUPPORTED_COMPONENT` after the fact.
 3. **Draft** a change against the real contract — reference the two docs above
    rather than guessing syntax.
-4. **`validate_workflow`** on the draft *before* touching anything live — it
+4. **`validate_service_blueprint`** on the draft *before* touching anything live — it
    checks gateway routing and every calculation/`showWhen` expression, returning
    structured diagnostics (`code`, `path`, `message`) an agent can act on directly
    rather than a single opaque error.
-5. **`simulate_workflow`** to dry-run the draft through the real engine with no
+5. **`simulate_service_blueprint`** to dry-run the draft through the real engine with no
    persistence — confirms it actually behaves as intended (right stage shown at
    the right time, right actions available) before it's saved. Returns the raw
    calculated field/series values alongside the trace, so you can check the maths
@@ -207,7 +207,7 @@ using them through a chat interface or an agent driving them directly:
    `source: "service"` calculation field, pass `mockServiceInputsJson` to resolve
    it — without one, those fields simply stay unresolved rather than erroring, the
    same as against a host with no data for them.
-6. **`save_workflow`** with the `version` read in step 1. A concurrent edit
+6. **`save_service_blueprint`** with the `version` read in step 1. A concurrent edit
    (human or another agent) surfaces as a conflict, not a silent overwrite —
    reload and reapply.
 
@@ -220,7 +220,7 @@ editing.
 
 If Claude Code is running from a checkout of your app's own source (or Prism's), it has
 ordinary file tools available alongside the MCP ones — nothing stops it from finding and
-editing a seed/source file directly instead of calling `save_workflow`. Doing so has no
+editing a seed/source file directly instead of calling `save_service_blueprint`. Doing so has no
 effect on a running app (source files are typically only read at process startup) and
 skips validation entirely. The tool descriptions call this out explicitly. For a clean
 test of tool selection, run Claude Code from a directory with no copy of your app's source
@@ -228,19 +228,19 @@ in it — the MCP tools stay reachable over HTTP regardless of working directory
 
 ## Next Steps
 
-1. **Implement `IWorkflowSourceStore`** for your business app's real persistence.
+1. **Implement `IServiceBlueprintSourceStore`** for your business app's real persistence.
 2. **Add the two `Map...` calls** to your `Program.cs`, with whatever `.RequireAuthorization()` policy you need.
 3. **Read the reference implementation** at `src/UmbracoPrism.MockBusinessApp/Program.cs`.
 4. **Read the toolkit projects' own READMEs** for the full wire contract:
-   [`UmbracoPrism.WorkflowRuntime.Api`](../../src/UmbracoPrism.WorkflowRuntime.Api/README.md),
-   [`UmbracoPrism.WorkflowRuntime.Mcp`](../../src/UmbracoPrism.WorkflowRuntime.Mcp/README.md).
+   [`UmbracoPrism.ProcessManager.Api`](../../src/UmbracoPrism.ProcessManager.Api/README.md),
+   [`UmbracoPrism.ProcessManager.Mcp`](../../src/UmbracoPrism.ProcessManager.Mcp/README.md).
 
 ---
 
 ## Related Documentation
 
-- [Embedding the Workflow Editor](./embedding-the-workflow-editor.md) — the equivalent recipe for the human-facing visual editor
-- [Reference Workflow Contract](./reference-workflow-contract.md) — the shape of `WorkflowDefinitionFile`, gateway routing rules
+- [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md) — the equivalent recipe for the human-facing visual editor
+- [Reference Service Blueprint Contract](./reference-service-blueprint-contract.md) — the shape of `ServiceBlueprint`, gateway routing rules
 
 ---
 

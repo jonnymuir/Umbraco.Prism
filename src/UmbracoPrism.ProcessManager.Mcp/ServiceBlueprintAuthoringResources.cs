@@ -34,7 +34,7 @@ public static class ServiceBlueprintAuthoringResources
     [System.ComponentModel.Description(
         "The full ServiceBlueprint JSON contract: touchpoints, routes, gateways and the gateway " +
         "routing rule, queues, the component catalog, response touchpoints, and the save/conflict protocol.")]
-    public static string AuthoringGuide() => ReadEmbeddedDoc("reference-workflow-contract.md");
+    public static string AuthoringGuide() => ReadEmbeddedDoc("reference-service-blueprint-contract.md");
 
     [McpServerResource(
         Name = "service-design-principles",

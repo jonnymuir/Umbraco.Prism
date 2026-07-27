@@ -1,14 +1,14 @@
-# Workflow validation
+# Service Blueprint validation
 
-Prism validates workflow submissions in layers so the browser can be helpful without ever becoming authoritative.
+Prism validates service blueprint submissions in layers so the browser can be helpful without ever becoming authoritative.
 
 ## Validation layers
 
 | Layer | Where it runs | Purpose |
 | --- | --- | --- |
 | Browser hints | Rendered HTML | Usability only: required markers, input types, min/max hints |
-| Antiforgery | `PrismWorkflowPageController` | Reject cross-site form posts |
-| Nonce-backed structural validation | `WorkflowStepNonceService` + `WorkflowFieldValidator` | Ensure the submitted fields still match the rendered definition |
+| Antiforgery | `PrismServiceRequestPageController` | Reject cross-site form posts |
+| Nonce-backed structural validation | `TouchpointNonceService` + `ServiceRequestFieldValidator` | Ensure the submitted fields still match the rendered definition |
 | Domain validation | Your business app | Enforce business rules before a transition is accepted |
 
 ## Why the nonce matters
@@ -25,11 +25,11 @@ This protects against:
 - changed options,
 - relaxed client-side constraints.
 
-Source: `src/UmbracoPrism.Core/Services/Workflow/WorkflowStepNonceService.cs`.
+Source: `src/UmbracoPrism.Core/Services/ServiceDesign/TouchpointNonceService.cs`.
 
 ## What the field validator checks
 
-`src/UmbracoPrism.Core/Services/Workflow/WorkflowFieldValidator.cs` currently enforces:
+`src/UmbracoPrism.Core/Services/ServiceDesign/ServiceRequestFieldValidator.cs` currently enforces:
 
 - unknown-field rejection,
 - required fields,
@@ -51,7 +51,7 @@ It also skips validation for:
 
 Structural validation only proves that the submission matches the step Prism rendered. It does not decide whether the user's data is acceptable for your domain.
 
-The mock business app demonstrates this by returning `validation_error` with a `WorkflowProblem` when a technical-support enquiry omits diagnostic detail.
+The mock business app demonstrates this by returning `validation_error` with a `ServiceBlueprintProblem` when a technical-support enquiry omits diagnostic detail.
 
 Practical rule:
 
@@ -72,9 +72,9 @@ That gives you:
 
 The nonce cache uses `IDistributedCache`. The package default is fine for local development, but a real multi-server deployment needs a shared cache so GET and POST can land on different nodes safely.
 
-## Checklist for your own workflows
+## Checklist for your own service blueprints
 
 - Use component-authored constraints (`required`, lengths, options, min/max) instead of inventing parallel client rules.
 - Keep nonces short-lived but realistic for your journey length.
-- Treat `WorkflowProblem` as the public contract for recoverable validation failures.
+- Treat `ServiceBlueprintProblem` as the public contract for recoverable validation failures.
 - Keep domain validation in the business app, even if the UI can also give a friendly hint.

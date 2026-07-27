@@ -1,12 +1,12 @@
-# Using GDS Design System Components in Workflow Steps
+# Using GDS Design System Components in Service Blueprint Steps
 
-A comprehensive reference for using GOV.UK Design System components in Umbraco.Prism workflow step partials.
+A comprehensive reference for using GOV.UK Design System components in Umbraco.Prism service blueprint step partials.
 
 ## Overview
 
 **govuk-frontend 5.9.0 is already installed. No setup needed.**
 
-Every workflow step partial has full access to all 38 GDS components. The CSS and JavaScript are automatically loaded on every page, and all JS-enhanced components are initialized automatically.
+Every service blueprint step partial has full access to all 38 GDS components. The CSS and JavaScript are automatically loaded on every page, and all JS-enhanced components are initialized automatically.
 
 ## How GDS is Bundled
 
@@ -21,7 +21,7 @@ Prism handles the entire GDS setup for you:
 
 ## Verifying GDS is Loaded
 
-Open your browser's DevTools (F12) on any workflow page:
+Open your browser's DevTools (F12) on any service blueprint page:
 
 1. **Console tab:** Type `window.GOVUKFrontend` and press Enter. You should see an object with methods like `initAll()`.
 2. **Network tab:** Refresh the page and filter by "govuk". You should see `govuk-frontend.min.css` and `govuk-frontend.min.js` loaded with 200 status.
@@ -31,7 +31,7 @@ If any of these checks fail, the build may have failed to copy the GDS assets. R
 
 ## Component Catalogue
 
-This section provides usage examples for the most useful GDS components in workflow contexts.
+This section provides usage examples for the most useful GDS components in service blueprint contexts.
 
 ---
 
@@ -1127,6 +1127,6 @@ Each component page includes:
 
 ## Next Steps
 
-- **Customise styles:** See [Customising Workflow UI](./workflow-customisation.md) for theming and CSS variable overrides
+- **Customise styles:** See [Customising Service Blueprint UI](./service-request-customisation.md) for theming and CSS variable overrides
 - **Create step types:** Learn how to create custom step partials using GDS components
-- **Build workflows:** See [Setting Up a Prism Workflow](./workflow-setup.md) for workflow definition and state machine setup
+- **Build service blueprints:** See [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md) for service blueprint and state machine setup

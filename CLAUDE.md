@@ -2,7 +2,7 @@
 
 ## What this is
 
-Umbraco Prism is an Umbraco v17 package that adds multi-tenant OIDC authentication, runtime branding, a GDS-style workflow engine with a visual editor, and native mobile app generation. The repo is a mono-repo containing the package itself plus a full demo stack (TestSite, MockBusinessApp, Keycloak) orchestrated via .NET Aspire.
+Umbraco Prism is an Umbraco v17 package that adds multi-tenant OIDC authentication, runtime branding, a GDS-style service blueprint engine with a visual editor, and native mobile app generation. The repo is a mono-repo containing the package itself plus a full demo stack (TestSite, MockBusinessApp, Keycloak) orchestrated via .NET Aspire.
 
 Solo developer project. Work directly on `main` for simple fixes; use feature branches + PRs for substantive code changes.
 
@@ -13,13 +13,13 @@ Solo developer project. Work directly on `main` for simple fixes; use feature br
 | Project | Purpose |
 |---|---|
 | `UmbracoPrism.Core` | The publishable Umbraco package — controllers, middleware, auth, services, tag helpers, views |
-| `UmbracoPrism.Shared` | Shared models used by both Core and demo apps — `WorkflowDefinitionFile`, `WorkflowResponseEnvelope`, etc. |
-| `UmbracoPrism.WorkflowRuntime` | Workflow state-machine engine — queue routing, gateway evaluation, instance persistence |
-| `UmbracoPrism.WorkflowRuntime.Api` | REST toolkit (`MapPrismWorkflowAuthoringApi()`) exposing workflow authoring — list/read/validate/save/simulate — over HTTP for any host |
-| `UmbracoPrism.WorkflowRuntime.Mcp` | MCP-over-HTTP toolkit (`MapPrismWorkflowAuthoringMcp()`) — the same authoring surface as MCP tools for AI agents |
-| `UmbracoPrism.WorkflowEditor` | Razor Class Library hosting the compiled workflow editor web component as a static web asset |
-| `UmbracoPrism.Client` | TypeScript/Lit web components — workflow editor, backoffice extensions, mobile shell |
-| `UmbracoPrism.MockBusinessApp` | Demo business API — hosts `IWorkflowRuntimeEngine`, loads workflow seed files, serves `/mockapp/` endpoints |
+| `UmbracoPrism.Shared` | Shared models used by both Core and demo apps — `ServiceBlueprint`, `ServiceRequestResponseEnvelope`, etc. |
+| `UmbracoPrism.ProcessManager` | Service blueprint state-machine engine — queue routing, gateway evaluation, request persistence |
+| `UmbracoPrism.ProcessManager.Api` | REST toolkit (`MapPrismServiceBlueprintAuthoringApi()`) exposing service blueprint authoring — list/read/validate/save/simulate — over HTTP for any host |
+| `UmbracoPrism.ProcessManager.Mcp` | MCP-over-HTTP toolkit (`MapPrismServiceBlueprintAuthoringMcp()`) — the same authoring surface as MCP tools for AI agents |
+| `UmbracoPrism.ServiceBlueprintEditor` | Razor Class Library hosting the compiled service blueprint editor web component as a static web asset |
+| `UmbracoPrism.Client` | TypeScript/Lit web components — service blueprint editor, backoffice extensions, mobile shell |
+| `UmbracoPrism.MockBusinessApp` | Demo business API — hosts `IProcessManager`, loads service blueprint seed files, serves `/mockapp/` endpoints |
 | `UmbracoPrism.TestSite` | Demo Umbraco site wired to Prism Core and MockBusinessApp |
 | `UmbracoPrism.AppHost` | .NET Aspire orchestrator for local dev (Keycloak + TestSite + MockBusinessApp) |
 | `UmbracoPrism.KeycloakProxy` | YARP reverse proxy for Keycloak in Aspire |
@@ -51,7 +51,7 @@ dotnet list src/UmbracoPrism.Core/UmbracoPrism.Core.csproj package --vulnerable 
 ```bash
 cd src/UmbracoPrism.Client
 
-# Build (TypeScript check + Vite bundle for both main and workflow editor)
+# Build (TypeScript check + Vite bundle for both main and service-blueprint editor)
 npm run build
 
 # Run Playwright tests (Storybook starts automatically via webServer config)
@@ -84,21 +84,21 @@ node scripts/validate-aspire-prereqs.mjs
 
 ## Architecture essentials
 
-### Workflow model
+### Service Blueprint model
 
-The canonical workflow contract is `WorkflowDefinitionFile` (C#) / `AuthoredWorkflow` (TypeScript). Key fields:
+The canonical service blueprint contract is `ServiceBlueprint` (C#) / `AuthoredServiceBlueprint` (TypeScript). Key fields:
 
-- **`queues`** — named work queues (e.g. `web-user`, `admin`). Each stage belongs to one queue via `queueName`.
-- **`states`** — workflow stages, each owning their own `routes` array (replacing the old flat `transitions` array).
-- **`gateways`** — first-class Split/Join gateway nodes. State routes must target a gateway; gateway routes may target states or other gateways.
-- **`initialState`** — key of the starting state.
-- **`instancePolicy`** — `"single"` (one active instance per user) or `"multiple"`.
+- **`queues`** — named work queues (e.g. `web-user`, `admin`). Each touchpoint belongs to one queue via `queueKey`.
+- **`touchpoints`** — service blueprint stages, each owning their own `routes` array (replacing the old flat `transitions` array).
+- **`gateways`** — first-class Split/Join gateway nodes. Touchpoint routes must target a gateway; gateway routes may target touchpoints or other gateways.
+- **`initialTouchpoint`** — key of the starting touchpoint (`initialTouchpointKey` on the authored/design-time model).
+- **`requestPolicy`** — `"single"` (one active service request per user) or `"multiple"`.
 
-State routes must always point to a gateway, never directly to another state. `ValidateGatewayRouting()` enforces this at save time.
+Touchpoint routes must always point to a gateway, never directly to another touchpoint. `ValidateGatewayRouting()` enforces this at save time.
 
 **Response states:** `"render"` (show this step), `"defer"` (wait), `"complete"`, `"error"`.
 
-Persistence differs by authoring surface. The backoffice **CMS Workflow** editor (`CmsWorkflowAuthoringController`, `UmbracoPrism.Core`) is DB-backed — saves go through `UmbracoCmsWorkflowDefinitionStore` to a real `prismCmsWorkflowDefinition` table in the Umbraco content database, survive restarts, and are uSync-portable via `PrismCmsWorkflowHandler`/`PrismCmsWorkflowSerializer`. `MockBusinessApp`'s own demo/business-workflow authoring surface (used by the AI-ready MCP/REST toolkit against the reference app) is memory-only by design — POSTing writes to an in-memory store only, and a restart reloads from `workflow-seeds/*.json`. Don't assume one behavior applies to the other.
+Persistence differs by authoring surface. The backoffice **CMS Service Blueprint** editor (`CmsServiceBlueprintAuthoringController`, `UmbracoPrism.Core`) is DB-backed — saves go through `UmbracoCmsServiceBlueprintStore` to a real `prismCmsServiceBlueprint` table in the Umbraco content database, survive restarts, and are uSync-portable via `PrismCmsServiceBlueprintHandler`/`PrismCmsServiceBlueprintSerializer`. `MockBusinessApp`'s own demo/business blueprint authoring surface (used by the AI-ready MCP/REST toolkit against the reference app) is memory-only by design — POSTing writes to an in-memory store only, and a restart reloads from `service-blueprints/*.json`. Don't assume one behavior applies to the other.
 
 ### Queue model
 
@@ -108,19 +108,19 @@ Host apps decide what queues exist and who can access them:
 
 The shared runtime does NOT enforce queue-level access control — that's the host's responsibility.
 
-### Workflow editor (TypeScript)
+### Service Blueprint Editor (TypeScript)
 
-Web components in `src/UmbracoPrism.Client/src/workflow-editor/`:
-- `prism-workflow-editor.ts` — main editor component
-- `prism-workflow-graph.ts` — canvas with lane bands, stage nodes, gateway nodes, route edges. Uses longest-path Kahn's algorithm for Y-rank; backward edges (Join loop-backs) are detected and removed from the ranking graph before layout.
-- `prism-workflow-editor-shell.ts` — standalone shell for embedding the editor
+Web components in `src/UmbracoPrism.Client/src/service-blueprint-editor/`:
+- `prism-service-blueprint-editor.ts` — main editor component
+- `prism-service-blueprint-graph.ts` — canvas with lane bands, touchpoint nodes, gateway nodes, route edges. Uses longest-path Kahn's algorithm for Y-rank; backward edges (Join loop-backs) are detected and removed from the ranking graph before layout.
+- `prism-service-blueprint-editor-shell.ts` — standalone shell for embedding the editor
 - `types.ts` — canonical TypeScript types; includes compatibility getters for older `lane`/`transition` naming
 
 The graph layout uses `data-prism-lane` on stage button elements (stages are absolutely-positioned siblings of lane bands, not DOM children).
 
 ### Seed files
 
-`src/UmbracoPrism.MockBusinessApp/workflow-seeds/` — demo workflows:
+`src/UmbracoPrism.MockBusinessApp/service-blueprints/` — demo service blueprints:
 - `payment-demo.json` — two-queue, Split+Join gateways, payment flow
 - `planning.json` — single-queue, linear applicant flow
 - `planning-notification.json` — planning notification variant
@@ -130,7 +130,7 @@ The graph layout uses `data-prism-lane` on stage button elements (stages are abs
 
 ### Declarative calculations & live stages (Money Modeller pattern)
 
-Workflow definitions may carry a `calculations` block (tables + fields + series) — the
+Service Blueprints may carry a `calculations` block (tables + fields + series) — the
 single source of any business maths. It is a total expression language (arithmetic,
 comparisons, boolean logic, `if/min/max/clamp/abs/floor/round/pow/lookup`; no eval, no
 loops, no side effects) with decimal semantics, evaluated by two conformant runtimes:
@@ -160,28 +160,28 @@ falls back to `default` when the name doesn't resolve (e.g. an anonymous visitor
 member data); calculated fields may declare `format` ("gbp"). The server renders everything (works
 without JavaScript; the Recalculate self-loop re-renders authoritatively) and
 `prism-live-form` (`src/UmbracoPrism.Client/src/live-form/`) upgrades the page in place —
-it contains no domain knowledge and no layout. There are no bespoke per-workflow client
+it contains no domain knowledge and no layout. There are no bespoke per-blueprint client
 components.
 
-### AI-ready workflow authoring
+### AI-ready service blueprint authoring
 
-Workflow authoring is exposed to AI agents (Claude Code or any MCP client) the same way
+Service blueprint authoring is exposed to AI agents (Claude Code or any MCP client) the same way
 the editor is exposed to humans: as a toolkit a host app wires into its own pipeline, not
-as AI built into Prism itself. `WorkflowAuthoringService`/`IWorkflowSourceStore`
-(`UmbracoPrism.WorkflowRuntime`) are the reusable core; `UmbracoPrism.WorkflowRuntime.Api`
-(`MapPrismWorkflowAuthoringApi()`) and `UmbracoPrism.WorkflowRuntime.Mcp`
-(`MapPrismWorkflowAuthoringMcp()`) map the same list/read/validate/save/simulate
+as AI built into Prism itself. `ServiceBlueprintAuthoringService`/`IServiceBlueprintSourceStore`
+(`UmbracoPrism.ProcessManager`) are the reusable core; `UmbracoPrism.ProcessManager.Api`
+(`MapPrismServiceBlueprintAuthoringApi()`) and `UmbracoPrism.ProcessManager.Mcp`
+(`MapPrismServiceBlueprintAuthoringMcp()`) map the same list/read/validate/save/simulate
 operations as REST and MCP-over-HTTP respectively — both call the service in-process, so
 a save reaches a host's live engine immediately. `MockBusinessApp` is the reference
 implementation (`Program.cs`); see the
-[AI-Ready Workflow Authoring guide](docs/guides/ai-workflow-authoring.md) for the full
+[AI-Ready Service Blueprint Authoring guide](docs/guides/ai-service-blueprint-authoring.md) for the full
 integrator recipe. MCP hosting is HTTP-only by design — a stdio MCP server would be a
 separate spawned process with no access to a host's live state, and Aspire can't manage
 a stdio server as a background resource (nothing would drive its stdin).
 
 ### Authentication
 
-OIDC via Keycloak. Stateless token handling; per-tenant JWKS validation; nonce hard-fail on mismatch. `IWorkflowRuntimeEngine` takes `WorkflowAccessProfile` (derived from the authenticated user's claims) for queue-aware routing.
+OIDC via Keycloak. Stateless token handling; per-tenant JWKS validation; nonce hard-fail on mismatch. `IProcessManager` takes `ActorProfile` (derived from the authenticated user's claims) for queue-aware routing.
 
 ---
 

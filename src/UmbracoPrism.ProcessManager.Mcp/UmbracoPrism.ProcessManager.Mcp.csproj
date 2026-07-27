@@ -36,9 +36,9 @@
 
   <ItemGroup>
     <EmbeddedResource Include="../../docs/guides/calculation-language.md" LogicalName="UmbracoPrism.ProcessManager.Mcp.docs.calculation-language.md" />
-    <EmbeddedResource Include="../../docs/guides/reference-workflow-contract.md" LogicalName="UmbracoPrism.ProcessManager.Mcp.docs.reference-workflow-contract.md" />
+    <EmbeddedResource Include="../../docs/guides/reference-service-blueprint-contract.md" LogicalName="UmbracoPrism.ProcessManager.Mcp.docs.reference-service-blueprint-contract.md" />
     <EmbeddedResource Include="../../docs/guides/service-design-principles.md" LogicalName="UmbracoPrism.ProcessManager.Mcp.docs.service-design-principles.md" />
-    <EmbeddedResource Include="../../docs/guides/ai-workflow-authoring.md" LogicalName="UmbracoPrism.ProcessManager.Mcp.docs.ai-service-blueprint-authoring.md" />
+    <EmbeddedResource Include="../../docs/guides/ai-service-blueprint-authoring.md" LogicalName="UmbracoPrism.ProcessManager.Mcp.docs.ai-service-blueprint-authoring.md" />
   </ItemGroup>
 
   <ItemGroup>

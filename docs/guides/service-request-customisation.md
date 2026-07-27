@@ -1,17 +1,17 @@
-# Customising Workflow UI & Theme
+# Customising Service Blueprint UI & Theme
 
-A guide to customising the appearance and behavior of workflow forms in Umbraco.Prism.
+A guide to customising the appearance and behavior of service blueprint forms in Umbraco.Prism.
 
 **For context:**
-- **Setting up workflows?** Start with [Setting Up a Prism Workflow](./workflow-setup.md)
-- **Understanding validation?** See [Form Validation](./workflow-forms-validation.md)
-- **Using GDS components?** See [GDS Design System Components](./workflow-gds-components.md)
+- **Setting up service blueprints?** Start with [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md)
+- **Understanding validation?** See [Form Validation](./service-request-forms-validation.md)
+- **Using GDS components?** See [GDS Design System Components](./service-blueprint-gds-components.md)
 
 ---
 
 ## Overview
 
-Prism provides sensible defaults for workflow rendering: GDS (GOV.UK Design System) styling, accessibility built-in, responsive layout. You can customise at three levels:
+Prism provides sensible defaults for service blueprint rendering: GDS (GOV.UK Design System) styling, accessibility built-in, responsive layout. You can customise at three levels:
 
 1. **CSS variables** — Change colors, spacing, fonts without touching code
 2. **Razor partial overrides** — Replace step templates to customize HTML/markup
@@ -21,14 +21,14 @@ Prism provides sensible defaults for workflow rendering: GDS (GOV.UK Design Syst
 
 ## CSS Variables & Theme Customization
 
-The easiest way to customize Prism workflows: override CSS variables. All Prism styling uses custom properties (`--prism-*`), making it trivial to apply your brand colors, fonts, and spacing.
+The easiest way to customize Prism service blueprints: override CSS variables. All Prism styling uses custom properties (`--prism-*`), making it trivial to apply your brand colors, fonts, and spacing.
 
 ### Supported CSS Variables
 
 #### Colors
 
 ```css
-/* Primary workflow colors */
+/* Primary service-blueprint colors */
 --prism-primary-color: #0b3e6f;                /* Blue - primary buttons, links, accents */
 --prism-success-color: #00703c;                /* Green - success states, valid checks */
 --prism-warning-color: #b10e1e;                /* Red - warnings, errors, destructive actions */
@@ -83,7 +83,7 @@ The easiest way to customize Prism workflows: override CSS variables. All Prism 
 
 Create a custom CSS file in your Umbraco project and reference it in your Master layout. Override any variables you want to change:
 
-**File:** `wwwroot/css/my-workflow-theme.css`
+**File:** `wwwroot/css/my-service-blueprint-theme.css`
 
 ```css
 /* My custom theme overrides */
@@ -108,14 +108,14 @@ Create a custom CSS file in your Umbraco project and reference it in your Master
 <head>
     <!-- Prism default styles (GDS-based) -->
     <link rel="stylesheet" href="~/css/govuk-frontend.min.css">
-    <link rel="stylesheet" href="~/css/prism-workflows.min.css">
+    <link rel="stylesheet" href="~/css/prism-service-blueprints.min.css">
     
     <!-- Your custom theme overrides -->
-    <link rel="stylesheet" href="~/css/my-workflow-theme.css">
+    <link rel="stylesheet" href="~/css/my-service-blueprint-theme.css">
 </head>
 ```
 
-**Result:** All Prism workflow UI automatically uses your colors, fonts, and spacing.
+**Result:** All Prism service blueprint UI automatically uses your colors, fonts, and spacing.
 
 ---
 
@@ -148,7 +148,7 @@ public class WorkflowViewModel
     public string StateDisplayName { get; set; }      // e.g., "Tell us about your enquiry"
     public IEnumerable<FormSection> FieldGroups { get; set; }  // Field groups to render
     public IEnumerable<WorkflowAction> AvailableActions { get; set; }  // Submit, Save Draft, etc.
-    public IReadOnlyList<WorkflowProblem> Problems { get; set; }  // Validation errors
+    public IReadOnlyList<ServiceBlueprintProblem> Problems { get; set; }  // Validation errors
     public IReadOnlyDictionary<string, string> FormValues { get; set; }  // Submitted values for repopulation
 }
 ```
@@ -373,29 +373,29 @@ You can apply custom CSS based on the step type currently displayed. The `Workfl
 ```cshtml
 @model WorkflowViewModel
 
-<div class="govuk-width-container workflow-step workflow-step--@Model.StepType.ToLower()">
+<div class="govuk-width-container service-blueprint-step service-blueprint-step--@Model.StepType.ToLower()">
     <!-- Step content -->
 </div>
 ```
 
-**File:** `wwwroot/css/my-workflow-theme.css`
+**File:** `wwwroot/css/my-service-blueprint-theme.css`
 
 ```css
 /* Custom styling for question steps */
-.workflow-step--question {
+.service-blueprint-step--question {
     background-color: #f3f6f9;
     border-left: 4px solid #0b3e6f;
     padding: 2rem;
 }
 
 /* Custom styling for confirmation steps */
-.workflow-step--confirmation {
+.service-blueprint-step--confirmation {
     text-align: center;
     background-color: #f3faf5;
     border-radius: 8px;
 }
 
-.workflow-step--confirmation h1 {
+.service-blueprint-step--confirmation h1 {
     color: #00703c;
     font-size: 2rem;
 }
@@ -417,27 +417,27 @@ If you need custom behavior (e.g., analytics tracking, custom validation, dynami
     <script src="~/js/govuk-frontend.min.js"></script>
     <script>window.GOVUKFrontend.initAll();</script>
 
-    <!-- Your custom workflow logic -->
-    <script src="~/js/workflow-custom.js"></script>
+    <!-- Your custom service-blueprint logic -->
+    <script src="~/js/service-blueprint-custom.js"></script>
 </body>
 ```
 
-**File:** `wwwroot/js/workflow-custom.js`
+**File:** `wwwroot/js/service-blueprint-custom.js`
 
 ```javascript
 // Track form submissions for analytics
 document.addEventListener('submit', (e) => {
-    if (e.target.classList.contains('workflow-form')) {
+    if (e.target.classList.contains('service-blueprint-form')) {
         const formData = new FormData(e.target);
         const action = formData.get('Action');
-        console.log(`User submitted workflow action: ${action}`);
+        console.log(`User submitted service-blueprint action: ${action}`);
         // Send to analytics provider
     }
 });
 
 // Example: Auto-save draft periodically
 setInterval(() => {
-    const form = document.querySelector('.workflow-form');
+    const form = document.querySelector('.service-blueprint-form');
     if (form && form.querySelector('[name="Action"][value="save-draft"]')) {
         // Optional: submit a "save-draft" action periodically
     }
@@ -487,5 +487,5 @@ Example:
 ---
 
 **Next steps:**
-- [Form Validation](./workflow-forms-validation.md) — understand validation layers
-- [GDS Components](./workflow-gds-components.md) — available form elements and design patterns
+- [Form Validation](./service-request-forms-validation.md) — understand validation layers
+- [GDS Components](./service-blueprint-gds-components.md) — available form elements and design patterns

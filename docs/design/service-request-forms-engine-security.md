@@ -1,6 +1,6 @@
-# Workflow security and tenant isolation
+# Service Blueprint security and tenant isolation
 
-Prism workflows are designed so Umbraco can host the journey without becoming the source of truth for identity, state transitions, or trusted field definitions.
+Prism service blueprints are designed so Umbraco can host the journey without becoming the source of truth for identity, state transitions, or trusted field definitions.
 
 ## Security model in one view
 
@@ -8,7 +8,7 @@ Prism workflows are designed so Umbraco can host the journey without becoming th
 flowchart TD
     A[Authenticated member in Umbraco] --> B[BusinessAppWorkflowClient]
     B -->|Forward bearer token| C[Business app API]
-    C -->|Resolve tenant + user from claims| D[Workflow engine]
+    C -->|Resolve tenant + user from claims| D[Service-Blueprint engine]
     D -->|Return authoritative envelope| E[Prism controller]
     E -->|Nonce-bound fields + antiforgery| F[Browser POST]
     F --> E
@@ -28,9 +28,9 @@ Sources:
 
 ### 2. Instance ownership is re-checked server-side
 
-`BusinessAppWorkflowEngine` compares the requested instance's tenant and user against the current caller before returning or advancing it.
+`BusinessAppProcessManager` compares the requested instance's tenant and user against the current caller before returning or advancing it.
 
-This is what protects resumed workflows, hub links, and prompt-mode instance picking from cross-user leakage.
+This is what protects resumed service blueprints, hub links, and prompt-mode instance picking from cross-user leakage.
 
 ### 3. Form structure is protected with a nonce
 
@@ -38,8 +38,8 @@ Prism never trusts the browser to describe the form it rendered. It stores autho
 
 Sources:
 
-- `src/UmbracoPrism.Core/Services/Workflow/WorkflowStepNonceService.cs`
-- `src/UmbracoPrism.Core/Services/Workflow/WorkflowFieldValidator.cs`
+- `src/UmbracoPrism.Core/Services/ServiceDesign/TouchpointNonceService.cs`
+- `src/UmbracoPrism.Core/Services/ServiceDesign/ServiceRequestFieldValidator.cs`
 
 ### 4. State transitions use optimistic concurrency
 
@@ -55,7 +55,7 @@ The default sanitizer allowlists a small GOV.UK-friendly subset of tags and safe
 
 Source: `src/UmbracoPrism.Core/Services/Sanitization/WorkflowContentSanitizer.cs`
 
-### 6. Workflow admin endpoints stay a development tool
+### 6. Service Desk endpoints stay a development tool
 
 The mock business app includes development-only admin/test endpoints. They are useful for demos and tests, but they should not become your production operating model.
 
@@ -67,7 +67,7 @@ Keep any reviewer or admin surface behind your real authorization model.
 - Keep business-app authorization claim-driven.
 - Sanitize authored content before rendering it.
 - Preserve `StateVersion` checks when reimplementing the engine.
-- Keep workflow hub URLs local and instance-scoped.
+- Keep service request hub URLs local and instance-scoped.
 - Do not expose development reset/admin endpoints outside development.
 
 ## Security-relevant extension points
@@ -78,10 +78,10 @@ Keep any reviewer or admin surface behind your real authorization model.
 | Business app endpoints | Resolve tenant/user from token claims, not form data |
 | Content rendering | Use the registered sanitizer for authored HTML |
 | Multi-server hosting | Replace memory cache with a shared cache |
-| Workflow hub | Keep resume links local and tied to workflow ownership |
+| Service Request Hub | Keep resume links local and tied to service blueprint ownership |
 
 ## Related docs
 
-- [Validation](./workflow-validation.md)
-- [Umbraco integration](./workflow-forms-engine-umbraco.md)
-- [Workflow hub and conditional fields](./workflow-hub-and-conditional-fields.md)
+- [Validation](./service-blueprint-validation.md)
+- [Umbraco integration](./service-request-forms-engine-umbraco.md)
+- [Service Request Hub and conditional fields](./service-request-hub-and-conditional-fields.md)

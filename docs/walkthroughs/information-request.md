@@ -1,10 +1,10 @@
-# Information Request Workflow
+# Information Request Service Blueprint
 
 A data request form demonstrating date inputs, a detailed request textarea, and urgency triage.
 
 ## Overview
 
-The information request workflow (`information-request`) handles user requests for information with:
+The information request service blueprint (`information-request`) handles user requests for information with:
 
 - **Date inputs** for capturing date of birth
 - **Textareas** for detailed request descriptions
@@ -33,9 +33,9 @@ A completed form shows personal details, the selected request type, and the desc
 
 Successful submission transitions the instance to the `under-review` state and displays a confirmation panel. The user is informed their request is under review and can expect a response within the selected urgency window.
 
-### Workflow Admin handoff (development only)
+### Service Desk handoff (development only)
 
-Because this walkthrough pauses in an `under-review` state, the next actor in the local demo is the development-only [Workflow Administration](workflow-administration.md) panel. From there a reviewer can **Request Changes** to send the member back to the authored form, or **Approve** to push the workflow to its terminal completion state.
+Because this walkthrough pauses in an `under-review` state, the next actor in the local demo is the development-only [Service Blueprint Administration](service-request-administration.md) panel. From there a reviewer can **Request Changes** to send the member back to the authored form, or **Approve** to push the service blueprint to its terminal completion state.
 
 ## V2.0 Schema Example
 
@@ -67,9 +67,9 @@ The urgency field demonstrates a straightforward radio-driven priority choice:
 }
 ```
 
-## Workflow Seed JSON
+## Service Blueprint Seed JSON
 
-**Location:** `src/UmbracoPrism.MockBusinessApp/workflow-seeds/information-request.json`
+**Location:** `src/UmbracoPrism.MockBusinessApp/service-blueprints/information-request.json`
 
 **Definition key:** `information-request`  
 **Display name:** Request Information  
@@ -80,7 +80,7 @@ The urgency field demonstrates a straightforward radio-driven priority choice:
 ✅ **Date inputs** – GDS-style date components with validation  
 ✅ **Textareas** – Multi-line text input with character limits  
 ✅ **Urgency triage** – Clear priority options for operator review  
-✅ **Review workflow** – Public submission followed by reviewer action in the local harness
+✅ **Review service blueprint** – Public submission followed by reviewer action in the local harness
 
 ---
 

@@ -1,14 +1,14 @@
-# Workflow hub and conditional fields
+# Service Request Hub and conditional fields
 
-These are the two advanced workflow patterns most package consumers need after the basic happy path: resumable journeys and progressively-disclosed inputs.
+These are the two advanced service blueprint patterns most package consumers need after the basic happy path: resumable journeys and progressively-disclosed inputs.
 
-## Workflow hub
+## Service Request Hub
 
-The workflow hub is the package's answer to "where does the user go when this journey is not a single straight-through form?"
+The service request hub is the package's answer to "where does the user go when this journey is not a single straight-through form?"
 
-`WorkflowHubController` and `Views/workflowHub.cshtml` currently:
+`ServiceRequestHubController` and `Views/serviceRequestHub.cshtml` currently:
 
-- fetch all workflow instances for the authenticated member,
+- fetch all service requests for the authenticated member,
 - split them into in-progress and completed lists,
 - resolve the matching `workflowPage` by `workflowKey`,
 - append `instanceId` so users continue the right instance.
@@ -19,7 +19,7 @@ The workflow hub is the package's answer to "where does the user go when this jo
 | --- | --- |
 | `single` | The hub is optional but still useful for status and history |
 | `multiple` | The hub becomes the main way to distinguish concurrent requests |
-| `prompt` | The workflow page can show an instance picker before creating a new request |
+| `prompt` | The service blueprint page can show an instance picker before creating a new request |
 
 Prompt-mode instance picking is currently rendered by `Views/Partials/_WorkflowHub-InstancePicker.cshtml`.
 
@@ -69,7 +69,7 @@ The validator deliberately skips hidden conditional fields. That means:
 
 ## Summary lists, waiting states, and task lists
 
-These patterns commonly appear alongside hub-friendly workflows.
+These patterns commonly appear alongside hub-friendly service blueprints.
 
 ### Summary list
 
@@ -94,5 +94,5 @@ These patterns commonly appear alongside hub-friendly workflows.
 
 - Prefer `ConditionalOn` / `VisibleWhen` for one-field reveals.
 - Prefer `ConditionalChildren` when the reveal is a mini sub-form.
-- Add a workflow hub whenever users may pause, wait, or run more than one instance.
+- Add a service request hub whenever users may pause, wait, or run more than one instance.
 - Pair waiting states with a hub or prompt policy so the journey still feels navigable.

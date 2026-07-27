@@ -1,7 +1,7 @@
-# Workflow editor — visual regression test strategy
+# Service Blueprint Editor — visual regression test strategy
 
 > **Audience:** Squad members (Tangy, Isabelle) and any future contributor
-> adding or maintaining a visual test for the workflow editor canvas.
+> adding or maintaining a visual test for the service blueprint editor canvas.
 > **Last reviewed:** 2026-05-30 (Slice 7).
 
 The canvas is the editor's main reading surface. Authors trust it to show, at
@@ -27,7 +27,7 @@ Five concerns, taken straight from the user mandate (2026-05-30):
    Stage and gateway labels are not clipped: their `scrollWidth` never exceeds
    their `clientWidth` up to a documented title length (currently **40 chars**
    for stage/gateway display names).
-3. **Scroll behaviour.** When the workflow exceeds the canvas viewport,
+3. **Scroll behaviour.** When the service blueprint exceeds the canvas viewport,
    `.graph-canvas` becomes scrollable on the overflowing axis. Lane header
    strips stay sticky during vertical scroll. Scrollbars do not appear when
    they are not needed.
@@ -57,8 +57,8 @@ Drawing the boundary keeps the suite cheap and the signal high.
   in another engine, that surfaces through Storybook visual review or a
   bug report — not here.
 - **The Umbraco backoffice editor.** Permanently retired. The visual suite
-  targets the runtime workflow editor (`<prism-workflow-editor>` and
-  `<prism-workflow-graph>`) only.
+  targets the runtime service blueprint editor (`<prism-service-blueprint-editor>` and
+  `<prism-service-blueprint-graph>`) only.
 - **Backend authoring.** Backend has its own xUnit suite. The visual suite
   never asserts backend behaviour.
 
@@ -91,7 +91,7 @@ spec sits next to at least one DOM-level spec covering the same scenario.
 ### Baseline management
 
 - **Baselines live next to the spec** under
-  `src/UmbracoPrism.Client/tests/workflow-editor/__screenshots__/` (the
+  `src/UmbracoPrism.Client/tests/service-blueprint-editor/__screenshots__/` (the
   `pathTemplate` is set in `playwright.config.ts`).
 - **Update a baseline only via** `npx playwright test --update-snapshots`
   **on the spec that owns it**, after eyeballing the diff. *Never* update
@@ -123,16 +123,16 @@ Every screenshot spec must wait for a deterministic signal — usually
 
 ## Canonical scenarios
 
-Four canonical workflows, each exercising a distinct shape. The first three
+Four canonical service blueprints, each exercising a distinct shape. The first three
 already exist as Storybook stories; the fourth is added in Slice 7.
 
 | Scenario | Story ID | What it proves |
 |---|---|---|
-| `SINGLE_LANE_LINEAR` | `workflow-editor-workflow-graph--workspace-canvas` | Baseline shape — one lane, several stages in sequence. The smallest possible "did anything regress in the simple case?" test. |
-| `MULTI_LANE_FAN_OUT` | `workflow-editor-workflow-graph--gateway-representation` | Three lanes, a Split gateway branching applicant work into two parallel lanes, a Join gateway waiting for every branch. The canonical "real workflow". |
-| `SAME_LANE_FAN_OUT` | `workflow-editor-workflow-graph--same-lane-fan-out` | A single lane forced to host two sibling Split gateways — exercises the Slice 5 lane-widening rule. |
-| `LARGE_WORKFLOW` | `workflow-editor-workflow-graph--large-workflow` | Exceeds the canvas viewport on both axes — proves scroll behaviour and that the canvas does not bunch nodes when there is plenty of work to show. |
-| `READ_ONLY_VIEWER` *(optional)* | `workflow-editor-workflow-graph--graph-read-only` | Declarative `<prism-workflow-graph read-only workflow-json="…">` — assert no authoring affordances render. |
+| `SINGLE_LANE_LINEAR` | `service-blueprint-editor-service-blueprint-graph--workspace-canvas` | Baseline shape — one lane, several stages in sequence. The smallest possible "did anything regress in the simple case?" test. |
+| `MULTI_LANE_FAN_OUT` | `service-blueprint-editor-service-blueprint-graph--gateway-representation` | Three lanes, a Split gateway branching applicant work into two parallel lanes, a Join gateway waiting for every branch. The canonical "real service blueprint". |
+| `SAME_LANE_FAN_OUT` | `service-blueprint-editor-service-blueprint-graph--same-lane-fan-out` | A single lane forced to host two sibling Split gateways — exercises the Slice 5 lane-widening rule. |
+| `LARGE_WORKFLOW` | `service-blueprint-editor-service-blueprint-graph--large-service-blueprint` | Exceeds the canvas viewport on both axes — proves scroll behaviour and that the canvas does not bunch nodes when there is plenty of work to show. |
+| `READ_ONLY_VIEWER` *(optional)* | `service-blueprint-editor-service-blueprint-graph--graph-read-only` | Declarative `<prism-service-blueprint-graph read-only service-blueprint-json="…">` — assert no authoring affordances render. |
 
 Add a new canonical scenario only when an existing one fails to express the
 concern. **Resist scenario sprawl.** A new scenario forces a new screenshot
@@ -147,24 +147,24 @@ walks through. A single spec iterates the canonical scenarios in a
 `describe.each`-style block where it makes sense.
 
 ```
-tests/workflow-editor/
-  workflow-canvas-lane-fit.spec.ts        — Concern 1
-  workflow-canvas-no-overlap.spec.ts      — Concern 2 (geometry)
-  workflow-canvas-text-fits.spec.ts       — Concern 2 (typography)
-  workflow-canvas-scroll.spec.ts          — Concern 3
-  workflow-canvas-arrows.spec.ts          — Concern 4 (DOM + screenshots)
-  workflow-editor-ergonomics.spec.ts      — Concern 5
+tests/service-blueprint-editor/
+  service-blueprint-canvas-lane-fit.spec.ts        — Concern 1
+  service-blueprint-canvas-no-overlap.spec.ts      — Concern 2 (geometry)
+  service-blueprint-canvas-text-fits.spec.ts       — Concern 2 (typography)
+  service-blueprint-canvas-scroll.spec.ts          — Concern 3
+  service-blueprint-canvas-arrows.spec.ts          — Concern 4 (DOM + screenshots)
+  service-blueprint-editor-ergonomics.spec.ts      — Concern 5
 ```
 
 ### Data-attribute contract the visual suite relies on
 
-If you are refactoring `prism-workflow-graph.ts`, do **not** remove or
+If you are refactoring `prism-service-blueprint-graph.ts`, do **not** remove or
 rename any of these hooks without updating the visual suite in the same
 commit. They are the public surface the visual contract leans on.
 
 | Attribute | On | Purpose |
 |---|---|---|
-| `data-prism-component="workflow-graph"` | root | "Did the graph render at all?" |
+| `data-prism-component="service-blueprint-graph"` | root | "Did the graph render at all?" |
 | `data-prism-mode="graph"` | root | Distinguishes graph vs list workspace mode. |
 | `data-prism-read-only="true|false"` | root | Read-only viewer check. |
 | `data-prism-lane-container=<laneKey>` | lane column | Lane bounding box for fit / overlap / arrow endpoint tests. |
@@ -188,15 +188,15 @@ commit. They are the public surface the visual contract leans on.
 cd src/UmbracoPrism.Client
 
 # Run the visual suite only (fast, recommended pre-commit):
-npx playwright test tests/workflow-editor/workflow-canvas-*.spec.ts \
-                    tests/workflow-editor/workflow-editor-ergonomics.spec.ts \
+npx playwright test tests/service-blueprint-editor/service-blueprint-canvas-*.spec.ts \
+                    tests/service-blueprint-editor/service-blueprint-editor-ergonomics.spec.ts \
                     --reporter=line
 
 # Run a single concern:
-npx playwright test tests/workflow-editor/workflow-canvas-lane-fit.spec.ts --reporter=line
+npx playwright test tests/service-blueprint-editor/service-blueprint-canvas-lane-fit.spec.ts --reporter=line
 
 # Update screenshot baselines after a deliberate, reviewed visual change:
-npx playwright test tests/workflow-editor/workflow-canvas-arrows.spec.ts --update-snapshots
+npx playwright test tests/service-blueprint-editor/service-blueprint-canvas-arrows.spec.ts --update-snapshots
 ```
 
 Storybook starts automatically via the Playwright `webServer` config — no
@@ -204,7 +204,7 @@ need to start it by hand.
 
 ### In CI
 
-The suite runs as part of the standard Playwright workflow-editor job.
+The suite runs as part of the standard Playwright service blueprint-editor job.
 Snapshot diffs are uploaded as Playwright HTML report artefacts; reviewers
 open the report to compare expected vs actual before approving an update.
 

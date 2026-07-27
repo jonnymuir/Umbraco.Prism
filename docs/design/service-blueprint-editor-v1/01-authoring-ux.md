@@ -1,40 +1,40 @@
-# Workflow editor design (V1)
+# Service Blueprint Editor design (V1)
 
 > **Status note (2026-05-30 scope reset):** Most of this doc still describes today's editor (vertical lanes, slot matrix, JSON Definition tab, keyboard-first authoring). The "AI help / proposal diff" framing in §15 and §16 was retired — there is no chat drafter, conversation pane, or proposal diff in the shipped editor. Kept for reference.
 
 **Author:** Isabelle (Frontend Dev and Accessibility Lead)  
 **Date:** 2026-05-17T22:05:30.472+01:00  
 **Status:** Draft  
-**Relates to:** `docs/design/workflow-editor-v1/README.md`
+**Relates to:** `docs/design/service-blueprint-editor-v1/README.md`
 
 ---
 
 ## 1. What this document is
 
-This is the primary design document for the **workflow editor**. It describes the editor that authors use to define the workflow JSON through a simple product surface, not by hand-editing raw JSON.
+This is the primary design document for the **service blueprint editor**. It describes the editor that authors use to define the service blueprint JSON through a simple product surface, not by hand-editing raw JSON.
 
-V1 focuses on one excellent experience: opening a workflow, editing its structure and behaviour, validating it, previewing it, simulating key paths, and saving it with confidence.
+V1 focuses on one excellent experience: opening a service blueprint, editing its structure and behaviour, validating it, previewing it, simulating key paths, and saving it with confidence.
 
 ---
 
 ## 2. Product goal
 
-The workflow editor should feel like a good modern editor for service workflows:
+The service blueprint editor should feel like a good modern editor for service service blueprints:
 
 - simple to learn
 - fast for routine changes
 - safe for structural changes
 - accessible by default
-- clear about what will end up in the workflow definition
+- clear about what will end up in the service blueprint
 - friendly to both manual editing and proposal-based AI help
 
-The editor is for building and maintaining the workflow model that later projects into Prism's runtime JSON definition.
+The editor is for building and maintaining the service blueprint model that later projects into Prism's runtime JSON definition.
 
 ---
 
 ## 3. V1 principles
 
-1. **Workflow-first, not JSON-first.** Authors edit stages, transitions, actions, actors, and parameters using workflow language.
+1. **Service Blueprint-first, not JSON-first.** Authors edit stages, transitions, actions, actors, and parameters using service blueprint language.
 2. **Simple by default.** The main path stays focused on common tasks. Advanced detail appears only when needed.
 3. **One workspace, not many tools.** Structure, details, validation, preview, simulation, and help live in one editor.
 4. **Safe editing.** Undo, redo, copy, paste, validation, previews, and explicit save are built in.
@@ -45,9 +45,9 @@ The editor is for building and maintaining the workflow model that later project
 
 ## 4. What V1 covers
 
-V1 lets an author define everything needed for the workflow definition, including:
+V1 lets an author define everything needed for the service blueprint, including:
 
-- workflow metadata
+- service blueprint metadata
 - actor roles
 - stages
 - transitions
@@ -57,7 +57,7 @@ V1 lets an author define everything needed for the workflow definition, includin
 - validation rules that can be expressed in the authored model
 - preview and simulation of the authored flow
 
-V1 does **not** make raw JSON the main authoring surface. JSON can remain an advanced diagnostic view, but the workflow editor is the primary product.
+V1 does **not** make raw JSON the main authoring surface. JSON can remain an advanced diagnostic view, but the service blueprint editor is the primary product.
 
 ---
 
@@ -71,7 +71,7 @@ For the current role-first delivery slice, the main workspace stays on one scree
 ┌─────────────────────────────────────────────────────────────────────┐
 │ Toolbar: name • status • save • undo • redo • copy • paste • help │
 ├───────────────┬───────────────────────────────┬─────────────────────┤
-│ Workflow      │ Main canvas or list           │ Inspector           │
+│ Service-Blueprint      │ Main canvas or list           │ Inspector           │
 │ outline       │ stages, transitions, actions  │ selected item       │
 │               │                               │ details             │
 ├───────────────┴───────────────────────────────┴─────────────────────┤
@@ -97,21 +97,21 @@ The toolbar gives authors the controls they expect from a good editor:
 
 The toolbar also shows:
 
-- workflow name
+- service blueprint name
 - dirty state
 - validation status
 - last saved state
 
-### 5.2 Workflow outline
+### 5.2 Service Blueprint outline
 
-The outline is the quick navigation surface. It shows the workflow as a structured tree:
+The outline is the quick navigation surface. It shows the service blueprint as a structured tree:
 
-- workflow
+- service blueprint
 - stages
 - transitions
 - reusable actions or policies if present
 
-Authors use the outline to jump quickly to any part of the workflow. It also helps screen reader users move around the editor without depending on the visual graph.
+Authors use the outline to jump quickly to any part of the service blueprint. It also helps screen reader users move around the editor without depending on the visual graph.
 
 ### 5.3 Main canvas or list
 
@@ -122,7 +122,7 @@ Authors can switch between:
 - **Graph view** for visual editing of stages and transitions
 - **List view** for accessible, compact, detail-friendly editing
 
-Both views edit the same model. In the first role-first slice, graph view uses role-first lanes so authors read the workflow as responsibilities and handoffs rather than a generic node field.
+Both views edit the same model. In the first role-first slice, graph view uses role-first lanes so authors read the service blueprint as responsibilities and handoffs rather than a generic node field.
 
 ### 5.4 Inspector
 
@@ -142,7 +142,7 @@ The bottom confidence strip keeps the review tools in one predictable place. It 
 - **Simulation** — path-walking through the authored flow
 - **Help** — shortcut and editing guidance
 
-Messages are written in workflow language, for example:
+Messages are written in service blueprint language, for example:
 
 - “Review stage has no exit transition.”
 - “Submit action is missing a target stage.”
@@ -158,14 +158,14 @@ V1 is centred on six editable concepts.
 
 | Concept | What the author edits | Why it matters |
 | --- | --- | --- |
-| Workflow | name, key, summary, actors, top-level settings | defines the overall workflow |
+| Service Blueprint | name, key, summary, actors, top-level settings | defines the overall service blueprint |
 | Gateway | key, title, description, split/join kind, owning lane, waiting summary | shows where lanes branch or converge without pretending the gateway is a normal stage |
 | Stage | key, title, purpose, actor, stage type, actions | defines a unit of work |
-| Transition | source, target, trigger, conditions, guards | defines how the workflow moves |
+| Transition | source, target, trigger, conditions, guards | defines how the service blueprint moves |
 | Action | action type, timing, behaviour | defines what happens in or between stages |
 | Parameters | structured values for actions and forms | defines the exact behaviour |
 
-The editor should always answer a simple question: **what will this change do to the workflow?**
+The editor should always answer a simple question: **what will this change do to the service blueprint?**
 
 ---
 
@@ -220,7 +220,7 @@ Lane placement (front vs back stage) is **derived from the stage's actor and rol
 
 ## 8. Transition editing
 
-Transitions define how the workflow moves between stages and gateways.
+Transitions define how the service blueprint moves between stages and gateways.
 
 ### 8.1 What a transition contains
 
@@ -277,7 +277,7 @@ Actions describe what happens inside a stage or when a transition is taken.
 
 ### 9.1 Common action types
 
-V1 should support action editing for common workflow actions such as:
+V1 should support action editing for common service blueprint actions such as:
 
 - assign team or role
 - request review
@@ -286,7 +286,7 @@ V1 should support action editing for common workflow actions such as:
 - wait for an event or deadline
 - call an external capability such as ID verification
 - record an outcome
-- update workflow status
+- update service blueprint status
 
 The exact action catalogue can grow over time, but the editing pattern should be consistent from day one.
 
@@ -415,7 +415,7 @@ Preview is read-only. It is there to show what the authored model becomes.
 
 ### 12.2 Simulation
 
-V1 simulation should let authors walk a likely path through the workflow:
+V1 simulation should let authors walk a likely path through the service blueprint:
 
 - start from the beginning
 - choose transitions
@@ -432,7 +432,7 @@ Simulation is especially important for:
 - complex branching
 - handoffs between front stage and back stage
 - inserted actions such as external checks
-- making sure a change did not strand the workflow
+- making sure a change did not strand the service blueprint
 
 ---
 
@@ -467,7 +467,7 @@ When pasting a stage, the editor should create a safe new key and clearly show w
 
 ### 13.3 Duplicate and insert
 
-V1 should support duplicate, insert before, and insert after for fast workflow building.
+V1 should support duplicate, insert before, and insert after for fast service blueprint building.
 
 ### 13.4 Keyboard shortcuts
 
@@ -492,7 +492,7 @@ The editor should provide:
 - a shortcut reference
 - simple guidance for stages, transitions, and actions
 - inline explanations for advanced fields
-- empty-state guidance when starting a workflow
+- empty-state guidance when starting a service blueprint
 
 Help should be available without leaving the editor.
 
@@ -506,7 +506,7 @@ Authors need a clear point where they know what is being saved, especially when 
 
 ## 14. Accessibility model
 
-Accessibility is a first-class part of the workflow editor design.
+Accessibility is a first-class part of the service blueprint editor design.
 
 ### 14.1 Core approach
 
@@ -519,7 +519,7 @@ Both views are first-class. List view is not a fallback afterthought.
 
 ### 14.2 Keyboard support
 
-Every core workflow task must be possible by keyboard, including:
+Every core service blueprint task must be possible by keyboard, including:
 
 - moving through the workspace
 - selecting stages, transitions, and actions
@@ -532,7 +532,7 @@ Every core workflow task must be possible by keyboard, including:
 
 ### 14.3 Screen reader model
 
-Screen reader users should be able to understand the workflow through:
+Screen reader users should be able to understand the service blueprint through:
 
 - the outline
 - the list view
@@ -578,7 +578,7 @@ Authors should be able to jump from a validation message directly to the stage, 
 
 ### 14.7 Accessibility validation in Storybook
 
-The workflow editor component set should keep axe-core checks in Storybook as a routine quality gate. V1 should treat serious and critical accessibility issues as release blockers.
+The service blueprint editor component set should keep axe-core checks in Storybook as a routine quality gate. V1 should treat serious and critical accessibility issues as release blockers.
 
 ---
 
@@ -612,7 +612,7 @@ This keeps AI useful without making it opaque.
 | Editor basics | save, undo, redo, copy, paste, duplicate, delete |
 | Help | shortcuts and inline guidance |
 | Accessibility | dual graph/list model, keyboard support, focus rules, live announcements, visible focus |
-| Validation | persistent workflow-friendly errors and warnings |
+| Validation | persistent service blueprint-friendly errors and warnings |
 | Confidence tools | stage preview and path simulation |
 | AI help | proposal diff review, never hidden apply |
 
@@ -623,10 +623,10 @@ These are useful, but not required for V1:
 - real-time collaborative editing
 - comments and annotations on stages
 - richer bulk editing tools
-- branch comparison across workflow versions
+- branch comparison across service blueprint versions
 - reusable stage templates and action packs
 - advanced simulation with richer sample data
-- automatic layout tuning for very large workflows
+- automatic layout tuning for very large service blueprints
 - deep analytics and operational reporting
 - macro recording or user-defined editor commands
 - limited raw JSON round-tripping inside the main workspace
@@ -636,7 +636,7 @@ These are useful, but not required for V1:
 
 ## 17. V1 success statement
 
-V1 succeeds if an author can open the workflow editor and confidently do the following without touching raw JSON:
+V1 succeeds if an author can open the service blueprint editor and confidently do the following without touching raw JSON:
 
 - add or change stages
 - wire transitions
@@ -646,7 +646,7 @@ V1 succeeds if an author can open the workflow editor and confidently do the fol
 - preview the result
 - simulate the main path
 - undo mistakes
-- copy and reuse parts of the workflow
+- copy and reuse parts of the service blueprint
 - use the editor accessibly
 - save with confidence
 

@@ -1,6 +1,6 @@
 # The Prism Calculation Language
 
-A total, side-effect-free expression language for the maths behind a workflow —
+A total, side-effect-free expression language for the maths behind a service blueprint —
 pension quotes, eligibility thresholds, banded tax calculations, whatever a stage
 needs to compute. It's the **only** place business maths should live: don't
 hand-write it in a host service or a client component (see
@@ -13,14 +13,14 @@ checked against one conformance suite,
 [`calculation-golden.json`](../../src/UmbracoPrism.Shared/calculation-fixtures/calculation-golden.json)
 — if you're unsure whether something is legal syntax, that file is the ground truth.
 
-This document is also exposed as an MCP resource (`workflow-docs://calculation-language`)
-so an AI agent authoring workflows through the MCP toolkit can fetch it directly, without
+This document is also exposed as an MCP resource (`service-blueprint-docs://calculation-language`)
+so an AI agent authoring service blueprints through the MCP toolkit can fetch it directly, without
 needing filesystem access to this repo — see
-[AI-Ready Workflow Authoring](./ai-workflow-authoring.md).
+[AI-Ready Service Blueprint Authoring](./ai-service-blueprint-authoring.md).
 
-## Where it lives in a workflow
+## Where it lives in a service blueprint
 
-A `WorkflowDefinitionFile` may carry a top-level `calculations` block:
+A `ServiceBlueprint` may carry a top-level `calculations` block:
 
 ```json
 "calculations": {
@@ -46,13 +46,13 @@ component's own `default` if nothing's been submitted yet. Any component may als
 declare a `showWhen` expression (a plain string in this same language) to control
 its own visibility — see [Visibility (`showWhen`)](#visibility-showwhen) below.
 
-**`validate_workflow` has no submitted values to work with.** If an input has
+**`validate_service_blueprint` has no submitted values to work with.** If an input has
 neither a real submission (there isn't one — it's a static check) nor a `default`,
 it's simply absent from scope, not an error — any field expression referencing it
 then fails with an unresolvable-reference diagnostic, which looks like the
 expression is wrong even when it isn't. Two ways to avoid this false alarm while
 authoring: give the input a sensible `default` (recommended — it also seeds the
-real form), or verify the calculation via `simulate_workflow` instead, which takes
+real form), or verify the calculation via `simulate_service_blueprint` instead, which takes
 real `fieldValues` per step and resolves cleanly regardless of defaults. Every
 worked example below (including `money-modeller.json`) declares a `default` on
 every input its calculations depend on for exactly this reason.
@@ -192,13 +192,13 @@ application*, not computed:
 "fields": { "member": { "source": "service" } }
 ```
 
-The host implements `WorkflowRuntimeEngine.ResolveServiceInputs(...)` to supply it
+The host implements `ProcessManagerEngine.ResolveServiceInputs(...)` to supply it
 (e.g. a member record fetched from a system of record) — see
-`BusinessAppWorkflowEngine.ResolveServiceInputs` in `UmbracoPrism.MockBusinessApp` for
+`BusinessAppProcessManager.ResolveServiceInputs` in `UmbracoPrism.MockBusinessApp` for
 the real example backing `money-modeller.json`'s `member` field. A service field with
 no value supplied is a `CalculationException` when evaluated for real; the
-`validate_workflow`/`simulate_workflow` MCP tools have specific, non-fatal handling
-for this case — see [AI-Ready Workflow Authoring](./ai-workflow-authoring.md).
+`validate_service_blueprint`/`simulate_service_blueprint` MCP tools have specific, non-fatal handling
+for this case — see [AI-Ready Service Blueprint Authoring](./ai-service-blueprint-authoring.md).
 
 ## Format hints
 
@@ -228,16 +228,16 @@ evaluation errors (`"Field 'x' has no expression and no service source."`,
 | Unknown table | `Unknown table 'foo' in ...` |
 | Series too large | `Series 's' would produce 2000 rows; the limit is 1000.` |
 
-When authoring through the MCP toolkit, `validate_workflow` surfaces these against
-the whole workflow (calculated fields, series, **and** every component's `showWhen`)
+When authoring through the MCP toolkit, `validate_service_blueprint` surfaces these against
+the whole service blueprint (calculated fields, series, **and** every component's `showWhen`)
 as structured diagnostics you can act on directly, rather than needing to run the
-workflow to discover a broken expression — see
-[AI-Ready Workflow Authoring](./ai-workflow-authoring.md).
+service blueprint to discover a broken expression — see
+[AI-Ready Service Blueprint Authoring](./ai-service-blueprint-authoring.md).
 
 ## Worked example: `money-modeller.json`
 
-The one seed workflow that exercises the full language end-to-end is
-[`money-modeller.json`](../../src/UmbracoPrism.MockBusinessApp/workflow-seeds/money-modeller.json)
+The one seed service blueprint that exercises the full language end-to-end is
+[`money-modeller.json`](../../src/UmbracoPrism.MockBusinessApp/service-blueprints/money-modeller.json)
 — a pension modeller. Its field chain is worth reading top-to-bottom as a model for
 how to structure a non-trivial calculation set: each field builds on the last, so
 the dependency order *is* the declaration order.
@@ -262,7 +262,7 @@ the dependency order *is* the declaration order.
    maximum tax-free cash (`maxTfc = 0.25 * totalValue`).
 8. **`resultPension`**, **`resultCash`**, **`resultDcIncome`**, **`resultTotal`** —
    the final `round(...)`-ed, `format: "gbp"` fields bound directly to the
-   `stat-group` component on the `model` state.
+   `stat-group` component on the `model` touchpoint.
 9. The **`incomeByAge`** series projects `resultPension`-style figures across every
    age from `retireAgeEff` to `90`, feeding the `chart` component.
 

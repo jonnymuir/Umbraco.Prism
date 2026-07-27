@@ -1,3 +1,5 @@
+> **Archived, frozen terminology**: this is a historical snapshot from before the [Service Design vocabulary rename](../../CLAUDE.md) — it uses the original "Workflow" terminology throughout, left as-written rather than updated to match current vocabulary.
+
 # Prism Workflow Forms Engine — Redesign: Element Types as Step Definitions
 
 **Author:** Tom Nook (Lead)  

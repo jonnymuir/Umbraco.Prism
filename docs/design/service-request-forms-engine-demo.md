@@ -1,24 +1,24 @@
-# Building a workflow with Umbraco.Prism
+# Building a service blueprint with Umbraco.Prism
 
-This guide tells the shortest complete story for implementing your own workflow: define it, expose it from a business app, wire Prism into Umbraco, and let the package handle rendering and validation.
+This guide tells the shortest complete story for implementing your own service blueprint: define it, expose it from a business app, wire Prism into Umbraco, and let the package handle rendering and validation.
 
 ## The happy path
 
 ```mermaid
 sequenceDiagram
-    participant Author as Workflow author
+    participant Author as Service-Blueprint author
     participant BA as Business app
     participant U as Umbraco + Prism
     participant Browser as Browser
 
     Author->>BA: Add definition (JSON seed or builder)
-    Browser->>U: GET /workflow page
-    U->>BA: POST /api/workflow/{key}/current
-    BA-->>U: WorkflowResponseEnvelope
+    Browser->>U: GET /service-blueprint page
+    U->>BA: POST /api/service-blueprint/{key}/current
+    BA-->>U: ServiceRequestResponseEnvelope
     U-->>Browser: Render step
     Browser->>U: POST form with Action + Nonce
     U->>U: Antiforgery + nonce + field validation
-    U->>BA: POST /api/workflow/{key}/advance
+    U->>BA: POST /api/service-blueprint/{key}/advance
     BA-->>U: Next envelope
     U-->>Browser: Redirect and re-render
 ```
@@ -27,7 +27,7 @@ sequenceDiagram
 
 The current package expects authored states to contain `components`, not legacy field-group references.
 
-Short example based on `src/UmbracoPrism.MockBusinessApp/workflow-seeds/community-enquiry.json`:
+Short example based on `src/UmbracoPrism.MockBusinessApp/service-blueprints/community-enquiry.json`:
 
 ```json
 {
@@ -59,19 +59,19 @@ Short example based on `src/UmbracoPrism.MockBusinessApp/workflow-seeds/communit
 
 Good example seeds live in:
 
-- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/community-enquiry.json`
-- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/information-request.json`
-- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/payment-demo.json`
-- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.json`
+- `src/UmbracoPrism.MockBusinessApp/service-blueprints/community-enquiry.json`
+- `src/UmbracoPrism.MockBusinessApp/service-blueprints/information-request.json`
+- `src/UmbracoPrism.MockBusinessApp/service-blueprints/payment-demo.json`
+- `src/UmbracoPrism.MockBusinessApp/service-blueprints/planning-notification.json`
 
 If you prefer code-first authoring, the fluent builder is already documented in code:
-`src/UmbracoPrism.Shared/Builders/WorkflowDefinitionBuilder.cs`.
+`src/UmbracoPrism.Shared/Builders/ServiceBlueprintBuilder.cs`.
 
 ## 2. Decide what belongs in Prism and what belongs in your business app
 
 | Concern | Owned by |
 | --- | --- |
-| Workflow states, transitions, reviewer logic, domain rules | Your business app |
+| Service Blueprint states, transitions, reviewer logic, domain rules | Your business app |
 | Rendering GOV.UK form shells and components | Prism |
 | Authenticating the Umbraco member and forwarding bearer tokens | Prism |
 | Field structure validation and tamper-proofing | Prism |
@@ -83,31 +83,31 @@ Prism is intentionally not your case-management engine. It is the web package th
 
 The demo app maps these in `src/UmbracoPrism.MockBusinessApp/Program.cs`:
 
-- `POST /api/workflow/{workflowKey}/current`
-- `POST /api/workflow/{workflowKey}/advance`
-- `GET /api/workflow/instances`
+- `POST /api/service-blueprint/{workflowKey}/current`
+- `POST /api/service-blueprint/{workflowKey}/advance`
+- `GET /api/service-blueprint/instances`
 
 The current endpoint contract is deliberately small:
 
 - **Current** returns the user's current instance or creates one according to instance policy.
 - **Advance** validates action + state version and returns the next envelope.
-- **Instances** powers the workflow hub and prompt-mode resume experience.
+- **Instances** powers the service request hub and prompt-mode resume experience.
 
 ## 4. Register Prism in Umbraco
 
 In Umbraco, call `AddPrismWorkflowEngine()` so Prism can register:
 
 - `IBusinessAppWorkflowClient`
-- `IWorkflowStepNonceService`
-- `IWorkflowFieldValidator`
+- `ITouchpointNonceService`
+- `IServiceRequestFieldValidator`
 - `IWorkflowContentSanitizer`
-- `PrismWorkflowOptions`
+- `PrismServiceDesignOptions`
 
 Then configure the business-app base URL via `PrismBusinessApp:WorkflowApiBaseUrl`.
 
-## 5. Create a workflow page
+## 5. Create a service blueprint page
 
-Prism seeds a `workflowPage` document type with a `workflowKey` property. A page instance only needs to point at the workflow definition key you authored.
+Prism seeds a `workflowPage` document type with a `workflowKey` property. A page instance only needs to point at the service blueprint key you authored.
 
 On GET, the package controller:
 
@@ -134,11 +134,11 @@ Before `AdvanceAsync()` is called, Prism validates:
 - length / range / regex / date constraints,
 - conditional visibility rules.
 
-After that, your business app can apply domain-specific rules. The mock business app demonstrates this with a technical-support message rule that can return `validation_error` and a `WorkflowProblem` without advancing the instance.
+After that, your business app can apply domain-specific rules. The mock business app demonstrates this with a technical-support message rule that can return `validation_error` and a `ServiceBlueprintProblem` without advancing the instance.
 
-## 7. Add the workflow hub when your journey can be resumed
+## 7. Add the service request hub when your journey can be resumed
 
-`workflowHub` is the companion page for resumable workflows. It lists active and completed instances and resolves the correct `workflowPage` URL for each instance by matching `workflowKey`.
+`workflowHub` is the companion page for resumable service blueprints. It lists active and completed instances and resolves the correct `workflowPage` URL for each instance by matching `workflowKey`.
 
 This matters most when you use:
 
@@ -148,6 +148,6 @@ This matters most when you use:
 
 ## Recommended reading after this
 
-- [Backend authoring and contracts](./workflow-forms-engine-backend.md)
-- [Umbraco integration](./workflow-forms-engine-umbraco.md)
-- [Workflow hub and conditional fields](./workflow-hub-and-conditional-fields.md)
+- [Backend authoring and contracts](./service-request-forms-engine-backend.md)
+- [Umbraco integration](./service-request-forms-engine-umbraco.md)
+- [Service Request Hub and conditional fields](./service-request-hub-and-conditional-fields.md)

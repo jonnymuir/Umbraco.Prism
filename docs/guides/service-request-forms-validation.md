@@ -1,12 +1,12 @@
-# Workflow Form Validation
+# Service Blueprint Form Validation
 
 Form validation in Prism is automatic once the package is installed. You get a complete, multi-layer validation stack with zero configuration needed. This guide explains what happens automatically (🔵 Prism Platform), what you define in your Business App (🟠 Your Business App), and how errors are displayed to users.
 
 **Prism's design principle:** Make it easy to do the right thing; principle of least surprise. Install the package and validation just works.
 
 **For context:**
-- **Setting up workflows?** Start with [Setting Up a Prism Workflow](./workflow-setup.md)
-- **Theming forms and customizing UI?** See [Customising Workflow UI](./workflow-customisation.md)
+- **Setting up service blueprints?** Start with [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md)
+- **Theming forms and customizing UI?** See [Customising Service Blueprint UI](./service-request-customisation.md)
 
 ## What You Get Automatically
 
@@ -50,7 +50,7 @@ After the form is submitted, Prism runs structural validation before your Busine
 - **Validates options whitelist** — for radio, select, and checkbox lists; rejects out-of-list values
 - **Validates constraints** — applies minLength, maxLength, pattern, min, and max rules
 
-This happens in `IWorkflowFieldValidator`, which is called before your Business App receives the request. If validation fails, the form redisplays with error messages—your Business App never sees bad data.
+This happens in `IServiceRequestFieldValidator`, which is called before your Business App receives the request. If validation fails, the form redisplays with error messages—your Business App never sees bad data.
 
 ### 4. Business App Validation (🟠 Your Business App)
 
@@ -59,7 +59,7 @@ After Prism's structural layer passes, your Business App can perform domain-spec
 - "This email is already registered"
 - "The start date must be before the end date"
 - "We're not accepting applications in your region right now"
-- "Only renewal cases can be processed in this workflow"
+- "Only renewal cases can be processed in this service blueprint"
 
 Your Business App returns validation errors in the response, and Prism displays them alongside field-level errors.
 
@@ -213,11 +213,11 @@ Imagine the user submits valid data, but the Business App rejects it:
 }
 
 // Prism's structural validation passes ✅
-// Form is submitted to Business App POST /api/workflow/advance
+// Form is submitted to Business App POST /api/service-blueprint/advance
 
 // Business App validation runs:
 // "This email is already registered in our system"
-// Responds with WorkflowResponseEnvelope:
+// Responds with ServiceRequestResponseEnvelope:
 {
   "responseState": "error",
   "problems": [
@@ -284,7 +284,7 @@ Your Business App can reject submissions for reasons beyond field structure. Exa
 
 ### Implementing Custom Validation
 
-**In your Business App's POST `/api/workflow/advance` endpoint:**
+**In your Business App's POST `/api/service-blueprint/advance` endpoint:**
 
 ```csharp
 public IActionResult Advance(string workflowKey, string instanceId, string action, [FromBody] IDictionary<string, object?> fields)
@@ -297,12 +297,12 @@ public IActionResult Advance(string workflowKey, string instanceId, string actio
     var startDate = DateTime.TryParse(fields?["start-date"]?.ToString(), out var sd) ? sd : (DateTime?)null;
     var endDate = DateTime.TryParse(fields?["end-date"]?.ToString(), out var ed) ? ed : (DateTime?)null;
 
-    var problems = new List<WorkflowProblem>();
+    var problems = new List<ServiceBlueprintProblem>();
 
     // Check: email uniqueness
     if (!string.IsNullOrEmpty(email) && EmailAlreadyRegistered(email))
     {
-        problems.Add(new WorkflowProblem
+        problems.Add(new ServiceBlueprintProblem
         {
             FieldKey = "email-address",
             Message = "This email is already registered. Try logging in or use a different email.",
@@ -313,7 +313,7 @@ public IActionResult Advance(string workflowKey, string instanceId, string actio
     // Check: date order
     if (startDate.HasValue && endDate.HasValue && startDate > endDate)
     {
-        problems.Add(new WorkflowProblem
+        problems.Add(new ServiceBlueprintProblem
         {
             FieldKey = "end-date",
             Message = "End date must be after start date",
@@ -324,7 +324,7 @@ public IActionResult Advance(string workflowKey, string instanceId, string actio
     // If validation failed, return error response (DO NOT advance state)
     if (problems.Count > 0)
     {
-        return Ok(new WorkflowResponseEnvelope
+        return Ok(new ServiceRequestResponseEnvelope
         {
             ResponseState = "error",
             Problems = problems
@@ -340,16 +340,16 @@ public IActionResult Advance(string workflowKey, string instanceId, string actio
 ### Error Response Format
 
 ```csharp
-public class WorkflowResponseEnvelope
+public class ServiceRequestResponseEnvelope
 {
     public string ResponseState { get; set; }  // "success" or "error"
     public string InstanceId { get; set; }
     public string StateKey { get; set; }
-    public IReadOnlyList<WorkflowProblem> Problems { get; set; }
+    public IReadOnlyList<ServiceBlueprintProblem> Problems { get; set; }
     public RenderPayload? Render { get; set; }  // Null if error
 }
 
-public class WorkflowProblem
+public class ServiceBlueprintProblem
 {
     public string? FieldKey { get; set; }       // Optional — ties error to a field
     public string Message { get; set; }        // User-facing error message
@@ -361,7 +361,7 @@ public class WorkflowProblem
 1. Display field-level errors next to their inputs (if `FieldKey` is set)
 2. Add global errors to the error summary
 3. Re-render the form with the user's submitted values pre-filled
-4. NOT advance the workflow state
+4. NOT advance the service blueprint state
 
 ---
 
@@ -386,7 +386,7 @@ public class WorkflowProblem
 When returning errors from your Business App, include the `fieldKey` so Prism can display the error next to the relevant field:
 
 ```csharp
-problems.Add(new WorkflowProblem
+problems.Add(new ServiceBlueprintProblem
 {
     FieldKey = "email-address",  // ← Include this
     Message = "This email is already registered"
@@ -410,7 +410,7 @@ In your Business App, log validation errors for debugging and analytics:
 if (problems.Count > 0)
 {
     _logger.LogWarning(
-        "Workflow validation failed: {WorkflowKey}, Instance: {InstanceId}, Errors: {@Problems}",
+        "Service-Blueprint validation failed: {WorkflowKey}, Instance: {InstanceId}, Errors: {@Problems}",
         workflowKey, instanceId, problems);
 }
 ```
@@ -440,7 +440,7 @@ public void EmailField_ShouldRequireValidEmail()
 }
 ```
 
-### Integration Testing Workflows
+### Integration Testing Service Blueprints
 
 Test the full flow (form submission → validation → Business App):
 
@@ -455,9 +455,9 @@ public async Task CompleteWorkflow_WithValidData_ShouldSucceed()
         { "fields[message]", "I have a question about your service" }
     };
 
-    var response = await client.PostAsync("/workflow-page", new FormUrlEncodedContent(formData));
+    var response = await client.PostAsync("/service-blueprint-page", new FormUrlEncodedContent(formData));
     Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-    Assert.Contains("/workflow-page", response.Headers.Location.ToString());
+    Assert.Contains("/service-blueprint-page", response.Headers.Location.ToString());
 }
 
 [Fact]
@@ -470,7 +470,7 @@ public async Task CompleteWorkflow_WithInvalidData_ShouldShowErrors()
         { "fields[message]", "" }  // Required field missing
     };
 
-    var response = await client.PostAsync("/workflow-page", new FormUrlEncodedContent(formData));
+    var response = await client.PostAsync("/service-blueprint-page", new FormUrlEncodedContent(formData));
     var html = await response.Content.ReadAsStringAsync();
     Assert.Contains("govuk-error-summary", html);  // Error summary rendered
     Assert.Contains("error-message", html);  // Field-level errors rendered
@@ -489,10 +489,10 @@ public async Task CompleteWorkflow_WithInvalidData_ShouldShowErrors()
 | Business logic validation | 🟠 Your App | After Prism | Uniqueness, relationships, business rules |
 | Error display | 🔵 Prism | After validation | GDS error summary + field-level errors |
 
-Each layer is independent. All must pass for the workflow to advance.
+Each layer is independent. All must pass for the service blueprint to advance.
 
 ---
 
 **Next steps:**
-- [Customising Workflow UI](./workflow-customisation.md) — override partials, adjust CSS
-- [GDS Components](./workflow-gds-components.md) — available form elements and design patterns
+- [Customising Service Blueprint UI](./service-request-customisation.md) — override partials, adjust CSS
+- [GDS Components](./service-blueprint-gds-components.md) — available form elements and design patterns

@@ -1,4 +1,4 @@
-# Workflow backend authoring and contracts
+# Service Blueprint backend authoring and contracts
 
 This document is the package-facing backend reference: what you author, what Prism expects back, and which extension points matter when you replace the demo business app with a real service.
 
@@ -8,19 +8,19 @@ Prism supports two practical authoring styles.
 
 | Style | Best when | Canonical source |
 | --- | --- | --- |
-| JSON seed files | You want simple content-like workflow definitions or a demo harness | `src/UmbracoPrism.MockBusinessApp/workflow-seeds/*.json` |
-| Fluent builder | You want compile-time help, shared code, or richer composition | `src/UmbracoPrism.Shared/Builders/WorkflowDefinitionBuilder.cs` |
+| JSON seed files | You want simple content-like service blueprints or a demo harness | `src/UmbracoPrism.MockBusinessApp/service-blueprints/*.json` |
+| Fluent builder | You want compile-time help, shared code, or richer composition | `src/UmbracoPrism.Shared/Builders/ServiceBlueprintBuilder.cs` |
 
-Both produce the same runtime shape: `WorkflowDefinitionFile` with `StepDefinition` states and `WorkflowTransitionFile` transitions.
+Both produce the same runtime shape: `ServiceBlueprint` with `StepDefinition` states and `RouteFile` transitions.
 
 ## Definition contract
 
-Source: `src/UmbracoPrism.Shared/Models/Workflow/WorkflowDefinitionFile.cs`
+Source: `src/UmbracoPrism.Shared/Models/Service-Blueprint/ServiceBlueprint.cs`
 
 | Property | Required | Notes |
 | --- | --- | --- |
 | `definitionKey` | Yes | Stable identifier used by the page and API route |
-| `displayName` | Yes | User-facing workflow name |
+| `displayName` | Yes | User-facing service blueprint name |
 | `version` | Yes | Definition revision, useful for your own migration/versioning story |
 | `initialState` | Yes | First state for new instances |
 | `instancePolicy` | No (defaults to `single`) | `single`, `multiple`, or `prompt` |
@@ -37,7 +37,7 @@ Step shell is inferred from `components`; it is not a separately-authored field 
 
 ## Component model
 
-The authored schema is the `PrismComponent` hierarchy declared in `src/UmbracoPrism.Shared/Models/Workflow/Components/PrismComponent.cs`.
+The authored schema is the `PrismComponent` hierarchy declared in `src/UmbracoPrism.Shared/Models/Service-Blueprint/Components/PrismComponent.cs`.
 
 ### Container components
 
@@ -58,7 +58,7 @@ The authored schema is the `PrismComponent` hierarchy declared in `src/UmbracoPr
 | `date` | Rendered as GOV.UK day/month/year input and recombined server-side |
 | `boolean` | Single checkbox style yes/no capture |
 
-The fluent builder also exposes `Tel(...)`, which is useful for code-first workflows.
+The fluent builder also exposes `Tel(...)`, which is useful for code-first service blueprints.
 
 ### Content and status components
 
@@ -80,21 +80,21 @@ In the demo engine:
 - `change:{stateKey}` is handled specially for check-answers links,
 - optimistic concurrency is enforced by comparing submitted `StateVersion`.
 
-Source: `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs`.
+Source: `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppProcessManager.cs`.
 
 ## Instance policies
 
 | Policy | Current behaviour |
 | --- | --- |
-| `single` | Resume the existing active instance for the user/workflow key, or create one |
+| `single` | Resume the existing active instance for the user/blueprint key, or create one |
 | `multiple` | Always create a new instance |
 | `prompt` | If an active instance exists, return `instance_picker`; otherwise create a new one |
 
-The instance list contract used by the workflow hub lives in `src/UmbracoPrism.Shared/Models/Workflow/WorkflowInstanceListEnvelope.cs`.
+The instance list contract used by the service request hub lives in `src/UmbracoPrism.Shared/Models/Service-Blueprint/WorkflowInstanceListEnvelope.cs`.
 
 ## Response envelope
 
-Source: `src/UmbracoPrism.Shared/Models/Workflow/WorkflowResponseEnvelope.cs`
+Source: `src/UmbracoPrism.Shared/Models/Service-Blueprint/ServiceRequestResponseEnvelope.cs`
 
 | Property | Meaning |
 | --- | --- |
@@ -135,7 +135,7 @@ That makes rendered payloads self-describing enough for Umbraco to validate and 
 This is a good fit when you want code reuse instead of large JSON blobs:
 
 ```csharp
-var definition = new WorkflowDefinitionBuilder()
+var definition = new ServiceBlueprintBuilder()
     .Key("pension-application")
     .DisplayName("Pension Application")
     .StartsAt("details")
@@ -153,16 +153,16 @@ Keep examples small. Real reference behaviour is already covered by the builder 
 
 ## API responsibilities when you replace the demo engine
 
-Your production business app should preserve the same responsibilities as `BusinessAppWorkflowEngine`:
+Your production business app should preserve the same responsibilities as `BusinessAppProcessManager`:
 
 1. Resolve tenant and user from the forwarded bearer token, not from request body values.
 2. Enforce instance ownership and state-version checks.
 3. Return sanitized content payloads.
 4. Keep instance lookup rules aligned with `instancePolicy`.
-5. Return user-safe `WorkflowProblem` values for domain failures.
+5. Return user-safe `ServiceBlueprintProblem` values for domain failures.
 
 ## Related docs
 
-- [Building a workflow](./workflow-forms-engine-demo.md)
-- [Client rendering](./workflow-forms-engine-client.md)
-- [Workflow hub and conditional fields](./workflow-hub-and-conditional-fields.md)
+- [Building a service blueprint](./service-request-forms-engine-demo.md)
+- [Client rendering](./service-request-forms-engine-client.md)
+- [Service Request Hub and conditional fields](./service-request-hub-and-conditional-fields.md)

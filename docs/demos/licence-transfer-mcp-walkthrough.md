@@ -2,7 +2,7 @@
 
 A narrated screen recording (not a CI-gated behavioural walkthrough — see
 [Why this isn't under `docs/walkthroughs/`](#why-this-isnt-under-docswalkthroughs) below) showing
-an AI agent design and build a real, complex Prism CMS Workflow — branching eligibility, a
+an AI agent design and build a real, complex Prism Cms Service Blueprint — branching eligibility, a
 guidance checklist you must acknowledge before continuing, real document upload, a review and
 declaration — from a single conversation, using nothing but Prism's documented MCP toolkit. This
 doc is both the write-up and the storyboard: every act below is what gets recorded, in order,
@@ -13,9 +13,9 @@ with the actual commands and narration.
 Three audiences at once, and the recording is paced to keep all three following:
 
 - **Developers** — wiring the MCP toolkit and its real backoffice auth into their own app.
-- **Content creators** — seeing that the guidance content the workflow links to is ordinary,
-  independently-editable CMS content, not baked into the workflow definition.
-- **Workflow / service designers** — seeing the actual design loop (draft → validate → simulate →
+- **Content creators** — seeing that the guidance content the service blueprint links to is ordinary,
+  independently-editable CMS content, not baked into the service blueprint.
+- **Service Blueprint / service designers** — seeing the actual design loop (draft → validate → simulate →
   save) an agent follows, and that a complex, branching, multi-capability service is well within
   reach of a single well-briefed conversation.
 
@@ -24,9 +24,9 @@ Three audiences at once, and the recording is paced to keep all three following:
 | Act | What happens | Why it's here |
 |---|---|---|
 | Cold open | Frame the demo and the three audiences | Sets expectations before the technical parts start |
-| 1. Getting the agent real access | Create a service-account admin, register client credentials, exchange for a bearer token, wire `claude mcp add` | The one thing genuinely new versus Prism's other two MCP demos — CMS Workflow's MCP requires real backoffice auth, not an open endpoint |
-| 2. Handing over the brief | Paste one brief into the agent's terminal; it researches nothing (this is a fictional domain), designs, validates, simulates, and saves | The actual "wire up a complex workflow simply" moment |
-| 3. Wiring it into the site | Backoffice: create the page, set its Workflow Key, publish, add a nav link | No restart, no redeploy — the save already reached the live engine |
+| 1. Getting the agent real access | Create a service-account admin, register client credentials, exchange for a bearer token, wire `claude mcp add` | The one thing genuinely new versus Prism's other two MCP demos — Cms Service Blueprint's MCP requires real backoffice auth, not an open endpoint |
+| 2. Handing over the brief | Paste one brief into the agent's terminal; it researches nothing (this is a fictional domain), designs, validates, simulates, and saves | The actual "wire up a complex service blueprint simply" moment |
+| 3. Wiring it into the site | Backoffice: create the page, set its Blueprint Key, publish, add a nav link | No restart, no redeploy — the save already reached the live engine |
 | 4. Reviewing what it built | Open the visual editor, tour the graph | Proves a human can inspect/adjust anything the agent authored |
 | 5. Running it as a visitor | Eligibility → guidance checklist → licence details → upload evidence → check answers → declaration → confirmation | The proof: it's not just saved, it actually works end to end |
 | Closing | Recap | — |
@@ -64,13 +64,13 @@ Three audiences at once, and the recording is paced to keep all three following:
 typed and executed on camera, not narrated over an invisible network call.
 
 **Narration beat (setup):** "We need real backoffice authentication for this — Prism's CMS
-Workflow MCP talks to the same live engine a human editor uses, not an open sandbox endpoint — so
+Service Blueprint MCP talks to the same live engine a human editor uses, not an open sandbox endpoint — so
 an agent needs to log in exactly the way a new team member would. Let's show you exactly how that
 works."
 
 Umbraco 17 ships a first-class client-credentials grant on its own Management API token endpoint
 — the same OpenIddict flow the backoffice's own login uses, just with `grant_type=client_credentials`
-instead of `authorization_code`. Whichever grant mints the token, `CmsWorkflowAuthoringController`
+instead of `authorization_code`. Whichever grant mints the token, `CmsServiceBlueprintAuthoringController`
 and the MCP endpoint resolve the exact same real `IUser`, with real group memberships — so this is
 "the same security as doing it manually," not a parallel scheme.
 
@@ -92,13 +92,13 @@ and the MCP endpoint resolve the exact same real `IUser`, with real group member
 
 3. **Register it with Claude Code**, in the same terminal:
    ```
-   claude mcp add --transport http prism-cms-workflow \
-     http://localhost:<testsite-http-port>/prism/workflow-authoring/mcp \
+   claude mcp add --transport http prism-cms-service-blueprint \
+     http://localhost:<testsite-http-port>/prism/service-blueprint-authoring/mcp \
      --header "Authorization: Bearer $(jq -r .access_token mcp-token.json)"
    claude mcp list   # confirm "✔ Connected"
    ```
    (TestSite's real plain-HTTP port is dynamic per Aspire run — read it off the Aspire dashboard's
-   "CMS Workflow Authoring MCP" label on the `testsite` row, the same dev-cert-trust reasoning as
+   "CMS Service Blueprint Authoring MCP" label on the `testsite` row, the same dev-cert-trust reasoning as
    every other Prism MCP demo: self-signed local certs aren't trusted by MCP HTTP clients.)
 
 **Narration beat (recap):** "Done — a real identity, a real token, a real MCP connection, entirely
@@ -112,7 +112,7 @@ login."
 **On screen:** the ttyd terminal (bigger font, per the shared demo tooling), narration bar
 pinned to the top while the agent's response streams.
 
-**Narration beat (setup):** "This is Claude, connected to Prism's CMS Workflow MCP with the token
+**Narration beat (setup):** "This is Claude, connected to Prism's Cms Service Blueprint MCP with the token
 we just minted — no special access beyond what that token grants."
 
 **Narration beat (intent):** "We're going to hand it one brief, and watch it design, validate,
@@ -129,13 +129,13 @@ generic toolkit, not something a person briefing an agent should have to know or
 Paste the brief below into the terminal (character-typed on camera, matching the other Prism MCP
 demos' pacing):
 
-> You're acting as a service designer with access to Umbraco Prism's CMS Workflow authoring MCP
-> toolkit (server name "prism-cms-workflow"). Your task: design and build "Transfer a Professional
+> You're acting as a service designer with access to Umbraco Prism's CMS Service Blueprint Authoring MCP
+> toolkit (server name "prism-cms-service blueprint"). Your task: design and build "Transfer a Professional
 > Juggling Licence" — a fictional but structurally real GDS-style public service for someone who
 > already holds a professional juggling licence from another juggling authority and wants to
 > transfer it to the National Juggling Authority.
 >
-> Read `workflow-docs://authoring-guide` for the contract shape, and use
+> Read `service-blueprint-docs://authoring-guide` for the contract shape, and use
 > `list_workflows`/`read_workflow` to look at the existing `apply-for-a-juggling-licence`
 > definition as your style reference for this host's conventions (it's the same fictional domain,
 > a simpler application rather than a transfer) — including how it defaults a field from the
@@ -160,7 +160,7 @@ demos' pacing):
 > 3. **Existing licence details** — current authority, licence reference, issue date, expiry date,
 >    professional category. Default professional category from the visitor's real Juggling Society
 >    membership tier, exactly the way `apply-for-a-juggling-licence` defaults its own licence-type
->    field — a visitor who isn't a member simply gets no default, same as that reference workflow.
+>    field — a visitor who isn't a member simply gets no default, same as that reference service blueprint.
 > 4. **Upload evidence** — `file-upload` fields: current licence, proof of identity, proof of
 >    address, and a professional portfolio (all `required: true`), plus optional video evidence
 >    (`required: false`).
@@ -177,13 +177,13 @@ demos' pacing):
 > the design decisions you made.
 
 **Narration beat (note, top-pinned):** "It's checking what this host can actually render before it
-drafts anything, reading the existing juggling-licence workflow as a style guide, then designing
+drafts anything, reading the existing juggling-licence service blueprint as a style guide, then designing
 against the real contract."
 
 **Completion signal — not anything printed in the terminal.** Poll the same backoffice-authenticated
 REST surface a human editor session already uses, with the Act 1 bearer token:
 ```
-GET /umbraco/management/api/v1/prism/cms-workflows/transfer-a-juggling-licence
+GET /umbraco/management/api/v1/prism/cms-service-blueprints/transfer-a-juggling-licence
 Authorization: Bearer <token>
 ```
 "Done" means the response actually has the new definition's real shape — states long enough to be
@@ -204,12 +204,12 @@ constraints."
 **On screen:** Umbraco backoffice.
 
 **Narration beat (setup):** "Here's the back office — this is where a service designer wires a new
-service into the real site, no different from any other Prism CMS Workflow page."
+service into the real site, no different from any other Prism Cms Service Blueprint page."
 
 1. Log in as `admin@prism.local` / `PrismLocal!12345`.
-2. Content → Create (under Home) → **CMS Workflow Page**. Name it "Transfer your existing juggling
+2. Content → Create (under Home) → **Cms Service Blueprint Page**. Name it "Transfer your existing juggling
    licence".
-3. Set **Workflow Key** = `transfer-a-juggling-licence`.
+3. Set **Blueprint Key** = `transfer-a-juggling-licence`.
 4. Save and publish. Note the published URL.
 5. Settings → Web Navigation → add a link ("Transfer your licence" → the published URL). Save and
    publish.
@@ -221,18 +221,18 @@ definition the agent designed a minute ago. No restart, no redeploy."
 
 ## Act 4 — Reviewing what it built
 
-**On screen:** the visual workflow editor.
+**On screen:** the visual service blueprint editor.
 
 **Narration beat (intent):** "Let's open the editor and actually look at what it designed — this
 is the same editor a human would use to adjust anything here by hand."
 
-1. Navigate to `/umbraco/section/prism/workspace/prism-cms-workflow/edit/transfer-a-juggling-licence`
+1. Navigate to `/umbraco/section/prism/workspace/prism-cms-service-blueprint/edit/transfer-a-juggling-licence`
    (a backoffice workspace keyed by the definition's own key, not a standalone route).
 2. Click **Fit**, then click into the eligibility question and the upload-evidence states in turn
    — narrate each briefly. (The agent chooses its own exact question wording each run, so don't
    script an exact string to click; match loosely, e.g. on "professionally"/"upload".)
 3. **Switch to the Definition tab** (`data-prism-confidence-tab="definition"`) — the real
-   `WorkflowDefinitionFile` JSON, CodeMirror-rendered, not just the graph. Point out the
+   `ServiceBlueprint` JSON, CodeMirror-rendered, not just the graph. Point out the
    upload-evidence state's plain `file-upload` components, and the existing-licence-details
    state's professional-category field carrying a `defaultFrom` pointing at a calculated
    `membershipTier` value — the hook that'll fire for real in Act 5.

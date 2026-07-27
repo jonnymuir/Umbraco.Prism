@@ -1,17 +1,17 @@
-# Workflow client rendering guide
+# Service Blueprint client rendering guide
 
-Prism's client story is intentionally server-rendered: the business app returns a workflow envelope, and Umbraco turns that into the right shell and GOV.UK component markup.
+Prism's client story is intentionally server-rendered: the business app returns a service blueprint envelope, and Umbraco turns that into the right shell and GOV.UK component markup.
 
 ## Rendering flow
 
-1. `PrismWorkflowPageController` populates `PrismWorkflowViewModel`.
-2. `Views/workflowPage.cshtml` decides which shell to use.
+1. `PrismServiceRequestPageController` populates `PrismWorkflowViewModel`.
+2. `Views/touchpointPage.cshtml` decides which shell to use.
 3. The chosen partial renders top-level components and action buttons.
 4. Field values and validation errors are taken from the view model, not from browser-authored metadata.
 
 ## Shell selection
 
-`src/UmbracoPrism.Core/Views/workflowPage.cshtml` and `src/UmbracoPrism.Core/Models/Workflow/WorkflowRenderShellResolver.cs` are the main routing points.
+`src/UmbracoPrism.Core/Views/touchpointPage.cshtml` and `src/UmbracoPrism.Core/Models/Service-Blueprint/ServiceRequestRenderShellResolver.cs` are the main routing points.
 
 Current shell mapping:
 
@@ -52,7 +52,7 @@ The views for these live under `src/UmbracoPrism.Core/Views/Partials/PrismCompon
 
 | Property | Why it matters in the UI |
 | --- | --- |
-| `Value` | Previously-saved workflow data |
+| `Value` | Previously-saved service blueprint data |
 | `DefaultValue` | Server-prepopulated value that can override blank user input |
 | `ReadOnly` | Renders as non-editable content or disabled input |
 | `Options` | Source of truth for select/radio/checkbox lists |
@@ -73,7 +73,7 @@ For check-answers pages, summary-list rows can emit `change:{stateKey}` actions 
 
 ## Waiting pages and polling
 
-Waiting UX is a normal workflow shell, not a separate product feature.
+Waiting UX is a normal service blueprint shell, not a separate product feature.
 
 What the client receives:
 
@@ -93,7 +93,7 @@ Prism uses POST-Redirect-Get rather than rendering validation errors directly fr
 
 - no duplicate form submissions on refresh,
 - preserved values via `TempData`,
-- `WorkflowProblem` values available both inline and in summaries.
+- `ServiceBlueprintProblem` values available both inline and in summaries.
 
 `PrismWorkflowViewModel` exposes:
 
@@ -116,6 +116,6 @@ The example override in `src/UmbracoPrism.TestSite/Controllers/WorkflowPageContr
 
 ## Related docs
 
-- [Backend authoring and contracts](./workflow-forms-engine-backend.md)
-- [Umbraco integration](./workflow-forms-engine-umbraco.md)
-- [Validation](./workflow-validation.md)
+- [Backend authoring and contracts](./service-request-forms-engine-backend.md)
+- [Umbraco integration](./service-request-forms-engine-umbraco.md)
+- [Validation](./service-blueprint-validation.md)

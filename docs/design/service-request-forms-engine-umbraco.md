@@ -1,6 +1,6 @@
-# Workflow package integration in Umbraco
+# Service Blueprint package integration in Umbraco
 
-This guide covers the Umbraco-facing side of Prism workflows: service registration, seeded document types, route hijacking controllers, page setup, and the workflow hub.
+This guide covers the Umbraco-facing side of Prism service blueprints: service registration, seeded document types, route hijacking controllers, page setup, and the service request hub.
 
 ## Register the package services
 
@@ -9,18 +9,18 @@ This guide covers the Umbraco-facing side of Prism workflows: service registrati
 That call registers:
 
 - `IBusinessAppWorkflowClient`
-- `IWorkflowStepNonceService`
-- `IWorkflowFieldValidator`
+- `ITouchpointNonceService`
+- `IServiceRequestFieldValidator`
 - `IWorkflowContentSanitizer`
-- `PrismWorkflowOptions`
+- `PrismServiceDesignOptions`
 - `IDistributedCache` (memory-backed by default)
 
 ### Configuration
 
 | Setting | Purpose |
 | --- | --- |
-| `PrismBusinessApp:WorkflowApiBaseUrl` | Browser-facing workflow API base URL for the business app |
-| `Prism:Workflow:NonceExpiry` | How long the nonce cache should keep field definitions |
+| `PrismBusinessApp:WorkflowApiBaseUrl` | Browser-facing service blueprint API base URL for the business app |
+| `Prism:Service-Blueprint:NonceExpiry` | How long the nonce cache should keep field definitions |
 
 For production, replace the default in-memory distributed cache with a shared backing store such as Redis or SQL Server.
 
@@ -30,14 +30,14 @@ For production, replace the default in-memory distributed cache with a shared ba
 
 | Document type | Purpose |
 | --- | --- |
-| `workflowPage` | Hosts a single workflow journey |
-| `workflowHub` | Lists active and completed workflow instances |
+| `workflowPage` | Hosts a single service blueprint journey |
+| `workflowHub` | Lists active and completed service requests |
 
-`workflowPage` also gets a `workflowKey` property. That key is the bridge between an Umbraco content node and a workflow definition in the business app.
+`workflowPage` also gets a `workflowKey` property. That key is the bridge between an Umbraco content node and a service blueprint in the business app.
 
 ## Route hijacking controller
 
-`PrismWorkflowPageController<TViewModel>` is the core integration point.
+`PrismServiceRequestPageController<TViewModel>` is the core integration point.
 
 Responsibilities on GET:
 
@@ -61,7 +61,7 @@ Responsibilities on POST:
 The TestSite controller is a good model because it is small and realistic:
 
 ```csharp
-protected override WorkflowResponseEnvelope PrePopulateFields(WorkflowResponseEnvelope envelope)
+protected override ServiceRequestResponseEnvelope PrePopulateFields(ServiceRequestResponseEnvelope envelope)
 {
     // Read authenticated claims and set DefaultValue / ReadOnly before nonce generation.
     return envelope;
@@ -70,9 +70,9 @@ protected override WorkflowResponseEnvelope PrePopulateFields(WorkflowResponseEn
 
 See `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs` for the real implementation.
 
-## Workflow form tag helper
+## Service Blueprint form tag helper
 
-`prism-workflow-form` is the form wrapper Prism expects. `PrismWorkflowFormTagHelper` writes:
+`prism-service-blueprint-form` is the form wrapper Prism expects. `PrismTouchpointFormTagHelper` writes:
 
 - the antiforgery token,
 - `InstanceId`,
@@ -83,9 +83,9 @@ See `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs` for the re
 
 That means partial views can focus on fields and actions instead of rebuilding hidden plumbing on every step.
 
-## Workflow hub
+## Service Request Hub
 
-`WorkflowHubController` powers the `workflowHub` page. It:
+`ServiceRequestHubController` powers the `workflowHub` page. It:
 
 - calls `GetInstancesAsync()`,
 - splits active vs completed instances,
@@ -100,37 +100,37 @@ This is the piece that makes `multiple` and `prompt` instance policies user-frie
 sequenceDiagram
     participant Member as Authenticated member
     participant Page as workflowPage
-    participant Controller as PrismWorkflowPageController
+    participant Controller as PrismServiceRequestPageController
     participant Client as IBusinessAppWorkflowClient
     participant API as Business app API
 
-    Member->>Page: GET /workflow page
+    Member->>Page: GET /service-blueprint page
     Page->>Controller: Route hijack
     Controller->>Client: GetCurrentAsync(workflowKey)
-    Client->>API: POST /api/workflow/{key}/current
+    Client->>API: POST /api/service-blueprint/{key}/current
     API-->>Client: Envelope
     Controller-->>Page: ViewModel + nonce
     Member->>Page: POST form
     Page->>Controller: HandlePost()
     Controller->>Controller: Antiforgery + nonce + field validation
     Controller->>Client: AdvanceAsync(...)
-    Client->>API: POST /api/workflow/{key}/advance
+    Client->>API: POST /api/service-blueprint/{key}/advance
     API-->>Client: Next envelope
     Controller-->>Member: Redirect back to GET
 ```
 
 ## What you usually customise
 
-- Your workflow page content and information architecture in Umbraco
-- A derived workflow view model with extra page data
-- A derived workflow controller with claim/API-driven pre-population
+- Your service blueprint page content and information architecture in Umbraco
+- A derived service blueprint view model with extra page data
+- A derived service blueprint controller with claim/API-driven pre-population
 - Optional view overrides for Prism partials when your site needs a different presentation
 
 ## What you usually should not customise first
 
 - the nonce service,
 - the field validator,
-- the BusinessApp workflow client contract,
+- the BusinessApp service blueprint client contract,
 - the seeded document type aliases.
 
 Start with the package defaults. They already encode the security and rendering rules the rest of the docs assume.

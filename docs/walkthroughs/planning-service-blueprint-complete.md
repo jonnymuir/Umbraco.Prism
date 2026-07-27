@@ -1,28 +1,28 @@
-# Walkthrough — Planning Workflow Complete End-to-End
+# Walkthrough — Planning Service Blueprint Complete End-to-End
 
-A comprehensive quality assurance guide covering the complete planning workflow journey from editor authoring through runtime execution across public, member, and back-stage surfaces. This walkthrough validates all critical paths: approval, rejection, and re-submission.
+A comprehensive quality assurance guide covering the complete planning service blueprint journey from editor authoring through runtime execution across public, member, and back-stage surfaces. This walkthrough validates all critical paths: approval, rejection, and re-submission.
 
-> **Prerequisites:** Stack running via [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup). Familiarity with [Planning Workflow Editor](planning-workflow-editor.md) and [Planning Notification](planning-notification.md) walkthroughs recommended.
+> **Prerequisites:** Stack running via [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup). Familiarity with [Planning Service Blueprint Editor](planning-service-blueprint-editor.md) and [Planning Notification](planning-notification.md) walkthroughs recommended.
 
 ---
 
 ## Overview
 
-The planning workflow complete E2E test validates the entire workflow lifecycle:
+The planning service blueprint complete E2E test validates the entire service blueprint lifecycle:
 
 | Phase | Surface | Actor | What's Tested |
 |---|---|---|---|
-| **Authoring** | Workflow Editor | Developer | Graph visualization, validation, publish |
+| **Authoring** | Service Blueprint Editor | Developer | Graph visualization, validation, publish |
 | **Public Entry** | Umbraco public pages | Applicant | Form rendering, data capture, initial submission |
-| **Member Continuation** | Umbraco member pages | Applicant | Resume workflow, complete application |
+| **Member Continuation** | Umbraco member pages | Applicant | Resume service blueprint, complete application |
 | **Back-stage Review** | MockBusinessApp Admin | Caseworker | Instance management, approval/rejection |
 | **Critical Paths** | All surfaces | All actors | Validation, rejection → re-submission, state transitions |
 
 The test validates that:
-- Workflow editor correctly authors and publishes workflow definitions
-- Published workflows run correctly in Umbraco runtime
-- Public applicants can start and complete workflows
-- Members can resume in-progress workflows
+- Service Blueprint Editor correctly authors and publishes service blueprints
+- Published service blueprints run correctly in Umbraco runtime
+- Public applicants can start and complete service blueprints
+- Members can resume in-progress service blueprints
 - Back-stage caseworkers can review and make decisions
 - All critical paths (approval, rejection, re-submission) work end-to-end
 - Validation blocks invalid submissions at appropriate stages
@@ -31,29 +31,29 @@ Every move from one stage to another happens through a gateway. Single-route gat
 
 ---
 
-## Phase 1: Workflow Editor — Authoring and Publishing
+## Phase 1: Service Blueprint Editor — Authoring and Publishing
 
-### Step 1 — Load the workflow editor
+### Step 1 — Load the service blueprint editor
 
-Navigate to `/workflow-editor` in MockBusinessApp. The editor shell loads with the planning workflow selected.
+Navigate to `/service-blueprint-editor` in MockBusinessApp. The editor shell loads with the planning service blueprint selected.
 
-![Workflow editor loaded with planning workflow](../images/walkthroughs/apply-for-planning-permission-complete/01-editor-loaded.png)
+![Service Blueprint Editor loaded with planning service blueprint](../images/walkthroughs/apply-for-planning-permission-complete/01-editor-loaded.png)
 
 **What to verify:**
-- Shell heading: "Workflow Editor"
-- Workflow picker shows "planning" selected
+- Shell heading: "Service Blueprint Editor"
+- Service Blueprint picker shows "planning" selected
 - Editor loads without errors
-- `data-prism-workflow-loaded` attribute present on `<prism-workflow-editor>`
+- `data-prism-service-blueprint-loaded` attribute present on `<prism-service-blueprint-editor>`
 
-**Source:** [`prism-workflow-editor-shell.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-editor-shell.ts)
+**Source:** [`prism-service-blueprint-editor-shell.ts`](../../src/UmbracoPrism.Client/src/service blueprint-editor/prism-service blueprint-editor-shell.ts)
 
 ---
 
-### Step 2 — Verify workflow graph shows all stages
+### Step 2 — Verify service blueprint graph shows all stages
 
-The workflow graph renders the planning workflow stages as a directed graph.
+The service blueprint graph renders the planning service blueprint stages as a directed graph.
 
-![Workflow graph showing planning stages](../images/walkthroughs/apply-for-planning-permission-complete/02-editor-graph.png)
+![Service Blueprint graph showing planning stages](../images/walkthroughs/apply-for-planning-permission-complete/02-editor-graph.png)
 
 **Expected stages:**
 1. **Declaration** — Applicant identity and site basics
@@ -66,30 +66,30 @@ The workflow graph renders the planning workflow stages as a directed graph.
 - Routes between stages through gateways shown as edges
 - Graph is keyboard-accessible (`role="application"`)
 
-**Source:** [`prism-workflow-graph.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/prism-workflow-graph.ts)
+**Source:** [`prism-service-blueprint-graph.ts`](../../src/UmbracoPrism.Client/src/service blueprint-editor/prism-service blueprint-graph.ts)
 
 ---
 
-### Step 3 — Validate and publish workflow
+### Step 3 — Validate and publish service blueprint
 
 The validation rail (if visible) should show no errors. The save/publish button should be enabled.
 
-![Workflow published successfully](../images/walkthroughs/apply-for-planning-permission-complete/03-editor-published.png)
+![Service Blueprint published successfully](../images/walkthroughs/apply-for-planning-permission-complete/03-editor-published.png)
 
 **What to verify:**
 - Validation rail shows no error-level issues (if present)
 - Save/Publish button is enabled
-- Clicking publish triggers `POST /api/workflow-authoring/workflows/planning/publish`
-- Success toast appears: "Workflow updated successfully" or similar
-- Published workflow is ready for runtime execution
+- Clicking publish triggers `POST /api/service-blueprint-authoring/service-blueprints/planning/publish`
+- Success toast appears: "Service Blueprint updated successfully" or similar
+- Published service blueprint is ready for runtime execution
 
-**Source:** [`workflow-validation.ts`](../../src/UmbracoPrism.Client/src/workflow-editor/workflow-validation.ts)
+**Source:** [`service-blueprint-validation.ts`](../../src/UmbracoPrism.Client/src/service blueprint-editor/service-blueprint-validation.ts)
 
 ---
 
-## Phase 2: Public Entry — Starting Workflow via Umbraco
+## Phase 2: Public Entry — Starting Service Blueprint via Umbraco
 
-### Step 4 — Navigate to public workflow entry point
+### Step 4 — Navigate to public service blueprint entry point
 
 Navigate to `/apply-for-planning-permission` in the Umbraco TestSite. The first stage (Declaration) renders.
 
@@ -103,7 +103,7 @@ Navigate to `/apply-for-planning-permission` in the Umbraco TestSite. The first 
   - Site address (textarea)
 - Continue button present and enabled
 
-**Authentication:** User must be authenticated (signed in via Keycloak) to access workflow pages.
+**Authentication:** User must be authenticated (signed in via Keycloak) to access service blueprint pages.
 
 ---
 
@@ -132,13 +132,13 @@ Click "Continue" to advance to the next stage.
 
 **What to verify:**
 - Page transitions to application form stage
-- URL remains `/apply-for-planning-permission` (single-page workflow)
+- URL remains `/apply-for-planning-permission` (single-page service blueprint)
 - New heading: "Application Form" or "Proposed works"
 - New fields present:
   - Description of proposed works (textarea)
   - Type of development (select/radio)
 
-**Source:** Workflow engine in `UmbracoPrism.MockBusinessApp` handles stage transitions and form rendering.
+**Source:** Service Blueprint engine in `UmbracoPrism.MockBusinessApp` handles stage transitions and form rendering.
 
 ---
 
@@ -154,7 +154,7 @@ Enter details about the proposed works.
 
 **What to verify:**
 - Textarea accepts multi-line input
-- Select/radio options match workflow definition
+- Select/radio options match service blueprint
 - Validation feedback appears for invalid input
 
 ---
@@ -170,7 +170,7 @@ Click "Continue" to reach the check-answers review stage.
   - Applicant name: Jane Smith
   - Site address: 123 Main Street, Townsville, AB12 3CD
   - Description: Construction of a single-storey rear extension
-- Change links present (if workflow supports editing)
+- Change links present (if service blueprint supports editing)
 - Submit button present
 
 **Pattern:** GDS-style check-answers pattern shows summary before submission.
@@ -179,19 +179,19 @@ Click "Continue" to reach the check-answers review stage.
 
 ### Step 9 — Submit application
 
-Click "Submit" to complete the public workflow and move to terminal stage.
+Click "Submit" to complete the public service blueprint and move to terminal stage.
 
 ![Application submitted confirmation](../images/walkthroughs/apply-for-planning-permission-complete/09-public-submitted.png)
 
 **What to verify:**
-- Submission triggers workflow instance state update
+- Submission triggers service request state update
 - Terminal stage renders: "Application submitted" or "Confirmation"
 - Confirmation message visible
-- Workflow instance created in back-stage system
+- Service Request created in back-stage system
 - No errors in browser console
 
 **What happens:**
-- Workflow engine creates instance record
+- Service Blueprint engine creates instance record
 - Instance moves to terminal "submitted" stage
 - Handoff to back-stage caseworker actor occurs
 - Applicant can view status in dashboard
@@ -202,31 +202,31 @@ Click "Submit" to complete the public workflow and move to terminal stage.
 
 ### Step 10 — Navigate to dashboard
 
-Return to Umbraco dashboard to access workflow admin.
+Return to Umbraco dashboard to access service desk.
 
-![Dashboard with workflow admin link](../images/walkthroughs/apply-for-planning-permission-complete/10-dashboard.png)
+![Dashboard with service desk link](../images/walkthroughs/apply-for-planning-permission-complete/10-dashboard.png)
 
 **What to verify:**
-- Dashboard heading: "Workflow Demos"
-- "Open Admin" link visible and pointing to `https://localhost:7245/admin/workflow`
+- Dashboard heading: "Service Blueprint Demos"
+- "Open Admin" link visible and pointing to `https://localhost:7245/admin/service-blueprint`
 - Link opens in new tab
 
 ---
 
-### Step 11 — Open workflow admin
+### Step 11 — Open service desk
 
-Click "Open Admin" to open the MockBusinessApp workflow admin interface.
+Click "Open Admin" to open the MockBusinessApp service desk interface.
 
-![Workflow admin: instances list](../images/walkthroughs/apply-for-planning-permission-complete/11-admin-instances.png)
+![Service Desk: instances list](../images/walkthroughs/apply-for-planning-permission-complete/11-admin-instances.png)
 
 **What to verify:**
 - Admin page loads without errors
 - Two main sections visible:
-  - Workflow Instances
-  - Workflow Definitions
+  - Service Requests
+  - Service Blueprints
 - Instance list shows submitted planning applications
 
-**Source:** MockBusinessApp admin controller at `/admin/workflow`
+**Source:** MockBusinessApp admin controller at `/admin/service-blueprint`
 
 ---
 
@@ -238,12 +238,12 @@ Locate the instance for "Jane Smith" in the instances list.
 
 **What to verify:**
 - Instance shows:
-  - Workflow name: "planning" or "Planning Application"
+  - Service Blueprint name: "planning" or "Planning Application"
   - Applicant reference: "Jane Smith"
   - Current stage or status
 - Instance is clickable
 
-**Query:** Instances filtered by workflow definition key and current stage.
+**Query:** Instances filtered by service blueprint key and current stage.
 
 ---
 
@@ -262,7 +262,7 @@ Click the instance to view full details.
   - Stage history (if available)
 - Decision actions visible:
   - Approve button
-  - Reject button (if workflow supports rejection)
+  - Reject button (if service blueprint supports rejection)
 
 ---
 
@@ -273,12 +273,12 @@ Click "Approve" to approve the planning application.
 ![Application approved](../images/walkthroughs/apply-for-planning-permission-complete/14-admin-approved.png)
 
 **What to verify:**
-- Approve action triggers workflow transition
+- Approve action triggers service blueprint transition
 - Instance status updates to "Approved"
 - Confirmation message appears
 - Applicant can view approval status in dashboard
 
-**Workflow contract:** Approval transitions instance to terminal approved stage.
+**Service Blueprint Contract:** Approval transitions instance to terminal approved stage.
 
 ---
 
@@ -286,7 +286,7 @@ Click "Approve" to approve the planning application.
 
 ### Step 15 — Submit application for rejection test
 
-Start a new workflow instance with incomplete data.
+Start a new service request with incomplete data.
 
 ![Application submitted for rejection test](../images/walkthroughs/apply-for-planning-permission-complete/15-rejection-submitted.png)
 
@@ -301,7 +301,7 @@ Start a new workflow instance with incomplete data.
 
 ### Step 16 — Review instance in admin
 
-Caseworker opens instance for Bob Johnson in workflow admin.
+Caseworker opens instance for Bob Johnson in service desk.
 
 ![Instance detail for rejection](../images/walkthroughs/apply-for-planning-permission-complete/16-rejection-instance-detail.png)
 
@@ -327,7 +327,7 @@ Click "Reject" and provide feedback.
 - Applicant receives notification (if notification system in place)
 - Instance transitions to rejected state
 
-**Workflow contract:** Rejection may allow applicant to revise and re-submit.
+**Service Blueprint Contract:** Rejection may allow applicant to revise and re-submit.
 
 ---
 
@@ -358,7 +358,7 @@ Applicant re-submits after addressing feedback.
 - Re-submission creates new review cycle
 - Instance returns to "submitted" state awaiting review
 - Caseworker sees updated application in admin
-- Workflow history shows rejection → resubmission path
+- Service Blueprint history shows rejection → resubmission path
 
 **Contract:** Re-submission follows same approval flow as initial submission.
 
@@ -393,17 +393,17 @@ Fill in required fields with valid data.
 - Page transitions to "Application Form" stage
 - No validation errors shown
 
-**Contract:** Validation gates protect data integrity throughout workflow.
+**Contract:** Validation gates protect data integrity throughout service blueprint.
 
 ---
 
 ## Critical Path: Member Continuation
 
-### Step 22 — Start workflow and navigate away
+### Step 22 — Start service blueprint and navigate away
 
-Authenticated member starts workflow but doesn't complete it.
+Authenticated member starts service blueprint but doesn't complete it.
 
-![Dashboard showing in-progress workflows](../images/walkthroughs/apply-for-planning-permission-complete/22-member-dashboard.png)
+![Dashboard showing in-progress service blueprints](../images/walkthroughs/apply-for-planning-permission-complete/22-member-dashboard.png)
 
 **Test flow:**
 1. Fill in declaration stage (Applicant: "Member User", Address: "789 Pine Street...")
@@ -411,60 +411,60 @@ Authenticated member starts workflow but doesn't complete it.
 3. Navigate away without completing (go to dashboard)
 
 **What to verify:**
-- Workflow instance saved in "in-progress" state
-- Dashboard shows "In progress" or "Active workflows" section
-- Member's incomplete workflow listed
+- Service Request saved in "in-progress" state
+- Dashboard shows "In progress" or "Active service blueprints" section
+- Member's incomplete service blueprint listed
 
 ---
 
-### Step 23 — View in-progress workflows
+### Step 23 — View in-progress service blueprints
 
-Dashboard highlights incomplete workflows for authenticated member.
+Dashboard highlights incomplete service blueprints for authenticated member.
 
-![In-progress workflows section](../images/walkthroughs/apply-for-planning-permission-complete/23-member-in-progress.png)
+![In-progress service blueprints section](../images/walkthroughs/apply-for-planning-permission-complete/23-member-in-progress.png)
 
 **What to verify:**
 - In-progress section present
-- Planning workflow shown with status "In progress"
+- Planning service blueprint shown with status "In progress"
 - Resume link visible
 
-**Contract:** Members can resume workflows across sessions.
+**Contract:** Members can resume service blueprints across sessions.
 
 ---
 
-### Step 24 — Resume workflow from dashboard
+### Step 24 — Resume service blueprint from dashboard
 
-Click "Resume" to return to incomplete workflow.
+Click "Resume" to return to incomplete service blueprint.
 
-![Workflow resumed at application form stage](../images/walkthroughs/apply-for-planning-permission-complete/24-member-resumed.png)
+![Service Blueprint resumed at application form stage](../images/walkthroughs/apply-for-planning-permission-complete/24-member-resumed.png)
 
 **What to verify:**
 - Resume returns to exact stage where user left off (Application Form)
 - Previously entered data preserved (name, address from declaration)
 - Form fields ready for input
-- User can continue workflow without re-entering previous data
+- User can continue service blueprint without re-entering previous data
 
-**Source:** Workflow engine resolves existing instance by user ID and workflow definition.
+**Source:** Service Blueprint engine resolves existing instance by user ID and service blueprint.
 
 ---
 
-### Step 25 — Complete resumed workflow
+### Step 25 — Complete resumed service blueprint
 
 Member completes application form and submits.
 
-![Workflow completed after resume](../images/walkthroughs/apply-for-planning-permission-complete/25-member-completed.png)
+![Service Blueprint completed after resume](../images/walkthroughs/apply-for-planning-permission-complete/25-member-completed.png)
 
 **Updated data:**
 - **Description:** Resumed and completed application
 
 **What to verify:**
-- Workflow advances through remaining stages
+- Service Blueprint advances through remaining stages
 - Check answers shows all captured data (from declaration + resumed form)
-- Submit completes workflow
+- Submit completes service blueprint
 - Confirmation stage renders
 - Instance moves to "submitted" state in back-stage
 
-**Contract:** Resume functionality maintains workflow state integrity.
+**Contract:** Resume functionality maintains service blueprint state integrity.
 
 ---
 
@@ -475,7 +475,7 @@ Execute the complete E2E test:
 ```bash
 cd src/UmbracoPrism.Client
 npm run test:playwright:localhost-auth -- \
-  --grep "Planning workflow complete E2E" \
+  --grep "Planning service-blueprint complete E2E" \
   --reporter=line
 ```
 
@@ -495,29 +495,29 @@ Screenshots write to `docs/images/walkthroughs/apply-for-planning-permission-com
 
 ## Quality Gate Summary
 
-The planning workflow complete E2E test validates:
+The planning service blueprint complete E2E test validates:
 
 ✅ **Editor Phase:**
-- Workflow loads in editor
+- Service Blueprint loads in editor
 - Graph shows all stages and gateways
 - Validation passes (no errors)
 - Publish succeeds
 
 ✅ **Public Entry Phase:**
-- Public workflow page loads
+- Public service blueprint page loads
 - Form fields render correctly
 - Data capture works for all stages
 - Submission creates instance
 
 ✅ **Member Continuation:**
-- In-progress workflows saved
-- Dashboard lists incomplete workflows
+- In-progress service blueprints saved
+- Dashboard lists incomplete service blueprints
 - Resume returns to correct stage
 - Previously entered data preserved
 - Completion advances normally
 
 ✅ **Back-stage Review:**
-- Admin lists workflow instances
+- Admin lists service requests
 - Instance detail shows captured data
 - Approval flow works
 - Rejection flow works
@@ -536,10 +536,10 @@ The planning workflow complete E2E test validates:
 
 ## Related
 
-- **Executable spec:** This walkthrough is executed by [`planning-workflow-complete.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/apply-for-planning-permission-complete.walkthrough.spec.ts)
-- **Editor context:** [Planning Workflow Editor](planning-workflow-editor.md)
+- **Executable spec:** This walkthrough is executed by [`planning-service-blueprint-complete.walkthrough.spec.ts`](../../src/UmbracoPrism.Client/tests/walkthroughs/apply-for-planning-permission-complete.walkthrough.spec.ts)
+- **Editor context:** [Planning Service Blueprint Editor](planning-service-blueprint-editor.md)
 - **Runtime context:** [Planning Notification](planning-notification.md)
-- **Issue #72:** [QA: Complete planning workflow end-to-end test](https://github.com/jonnymuir/Umbraco.Prism/issues/72)
+- **Issue #72:** [QA: Complete planning service blueprint end-to-end test](https://github.com/jonnymuir/Umbraco.Prism/issues/72)
 - **Skills:**
   - [walkthroughs-as-executable-specs](../../.claude/skills/walkthroughs-as-executable-specs/SKILL.md)
-  - [workflow-stage-preview-runtime](../../.claude/skills/workflow-stage-preview-runtime/SKILL.md)
+  - [service blueprint-stage-preview-runtime](../../.claude/skills/service blueprint-stage-preview-runtime/SKILL.md)

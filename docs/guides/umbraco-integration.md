@@ -1,6 +1,6 @@
 # Umbraco Integration
 
-A guide for integrators. Embed Prism workflows in your Umbraco site.
+A guide for integrators. Embed Prism service blueprints in your Umbraco site.
 
 This guide shows how the reference implementation (TestSite + MockBusinessApp) integrates Prism. Your Umbraco site follows the same pattern.
 
@@ -8,10 +8,10 @@ This guide shows how the reference implementation (TestSite + MockBusinessApp) i
 
 ## The Two Surfaces
 
-Prism workflows run on two surfaces:
+Prism service blueprints run on two surfaces:
 
-1. **Member Surface (Umbraco)** — authenticated users fill in forms and see their workflow progress. This is where the end-user journey happens.
-2. **Business App (separate host)** — where you author workflows and where reviewers process submissions. MockBusinessApp is the reference.
+1. **Member Surface (Umbraco)** — authenticated users fill in forms and see their service blueprint progress. This is where the end-user journey happens.
+2. **Business App (separate host)** — where you author service blueprints and where reviewers process submissions. MockBusinessApp is the reference.
 
 The member surface lives in your Umbraco site. The business app is a separate ASP.NET host.
 
@@ -21,16 +21,16 @@ The member surface lives in your Umbraco site. The business app is a separate AS
 
 Prism ships two document types for the member surface:
 
-- **`workflowPage`** — a single workflow entry point. Each workflow gets one `workflowPage` node in your content tree.
-- **`workflowHub`** — a dashboard showing all workflows the user has started. One hub node per site.
+- **`workflowPage`** — a single service blueprint entry point. Each service blueprint gets one `workflowPage` node in your content tree.
+- **`workflowHub`** — a dashboard showing all service blueprints the user has started. One hub node per site.
 
 These document types are seeded automatically by `PrismContentTypeSeeder`. You do not create them manually.
 
 ### How It Works
 
 1. You create a `workflowPage` node in the Umbraco tree.
-2. You set the `workflowKey` property to match a workflow key your business app knows about (e.g., `"planning"`, `"leave-request"`).
-3. Users navigate to that page. Prism loads the workflow definition from your business app and renders the form.
+2. You set the `workflowKey` property to match a blueprint key your business app knows about (e.g., `"planning"`, `"leave-request"`).
+3. Users navigate to that page. Prism loads the service blueprint from your business app and renders the form.
 4. Users fill in the form. Prism saves their progress to an instance store.
 5. Users submit. Prism moves the instance to the next stage (or a waiting state if a reviewer is required).
 
@@ -40,8 +40,8 @@ Prism uses **route hijacking** to intercept requests to `workflowPage` and `work
 
 The controllers:
 
-- **`WorkflowPageController`** (in your site) — extends `PrismWorkflowPageController<TViewModel>` from Core.
-- **`WorkflowHubController`** (in Core) — already implemented.
+- **`WorkflowPageController`** (in your site) — extends `PrismServiceRequestPageController<TViewModel>` from Core.
+- **`ServiceRequestHubController`** (in Core) — already implemented.
 
 Both extend `RenderController`. Both require authentication via `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`.
 
@@ -49,18 +49,18 @@ Your site can override `PrePopulateFields()` in `WorkflowPageController` to inje
 
 ---
 
-## Business App — Where Workflows Are Authored
+## Business App — Where Service Blueprints Are Authored
 
-The workflow editor lives in a **separate business app**, not in the Umbraco backoffice.
+The service blueprint editor lives in a **separate business app**, not in the Umbraco backoffice.
 
 MockBusinessApp (`src/UmbracoPrism.MockBusinessApp/`) is the reference implementation. It:
 
-- Hosts the workflow editor at `/admin/workflow-editor` (dev-only).
-- Exposes `/mockapp/workflows/*` endpoints for the editor to read/write workflows.
-- Seeds four reference workflows at startup.
-- Runs the workflow runtime engine (for reviewers to process submissions).
+- Hosts the service blueprint editor at `/admin/service-blueprint-editor` (dev-only).
+- Exposes `/mockapp/service-blueprints/*` endpoints for the editor to read/write service blueprints.
+- Seeds four reference service blueprints at startup.
+- Runs the service blueprint runtime engine (for reviewers to process submissions).
 
-Your business app follows the same pattern. You implement `WorkflowSource` to expose your workflows to the editor. See [Embedding the Workflow Editor](./embedding-the-workflow-editor.md) for details.
+Your business app follows the same pattern. You implement `WorkflowSource` to expose your service blueprints to the editor. See [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md) for details.
 
 ---
 
@@ -68,8 +68,8 @@ Your business app follows the same pattern. You implement `WorkflowSource` to ex
 
 The member surface and the business app communicate via:
 
-1. **Workflow definitions** — your business app projects an `AuthoredWorkflow` into a `WorkflowDefinitionFile` (via `IWorkflowProjector`). The member surface loads this runtime definition and renders it.
-2. **Workflow instances** — the member surface persists instance state (which stage the user is on, which fields they have filled in). The business app reads this state when reviewers process submissions.
+1. **Service Blueprints** — your business app projects an `AuthoredServiceBlueprint` into a `ServiceBlueprint` (via `IWorkflowProjector`). The member surface loads this runtime definition and renders it.
+2. **Service Requests** — the member surface persists instance state (which stage the user is on, which fields they have filled in). The business app reads this state when reviewers process submissions.
 
 The boundary is clean. The member surface never talks to the editor. The editor never talks to the member surface.
 
@@ -81,13 +81,13 @@ The member surface uses **Prism Member Cookie** authentication. Users log in via
 
 The business app uses its own authentication. MockBusinessApp has no authentication (dev-only). A production business app would use bearer tokens, OIDC, or whatever your organization requires.
 
-**Role-gated transitions:** Workflows can have transitions that require a role (e.g., `requiresRole: "reviewer"`). The member surface enforces this at the HTTP layer. The business app enforces it at the handler layer.
+**Role-gated transitions:** Service Blueprints can have transitions that require a role (e.g., `requiresRole: "reviewer"`). The member surface enforces this at the HTTP layer. The business app enforces it at the handler layer.
 
 ---
 
 ## Public Entry Points (Optional)
 
-Some workflows start from public pages (no login required). You create a public content node (any document type) with a link to the protected `workflowPage`. When an anonymous user clicks the link, they get a login challenge.
+Some service blueprints start from public pages (no login required). You create a public content node (any document type) with a link to the protected `workflowPage`. When an anonymous user clicks the link, they get a login challenge.
 
 Example:
 
@@ -99,13 +99,13 @@ The `linkedWorkflowPage` is a content picker property pointing at a `workflowPag
 
 ---
 
-## Where Workflows Are Stored
+## Where Service Blueprints Are Stored
 
-Prism does **not** store workflows in the Umbraco database. Workflows live in your business app.
+Prism does **not** store service blueprints in the Umbraco database. Service Blueprints live in your business app.
 
-The reference implementation (MockBusinessApp) stores workflows in memory. A production business app would use a database, blob storage, or whatever your organization requires.
+The reference implementation (MockBusinessApp) stores service blueprints in memory. A production business app would use a database, blob storage, or whatever your organization requires.
 
-The member surface never reads authored workflows directly. It only reads projected runtime definitions (via the workflow engine).
+The member surface never reads authored service blueprints directly. It only reads projected runtime definitions (via the service blueprint engine).
 
 ---
 
@@ -113,9 +113,9 @@ The member surface never reads authored workflows directly. It only reads projec
 
 The business app is a separate ASP.NET host. Deploy it alongside your Umbraco site. It needs:
 
-- A `/workflows/*` HTTP endpoint (or equivalent) for the editor to call.
-- A workflow runtime engine (Prism ships `UmbracoPrism.WorkflowRuntime` as a reference).
-- Storage for authored workflows and workflow instances.
+- A `/service-blueprints/*` HTTP endpoint (or equivalent) for the editor to call.
+- A service blueprint runtime engine (Prism ships `UmbracoPrism.ProcessManager` as a reference).
+- Storage for authored service blueprints and service requests.
 
 MockBusinessApp demonstrates the pattern. Your business app is analogous.
 
@@ -123,10 +123,10 @@ MockBusinessApp demonstrates the pattern. Your business app is analogous.
 
 ## Next Steps
 
-1. **Read the embedding guide:** [Embedding the Workflow Editor](./embedding-the-workflow-editor.md)
+1. **Read the embedding guide:** [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md)
 2. **Explore the reference implementation:** `src/UmbracoPrism.MockBusinessApp/`
-3. **Set up your first workflow:** [Setting Up a Prism Workflow](./workflow-setup.md)
-4. **Understand the runtime model:** [Runtime Projection](../design/workflow-editor-v1/02-runtime-projection.md)
+3. **Set up your first service blueprint:** [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md)
+4. **Understand the runtime model:** [Runtime Projection](../design/service-blueprint-editor-v1/02-runtime-projection.md)
 
 ---
 

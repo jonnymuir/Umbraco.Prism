@@ -12,14 +12,14 @@ Prism Core provides a **thin, reusable platform**. Your application adds the **b
 - Notification service foundation (`IPrismNotificationService`)
 - Config-driven event handling (`PrismContentPublishedHandler`)
 - Subscription persistence and rate limiting
-- Workflow rendering and validation
+- Service Blueprint rendering and validation
 - Mobile app generation and push notifications
 
 ### Your Application Adds
 
 - **Domain models** — Data structures specific to your business
 - **Notification handlers** — Controllers and endpoints triggered by events
-- **Workflow endpoints** — State machines and business logic
+- **Service Blueprint endpoints** — State machines and business logic
 - **Custom API routes** — Domain-specific REST/GraphQL endpoints
 - **Umbraco content types** — Document types for your data
 
@@ -191,7 +191,7 @@ logger.LogInformation(
 
 ### 5. Handle Errors Gracefully
 
-Notification failures shouldn't break your workflow. Catch exceptions and log them:
+Notification failures shouldn't break your service blueprint. Catch exceptions and log them:
 
 ```csharp
 try
@@ -207,9 +207,9 @@ catch (Exception ex)
 
 ---
 
-## Extending Workflows
+## Extending Service Blueprints
 
-Workflows are defined in your Business App (the backend API), not in Prism Core. Your workflow endpoints define:
+Service Blueprints are defined in your Business App (the backend API), not in Prism Core. Your service blueprint endpoints define:
 
 - **Step types** (question, confirmation, waiting, status-timeline, etc.)
 - **Field definitions** (what data to collect)
@@ -218,12 +218,12 @@ Workflows are defined in your Business App (the backend API), not in Prism Core.
 
 Prism Core handles rendering, client-side validation, and form submission. Your Business App handles all the business logic.
 
-**Workflow endpoints your app must implement:**
-- `GET /api/workflow/get-current` — Return the current step
-- `POST /api/workflow/advance` — Process the action and return the next step
-- `POST /api/workflow/submit` (optional) — For explicit submission without advancing
+**Service Blueprint endpoints your app must implement:**
+- `GET /api/service-blueprint/get-current` — Return the current step
+- `POST /api/service-blueprint/advance` — Process the action and return the next step
+- `POST /api/service-blueprint/submit` (optional) — For explicit submission without advancing
 
-See [Setting Up a Prism Workflow](./workflow-setup.md) for complete examples.
+See [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md) for complete examples.
 
 ---
 
@@ -350,5 +350,5 @@ When deploying your extended Prism application:
 
 - [Notification Architecture](../design/notifications-architecture.md) — Deep dive into Prism's notification system
 - [Notification API Reference](../notifications-design.md) — Complete API documentation
-- [Setting Up a Prism Workflow](./workflow-setup.md) — Workflow definition and endpoints
+- [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md) — Service Blueprint and endpoints
 - [TestSite Reference](../../src/UmbracoPrism.TestSite/README.md) — Complete working example

@@ -3,22 +3,22 @@ last_updated: 2026-05-25T16:48:28.029+01:00
 status: canonical
 ---
 
-# Multi-lane workflow engine design
+# Multi-lane service blueprint engine design
 
-This is the source of truth for how Prism evolves from the current single-path workflow engine into a lane-based engine that can run more than one live path at once.
+This is the source of truth for how Prism evolves from the current single-path service blueprint engine into a lane-based engine that can run more than one live path at once.
 
 Use this document for the behavioural model. Older docs that talk about front stage/back stage lanes or waiting stages are still useful background, but they are not the place to define the new concurrent behaviour.
 
 ## Why this design exists
 
-The current engine is good at one active path moving from state to state. That is no longer enough for the workflow story we want.
+The current engine is good at one active path moving from state to state. That is no longer enough for the service blueprint story we want.
 
 We now need a model where:
 
 - lanes are owned by roles
 - more than one lane can be active at the same time
 - one lane cannot overwrite another lane's progress
-- only stages and gateways appear as authored workflow nodes
+- only stages and gateways appear as authored service blueprint nodes
 - stages remain the place where user-facing work and actions live
 - transition gateways become the only way to route from one node to another
 - gateways read visually as diagonal/diamond routing nodes in the editor
@@ -29,7 +29,7 @@ We now need a model where:
 
 ## Plain-language model
 
-The workflow is made of **stages** and **diamond transition gateways**.
+The service blueprint is made of **stages** and **diamond transition gateways**.
 
 The model is simple:
 
@@ -40,7 +40,7 @@ The model is simple:
 
 Authors should understand routing as happening **through gateways**, not through bare stage-to-stage arrows. Links still exist in the graph, but the nodes authors reason about are stages and gateways.
 
-Each live workflow instance can now have more than one active **cursor** at the same time. A cursor is just the engine's way of saying "this lane is currently here".
+Each live service request can now have more than one active **cursor** at the same time. A cursor is just the engine's way of saying "this lane is currently here".
 
 Authors should mostly think in product language:
 
@@ -74,7 +74,7 @@ When the engine reaches a split gateway:
 - each new cursor keeps its own position and progress
 - later work in one lane must not replace the current position of another lane
 
-That means a fast lane and a slow lane can finish in different orders without corrupting the workflow.
+That means a fast lane and a slow lane can finish in different orders without corrupting the service blueprint.
 
 ### 3. Routing links
 
@@ -115,7 +115,7 @@ Behaviour rules:
 - the join releases only when its rule is satisfied
 - release order is deterministic no matter which lane arrived first
 
-This gives us a stable answer to "what is this lane waiting for?" without putting the whole workflow into one global waiting state.
+This gives us a stable answer to "what is this lane waiting for?" without putting the whole service blueprint into one global waiting state.
 
 The gateway itself carries the user-facing metadata for that waiting point:
 
@@ -146,7 +146,7 @@ Waiting copy, instructions, and status for a join belong to the lane that owns t
 That means:
 
 - one lane can show "waiting for finance review" while another lane keeps moving
-- waiting details are not stored as a global workflow state that flattens all lanes together
+- waiting details are not stored as a global service blueprint state that flattens all lanes together
 - the author defines waiting intent at the join, not as a separate fake stage inserted only for engine reasons
 
 This keeps the product story honest. People see the waiting information that belongs to their lane, not internal engine noise from other lanes.
@@ -175,10 +175,10 @@ The runtime may need that data internally, but authors and consumers should not 
 
 ### 9. Clear history semantics
 
-Parallel workflows make history confusing unless we separate two different things:
+Parallel service blueprints make history confusing unless we separate two different things:
 
 - **who acted** — person/system, action, time, lane
-- **what state changed** — cursor moved, join token recorded, join released, workflow status changed
+- **what state changed** — cursor moved, join token recorded, join released, service blueprint status changed
 
 Those should be related, but not collapsed into one ambiguous line.
 
@@ -194,7 +194,7 @@ Support and debugging should be able to answer:
 - who did something
 - which lane they acted in
 - what changed because of it
-- whether the workflow was waiting, splitting, or joining at the time
+- whether the service blueprint was waiting, splitting, or joining at the time
 
 ## Mapping from current model to the new one
 
@@ -203,8 +203,8 @@ Support and debugging should be able to answer:
 - authored assignment still comes from `actor` and `roleGates`
 - stages remain where user-facing actions and forms are configured
 - published contracts stay clean and projection-driven
-- single-lane workflows remain valid
-- straight-line workflows should stay easy to author, but still route through gateways
+- single-lane service blueprints remain valid
+- straight-line service blueprints should stay easy to author, but still route through gateways
 
 ### What changes
 
@@ -223,7 +223,7 @@ This design now maps to a condensed execution sequence:
 2. **#82** — let stages and gateways belong to named lanes
 3. **#83** — merged gateway/runtime track for readable gateways, lane-owned joins, and safe parallel execution
 4. **#86** — separate actor history from state-change history for parallel work
-5. **#87** — evolve showcase workflows and behavioural proof slice by slice
+5. **#87** — evolve showcase service blueprints and behavioural proof slice by slice
 
 Scope decision: **#84** and **#85** are now absorbed into **#83**. They should not be treated as independent execution items.
 
@@ -297,18 +297,18 @@ The first movement slice should stay simple and accessible:
 
 ### What must stay green
 
-Pin the workflow contract while the merged gateway/runtime slice lands:
+Pin the service blueprint contract while the merged gateway/runtime slice lands:
 
 - `dotnet test UmbracoPrism.sln`
-- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/AuthoredWorkflowSchemaValidationTests.cs`
-- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/AuthoredWorkflowSerializationTests.cs`
-- `src/UmbracoPrism.Core.Tests/Workflow/Authoring/WorkflowPublishServiceTests.cs`
-- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-visual.spec.ts`
-- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-graph-keyboard.spec.ts`
-- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-stage-preview.spec.ts`
-- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-history.spec.ts`
-- `src/UmbracoPrism.Client/tests/workflow-editor/workflow-editor-simulation.spec.ts`
-- `src/UmbracoPrism.Client/tests/walkthroughs/01-planning-workflow-editor.walkthrough.spec.ts`
+- `src/UmbracoPrism.Core.Tests/Service-Blueprint/Authoring/AuthoredServiceBlueprintSchemaValidationTests.cs`
+- `src/UmbracoPrism.Core.Tests/Service-Blueprint/Authoring/AuthoredServiceBlueprintSerializationTests.cs`
+- `src/UmbracoPrism.Core.Tests/Service-Blueprint/Authoring/WorkflowPublishServiceTests.cs`
+- `src/UmbracoPrism.Client/tests/service-blueprint-editor/service-blueprint-graph-visual.spec.ts`
+- `src/UmbracoPrism.Client/tests/service-blueprint-editor/service-blueprint-graph-keyboard.spec.ts`
+- `src/UmbracoPrism.Client/tests/service-blueprint-editor/service-blueprint-editor-stage-preview.spec.ts`
+- `src/UmbracoPrism.Client/tests/service-blueprint-editor/service-blueprint-editor-history.spec.ts`
+- `src/UmbracoPrism.Client/tests/service-blueprint-editor/service-blueprint-editor-simulation.spec.ts`
+- `src/UmbracoPrism.Client/tests/walkthroughs/01-planning-service-blueprint-editor.walkthrough.spec.ts`
 
 The merged slice is only done when gateway authoring, gateway-backed waiting, gateway-only routing, and parallel-lane runtime behaviour all pass those gates together.
 
@@ -316,14 +316,14 @@ The merged slice is only done when gateway authoring, gateway-backed waiting, ga
 
 Treat these as partial background for the multi-lane redesign, not as the behavioural source of truth:
 
-- `docs/design/workflow-editor-v1/README.md`
-- `docs/design/workflow-editor-v1/01-authoring-ux.md`
-- `docs/design/workflow-editor-v1/02-runtime-projection.md`
-- `docs/design/workflow-forms-engine.md`
-- `docs/design/workflow-forms-engine-backend.md`
+- `docs/design/service-blueprint-editor-v1/README.md`
+- `docs/design/service-blueprint-editor-v1/01-authoring-ux.md`
+- `docs/design/service-blueprint-editor-v1/02-runtime-projection.md`
+- `docs/design/service-request-forms-engine.md`
+- `docs/design/service-request-forms-engine-backend.md`
 
 They still describe useful current-state behaviour, but they include linear-flow and waiting-stage assumptions that the new engine design is replacing.
 
 ## Decision summary
 
-Prism should evolve into a lane-based workflow engine where stages carry user-facing work and actions, only stages and diamond gateways appear as authored nodes, gateways are the only routing mechanism between nodes, split gateways create independent cursors, join gateways own waiting semantics and replace waiting stages, convergence is deterministic, the runtime contract stays clean, and history clearly separates actors from state changes.
+Prism should evolve into a lane-based service blueprint engine where stages carry user-facing work and actions, only stages and diamond gateways appear as authored nodes, gateways are the only routing mechanism between nodes, split gateways create independent cursors, join gateways own waiting semantics and replace waiting stages, convergence is deterministic, the runtime contract stays clean, and history clearly separates actors from state changes.

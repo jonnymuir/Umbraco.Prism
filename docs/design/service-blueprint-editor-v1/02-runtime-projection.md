@@ -1,23 +1,23 @@
-# 02 — Runtime Model and Workflow Actions
+# 02 — Runtime Model and Service Blueprint Actions
 
 **Date:** 2026-05-16  
 **Author:** Blathers (Backend Dev)  
 **Status:** Implemented  
-**Relates to:** `docs/design/workflow-editor-v1/README.md`
+**Relates to:** `docs/design/service-blueprint-editor-v1/README.md`
 
 ---
 
 ## 1. Overview
 
-This document explains the workflow engine architecture and the projection boundary between Prism's service-design domain and the host's business domain.
+This document explains the service blueprint engine architecture and the projection boundary between Prism's service-design domain and the host's business domain.
 
-The editor owns the **design-time workflow** (the `AuthoredWorkflow` model). The runtime owns **execution** (the `WorkflowDefinitionFile` model that drives the workflow engine). To maintain compatibility with existing runtimes, the Prism projector (`IWorkflowProjector`) transforms the richer authored model into the runtime shape that the engine already understands.
+The editor owns the **design-time service blueprint** (the `AuthoredServiceBlueprint` model). The runtime owns **execution** (the `ServiceBlueprint` model that drives the service blueprint engine). To maintain compatibility with existing runtimes, the Prism projector (`IWorkflowProjector`) transforms the richer authored model into the runtime shape that the engine already understands.
 
 This document explains:
 
-1. the **workflow definition** the editor saves (`AuthoredWorkflow`)
+1. the **service blueprint** the editor saves (`AuthoredServiceBlueprint`)
 2. the **action catalog** the editor reads (`WorkflowActionCatalog`)
-3. the **workflow engine** that executes the definition (Prism runtime)
+3. the **service blueprint engine** that executes the definition (Prism runtime)
 4. the **action handlers** that perform business work (host-specific)
 5. the **projection** from authored to runtime model (`IWorkflowProjector`)
 6. the **publishing** boundary (host concern, not editor concern)
@@ -26,26 +26,26 @@ This document explains:
 
 ## 2. The Two Models
 
-### Authored Model (`AuthoredWorkflow`)
+### Authored Model (`AuthoredServiceBlueprint`)
 
 This is the service-design model. It lives in `UmbracoPrism.Core` (C#) and `UmbracoPrism.Client` (TypeScript). The editor reads and writes this model.
 
 Key fields:
 
-- `definitionKey` — stable identifier for the workflow
+- `definitionKey` — stable identifier for the service blueprint
 - `displayName` — human-readable name
-- `initialStageKey` — where the workflow starts
+- `initialStageKey` — where the service blueprint starts
 - `stages[]` — the steps in the journey (each has `key`, `label`, `kind`, `actor`, `view`, `actions`)
 - `gateways[]` — routing points (each has `key`, `title`, `kind` [Split/Join], `source?`, `routes[]`)
 
-### Runtime Model (`WorkflowDefinitionFile`)
+### Runtime Model (`ServiceBlueprint`)
 
 This is the execution model. It lives in `UmbracoPrism.Core`. The runtime engine reads this model.
 
 Key fields:
 
 - `key` — stable identifier
-- `initialState` — where the workflow starts
+- `initialState` — where the service blueprint starts
 - `states[]` — the runtime states (projected from stages)
 - `transitions[]` — the runtime transitions (projected from gateway routes)
 - `components[]` — the UI components for each state
@@ -56,7 +56,7 @@ The runtime model is **flatter** and **simpler** than the authored model. It is 
 
 ## 3. The Projection Boundary
 
-The `IWorkflowProjector` interface (in `UmbracoPrism.Core`) is the Prism API for converting authored workflows into runtime definitions.
+The `IWorkflowProjector` interface (in `UmbracoPrism.Core`) is the Prism API for converting authored service blueprints into runtime definitions.
 
 ### Interface
 
@@ -64,10 +64,10 @@ The `IWorkflowProjector` interface (in `UmbracoPrism.Core`) is the Prism API for
 public interface IWorkflowProjector
 {
     /// <summary>
-    /// Projects an authored workflow into the runtime definition shape.
+    /// Projects an authored service-blueprint into the runtime definition shape.
     /// Returns a validation result with the projected definition or diagnostic messages.
     /// </summary>
-    WorkflowProjectionResult Project(AuthoredWorkflow authoredWorkflow);
+    WorkflowProjectionResult Project(AuthoredServiceBlueprint authoredWorkflow);
 }
 ```
 
@@ -77,13 +77,13 @@ The projector:
 - Converts `stages[]` + `gateways[]` into `states[]` + `transitions[]`.
 - Strips editor-only metadata (e.g., canvas layout hints).
 - Preserves authored assignment data (`actor`, `roleGates`) for runtime authorization.
-- Returns diagnostics if the workflow cannot be projected (e.g., missing stage, orphan gateway).
+- Returns diagnostics if the service blueprint cannot be projected (e.g., missing stage, orphan gateway).
 
 ### Projection Rules
 
 | Authored | Runtime |
 |----------|---------|
-| `AuthoredStage` | `WorkflowState` |
+| `AuthoredTouchpoint` | `WorkflowState` |
 | `AuthoredGateway.routes[]` | `WorkflowTransition[]` (one per route, `from = gateway.source`, `to = route.target`) |
 | `AuthoredRoute.trigger` | `WorkflowTransition.action` |
 | `AuthoredRoute.condition` | `WorkflowTransition.condition` |
@@ -114,7 +114,7 @@ Example:
 
 The editor validates the `params` shape against the action's schema (provided by the `WorkflowActionCatalog`). The runtime resolves the `type` to a handler and executes the action.
 
-This split keeps workflow definitions **declarative**. No callbacks, no source code, no app-specific method names. Just stable keys and serializable params.
+This split keeps service blueprints **declarative**. No callbacks, no source code, no app-specific method names. Just stable keys and serializable params.
 
 ---
 
@@ -146,9 +146,9 @@ Prism ships `BuiltInWorkflowActionCatalog` with generic actions (Send Email, Ass
 
 ## 6. Runtime Execution (Handler Registry Pattern)
 
-The runtime engine (in `UmbracoPrism.WorkflowRuntime`) is **generic**. It:
+The runtime engine (in `UmbracoPrism.ProcessManager`) is **generic**. It:
 
-- Loads the workflow definition (`WorkflowDefinitionFile`).
+- Loads the service blueprint (`ServiceBlueprint`).
 - Tracks the current state for each instance.
 - Checks which transitions are allowed.
 - Moves the instance to the next state.
@@ -184,7 +184,7 @@ public interface IWorkflowActionRegistry
 3. For each action, the engine asks the registry for the handler that matches `action.type`.
 4. The handler reads the typed `params` and the runtime context.
 5. The handler performs the business work (send email, assign case, etc.).
-6. The engine continues the workflow using the transition result.
+6. The engine continues the service blueprint using the transition result.
 
 This pattern keeps action execution **out of the engine**. The engine stays generic. The host provides the handlers.
 
@@ -192,9 +192,9 @@ This pattern keeps action execution **out of the engine**. The engine stays gene
 
 ## 7. Publishing — A Host Concern, Not an Editor Concern
 
-**Publishing** is the act of snapshotting an authored workflow into a runtime store so that the runtime engine can load it and execute instances.
+**Publishing** is the act of snapshotting an authored service blueprint into a runtime store so that the runtime engine can load it and execute instances.
 
-This is a **host concern**, not an editor concern. The editor never publishes workflows itself. The editor only saves `AuthoredWorkflow` objects through the host's `WorkflowSource`.
+This is a **host concern**, not an editor concern. The editor never publishes service blueprints itself. The editor only saves `AuthoredServiceBlueprint` objects through the host's `WorkflowSource`.
 
 The host decides:
 
@@ -207,15 +207,15 @@ The host decides:
 
 MockBusinessApp demonstrates the pattern:
 
-1. The editor saves an `AuthoredWorkflow` via `PUT /mockapp/workflows/{key}`.
-2. MockBusinessApp stores the authored workflow in memory (its `ReferenceAuthoredWorkflowStore`).
+1. The editor saves an `AuthoredServiceBlueprint` via `PUT /mockapp/service-blueprints/{key}`.
+2. MockBusinessApp stores the authored service blueprint in memory (its `ReferenceAuthoredServiceBlueprintStore`).
 3. Separately, MockBusinessApp has a `WorkflowPublishService` (in `MockBusinessApp/Services/Publishing/`).
 4. When the host calls `publishService.PublishAsync(workflowKey)`, the service:
-   - Loads the authored workflow from the store.
+   - Loads the authored service blueprint from the store.
    - Calls `IWorkflowProjector.Project(authoredWorkflow)` to get the runtime definition.
    - Validates the projection result.
    - Saves the runtime definition to the published store (`IPublishedWorkflowStore`).
-5. The runtime engine (in `UmbracoPrism.WorkflowRuntime`) loads definitions from the published store, never from the authored store.
+5. The runtime engine (in `UmbracoPrism.ProcessManager`) loads definitions from the published store, never from the authored store.
 
 The editor has no opinion about steps 3-5. Those are host concerns.
 
@@ -223,9 +223,9 @@ The editor has no opinion about steps 3-5. Those are host concerns.
 
 Different hosts have different publishing needs:
 
-- **Approval workflow:** Some hosts require a reviewer to approve a workflow before it goes live. The editor does not enforce this — the host does.
-- **Multi-tenancy:** Some hosts partition workflows by tenant. The editor does not know about tenants — the host does.
-- **Versioning:** Some hosts keep every version of a workflow. Some overwrite. The editor does not care — the host decides.
+- **Approval service blueprint:** Some hosts require a reviewer to approve a service blueprint before it goes live. The editor does not enforce this — the host does.
+- **Multi-tenancy:** Some hosts partition service blueprints by tenant. The editor does not know about tenants — the host does.
+- **Versioning:** Some hosts keep every version of a service blueprint. Some overwrite. The editor does not care — the host decides.
 - **Rollback:** Some hosts can roll back to a previous version. The editor does not implement rollback — the host does.
 
 Keeping publishing out of the editor keeps the editor simple and flexible.
@@ -234,24 +234,24 @@ Keeping publishing out of the editor keeps the editor simple and flexible.
 
 ## 8. Summary
 
-The workflow editor and runtime are separated by two boundaries:
+The service blueprint editor and runtime are separated by two boundaries:
 
 1. **Authored ↔ Runtime** — `IWorkflowProjector` converts the rich authored model into the flat runtime model.
-2. **Editor ↔ Host** — `WorkflowSource` gives the editor access to authored workflows without coupling to the host's storage, identity, or publishing logic.
+2. **Editor ↔ Host** — `WorkflowSource` gives the editor access to authored service blueprints without coupling to the host's storage, identity, or publishing logic.
 
-The editor describes workflows in business terms: stages, gateways, routes, typed actions.
+The editor describes service blueprints in business terms: stages, gateways, routes, typed actions.
 
-The runtime executes workflows in engine terms: states, transitions, action handlers.
+The runtime executes service blueprints in engine terms: states, transitions, action handlers.
 
-The host bridges the two: it stores authored workflows, it projects them to runtime definitions, it publishes them when appropriate, and it provides the handlers that execute typed actions.
+The host bridges the two: it stores authored service blueprints, it projects them to runtime definitions, it publishes them when appropriate, and it provides the handlers that execute typed actions.
 
 This architecture keeps the editor domain-agnostic and keeps the runtime flexible.
 
 ---
 
-## 3. What the workflow JSON should say
+## 3. What the service blueprint JSON should say
 
-The workflow JSON should stay declarative. It should not contain callbacks, source code, or app-specific method names.
+The service blueprint JSON should stay declarative. It should not contain callbacks, source code, or app-specific method names.
 
 A simple shape looks like this:
 
@@ -412,9 +412,9 @@ The editor should not hard-code this list in the UI.
 
 The reference business app should use a **handler registry**.
 
-The workflow engine stays responsible for the generic workflow job:
+The service blueprint engine stays responsible for the generic service blueprint job:
 
-- load the workflow definition
+- load the service blueprint
 - keep track of the current stage
 - check which transitions are allowed
 - move the instance to the next stage
@@ -448,18 +448,18 @@ public interface IWorkflowActionRegistry
 3. For each action, the engine asks the registry for the handler that matches `action.type`.
 4. The handler reads the typed `params` and the runtime context.
 5. The handler performs the business work.
-6. The engine continues the workflow using the transition result.
+6. The engine continues the service blueprint using the transition result.
 
-This is a better long-term model than embedding app logic directly into the workflow engine. It also keeps the editor and runtime aligned because both use the same stable action type keys.
+This is a better long-term model than embedding app logic directly into the service blueprint engine. It also keeps the editor and runtime aligned because both use the same stable action type keys.
 
 ### How this fits the current reference app
 
-Today, the shared runtime already handles the generic workflow concerns: definitions, instances, transitions, envelopes, component rendering, and shell inference. The next backend seam is to add action execution beside that runtime, not inside the editor contract.
+Today, the shared runtime already handles the generic service blueprint concerns: definitions, instances, transitions, envelopes, component rendering, and shell inference. The next backend seam is to add action execution beside that runtime, not inside the editor contract.
 
 In other words:
 
-- `WorkflowRuntimeEngine` stays the generic engine
-- `BusinessAppWorkflowEngine` stays the host-specific extension point
+- `ProcessManagerEngine` stays the generic engine
+- `BusinessAppProcessManager` stays the host-specific extension point
 - a handler registry becomes the host-specific way to execute typed actions
 
 ---
@@ -468,7 +468,7 @@ In other words:
 
 Forms-backed actions fit this model immediately.
 
-For the first iteration, many workflow stages are really forms-engine stages. That is fine. We should model them as normal typed actions, not as a separate special case.
+For the first iteration, many service blueprint stages are really forms-engine stages. That is fine. We should model them as normal typed actions, not as a separate special case.
 
 Examples:
 
@@ -505,15 +505,15 @@ This is the main benefit of typed actions.
 
 ## 7. How this maps to Prism compatibility
 
-The current Prism runtime still consumes `WorkflowDefinitionFile`.
+The current Prism runtime still consumes `ServiceBlueprint`.
 
-So the editor-friendly workflow definition is projected into that runtime shape. That projection should stay simple and predictable:
+So the editor-friendly service blueprint is projected into that runtime shape. That projection should stay simple and predictable:
 
 - stages project to runtime states
-- transitions project to `WorkflowTransitionFile`
+- transitions project to `RouteFile`
 - stage views project to Prism component trees
 - shell choice still comes from the existing component-based inference rules
-- typed actions stay attached as workflow metadata for the business app runtime to execute
+- typed actions stay attached as service blueprint metadata for the business app runtime to execute
 - UI-only fields (such as temporary editor surface hints) are stripped before projection, leaving only the authored assignment data (actor, roleGates) that drives runtime behaviour
 
 We should avoid making authors think in low-level Prism terms such as inferred shell metadata unless they are debugging compatibility.
@@ -528,7 +528,7 @@ The important compatibility point is simple: authors edit stages, transitions, a
 
 Design time should own:
 
-- the workflow JSON structure
+- the service blueprint JSON structure
 - the list of allowed action types
 - the parameter schema for each action type
 - validation and editor guidance
@@ -545,15 +545,15 @@ Runtime should own:
 
 This is the cleanest way to explain the system:
 
-- the **editor** describes the workflow
+- the **editor** describes the service blueprint
 - the **catalog** describes available actions
-- the **engine** runs the workflow
+- the **engine** runs the service blueprint
 - the **handlers** do the work
 
 ---
 
 ## 9. Summary
 
-The workflow definition should describe the journey in business terms: stages, transitions, and typed actions.
+The service blueprint should describe the journey in business terms: stages, transitions, and typed actions.
 
-The editor needs a catalog that says which action types exist and what parameters they take. The runtime needs a handler registry that turns those action types into real business behaviour. Forms-backed actions work in this model now, and email or other integrations fit later without changing the core workflow shape.
+The editor needs a catalog that says which action types exist and what parameters they take. The runtime needs a handler registry that turns those action types into real business behaviour. Forms-backed actions work in this model now, and email or other integrations fit later without changing the core service blueprint shape.
