@@ -57,8 +57,8 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await page.getByRole('button', { name: 'Continue' }).click();
     await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
 
-    const anonymousCookie = (await page.context().cookies()).find(c => c.name === 'PrismCmsServiceBlueprintVisitor');
-    expect(anonymousCookie, 'starting a CMS ServiceBlueprint anonymously must set the visitor correlation cookie').toBeTruthy();
+    const anonymousCookie = (await page.context().cookies()).find(c => c.name === 'PrismCmsServiceRequestVisitor');
+    expect(anonymousCookie, 'starting a CMS service request anonymously must set the visitor correlation cookie').toBeTruthy();
 
     // Sign in — same browser context, so the anonymous cookie rides along with the sign-in
     // request and the server-side claim hook can see both identities together.
@@ -67,7 +67,7 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     // The claim succeeded: the anonymous cookie is gone (nothing left to correlate against —
     // the instance now belongs to the signed-in member) and it shows up as resumable.
     const cookiesAfterSignIn = await page.context().cookies();
-    expect(cookiesAfterSignIn.some(c => c.name === 'PrismCmsServiceBlueprintVisitor')).toBe(false);
+    expect(cookiesAfterSignIn.some(c => c.name === 'PrismCmsServiceRequestVisitor')).toBe(false);
 
     await page.goto('/my-service-requests');
     await expect(page.getByRole('heading', { name: 'In Progress' })).toBeVisible();
