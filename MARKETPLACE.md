@@ -25,7 +25,7 @@ Click the button to spin up the full Umbraco Prism stack in a browser — no loc
 
 1. Wait for the terminal to print **🎉 Umbraco Prism is ready!**
 2. Click the TestSite URL → log in with `demo@prism.local` / `password` (Keycloak SSO)
-3. Browse **My Workflows** to see the demo workflow in action
+3. Browse **My Service Requests** to see the demo service blueprint in action
 
 **Credentials at a glance:**
 
@@ -39,22 +39,22 @@ Click the button to spin up the full Umbraco Prism stack in a browser — no loc
 
 ---
 
-## 🚀 Interactive Walkthrough — "Payment Processing Workflow"
+## 🚀 Interactive Walkthrough — "Payment Demo Service Blueprint"
 
-Once your stack is running, follow the step-by-step guide to see the demo workflow in action — with explanations of what Umbraco.Prism and the Umbraco backoffice are doing at each stage.
+Once your stack is running, follow the step-by-step guide to see the demo service blueprint in action — with explanations of what Umbraco.Prism and the Umbraco backoffice are doing at each stage.
 
 → **[Full walkthrough: docs/walkthroughs/payment-demo.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/payment-demo.md)**
 
 The walkthrough covers:
 - Logging in via Keycloak SSO and submitting a payment form
 - **Waiting states** — the form pauses and persists while a reviewer processes it (Prism's core pattern)
-- Watching the workflow hub show real-time status updates
-- Switching to the reviewer role and advancing the workflow from the admin panel
+- Watching the service request hub show real-time status updates
+- Switching to the reviewer role and advancing the service request from the admin panel
 - The member page **auto-updates without a refresh** when the reviewer completes their action
-- Behind the scenes: workflow definitions, state machines, the Prism workflow engine, and how persistence and real-time updates work
-- Exploring further: editing workflow definitions, monitoring engine logs in Aspire, testing async patterns
+- Behind the scenes: service blueprint definitions, state machines, the Prism process manager engine, and how persistence and real-time updates work
+- Exploring further: editing service blueprint definitions, monitoring engine logs in Aspire, testing async patterns
 
-**Alternative:** [Planning Application walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-workflow-complete.md) for a complete end-to-end journey covering authoring, public submission, member continuation, and back-stage review.
+**Alternative:** [Planning Application walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-service-blueprint-complete.md) for a complete end-to-end journey covering authoring, public submission, member continuation, and back-stage review.
 
 ---
 
@@ -79,15 +79,15 @@ dotnet run --project src/UmbracoPrism.AppHost
 Then:
 1. Open the Aspire dashboard at `https://localhost:17214`
 2. Click the TestSite URL → log in with `demo@prism.local` / `password`
-3. Browse **My Workflows** to see the demo workflow in action
-4. The MockBusinessApp runs alongside at `https://localhost:7245` — it accepts the same demo credentials and powers the workflow engine
+3. Browse **My Service Requests** to see the demo service blueprint in action
+4. The MockBusinessApp runs alongside at `https://localhost:7245` — it accepts the same demo credentials and powers the service blueprint engine
 
 **Optional:** Explore Keycloak admin at `https://localhost:8443/admin` (`admin` / `admin`).
 
 **Why this matters for local dev:**
 - The local Keycloak uses standard OIDC code-flow scopes — no offline tokens needed for a fresh clone.
 - Prism preserves the `id_token` in the session, enabling logout callbacks to Keycloak with the required `id_token_hint`.
-- MockBusinessApp trusts the browser-facing Keycloak authority (`https://localhost:8443`), so the workflow dashboard validates bearer tokens against the public issuer, not the internal container URL (`http://localhost:8080`).
+- MockBusinessApp trusts the browser-facing Keycloak authority (`https://localhost:8443`), so the service request flow validates bearer tokens against the public issuer, not the internal container URL (`http://localhost:8080`).
 - Aspire runtime state lives under `artifacts/aspire/testsite-runtime/` — the demo and Playwright suite never mutate the standalone TestSite database at `src/UmbracoPrism.TestSite/umbraco/Data/`.
 
 > For detailed setup, troubleshooting, and architecture: See [ASPIRE_DEV.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/ASPIRE_DEV.md).
@@ -238,7 +238,7 @@ In backoffice:
 - Offline-ready layouts for mobile
 
 **Your app extends with:**
-- Workflow definitions and state machines
+- Service blueprint definitions and state machines
 - Custom business logic and validation
 - Application-specific notification handlers
 - Domain models and business processes
@@ -251,13 +251,13 @@ In backoffice:
 
 | Guide | Description |
 |---|---|
-| **Workflow Editor** | |
-| [Embedding the Workflow Editor](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/guides/embedding-the-workflow-editor.md) | **Primary integrator recipe.** Build a business app on top of Prism. Implement `WorkflowSource`, wire the editor, extend the action catalog. |
-| [AI-Ready Workflow Authoring](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/guides/ai-workflow-authoring.md) | Let an AI agent (Claude Code or any MCP client) list, read, validate, simulate, and save your workflows — `MapPrismWorkflowAuthoringApi()` / `MapPrismWorkflowAuthoringMcp()`. |
+| **Service Blueprint Editor** | |
+| [Embedding the Service Blueprint Editor](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/guides/embedding-the-service-blueprint-editor.md) | **Primary integrator recipe.** Build a business app on top of Prism. Implement `ServiceBlueprintSource`, wire the editor, extend the action catalog. |
+| [AI-Ready Service Blueprint Authoring](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/guides/ai-service-blueprint-authoring.md) | Let an AI agent (Claude Code or any MCP client) list, read, validate, simulate, and save your service blueprints — `MapPrismServiceBlueprintAuthoringApi()` / `MapPrismServiceBlueprintAuthoringMcp()`. |
 | [Gateway-First Authoring](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/gateway-first-authoring.md) | How the gateway-and-route model works. Every move from one stage to another happens through a gateway. Worked example: the Leave Request 5-gateway fan-in pattern. |
 | **Walkthroughs** | |
-| [Workflow Walkthrough — Payment Demo](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/payment-demo.md) | Step-by-step demo of the payment workflow — shows Prism's core "submit now, finish later" pattern with waiting states, real-time updates, and reviewer workflows |
-| [Alternative Walkthrough — Planning Application Complete](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-workflow-complete.md) | Full end-to-end workflow covering editor authoring, public submission, member continuation, and back-stage review — demonstrates the complete workflow lifecycle |
+| [Service Blueprint Walkthrough — Payment Demo](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/payment-demo.md) | Step-by-step demo of the payment service blueprint — shows Prism's core "submit now, finish later" pattern with waiting states, real-time updates, and reviewer actions |
+| [Alternative Walkthrough — Planning Application Complete](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/planning-service-blueprint-complete.md) | Full end-to-end service blueprint covering editor authoring, public submission, member continuation, and back-stage review — demonstrates the complete service blueprint lifecycle |
 | **Setup & Configuration** | |
 | [Secret Management](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/secret-management.md) | Configure OIDC client secrets for production tenants, understand local dev demo |
 | [Umbraco Setup](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/umbraco-setup.md) | Install Prism, configure tenants, seed content |
@@ -303,7 +303,7 @@ In backoffice:
 
 **Your application extends Prism with:**
 * Business-specific notification handlers (see `PrismVinylNotificationController` in TestSite)
-* Workflow endpoints and state machines
+* Service blueprint endpoints and state machines
 * Domain models and validation logic
 * Custom API routes for your business processes
 
@@ -404,7 +404,7 @@ npm run test:playwright:localhost-auth
 
 The suite uses the seeded demo identity from `keycloak/realm-export.json`: `demo@prism.local` / `password`.
 
-**Stable seeded content contract:** on a clean TestSite database, Development startup deterministically repairs the Umbraco nodes the localhost auth/workflow flows use — `Home` (`/`), `Dashboard` (`/dashboard`), `Get in Touch` (`/get-in-touch`, workflow key `community-enquiry`), `My Workflows` (`/my-workflows`), plus the `Settings` node mobile nav entries for Home/Dashboard/My Workflows. The Razor views resolve those destinations from published content, so route lookup does not depend on root-node ordering.
+**Stable seeded content contract:** on a clean TestSite database, Development startup deterministically repairs the Umbraco nodes the localhost auth/service request flows use — `Home` (`/`), `Dashboard` (`/dashboard`), `Get in Touch` (`/get-in-touch`, service blueprint key `community-enquiry`), `My Service Requests` (`/my-service-requests`), plus the `Settings` node mobile nav entries for Home/Dashboard/My Service Requests. The Razor views resolve those destinations from published content, so route lookup does not depend on root-node ordering.
 
 ### Core Tests (UmbracoPrism.Core)
 
@@ -566,12 +566,12 @@ public async Task<string> GetMemberDataAsync()
 **`UmbracoPrism.TestSite`** — Reference Umbraco v17 application. Shows a complete example of extending Prism for a business domain (vinyl record store). Includes:
 - OIDC setup and tenant branding
 - Custom notification handler for "back-in-stock" alerts
-- Workflow demonstration (member submission → staff review)
+- Service blueprint demonstration (member submission → staff review)
 - Pre-configured tenant definitions for local development
 
 Use this as a template for building your own application on top of Prism Core.
 
-**`UmbracoPrism.MockBusinessApp`** — Minimal workflow API. Shows how to implement the notification and workflow endpoints that Prism calls. Demonstrates `AddPrismAuthentication` and multi-tenant data isolation for backend services.
+**`UmbracoPrism.MockBusinessApp`** — Minimal service blueprint API. Shows how to implement the notification and service blueprint endpoints that Prism calls. Demonstrates `AddPrismAuthentication` and multi-tenant data isolation for backend services.
 
 → See [Local Authentication Walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/README.md#local-authentication-walkthrough)
 
