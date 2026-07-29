@@ -13,7 +13,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.MockBusinessAp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.Core.Tests", "src\UmbracoPrism.Core.Tests\UmbracoPrism.Core.Tests.csproj", "{D12A6623-457A-4BC5-AD9E-602C8DB78D21}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.Shared", "src\UmbracoPrism.Shared\UmbracoPrism.Shared.csproj", "{F1BF998D-4C0A-4BFA-84B5-727AE0E35655}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wayfinder", "src\Wayfinder\Wayfinder.csproj", "{F1BF998D-4C0A-4BFA-84B5-727AE0E35655}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.ServiceDefaults", "src\UmbracoPrism.ServiceDefaults\UmbracoPrism.ServiceDefaults.csproj", "{5C15A872-213A-4CDB-B5D6-20B78CDB1675}"
 EndProject

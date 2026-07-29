@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Moq;
 using UmbracoPrism.Core.Controllers;
 using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 using UmbracoPrism.ProcessManager.Abstractions;
 using UmbracoPrism.ProcessManager.Services;
 

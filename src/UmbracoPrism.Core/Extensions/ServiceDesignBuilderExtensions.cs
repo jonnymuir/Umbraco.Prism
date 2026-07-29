@@ -4,7 +4,7 @@ using Umbraco.Cms.Core.DependencyInjection;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.Services.Sanitization;
-using UmbracoPrism.Shared.Services.Sanitization;
+using Wayfinder.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Extensions;
 

@@ -2,7 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
 using UmbracoPrism.Core.Configuration;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.Services;
 

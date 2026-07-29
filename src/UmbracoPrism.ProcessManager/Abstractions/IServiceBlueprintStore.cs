@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.ProcessManager.Abstractions;
 

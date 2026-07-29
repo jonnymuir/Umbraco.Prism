@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Services.Calculations;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Services.Calculations;
 using UmbracoPrism.ProcessManager.Services;
 
 namespace UmbracoPrism.ProcessManager.Api;

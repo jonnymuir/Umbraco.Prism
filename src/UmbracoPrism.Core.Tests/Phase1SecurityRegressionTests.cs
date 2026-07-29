@@ -37,9 +37,9 @@ using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.TagHelpers;
 using UmbracoPrism.MockBusinessApp.Services;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign.Components;
-using UmbracoPrism.Shared.Services.Sanitization;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign.Components;
+using Wayfinder.Services.Sanitization;
 using UmbracoPrism.TestSite.Controllers;
 using UmbracoPrism.TestSite.Controllers.Models;
 

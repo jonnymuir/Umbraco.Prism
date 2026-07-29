@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 using Ganss.Xss;
-using UmbracoPrism.Shared.Services.Sanitization;
+using Wayfinder.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Services.Sanitization;
 

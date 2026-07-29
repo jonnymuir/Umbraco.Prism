@@ -42,7 +42,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
+    <ProjectReference Include="../Wayfinder/Wayfinder.csproj" />
     <ProjectReference Include="..\UmbracoPrism.ServiceBlueprintEditor\UmbracoPrism.ServiceBlueprintEditor.csproj" />
     <ProjectReference Include="..\UmbracoPrism.ProcessManager\UmbracoPrism.ProcessManager.csproj" />
     <ProjectReference Include="..\UmbracoPrism.ProcessManager.Mcp\UmbracoPrism.ProcessManager.Mcp.csproj" />

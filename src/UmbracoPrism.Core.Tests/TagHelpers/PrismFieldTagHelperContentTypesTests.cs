@@ -11,7 +11,7 @@ using Moq;
 using UmbracoPrism.Core.Models.ServiceDesign;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.TagHelpers;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.Tests.TagHelpers;
 

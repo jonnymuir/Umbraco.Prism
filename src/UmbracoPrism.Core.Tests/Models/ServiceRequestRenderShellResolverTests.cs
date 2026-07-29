@@ -1,6 +1,6 @@
 using FluentAssertions;
 using UmbracoPrism.Core.Models.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.Tests.Models;
 

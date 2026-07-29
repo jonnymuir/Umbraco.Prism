@@ -1,4 +1,4 @@
-using UmbracoPrism.Shared.Services.Sanitization;
+using Wayfinder.Services.Sanitization;
 
 namespace UmbracoPrism.ProcessManager.Services;
 

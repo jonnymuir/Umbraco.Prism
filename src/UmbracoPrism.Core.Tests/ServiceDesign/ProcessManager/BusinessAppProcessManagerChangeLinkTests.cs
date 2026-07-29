@@ -5,9 +5,9 @@ using Moq;
 using System.Text.Json;
 using UmbracoPrism.Core.Models.ServiceDesign;
 using UmbracoPrism.MockBusinessApp.Services;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign.Components;
-using UmbracoPrism.Shared.Services.Sanitization;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign.Components;
+using Wayfinder.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.ProcessManager;
 

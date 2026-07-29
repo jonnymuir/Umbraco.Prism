@@ -27,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../UmbracoPrism.Shared/UmbracoPrism.Shared.csproj" />
+    <ProjectReference Include="../Wayfinder/Wayfinder.csproj" />
   </ItemGroup>
 
   <ItemGroup>

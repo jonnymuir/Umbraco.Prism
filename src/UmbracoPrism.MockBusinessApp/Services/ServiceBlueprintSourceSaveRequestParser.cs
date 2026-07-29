@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 using UmbracoPrism.ProcessManager.Services;
 
 namespace UmbracoPrism.MockBusinessApp.Services;

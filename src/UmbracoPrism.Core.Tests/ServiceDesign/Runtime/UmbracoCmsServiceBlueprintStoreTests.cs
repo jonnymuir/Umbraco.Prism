@@ -3,7 +3,7 @@ using Moq;
 using Umbraco.Cms.Infrastructure.Persistence;
 using UmbracoPrism.Core.Persistence;
 using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 using UmbracoPrism.ProcessManager.Abstractions;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;

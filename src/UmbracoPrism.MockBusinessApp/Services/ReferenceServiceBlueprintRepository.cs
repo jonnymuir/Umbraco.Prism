@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.MockBusinessApp.Services;
 

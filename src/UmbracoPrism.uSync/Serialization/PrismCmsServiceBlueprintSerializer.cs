@@ -8,7 +8,7 @@ using uSync.Core;
 using uSync.Core.Models;
 using uSync.Core.Serialization;
 using UmbracoPrism.Core.Persistence;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 using UmbracoPrism.ProcessManager.Abstractions;
 
 namespace UmbracoPrism.uSync.Serialization;

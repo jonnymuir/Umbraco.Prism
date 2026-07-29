@@ -1,4 +1,4 @@
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 using UmbracoPrism.MockBusinessApp.Services.Actions.ActionCatalog;
 using UmbracoPrism.ProcessManager.Models;
 

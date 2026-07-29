@@ -1,4 +1,4 @@
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 using UmbracoPrism.ProcessManager.Abstractions;
 
 namespace UmbracoPrism.Core.Services.ServiceDesign;

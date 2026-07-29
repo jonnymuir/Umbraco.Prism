@@ -1,5 +1,5 @@
 using System.Text.Json;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 using UmbracoPrism.ProcessManager.Services;
 
 namespace UmbracoPrism.ProcessManager.Api;

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Infrastructure.Persistence;
 using UmbracoPrism.Core.Persistence;
 using UmbracoPrism.ProcessManager.Abstractions;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.Services.ServiceDesign;
 

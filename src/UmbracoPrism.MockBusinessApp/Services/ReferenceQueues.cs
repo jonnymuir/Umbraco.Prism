@@ -1,5 +1,5 @@
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign.Components;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign.Components;
 using UmbracoPrism.ProcessManager.Abstractions;
 
 namespace UmbracoPrism.MockBusinessApp.Services;
@@ -36,7 +36,7 @@ public static class ReferenceQueues
     /// Declares both queues' render capabilities as an explicit contract, not a guess: web-user
     /// is served by UmbracoPrism.TestSite (a different process entirely), but since Prism's
     /// component catalog is a closed, compile-time-fixed set declared on PrismComponent in
-    /// UmbracoPrism.Shared — a package both TestSite and MockBusinessApp already reference —
+    /// Wayfinder — a package both TestSite and MockBusinessApp already reference —
     /// "what a stock Prism-Core web host renders" is provable locally via
     /// PrismComponentTypeCatalog, not something that requires calling back into TestSite's
     /// process. business-user is MockBusinessApp's own contract about itself, since it owns and

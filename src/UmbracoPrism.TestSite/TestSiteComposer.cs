@@ -6,7 +6,7 @@ using Umbraco.Cms.Core.Notifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.Shared.Services.Sanitization;
+using Wayfinder.Services.Sanitization;
 using UmbracoPrism.TestSite.BackgroundServices;
 using UmbracoPrism.TestSite.Services;
 using UmbracoPrism.ProcessManager.Abstractions;

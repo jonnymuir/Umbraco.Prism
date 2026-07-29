@@ -1,5 +1,5 @@
 using Umbraco.Cms.Core.Models.PublishedContent;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.Models;
 

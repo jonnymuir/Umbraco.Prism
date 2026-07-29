@@ -1,8 +1,8 @@
 using System.ComponentModel;
 using System.Text.Json;
 using ModelContextProtocol.Server;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Services.Calculations;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Services.Calculations;
 using UmbracoPrism.ProcessManager.Abstractions;
 using UmbracoPrism.ProcessManager.Services;
 

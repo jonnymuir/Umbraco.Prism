@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Web.Common.Authorization;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign.Components;
+using Wayfinder.Models.ServiceDesign.Components;
 using UmbracoPrism.ProcessManager.Abstractions;
 using UmbracoPrism.ProcessManager.Extensions;
 using UmbracoPrism.ProcessManager.Mcp;

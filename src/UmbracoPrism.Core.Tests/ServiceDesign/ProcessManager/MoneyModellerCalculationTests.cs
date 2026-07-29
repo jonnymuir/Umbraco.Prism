@@ -1,9 +1,9 @@
 using System.Text.Json;
 using FluentAssertions;
 using UmbracoPrism.MockBusinessApp.Services.MoneyModeller;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign.Calculations;
-using UmbracoPrism.Shared.Services.Calculations;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign.Calculations;
+using Wayfinder.Services.Calculations;
 // The maths under test is the declarative block in money-modeller.json; the scope is
 // built exactly as the engine builds it (definition input types + service inputs).
 

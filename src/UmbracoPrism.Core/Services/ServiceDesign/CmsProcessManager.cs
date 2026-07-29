@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Services.Sanitization;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Services.Sanitization;
 using UmbracoPrism.ProcessManager.Abstractions;
 using UmbracoPrism.ProcessManager.Models;
 using UmbracoPrism.ProcessManager.Services;

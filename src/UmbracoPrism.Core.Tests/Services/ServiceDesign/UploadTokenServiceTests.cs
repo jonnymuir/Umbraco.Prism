@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Services;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.Tests.Services.Workflow;
 

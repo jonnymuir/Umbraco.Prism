@@ -6,7 +6,7 @@ using Moq;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.Shared.Services.Sanitization;
+using Wayfinder.Services.Sanitization;
 using UmbracoPrism.ProcessManager.Abstractions;
 using UmbracoPrism.ProcessManager.Stores;
 
@@ -82,7 +82,7 @@ public class InProcessCmsProcessManagerClientTests
 
     private sealed class EmptyDefinitionStore : IServiceBlueprintStore
     {
-        public IReadOnlyDictionary<string, UmbracoPrism.Shared.Models.ServiceDesign.ServiceBlueprint> LoadDefinitions(ILogger logger) =>
-            new Dictionary<string, UmbracoPrism.Shared.Models.ServiceDesign.ServiceBlueprint>();
+        public IReadOnlyDictionary<string, Wayfinder.Models.ServiceDesign.ServiceBlueprint> LoadDefinitions(ILogger logger) =>
+            new Dictionary<string, Wayfinder.Models.ServiceDesign.ServiceBlueprint>();
     }
 }

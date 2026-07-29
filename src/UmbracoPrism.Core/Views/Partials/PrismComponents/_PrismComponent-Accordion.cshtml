@@ -1,5 +1,5 @@
 @model UmbracoPrism.Core.Models.ServiceDesign.PrismComponentContext
-@inject UmbracoPrism.Shared.Services.Sanitization.IServiceContentSanitizer Sanitizer
+@inject Wayfinder.Services.Sanitization.IServiceContentSanitizer Sanitizer
 @{
     var accordionId = $"accordion-{Guid.NewGuid():N}";
     var accordionSections = Model.Component.AccordionSections;

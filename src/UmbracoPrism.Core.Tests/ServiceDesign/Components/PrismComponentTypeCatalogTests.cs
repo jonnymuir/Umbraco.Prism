@@ -1,5 +1,5 @@
 using FluentAssertions;
-using UmbracoPrism.Shared.Models.ServiceDesign.Components;
+using Wayfinder.Models.ServiceDesign.Components;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Components;
 

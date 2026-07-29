@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Services.Calculations;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Services.Calculations;
 using UmbracoPrism.ProcessManager.Stores;
 
 namespace UmbracoPrism.ProcessManager.Services;

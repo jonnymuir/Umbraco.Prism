@@ -8,7 +8,7 @@ using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.Controllers;
 

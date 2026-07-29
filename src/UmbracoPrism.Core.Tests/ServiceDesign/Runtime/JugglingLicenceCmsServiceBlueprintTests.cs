@@ -1,7 +1,7 @@
 using System.Text.Json;
 using FluentAssertions;
 using Moq;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 using UmbracoPrism.ProcessManager.Abstractions;
 using UmbracoPrism.ProcessManager.Services;
 

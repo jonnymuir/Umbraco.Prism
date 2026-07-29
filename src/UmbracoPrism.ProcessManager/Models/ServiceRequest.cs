@@ -1,4 +1,4 @@
-using UmbracoPrism.Shared.Services.Calculations;
+using Wayfinder.Services.Calculations;
 
 namespace UmbracoPrism.ProcessManager.Models;
 

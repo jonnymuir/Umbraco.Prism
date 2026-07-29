@@ -1,9 +1,9 @@
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Extensions;
-using UmbracoPrism.Shared.Models.ServiceDesign.Components;
-using UmbracoPrism.Shared.Services.Calculations;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Extensions;
+using Wayfinder.Models.ServiceDesign.Components;
+using Wayfinder.Services.Calculations;
 using UmbracoPrism.ProcessManager.Abstractions;
 
 namespace UmbracoPrism.ProcessManager.Services;
