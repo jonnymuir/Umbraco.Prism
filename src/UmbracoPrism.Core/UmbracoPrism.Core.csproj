@@ -43,9 +43,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../Wayfinder/Wayfinder.csproj" />
-    <ProjectReference Include="..\UmbracoPrism.ServiceBlueprintEditor\UmbracoPrism.ServiceBlueprintEditor.csproj" />
-    <ProjectReference Include="..\UmbracoPrism.ProcessManager\UmbracoPrism.ProcessManager.csproj" />
-    <ProjectReference Include="..\UmbracoPrism.ProcessManager.Mcp\UmbracoPrism.ProcessManager.Mcp.csproj" />
+    <ProjectReference Include="..\Wayfinder.Editor\Wayfinder.Editor.csproj" />
+    <ProjectReference Include="..\Wayfinder.Engine\Wayfinder.Engine.csproj" />
+    <ProjectReference Include="..\Wayfinder.Engine.Mcp\Wayfinder.Engine.Mcp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -14,10 +14,10 @@ Solo developer project. Work directly on `main` for simple fixes; use feature br
 |---|---|
 | `UmbracoPrism.Core` | The publishable Umbraco package — controllers, middleware, auth, services, tag helpers, views |
 | `UmbracoPrism.Shared` | Shared models used by both Core and demo apps — `ServiceBlueprint`, `ServiceRequestResponseEnvelope`, etc. |
-| `UmbracoPrism.ProcessManager` | Service blueprint state-machine engine — queue routing, gateway evaluation, request persistence |
-| `UmbracoPrism.ProcessManager.Api` | REST toolkit (`MapPrismServiceBlueprintAuthoringApi()`) exposing service blueprint authoring — list/read/validate/save/simulate — over HTTP for any host |
-| `UmbracoPrism.ProcessManager.Mcp` | MCP-over-HTTP toolkit (`MapPrismServiceBlueprintAuthoringMcp()`) — the same authoring surface as MCP tools for AI agents |
-| `UmbracoPrism.ServiceBlueprintEditor` | Razor Class Library hosting the compiled service blueprint editor web component as a static web asset |
+| `Wayfinder.Engine` | Service blueprint state-machine engine — queue routing, gateway evaluation, request persistence |
+| `Wayfinder.Engine.Api` | REST toolkit (`MapPrismServiceBlueprintAuthoringApi()`) exposing service blueprint authoring — list/read/validate/save/simulate — over HTTP for any host |
+| `Wayfinder.Engine.Mcp` | MCP-over-HTTP toolkit (`MapPrismServiceBlueprintAuthoringMcp()`) — the same authoring surface as MCP tools for AI agents |
+| `Wayfinder.Editor` | Razor Class Library hosting the compiled service blueprint editor web component as a static web asset |
 | `UmbracoPrism.Client` | TypeScript/Lit web components — service blueprint editor, backoffice extensions, mobile shell |
 | `UmbracoPrism.MockBusinessApp` | Demo business API — hosts `IProcessManager`, loads service blueprint seed files, serves `/mockapp/` endpoints |
 | `UmbracoPrism.TestSite` | Demo Umbraco site wired to Prism Core and MockBusinessApp |
@@ -170,8 +170,8 @@ components.
 Service blueprint authoring is exposed to AI agents (Claude Code or any MCP client) the same way
 the editor is exposed to humans: as a toolkit a host app wires into its own pipeline, not
 as AI built into Prism itself. `ServiceBlueprintAuthoringService`/`IServiceBlueprintSourceStore`
-(`UmbracoPrism.ProcessManager`) are the reusable core; `UmbracoPrism.ProcessManager.Api`
-(`MapPrismServiceBlueprintAuthoringApi()`) and `UmbracoPrism.ProcessManager.Mcp`
+(`Wayfinder.Engine`) are the reusable core; `Wayfinder.Engine.Api`
+(`MapPrismServiceBlueprintAuthoringApi()`) and `Wayfinder.Engine.Mcp`
 (`MapPrismServiceBlueprintAuthoringMcp()`) map the same list/read/validate/save/simulate
 operations as REST and MCP-over-HTTP respectively — both call the service in-process, so
 a save reaches a host's live engine immediately. `MockBusinessApp` is the reference

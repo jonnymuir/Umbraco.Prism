@@ -12,11 +12,11 @@ using Wayfinder.Extensions;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Services.Sanitization;
-using UmbracoPrism.ProcessManager.Abstractions;
-using UmbracoPrism.ProcessManager.Api;
-using UmbracoPrism.ProcessManager.Extensions;
-using UmbracoPrism.ProcessManager.Mcp;
-using UmbracoPrism.ProcessManager.Services;
+using Wayfinder.Engine.Abstractions;
+using Wayfinder.Engine.Api;
+using Wayfinder.Engine.Extensions;
+using Wayfinder.Engine.Mcp;
+using Wayfinder.Engine.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -59,7 +59,7 @@ var app = builder.Build();
 // Serve the Vite-built service-blueprint-editor.html (and its JS/CSS assets) from the ServiceBlueprintEditor wwwroot/dist
 // output directory. This lets the walkthrough spec navigate to /service-blueprint-editor.html on this host.
 var distPath = Path.GetFullPath(
-    Path.Combine(builder.Environment.ContentRootPath, "..", "UmbracoPrism.ServiceBlueprintEditor", "wwwroot", "dist"));
+    Path.Combine(builder.Environment.ContentRootPath, "..", "Wayfinder.Editor", "wwwroot", "dist"));
 if (Directory.Exists(distPath))
 {
     app.UseStaticFiles(new StaticFileOptions

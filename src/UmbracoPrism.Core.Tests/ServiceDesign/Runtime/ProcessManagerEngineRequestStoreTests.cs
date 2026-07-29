@@ -5,9 +5,9 @@ using Moq;
 using Wayfinder.Builders;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Services.Sanitization;
-using UmbracoPrism.ProcessManager.Abstractions;
-using UmbracoPrism.ProcessManager.Models;
-using UmbracoPrism.ProcessManager.Services;
+using Wayfinder.Engine.Abstractions;
+using Wayfinder.Engine.Models;
+using Wayfinder.Engine.Services;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 

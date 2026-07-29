@@ -4,7 +4,7 @@ using Umbraco.Cms.Infrastructure.Persistence;
 using UmbracoPrism.Core.Persistence;
 using UmbracoPrism.Core.Services.ServiceDesign;
 using Wayfinder.Models.ServiceDesign;
-using UmbracoPrism.ProcessManager.Abstractions;
+using Wayfinder.Engine.Abstractions;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 

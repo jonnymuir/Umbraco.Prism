@@ -6,7 +6,7 @@ namespace UmbracoPrism.Core.Persistence;
 /// <summary>
 /// Database schema for the prismCmsServiceRequest table — durable (survives an app-pool
 /// recycle), TTL-bound (expires with the visitor's session) storage for CMS service request
-/// state, backing <see cref="UmbracoPrism.ProcessManager.Abstractions.IServiceRequestStore"/>.
+/// state, backing <see cref="Wayfinder.Engine.Abstractions.IServiceRequestStore"/>.
 /// </summary>
 [TableName("prismCmsServiceRequest")]
 [PrimaryKey("Id", AutoIncrement = true)]

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Wayfinder.Models.ServiceDesign;
-using UmbracoPrism.ProcessManager.Abstractions;
+using Wayfinder.Engine.Abstractions;
 
 namespace UmbracoPrism.MockBusinessApp.Services;
 

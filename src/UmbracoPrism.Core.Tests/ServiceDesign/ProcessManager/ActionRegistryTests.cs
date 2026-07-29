@@ -10,7 +10,7 @@ using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Services.Sanitization;
 using UmbracoPrism.MockBusinessApp.Services.Actions.ActionCatalog;
-using UmbracoPrism.ProcessManager.Models;
+using Wayfinder.Engine.Models;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.ProcessManager;
 

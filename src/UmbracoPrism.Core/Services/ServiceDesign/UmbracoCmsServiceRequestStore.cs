@@ -1,8 +1,8 @@
 using System.Text.Json;
 using Umbraco.Cms.Infrastructure.Persistence;
 using UmbracoPrism.Core.Persistence;
-using UmbracoPrism.ProcessManager.Abstractions;
-using UmbracoPrism.ProcessManager.Models;
+using Wayfinder.Engine.Abstractions;
+using Wayfinder.Engine.Models;
 
 namespace UmbracoPrism.Core.Services.ServiceDesign;
 

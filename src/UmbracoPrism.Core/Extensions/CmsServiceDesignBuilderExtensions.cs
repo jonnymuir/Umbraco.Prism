@@ -5,9 +5,9 @@ using Umbraco.Cms.Web.Common.Authorization;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.Services.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
-using UmbracoPrism.ProcessManager.Abstractions;
-using UmbracoPrism.ProcessManager.Extensions;
-using UmbracoPrism.ProcessManager.Mcp;
+using Wayfinder.Engine.Abstractions;
+using Wayfinder.Engine.Extensions;
+using Wayfinder.Engine.Mcp;
 
 namespace UmbracoPrism.Core.Extensions;
 

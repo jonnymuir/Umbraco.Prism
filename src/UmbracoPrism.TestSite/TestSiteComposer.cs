@@ -9,7 +9,7 @@ using UmbracoPrism.Core.Services.ServiceDesign;
 using Wayfinder.Services.Sanitization;
 using UmbracoPrism.TestSite.BackgroundServices;
 using UmbracoPrism.TestSite.Services;
-using UmbracoPrism.ProcessManager.Abstractions;
+using Wayfinder.Engine.Abstractions;
 
 namespace UmbracoPrism.TestSite;
 

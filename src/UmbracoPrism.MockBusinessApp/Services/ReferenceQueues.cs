@@ -1,6 +1,6 @@
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
-using UmbracoPrism.ProcessManager.Abstractions;
+using Wayfinder.Engine.Abstractions;
 
 namespace UmbracoPrism.MockBusinessApp.Services;
 

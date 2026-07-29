@@ -18,8 +18,8 @@ Prism splits cleanly into three projects:
 | Project | What it does | Where it runs |
 |---|---|---|
 | `UmbracoPrism` (`UmbracoPrism.Core`) | Umbraco integration: route-hijacking controller, page model, member middleware, sanitiser, view helpers | Inside your Umbraco app |
-| `UmbracoPrism.ServiceBlueprintEditor` | Authoring API (`/api/service-blueprint-authoring/*`) and the web-component bundle that authors load | Authoring API on the server; web components in a separate business app |
-| `UmbracoPrism.ProcessManager` | The engine that advances cases through stages at runtime | Inside your business app (or your Umbraco app, if you co-host them) |
+| `Wayfinder.Editor` | Authoring API (`/api/service-blueprint-authoring/*`) and the web-component bundle that authors load | Authoring API on the server; web components in a separate business app |
+| `Wayfinder.Engine` | The engine that advances cases through stages at runtime | Inside your business app (or your Umbraco app, if you co-host them) |
 
 **The editor is not mounted in the Umbraco backoffice.** Squad ships it as web components that a separate business app embeds. In this repo, `MockBusinessApp` is the reference authoring host, and `TestSite` is the reference Umbraco runtime. This boundary is deliberate: the Umbraco backoffice stays a content tool; the service blueprint editor stays a developer/operator tool in your app.
 
@@ -30,8 +30,8 @@ Prism splits cleanly into three projects:
 Add the Prism packages to your Umbraco project:
 
 - `UmbracoPrism` — published to NuGet today; covers the Core integration.
-- `UmbracoPrism.ServiceBlueprintEditor` — the authoring API and web-component bundle. Reference the project in-repo, or the package when published.
-- `UmbracoPrism.ProcessManager` — the engine. Reference the project in-repo, or the package when published.
+- `Wayfinder.Editor` — the authoring API and web-component bundle. Reference the project in-repo, or the package when published.
+- `Wayfinder.Engine` — the engine. Reference the project in-repo, or the package when published.
 
 If you only need the **read-only viewer** for a published service blueprint on a public page, you can stop at `UmbracoPrism`. The viewer is a single web component (`<prism-service-blueprint-graph read-only>`) — see [Composing the Service Blueprint Editor](../guides/service-blueprint-editor-composition.md#read-only-public-viewer).
 
@@ -43,8 +43,8 @@ In `Program.cs`, register Prism alongside Umbraco. The editor's authoring API is
 
 ```csharp
 using UmbracoPrism.Core.Extensions;
-using UmbracoPrism.ServiceBlueprintEditor.Extensions;
-using UmbracoPrism.ProcessManager.Extensions;
+using Wayfinder.Editor.Extensions;
+using Wayfinder.Engine.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 

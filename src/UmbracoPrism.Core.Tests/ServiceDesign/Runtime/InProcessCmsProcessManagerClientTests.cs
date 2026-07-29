@@ -7,8 +7,8 @@ using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.Services.ServiceDesign;
 using Wayfinder.Services.Sanitization;
-using UmbracoPrism.ProcessManager.Abstractions;
-using UmbracoPrism.ProcessManager.Stores;
+using Wayfinder.Engine.Abstractions;
+using Wayfinder.Engine.Stores;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 

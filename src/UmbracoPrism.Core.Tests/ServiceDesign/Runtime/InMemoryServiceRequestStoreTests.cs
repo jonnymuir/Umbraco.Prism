@@ -1,6 +1,6 @@
 using FluentAssertions;
-using UmbracoPrism.ProcessManager.Models;
-using UmbracoPrism.ProcessManager.Stores;
+using Wayfinder.Engine.Models;
+using Wayfinder.Engine.Stores;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 

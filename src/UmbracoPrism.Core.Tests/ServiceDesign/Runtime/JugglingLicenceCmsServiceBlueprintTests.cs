@@ -2,8 +2,8 @@ using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using Wayfinder.Models.ServiceDesign;
-using UmbracoPrism.ProcessManager.Abstractions;
-using UmbracoPrism.ProcessManager.Services;
+using Wayfinder.Engine.Abstractions;
+using Wayfinder.Engine.Services;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 

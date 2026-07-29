@@ -8,7 +8,7 @@ using Umbraco.Cms.Web.Common.Controllers;
 using UmbracoPrism.Core.Models.ServiceDesign;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.ProcessManager.Abstractions;
+using Wayfinder.Engine.Abstractions;
 
 namespace UmbracoPrism.Core.Controllers;
 

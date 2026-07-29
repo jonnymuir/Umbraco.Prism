@@ -237,7 +237,7 @@ Different queues in the same service blueprint can be served by entirely differe
 applications with different rendering capability — a web front end with a full
 component catalog, versus an admin surface that only supports a generic
 "advance" action with no rendering pipeline at all. A host can optionally
-register an `IQueueCapabilitiesProvider` (`UmbracoPrism.ProcessManager.Abstractions`)
+register an `IQueueCapabilitiesProvider` (`Wayfinder.Engine.Abstractions`)
 declaring, per queue key, which component `"type"` discriminators it actually
 renders. When registered, `validate_service_blueprint`/`save_service_blueprint` check every
 component in every stage against its queue's declared capability list and

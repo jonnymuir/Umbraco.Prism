@@ -17,9 +17,9 @@ Three layers, mirroring how the service blueprint engine itself is already layer
 
 | Layer | Package | What it does |
 |---|---|---|
-| Reusable authoring logic | `UmbracoPrism.ProcessManager` | `ServiceBlueprintAuthoringService` — list/read/validate/save/simulate against an `IServiceBlueprintSourceStore` you implement. `ServiceBlueprintSimulationRunner` dry-runs a definition through the real engine with zero persistence. |
-| REST surface | `UmbracoPrism.ProcessManager.Api` | `MapPrismServiceBlueprintAuthoringApi()` — one extension method, maps the same operations as HTTP endpoints. |
-| MCP surface | `UmbracoPrism.ProcessManager.Mcp` | `MapPrismServiceBlueprintAuthoringMcp()` — one extension method, maps the same operations as MCP tools over HTTP, so Claude Code (or any MCP client) can call them directly. |
+| Reusable authoring logic | `Wayfinder.Engine` | `ServiceBlueprintAuthoringService` — list/read/validate/save/simulate against an `IServiceBlueprintSourceStore` you implement. `ServiceBlueprintSimulationRunner` dry-runs a definition through the real engine with zero persistence. |
+| REST surface | `Wayfinder.Engine.Api` | `MapPrismServiceBlueprintAuthoringApi()` — one extension method, maps the same operations as HTTP endpoints. |
+| MCP surface | `Wayfinder.Engine.Mcp` | `MapPrismServiceBlueprintAuthoringMcp()` — one extension method, maps the same operations as MCP tools over HTTP, so Claude Code (or any MCP client) can call them directly. |
 
 Both surfaces call the same `ServiceBlueprintAuthoringService`, in-process. That matters: an MCP
 server can't run *inside* an externally-spawned stdio process and still see your app's
@@ -43,7 +43,7 @@ public interface IServiceBlueprintSourceStore
 }
 ```
 
-Two ready-made implementations already exist in `UmbracoPrism.ProcessManager.Stores`:
+Two ready-made implementations already exist in `Wayfinder.Engine.Stores`:
 `FilesystemServiceBlueprintSourceStore` (one JSON file per service blueprint) and, in
 `MockBusinessApp`, `InMemoryRuntimePublishedServiceBlueprintStore` — the pattern to copy if you
 want a save to update your live runtime engine immediately (it calls
@@ -232,8 +232,8 @@ in it — the MCP tools stay reachable over HTTP regardless of working directory
 2. **Add the two `Map...` calls** to your `Program.cs`, with whatever `.RequireAuthorization()` policy you need.
 3. **Read the reference implementation** at `src/UmbracoPrism.MockBusinessApp/Program.cs`.
 4. **Read the toolkit projects' own READMEs** for the full wire contract:
-   [`UmbracoPrism.ProcessManager.Api`](../../src/UmbracoPrism.ProcessManager.Api/README.md),
-   [`UmbracoPrism.ProcessManager.Mcp`](../../src/UmbracoPrism.ProcessManager.Mcp/README.md).
+   [`Wayfinder.Engine.Api`](../../src/Wayfinder.Engine.Api/README.md),
+   [`Wayfinder.Engine.Mcp`](../../src/Wayfinder.Engine.Mcp/README.md).
 
 ---
 
