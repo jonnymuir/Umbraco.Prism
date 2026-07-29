@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 
-namespace UmbracoPrism.Core.TagHelpers;
+namespace Wayfinder.Umbraco.TagHelpers;
 
 [HtmlTargetElement("prism-stage-form")]
 public class PrismStageFormTagHelper(IAntiforgery antiforgery) : TagHelper
