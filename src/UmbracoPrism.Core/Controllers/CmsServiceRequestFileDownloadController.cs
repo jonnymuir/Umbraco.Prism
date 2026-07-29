@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using UmbracoPrism.Core.Services.ServiceDesign;
+using Wayfinder.Umbraco.Services;
 
 namespace UmbracoPrism.Core.Controllers;
 
@@ -13,12 +14,12 @@ namespace UmbracoPrism.Core.Controllers;
 /// <see cref="CmsServiceRequestPageController"/> itself (CMS Workflow journeys are anonymous-first) —
 /// security comes from resolving the requester's identity the same way
 /// (<see cref="CmsServiceRequestVisitorIdentityResolver"/>) and requiring it to own the instance
-/// (<see cref="CmsProcessManager.TryGetOwnedFileReference"/>), not from a login challenge.
+/// (<see cref="UmbracoProcessManagerEngine.TryGetOwnedFileReference"/>), not from a login challenge.
 /// </remarks>
 [ApiController]
 [Route("prism/cms-workflow/files")]
 public class CmsServiceRequestFileDownloadController(
-    CmsProcessManager engine,
+    UmbracoProcessManagerEngine engine,
     CmsServiceRequestVisitorIdentityResolver identityResolver,
     IServiceRequestFileStorage fileStorage) : ControllerBase
 {

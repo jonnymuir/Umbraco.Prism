@@ -1,0 +1,14 @@
+@model Wayfinder.Umbraco.Models.PrismComponentContext
+@{
+    var level = Model.Component.Level ?? 2;
+    var size = level switch
+    {
+        1 => "xl",
+        2 => "l",
+        3 => "m",
+        _ => "s"
+    };
+    var tag = $"h{Math.Clamp(level, 1, 6)}";
+}
+
+<@tag class="govuk-heading-@size">@Model.Component.Content</@tag>

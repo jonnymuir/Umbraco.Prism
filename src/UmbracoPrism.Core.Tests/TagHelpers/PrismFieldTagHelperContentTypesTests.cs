@@ -8,9 +8,9 @@ using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Moq;
-using UmbracoPrism.Core.Models.ServiceDesign;
-using UmbracoPrism.Core.Services;
-using UmbracoPrism.Core.TagHelpers;
+using Wayfinder.Umbraco.Models;
+using Wayfinder.Umbraco.Services;
+using Wayfinder.Umbraco.TagHelpers;
 using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.Tests.TagHelpers;

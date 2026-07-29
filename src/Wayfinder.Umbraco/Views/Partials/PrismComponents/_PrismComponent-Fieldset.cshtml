@@ -1,0 +1,35 @@
+@model Wayfinder.Umbraco.Models.PrismComponentContext
+@{
+    var legend = Model.Component.Legend;
+    var legendSize = Model.Component.LegendSize ?? "m";
+    var fields = Model.Component.Fields;
+    var useSingleQuestion = string.IsNullOrEmpty(legend) && fields.Count == 1;
+}
+
+@if (useSingleQuestion)
+{
+    @* Single-question page pattern — no fieldset wrapper *@
+    @foreach (var field in fields)
+    {
+        <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" nonce="@Model.Nonce" blueprint-key="@Model.BlueprintKey" />
+    }
+}
+else if (!string.IsNullOrEmpty(legend))
+{
+    <fieldset class="govuk-fieldset">
+        <legend class="govuk-fieldset__legend govuk-fieldset__legend--@legendSize">
+            @legend
+        </legend>
+        @foreach (var field in fields)
+        {
+            <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" nonce="@Model.Nonce" blueprint-key="@Model.BlueprintKey" />
+        }
+    </fieldset>
+}
+else
+{
+    @foreach (var field in fields)
+    {
+        <prism-field field="@field" errors="@Model.Errors" values="@Model.Values" instance-id="@Model.InstanceId" nonce="@Model.Nonce" blueprint-key="@Model.BlueprintKey" />
+    }
+}

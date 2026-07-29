@@ -1,5 +1,5 @@
 using FluentAssertions;
-using UmbracoPrism.Core.Services.Sanitization;
+using Wayfinder.Umbraco.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Tests.Services.Sanitization;
 

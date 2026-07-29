@@ -2,8 +2,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
 using Moq;
-using UmbracoPrism.Core.Configuration;
-using UmbracoPrism.Core.Services;
+using Wayfinder.Umbraco.Configuration;
+using Wayfinder.Umbraco.Services;
 using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.Tests.Services.Workflow;

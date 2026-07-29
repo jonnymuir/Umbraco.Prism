@@ -5,10 +5,9 @@ using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
-using UmbracoPrism.Core.Models.ServiceDesign;
-using UmbracoPrism.Core.Services;
-using UmbracoPrism.Core.Services.ServiceDesign;
-using Wayfinder.Engine.Abstractions;
+using Wayfinder.Umbraco.Controllers;
+using Wayfinder.Umbraco.Models;
+using Wayfinder.Umbraco.Services;
 
 namespace UmbracoPrism.Core.Controllers;
 
@@ -18,7 +17,7 @@ namespace UmbracoPrism.Core.Controllers;
 /// business-workflow demo pattern (which needs a per-host subclass, e.g. TestSite's
 /// <c>WorkflowPageController</c>, for claims-based field pre-population), a CMS Workflow
 /// definition drives its own service-sourced field defaults declaratively (see
-/// <see cref="CmsProcessManager"/>'s <c>serviceInputsResolver</c>), so no per-host override is
+/// <see cref="Wayfinder.Umbraco.Services.UmbracoProcessManagerEngine"/>'s <c>serviceInputsResolver</c>), so no per-host override is
 /// needed here — a host only has to create a <c>cmsServiceRequestPage</c> content node and set its
 /// <c>blueprintKey</c> property.
 /// </summary>
@@ -26,7 +25,7 @@ namespace UmbracoPrism.Core.Controllers;
 /// Anonymous-first: <see cref="RequiresAuthentication"/> is overridden to <see langword="false"/>
 /// so an unauthenticated visitor is never redirected to login — CMS Workflow journeys are public
 /// by default (a GDS-style "apply for..." flow), while still resolving richer data for a
-/// logged-in Prism Member via <see cref="InProcessCmsProcessManagerClient"/>'s identity resolution.
+/// logged-in Prism Member via <see cref="Services.ServiceDesign.InProcessCmsProcessManagerClient"/>'s identity resolution.
 /// </remarks>
 public class CmsServiceRequestPageController(
     ILogger<RenderController> logger,
@@ -39,7 +38,7 @@ public class CmsServiceRequestPageController(
     IServiceRequestFieldValidator fieldValidator,
     IServiceRequestFileStorage fileStorage,
     IUploadTokenService uploadTokenService)
-    : PrismServiceRequestPageController<PrismServiceRequestViewModel>(
+    : ServiceRequestPageController<PrismServiceRequestViewModel>(
         logger,
         compositeViewEngine,
         umbracoContextAccessor,

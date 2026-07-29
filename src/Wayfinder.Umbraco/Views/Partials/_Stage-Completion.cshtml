@@ -1,0 +1,41 @@
+@model Wayfinder.Umbraco.Models.PrismServiceRequestViewModel
+
+<div class="govuk-grid-row">
+    <div class="govuk-grid-column-two-thirds">
+
+        @foreach (var component in Model.Components)
+        {
+            <prism-component component="@component"
+                             errors="@Model.FieldErrors"
+                             values="@Model.FormValues"
+                             return-url="@Model.ReturnUrl"
+                             instance-id="@Model.InstanceId"
+                             state-version="@Model.StateVersion"
+                             blueprint-key="@Model.BlueprintKey"
+                             nonce="@Model.Nonce" />
+        }
+
+        @{
+            // A Confirmation state has no outgoing routes, so under instancePolicy "single" this
+            // same instance is what every future visit resumes (deliberately — see
+            // WorkflowRuntimeEngine.GetCurrent's "single" fallthrough, so a visitor who already
+            // submitted keeps seeing their real confirmation, not a silently-reset blank form).
+            // "Start again" is the explicit, visitor-initiated way past that: it reuses the
+            // engine's existing action=start-new handling (unconditional new instance, no schema
+            // or engine change needed) via a plain GET link back to this same page.
+            var startAgainUrl = $"{Model.ReturnUrl}?action=start-new";
+        }
+        <div class="govuk-button-group">
+            @if (Model.AvailableActions.Any())
+            {
+                @foreach (var action in Model.AvailableActions)
+                {
+                    <a href="/" class="govuk-button govuk-button--secondary" data-module="govuk-button">@action.Label</a>
+                }
+            }
+            <a href="@startAgainUrl" class="govuk-button govuk-button--secondary" data-module="govuk-button" data-prism-start-again>Start again</a>
+            <a href="/" class="govuk-link">Return to home</a>
+        </div>
+
+    </div>
+</div>

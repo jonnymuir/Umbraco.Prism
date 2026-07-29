@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 using System.Text.Json;
-using UmbracoPrism.Core.Models.ServiceDesign;
+using Wayfinder.Umbraco.Models;
 using UmbracoPrism.MockBusinessApp.Services;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;

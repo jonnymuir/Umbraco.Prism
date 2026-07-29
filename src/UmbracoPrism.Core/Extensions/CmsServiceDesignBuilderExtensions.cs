@@ -2,17 +2,21 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Web.Common.Authorization;
+using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.Services.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Engine.Abstractions;
-using Wayfinder.Engine.Extensions;
 using Wayfinder.Engine.Mcp;
+using Wayfinder.Umbraco.Extensions;
+using Wayfinder.Umbraco.Services;
 
 namespace UmbracoPrism.Core.Extensions;
 
 /// <summary>
-/// Registers Prism CMS Service Blueprint — the Umbraco-only service blueprint implementation. Unlike
+/// Registers Prism CMS Service Blueprint — Prism's own single-actor, backoffice-hosted product
+/// feature layered on top of Wayfinder.Umbraco's generic Umbraco-hosted service design building
+/// blocks (<see cref="WayfinderUmbracoServiceCollectionExtensions.AddWayfinderUmbraco"/>). Unlike
 /// <see cref="ServiceDesignBuilderExtensions.AddPrismProcessManager"/> (opt-in, since talking to a
 /// remote Business App is host-specific policy), this is a first-class, always-on Core package
 /// feature: a host gets a working backoffice-authored, uSync-portable CMS service blueprint surface
@@ -22,20 +26,7 @@ public static class CmsServiceDesignBuilderExtensions
 {
     public static IServiceCollection AddPrismCmsServiceBlueprint(this IServiceCollection services)
     {
-        // Boot-time definition loader (CmsProcessManager's constructor-time seed) — deliberately
-        // has no dependency on the engine itself; see UmbracoCmsServiceBlueprintBootStore's
-        // own remarks for why a combined store would create a DI cycle.
-        services.AddSingleton<IServiceBlueprintStore, UmbracoCmsServiceBlueprintBootStore>();
-
-        // Durable, session-scoped instance storage (the toolkit's IServiceRequestStore seam).
-        services.AddSingleton<IServiceRequestStore, UmbracoCmsServiceRequestStore>();
-
-        services.AddSingleton<CmsProcessManager>();
-        services.AddSingleton<IProcessManager>(sp => sp.GetRequiredService<CmsProcessManager>());
-
-        // Authoring-side store — a save reaches the live engine immediately (see
-        // UmbracoCmsServiceBlueprintStore's own remarks).
-        services.AddSingleton<IServiceBlueprintSourceStore, UmbracoCmsServiceBlueprintStore>();
+        services.AddWayfinderUmbraco();
 
         // CMS-Service-Blueprint-specific authoring constraint (single queue only) — the shared
         // ServiceBlueprintAuthoringService runs every registered IServiceBlueprintStructuralValidator alongside
@@ -52,8 +43,6 @@ public static class CmsServiceDesignBuilderExtensions
             {
                 [CmsQueue.Key] = PrismComponentTypeCatalog.AllDiscriminators
             }));
-
-        services.AddPrismServiceBlueprintAuthoring();
 
         // AI-agent authoring surface for CMS Service Blueprint — mapped and gated in the host's
         // Program.cs (see MapPrismCmsServiceBlueprintAuthoringMcp()), same live ServiceBlueprintAuthoringService
@@ -82,15 +71,9 @@ public static class CmsServiceDesignBuilderExtensions
         // anyway), matching BusinessAppProcessManagerClient's own lifetime for the same reason.
         services.AddKeyedScoped<IBusinessAppProcessManagerClient, InProcessCmsProcessManagerClient>("cms");
 
-        // File-upload storage for the "file-upload" component type — disk-backed by default;
-        // a host can replace this registration with its own (blob storage, etc.).
-        services.AddSingleton<IServiceRequestFileStorage, DiskServiceRequestFileStorage>();
-
-        // Binds an async-uploaded file to the opaque token the client carries until the stage's
-        // real POST — same IDistributedCache mechanism as the nonce service.
-        services.AddSingleton<IUploadTokenService, UploadTokenService>();
-
-        services.AddHostedService<PrismCmsServiceRequestSweepService>();
+        // Reattaches an anonymous visitor's in-progress instance(s) onto their identity on
+        // sign-in — see PrismOidcConfiguration's IPrismPostSignInHandler loop.
+        services.AddScoped<IPrismPostSignInHandler, CmsServiceBlueprintPostSignInHandler>();
 
         return services;
     }

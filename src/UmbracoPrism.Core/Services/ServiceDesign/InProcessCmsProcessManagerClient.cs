@@ -1,15 +1,14 @@
-using UmbracoPrism.Core.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign;
-using Wayfinder.Engine.Abstractions;
+using Wayfinder.Umbraco.Services;
 
 namespace UmbracoPrism.Core.Services.ServiceDesign;
 
 /// <summary>
 /// <see cref="IBusinessAppProcessManagerClient"/> for CMS Workflow — the seam that lets
-/// <c>PrismServiceRequestPageController{TViewModel}</c>'s entire existing
+/// <c>ServiceRequestPageController{TViewModel}</c>'s entire existing
 /// GET/POST/antiforgery/nonce/PRG stack run a CMS Workflow with zero new controller or
 /// rendering code. Where <c>BusinessAppProcessManagerClient</c> makes an HTTP call to a remote
-/// Business App, this calls <see cref="CmsProcessManager"/> directly in-process.
+/// Business App, this calls <see cref="UmbracoProcessManagerEngine"/> directly in-process.
 /// </summary>
 /// <remarks>
 /// Registered as a keyed service (key <c>"cms"</c>) so the default, unkeyed
@@ -17,7 +16,7 @@ namespace UmbracoPrism.Core.Services.ServiceDesign;
 /// page is untouched.
 /// </remarks>
 public sealed class InProcessCmsProcessManagerClient(
-    CmsProcessManager engine,
+    UmbracoProcessManagerEngine engine,
     CmsServiceRequestVisitorIdentityResolver identityResolver) : IBusinessAppProcessManagerClient
 {
     public Task<ServiceRequestResponseEnvelope> GetCurrentAsync(

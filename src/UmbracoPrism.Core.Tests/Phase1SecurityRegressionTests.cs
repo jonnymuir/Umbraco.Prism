@@ -386,9 +386,12 @@ public class Phase1SecurityRegressionTests : IDisposable
         // SECURITY: ServiceRequestPollController.Poll exposes service request state
         // (state version, step type) for any provided instanceId.
         // Without auth an unauthenticated caller could probe request existence.
-        // Fix: [Authorize(AuthenticationSchemes = "PrismMemberCookie")] on the controller class.
+        // Fix: [Authorize(Policy = WayfinderUmbracoAuthorizationPolicies.ServiceRequestPolling)] on
+        // the controller class — Prism's own composer (PrismComposer) registers that policy to
+        // require the "PrismMemberCookie" scheme.
 
-        var hasMemberCookieAuth = HasAuthorizeAttributeWithScheme<Controllers.ServiceRequestPollController>("PrismMemberCookie");
+        var hasMemberCookieAuth = HasAuthorizeAttributeWithPolicy<Wayfinder.Umbraco.Controllers.ServiceRequestPollController>(
+            Wayfinder.Umbraco.WayfinderUmbracoAuthorizationPolicies.ServiceRequestPolling);
 
         hasMemberCookieAuth.Should().BeTrue(
             "because ServiceRequestPollController.Poll returns service request state and must require member authentication");
@@ -614,6 +617,14 @@ public class Phase1SecurityRegressionTests : IDisposable
             .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true)
             .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
             .Any(a => a.AuthenticationSchemes == scheme);
+    }
+
+    private static bool HasAuthorizeAttributeWithPolicy<T>(string policy)
+    {
+        return typeof(T)
+            .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+            .Any(a => a.Policy == policy);
     }
 
     private static DownstreamDemoController BuildDownstreamDemoController(
@@ -904,7 +915,7 @@ public class Phase1SecurityRegressionTests : IDisposable
 
             var logger = new Mock<ILogger<BusinessAppProcessManager>>();
             // Real sanitizer — exercises the GDS allowlist security boundary.
-            var sanitizer = new UmbracoPrism.Core.Services.Sanitization.ServiceContentSanitizer();
+            var sanitizer = new Wayfinder.Umbraco.Services.Sanitization.ServiceContentSanitizer();
 
             var engine = new BusinessAppProcessManager(logger.Object, mockEnv.Object, sanitizer);
             var result = engine.GetCurrent("sec003-test", "tenant1", "user1");
