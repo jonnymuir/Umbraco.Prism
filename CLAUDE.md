@@ -2,7 +2,9 @@
 
 ## What this is
 
-Umbraco Prism is an Umbraco v17 package that adds multi-tenant OIDC authentication, runtime branding, a GDS-style service blueprint engine with a visual editor, and native mobile app generation. The repo is a mono-repo containing the package itself plus a full demo stack (TestSite, MockBusinessApp, Keycloak) orchestrated via .NET Aspire.
+Umbraco Prism is an Umbraco v17 package that adds multi-tenant OIDC authentication, runtime branding, and native mobile app generation. The repo is a mono-repo containing the package itself plus a full demo stack (TestSite, MockBusinessApp, Keycloak) orchestrated via .NET Aspire.
+
+The GDS-style service blueprint engine and its Umbraco-hosted implementation are being extracted as **Wayfinder**, a standalone product this repo still builds alongside Prism (same repo, separate NuGet packages, `Wayfinder.*` naming) — see the Projects table below. `UmbracoPrism.Core` no longer ships service-blueprint rendering/storage itself; it depends on `Wayfinder.Umbraco` and layers its own thin "CMS Workflow" product opinion (a single "cms-visitor" queue) on top. This is a breaking change to the published `UmbracoPrism` package's feature set — a host that used CMS Workflow now needs a `Wayfinder.Umbraco` reference too.
 
 Solo developer project. Work directly on `main` for simple fixes; use feature branches + PRs for substantive code changes.
 
@@ -12,12 +14,14 @@ Solo developer project. Work directly on `main` for simple fixes; use feature br
 
 | Project | Purpose |
 |---|---|
-| `UmbracoPrism.Core` | The publishable Umbraco package — controllers, middleware, auth, services, tag helpers, views |
-| `UmbracoPrism.Shared` | Shared models used by both Core and demo apps — `ServiceBlueprint`, `ServiceRequestResponseEnvelope`, etc. |
+| `UmbracoPrism.Core` | The publishable Umbraco package — multi-tenant OIDC, branding, mobile, controllers/middleware/services for those. Depends on `Wayfinder.Umbraco` for its "CMS Workflow" feature rather than owning service-blueprint rendering/storage itself. |
+| `UmbracoPrism.uSync` | uSync portability for Prism's own tenant configuration only (`PrismTenantHandler`/`PrismTenantSerializer`) — CMS Workflow's uSync portability moved to `Wayfinder.Umbraco`. |
+| `Wayfinder` | Wayfinder's core domain models, calculation engine, and sanitizer interface — `ServiceBlueprint`, `ServiceRequestResponseEnvelope`, etc. Zero framework dependency. |
 | `Wayfinder.Engine` | Service blueprint state-machine engine — queue routing, gateway evaluation, request persistence |
 | `Wayfinder.Engine.Api` | REST toolkit (`MapPrismServiceBlueprintAuthoringApi()`) exposing service blueprint authoring — list/read/validate/save/simulate — over HTTP for any host |
 | `Wayfinder.Engine.Mcp` | MCP-over-HTTP toolkit (`MapPrismServiceBlueprintAuthoringMcp()`) — the same authoring surface as MCP tools for AI agents |
 | `Wayfinder.Editor` | Razor Class Library hosting the compiled service blueprint editor web component as a static web asset |
+| `Wayfinder.Umbraco` | Umbraco-hosted implementation of Wayfinder — DB-backed, uSync-portable service blueprint store, the generic in-process engine, stage-rendering controllers/tag-helpers/views. No multi-tenancy or auth opinion of its own; Prism (or any host) layers that on top. |
 | `UmbracoPrism.Client` | TypeScript/Lit web components — service blueprint editor, backoffice extensions, mobile shell |
 | `UmbracoPrism.MockBusinessApp` | Demo business API — hosts `IProcessManager`, loads service blueprint seed files, serves `/mockapp/` endpoints |
 | `UmbracoPrism.TestSite` | Demo Umbraco site wired to Prism Core and MockBusinessApp |
@@ -100,7 +104,7 @@ Stage routes must always point to a gateway, never directly to another stage. `V
 
 **Response states:** `"render"` (show this step), `"defer"` (wait), `"complete"`, `"error"`.
 
-Persistence differs by authoring surface. The backoffice **CMS Service Blueprint** editor (`CmsServiceBlueprintAuthoringController`, `UmbracoPrism.Core`) is DB-backed — saves go through `UmbracoCmsServiceBlueprintStore` to a real `prismCmsServiceBlueprint` table in the Umbraco content database, survive restarts, and are uSync-portable via `PrismCmsServiceBlueprintHandler`/`PrismCmsServiceBlueprintSerializer`. `MockBusinessApp`'s own demo/business blueprint authoring surface (used by the AI-ready MCP/REST toolkit against the reference app) is memory-only by design — POSTing writes to an in-memory store only, and a restart reloads from `service-blueprints/*.json`. Don't assume one behavior applies to the other.
+Persistence differs by authoring surface. The backoffice **CMS Service Blueprint** editor (`CmsServiceBlueprintAuthoringController`, `UmbracoPrism.Core`) is DB-backed — saves go through `UmbracoServiceBlueprintStore` (`Wayfinder.Umbraco`) to a real `prismCmsServiceBlueprint` table in the Umbraco content database, survive restarts, and are uSync-portable via `PrismCmsServiceBlueprintHandler`/`PrismCmsServiceBlueprintSerializer` (also `Wayfinder.Umbraco` — this store/handler pair carries no Prism dependency at all; Prism only adds the single-queue "cms-visitor" constraint and tenant-scoping on top). `MockBusinessApp`'s own demo/business blueprint authoring surface (used by the AI-ready MCP/REST toolkit against the reference app) is memory-only by design — POSTing writes to an in-memory store only, and a restart reloads from `service-blueprints/*.json`. Don't assume one behavior applies to the other.
 
 ### Queue model
 
