@@ -31,8 +31,6 @@ public class PrismMigrationPlan : PackageMigrationPlan
         .To<CreatePrismNotificationSubscriptionsTable>("add-notification-subscriptions")
         .To<DropThemeColorColumn>("drop-theme-color")
         .To<AddOidcAuthorityColumns>("add-oidc-authority-columns")
-        .To<AddOidcSecretProviderColumns>("add-oidc-secret-provider-columns")
-        .To<CreatePrismCmsServiceBlueprintTable>("add-cms-service-blueprints")
-        .To<CreatePrismCmsServiceRequestTable>("add-cms-service-requests");
+        .To<AddOidcSecretProviderColumns>("add-oidc-secret-provider-columns");
     }
 }

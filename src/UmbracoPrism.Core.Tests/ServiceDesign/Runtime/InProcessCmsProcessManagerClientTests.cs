@@ -6,16 +6,17 @@ using Moq;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.Shared.Services.Sanitization;
-using UmbracoPrism.ProcessManager.Abstractions;
-using UmbracoPrism.ProcessManager.Stores;
+using Wayfinder.Umbraco.Services;
+using Wayfinder.Services.Sanitization;
+using Wayfinder.Engine.Abstractions;
+using Wayfinder.Engine.Stores;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 
 /// <summary>
 /// Verifies <see cref="InProcessCmsProcessManagerClient"/>'s identity resolution — the piece that
 /// makes "only available to the user who initiated it" true for anonymous visitors, and lets a
-/// logged-in Prism Member's identity flow through to <c>CmsProcessManager.ResolveServiceInputs</c>
+/// logged-in Prism Member's identity flow through to <c>UmbracoProcessManagerEngine.ResolveServiceInputs</c>
 /// without hardcoding any claims-handling in a per-host controller override.
 /// </summary>
 public class InProcessCmsProcessManagerClientTests
@@ -29,8 +30,8 @@ public class InProcessCmsProcessManagerClientTests
         var accessor = new Mock<IHttpContextAccessor>();
         accessor.Setup(a => a.HttpContext).Returns(httpContext);
 
-        var engine = new CmsProcessManager(
-            NullLogger<CmsProcessManager>.Instance,
+        var engine = new UmbracoProcessManagerEngine(
+            NullLogger<UmbracoProcessManagerEngine>.Instance,
             new EmptyDefinitionStore(),
             sanitizer.Object,
             new InMemoryServiceRequestStore(),
@@ -82,7 +83,7 @@ public class InProcessCmsProcessManagerClientTests
 
     private sealed class EmptyDefinitionStore : IServiceBlueprintStore
     {
-        public IReadOnlyDictionary<string, UmbracoPrism.Shared.Models.ServiceDesign.ServiceBlueprint> LoadDefinitions(ILogger logger) =>
-            new Dictionary<string, UmbracoPrism.Shared.Models.ServiceDesign.ServiceBlueprint>();
+        public IReadOnlyDictionary<string, Wayfinder.Models.ServiceDesign.ServiceBlueprint> LoadDefinitions(ILogger logger) =>
+            new Dictionary<string, Wayfinder.Models.ServiceDesign.ServiceBlueprint>();
     }
 }

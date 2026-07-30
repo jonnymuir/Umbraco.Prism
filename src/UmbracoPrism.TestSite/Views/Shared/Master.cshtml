@@ -65,10 +65,15 @@
         @await Html.PartialAsync("_MobileShellNav", mobileNavLinks)
     }
 
-    <!-- GOV.UK Frontend JavaScript -->
-    <script src="/js/govuk-frontend.min.js"></script>
-    <script>
-        window.GOVUKFrontend.initAll();
+    <!-- GOV.UK Frontend JavaScript — v5 ships as an ES module (see the dist file's own
+         README), not a UMD/global-attaching bundle, so it must be loaded with type="module"
+         and initAll imported explicitly. window.GOVUKFrontend is assigned here purely so
+         existing call sites (and this behaviour's own regression test) can keep checking
+         it, matching the shape the previous classic-script version exposed. -->
+    <script type="module">
+        import { initAll } from '/js/govuk-frontend.min.js';
+        window.GOVUKFrontend = { initAll };
+        initAll();
     </script>
 
     <!-- Service request validation script -->

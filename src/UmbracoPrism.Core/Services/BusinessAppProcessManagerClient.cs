@@ -4,8 +4,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Core.Models;
-using UmbracoPrism.Core.Models.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Umbraco.Services;
 
 namespace UmbracoPrism.Core.Services;
 

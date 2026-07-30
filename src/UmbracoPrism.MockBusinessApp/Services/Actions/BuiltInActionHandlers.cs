@@ -1,4 +1,4 @@
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.MockBusinessApp.Services.Actions;
 

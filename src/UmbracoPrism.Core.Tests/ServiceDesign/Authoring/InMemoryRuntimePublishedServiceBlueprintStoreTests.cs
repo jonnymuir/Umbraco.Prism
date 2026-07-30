@@ -4,8 +4,8 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using System.Text.Json;
 using UmbracoPrism.MockBusinessApp.Services;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Services.Sanitization;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Authoring;
 

@@ -23,7 +23,7 @@ For the embedded expression language used in `calculations` and `showWhen`, see
   "version": 1,                        // optimistic-concurrency version — see "Saving and conflicts" below
   "description": "...",                // optional
   "initialStage": "choose-start", // must match a stages[].stageKey
-  "requestPolicy": "single",           // "single" (one active service request per user) or "multiple"
+  "requestPolicy": "single",           // "single" (resume the one active instance), "multiple" (always new), or "prompt" (instance_picker when one is active)
   "queues": [ /* QueueDefinition[] — see Queues */ ],
   "stages": [ /* StageDefinition[] — see Stages and routes */ ],
   "gateways": [ /* ServiceBlueprintGatewayDefinition[] — see Gateways and routing */ ],
@@ -237,7 +237,7 @@ Different queues in the same service blueprint can be served by entirely differe
 applications with different rendering capability — a web front end with a full
 component catalog, versus an admin surface that only supports a generic
 "advance" action with no rendering pipeline at all. A host can optionally
-register an `IQueueCapabilitiesProvider` (`UmbracoPrism.ProcessManager.Abstractions`)
+register an `IQueueCapabilitiesProvider` (`Wayfinder.Engine.Abstractions`)
 declaring, per queue key, which component `"type"` discriminators it actually
 renders. When registered, `validate_service_blueprint`/`save_service_blueprint` check every
 component in every stage against its queue's declared capability list and
@@ -251,7 +251,7 @@ queue's supported types before drafting a stage for it.
 
 Capabilities are a contract each host declares about itself, never a runtime
 call to another host's process. `PrismComponentTypeCatalog`
-(`UmbracoPrism.Shared`) reflects `PrismComponent`'s closed, compile-time-fixed
+(`Wayfinder`) reflects `PrismComponent`'s closed, compile-time-fixed
 set of `[JsonDerivedType]` discriminators — since that assembly is shared by
 every Prism-Core host, `PrismComponentTypeCatalog.AllDiscriminators` is a
 ready-made, honest declaration of "I'm a stock Prism-Core web host", provable
@@ -262,7 +262,7 @@ it implements.
 
 **Known limitation:** there is no mechanism today for a host to extend the
 component catalog itself with genuinely new types beyond what
-`UmbracoPrism.Shared` ships — the `[JsonDerivedType]` list is fixed at compile
+`Wayfinder` ships — the `[JsonDerivedType]` list is fixed at compile
 time. If that ever becomes possible, a host with real extensions would need
 its own way to publish an extended declaration; nothing exercises this today.
 

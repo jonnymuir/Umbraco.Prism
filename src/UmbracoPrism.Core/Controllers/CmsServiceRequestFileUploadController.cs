@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
-using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Umbraco.Services;
 
 namespace UmbracoPrism.Core.Controllers;
 
@@ -10,7 +10,7 @@ namespace UmbracoPrism.Core.Controllers;
 /// Accepts a single <c>file-upload</c> field's file as soon as a visitor chooses it, ahead of
 /// the stage's own whole-page submission — the server half of the accessible progress-bar
 /// upload experience (<c>prism-file-upload.ts</c>). Saves the file immediately via the same
-/// <see cref="IServiceRequestFileStorage"/> <see cref="PrismServiceRequestPageController{TViewModel}.HandlePost"/>
+/// <see cref="IServiceRequestFileStorage"/> <see cref="Wayfinder.Umbraco.Controllers.ServiceRequestPageController{TViewModel}.HandlePost"/>
 /// already uses, and hands back an opaque token bound to this exact instance/field
 /// (<see cref="IUploadTokenService"/>) for the client to carry in a hidden input until the real
 /// submission — see that method's own remarks for how it resolves the token back.
@@ -24,7 +24,7 @@ namespace UmbracoPrism.Core.Controllers;
 [ApiController]
 [Route("prism/cms-workflow/upload")]
 public class CmsServiceRequestFileUploadController(
-    CmsProcessManager engine,
+    UmbracoProcessManagerEngine engine,
     CmsServiceRequestVisitorIdentityResolver identityResolver,
     IServiceRequestFileStorage fileStorage,
     IStageNonceService nonceService,

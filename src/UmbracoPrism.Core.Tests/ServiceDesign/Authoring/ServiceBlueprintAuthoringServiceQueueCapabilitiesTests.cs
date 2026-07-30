@@ -1,8 +1,8 @@
 using FluentAssertions;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign.Components;
-using UmbracoPrism.ProcessManager.Abstractions;
-using UmbracoPrism.ProcessManager.Services;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign.Components;
+using Wayfinder.Engine.Abstractions;
+using Wayfinder.Engine.Services;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Authoring;
 

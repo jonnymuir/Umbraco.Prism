@@ -146,7 +146,7 @@ Prism ships `BuiltInServiceBlueprintActionCatalog` with generic actions (Send Em
 
 ## 6. Runtime Execution (Handler Registry Pattern)
 
-The runtime engine (in `UmbracoPrism.ProcessManager`) is **generic**. It:
+The runtime engine (in `Wayfinder.Engine`) is **generic**. It:
 
 - Loads the service blueprint (`ServiceBlueprint`).
 - Tracks the current state for each instance.
@@ -215,7 +215,7 @@ MockBusinessApp demonstrates the pattern:
    - Calls `IServiceBlueprintProjector.Project(authoredWorkflow)` to get the runtime definition.
    - Validates the projection result.
    - Saves the runtime definition to the published store (`IPublishedWorkflowStore`).
-5. The runtime engine (in `UmbracoPrism.ProcessManager`) loads definitions from the published store, never from the authored store.
+5. The runtime engine (in `Wayfinder.Engine`) loads definitions from the published store, never from the authored store.
 
 The editor has no opinion about steps 3-5. Those are host concerns.
 

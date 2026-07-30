@@ -1,20 +1,20 @@
 using FluentAssertions;
 using Moq;
 using Umbraco.Cms.Infrastructure.Persistence;
-using UmbracoPrism.Core.Persistence;
-using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.ProcessManager.Abstractions;
+using Wayfinder.Umbraco.Persistence;
+using Wayfinder.Umbraco.Services;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Engine.Abstractions;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 
 /// <summary>
-/// Verifies <see cref="UmbracoCmsServiceBlueprintStore"/>'s atomic compare-and-swap save
+/// Verifies <see cref="UmbracoServiceBlueprintStore"/>'s atomic compare-and-swap save
 /// contract and its promise that a successful save reaches the live engine immediately.
 /// </summary>
 public class UmbracoCmsServiceBlueprintStoreTests
 {
-    private static (UmbracoCmsServiceBlueprintStore Store, Mock<IUmbracoDatabase> Db, Mock<IProcessManager> Engine) BuildStore()
+    private static (UmbracoServiceBlueprintStore Store, Mock<IUmbracoDatabase> Db, Mock<IProcessManager> Engine) BuildStore()
     {
         var mockDb = new Mock<IUmbracoDatabase>();
         var dbFactory = new Mock<IUmbracoDatabaseFactory>();
@@ -22,7 +22,7 @@ public class UmbracoCmsServiceBlueprintStoreTests
 
         var engine = new Mock<IProcessManager>();
 
-        var store = new UmbracoCmsServiceBlueprintStore(dbFactory.Object, engine.Object);
+        var store = new UmbracoServiceBlueprintStore(dbFactory.Object, engine.Object);
         return (store, mockDb, engine);
     }
 

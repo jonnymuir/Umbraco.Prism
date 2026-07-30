@@ -40,8 +40,8 @@ Prism uses **route hijacking** to intercept requests to `stagePage` and `service
 
 The controllers:
 
-- **`StagePageController`** (in your site) — extends `PrismServiceRequestPageController<TViewModel>` from Core.
-- **`ServiceRequestHubController`** (in Core) — already implemented.
+- **`StagePageController`** (in your site) — extends `ServiceRequestPageController<TViewModel>` from Wayfinder.Umbraco.
+- **`ServiceRequestHubController`** (in Wayfinder.Umbraco) — already implemented.
 
 Both extend `RenderController`. Both require authentication via `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`.
 
@@ -114,7 +114,7 @@ The member surface never reads authored service blueprints directly. It only rea
 The business app is a separate ASP.NET host. Deploy it alongside your Umbraco site. It needs:
 
 - A `/service-blueprints/*` HTTP endpoint (or equivalent) for the editor to call.
-- A service blueprint runtime engine (Prism ships `UmbracoPrism.ProcessManager` as a reference).
+- A service blueprint runtime engine (Prism ships `Wayfinder.Engine` as a reference).
 - Storage for authored service blueprints and service requests.
 
 MockBusinessApp demonstrates the pattern. Your business app is analogous.

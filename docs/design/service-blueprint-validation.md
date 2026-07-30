@@ -7,7 +7,7 @@ Prism validates service blueprint submissions in layers so the browser can be he
 | Layer | Where it runs | Purpose |
 | --- | --- | --- |
 | Browser hints | Rendered HTML | Usability only: required markers, input types, min/max hints |
-| Antiforgery | `PrismServiceRequestPageController` | Reject cross-site form posts |
+| Antiforgery | `ServiceRequestPageController` | Reject cross-site form posts |
 | Nonce-backed structural validation | `StageNonceService` + `ServiceRequestFieldValidator` | Ensure the submitted fields still match the rendered definition |
 | Domain validation | Your business app | Enforce business rules before a transition is accepted |
 
@@ -25,11 +25,11 @@ This protects against:
 - changed options,
 - relaxed client-side constraints.
 
-Source: `src/UmbracoPrism.Core/Services/ServiceDesign/StageNonceService.cs`.
+Source: `src/Wayfinder.Umbraco/Services/StageNonceService.cs`.
 
 ## What the field validator checks
 
-`src/UmbracoPrism.Core/Services/ServiceDesign/ServiceRequestFieldValidator.cs` currently enforces:
+`src/Wayfinder.Umbraco/Services/ServiceRequestFieldValidator.cs` currently enforces:
 
 - unknown-field rejection,
 - required fields,

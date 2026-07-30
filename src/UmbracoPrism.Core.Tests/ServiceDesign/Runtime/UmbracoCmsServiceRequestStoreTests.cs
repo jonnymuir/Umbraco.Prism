@@ -2,26 +2,26 @@ using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using Umbraco.Cms.Infrastructure.Persistence;
-using UmbracoPrism.Core.Persistence;
-using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.ProcessManager.Models;
+using Wayfinder.Umbraco.Persistence;
+using Wayfinder.Umbraco.Services;
+using Wayfinder.Engine.Models;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 
 /// <summary>
-/// Verifies <see cref="UmbracoCmsServiceRequestStore"/>'s expiry semantics — the mechanism
+/// Verifies <see cref="UmbracoServiceRequestStore"/>'s expiry semantics — the mechanism
 /// that lets a CMS Workflow instance survive an app-pool recycle (DB-backed) while still dying
 /// with the visitor's session (sliding TTL, lazily enforced on read).
 /// </summary>
 public class UmbracoCmsServiceRequestStoreTests
 {
-    private static (UmbracoCmsServiceRequestStore Store, Mock<IUmbracoDatabase> Db) BuildStore()
+    private static (UmbracoServiceRequestStore Store, Mock<IUmbracoDatabase> Db) BuildStore()
     {
         var mockDb = new Mock<IUmbracoDatabase>();
         var dbFactory = new Mock<IUmbracoDatabaseFactory>();
         dbFactory.Setup(f => f.CreateDatabase()).Returns(mockDb.Object);
 
-        var store = new UmbracoCmsServiceRequestStore(dbFactory.Object, TimeSpan.FromMinutes(30));
+        var store = new UmbracoServiceRequestStore(dbFactory.Object, TimeSpan.FromMinutes(30));
         return (store, mockDb);
     }
 

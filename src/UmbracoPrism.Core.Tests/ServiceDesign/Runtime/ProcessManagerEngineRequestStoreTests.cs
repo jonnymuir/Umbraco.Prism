@@ -2,12 +2,12 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using UmbracoPrism.Shared.Builders;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Services.Sanitization;
-using UmbracoPrism.ProcessManager.Abstractions;
-using UmbracoPrism.ProcessManager.Models;
-using UmbracoPrism.ProcessManager.Services;
+using Wayfinder.Builders;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Services.Sanitization;
+using Wayfinder.Engine.Abstractions;
+using Wayfinder.Engine.Models;
+using Wayfinder.Engine.Services;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 

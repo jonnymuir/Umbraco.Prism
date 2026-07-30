@@ -1,7 +1,7 @@
 using FluentAssertions;
-using UmbracoPrism.Core.Models.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Core.Services;
+using Wayfinder.Umbraco.Models;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Umbraco.Services;
 
 namespace UmbracoPrism.Core.Tests.Services.Workflow;
 

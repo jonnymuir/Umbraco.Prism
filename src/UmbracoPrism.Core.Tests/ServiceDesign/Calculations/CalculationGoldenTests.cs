@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
 using FluentAssertions;
-using UmbracoPrism.Shared.Models.ServiceDesign.Calculations;
-using UmbracoPrism.Shared.Services.Calculations;
+using Wayfinder.Models.ServiceDesign.Calculations;
+using Wayfinder.Services.Calculations;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Calculations;
 
@@ -155,7 +155,7 @@ public class CalculationGoldenTests
         {
             var candidate = Path.Combine(
                 directory.FullName,
-                "src", "UmbracoPrism.Shared", "calculation-fixtures", "calculation-golden.json");
+                "src", "Wayfinder", "calculation-fixtures", "calculation-golden.json");
             if (File.Exists(candidate))
             {
                 return candidate;

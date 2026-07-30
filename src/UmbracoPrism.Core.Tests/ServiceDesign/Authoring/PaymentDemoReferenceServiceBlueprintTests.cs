@@ -4,11 +4,11 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign.Components;
-using UmbracoPrism.Shared.Services.Sanitization;
-using UmbracoPrism.ProcessManager.Abstractions;
-using UmbracoPrism.ProcessManager.Services;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign.Components;
+using Wayfinder.Services.Sanitization;
+using Wayfinder.Engine.Abstractions;
+using Wayfinder.Engine.Services;
 using MockBusinessAppWorkflowEngine = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.BusinessAppProcessManager;
 using MockReferenceWorkflowDefinitionStore = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.ReferenceServiceBlueprintStore;
 using MockReferenceWorkflowQueues = MockBusinessApp::UmbracoPrism.MockBusinessApp.Services.ReferenceQueues;
@@ -233,8 +233,8 @@ public class PaymentDemoReferenceWorkflowTests
         var sanitizer = new Mock<IServiceContentSanitizer>();
         sanitizer.Setup(service => service.Sanitize(It.IsAny<string?>())).Returns<string?>(value => value ?? string.Empty);
 
-        var engine = new UmbracoPrism.ProcessManager.Services.ProcessManagerEngine(
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<UmbracoPrism.ProcessManager.Services.ProcessManagerEngine>.Instance,
+        var engine = new Wayfinder.Engine.Services.ProcessManagerEngine(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Wayfinder.Engine.Services.ProcessManagerEngine>.Instance,
             new InMemoryDefinitionStore(definition),
             sanitizer.Object);
 

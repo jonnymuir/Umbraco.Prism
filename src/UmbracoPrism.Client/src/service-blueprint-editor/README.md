@@ -1,7 +1,7 @@
 # ServiceBlueprint editor — component API
 
 The serviceBlueprint editor ships as a Lit-based bundle (`serviceBlueprint-editor.js`, served from
-`UmbracoPrism.ServiceBlueprintEditor/wwwroot/dist/`). Only three custom elements are
+`Wayfinder.Editor/wwwroot/dist/`). Only three custom elements are
 considered **public API**. Everything else in this folder is composition detail
 and is marked `@internal` in its source — Razor authors and host applications
 should not depend on it, and breaking changes there will not bump a contract.
@@ -10,7 +10,7 @@ should not depend on it, and breaking changes there will not bump a contract.
 > bundle with no assumptions about its host — the toolkit's job is to make
 > hosting trivial anywhere, not to prescribe one hosting model. MockBusinessApp
 > is a pure business-app host with no backoffice, so it hosts the editor
-> runtime-only (`vite.serviceBlueprint-editor.config.ts` → `UmbracoPrism.ServiceBlueprintEditor`'s
+> runtime-only (`vite.serviceBlueprint-editor.config.ts` → `Wayfinder.Editor`'s
 > static assets, served as a standalone page — see TestSite Razor pages, the
 > Storybook harness, and the reference shell). Prism CMS Service Blueprint's entire
 > reason for existing is the backoffice editing experience, so it mounts the
@@ -229,7 +229,7 @@ the public surface.
 
 ## Bundle reference
 
-Built artefacts land in `src/UmbracoPrism.ServiceBlueprintEditor/wwwroot/dist/`:
+Built artefacts land in `src/Wayfinder.Editor/wwwroot/dist/`:
 
 * `serviceBlueprint-editor.js` — Lit bundle that registers the three public elements.
 * `serviceBlueprint-editor.html` — host harness used by TestSite Razor pages.

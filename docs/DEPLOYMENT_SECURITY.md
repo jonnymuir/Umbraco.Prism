@@ -30,7 +30,7 @@ This is a demo and development-only application. It **must never** be deployed t
 
 **Mitigation:** All unauthenticated admin endpoints return `404 Not Found` in non-Development mode. However, **do not rely on this for safety**—simply do not deploy MockBusinessApp.
 
-### ✅ UmbracoPrism.Shared — Production-Safe
+### ✅ Wayfinder — Production-Safe
 
 Shared libraries are production-safe. The backchannel URL feature (described below) only activates if explicitly configured via environment variable.
 

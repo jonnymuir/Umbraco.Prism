@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -583,53 +584,17 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
     }
 
     /// <summary>
-    /// A visitor who was browsing a CMS Workflow anonymously and has just signed in gets their
-    /// in-progress instance(s) re-keyed onto their new authenticated identity, so what would
-    /// otherwise become an orphaned, soon-to-expire anonymous session survives as a resumable
-    /// one under "My Workflows" instead. Reads <paramref name="newIdentity"/> directly rather
-    /// than <c>httpContext.User</c> — the sign-in cookie written moments ago only takes effect
-    /// on the *next* request, so the incoming request's principal is still whatever it was
-    /// before this callback ran (anonymous, or a different signed-in user), not the one just
-    /// authenticated.
+    /// Gives every registered <see cref="IPrismPostSignInHandler"/> a chance to react to "this
+    /// identity just authenticated" — e.g. CMS Workflow's anonymous-instance reattachment (see
+    /// <c>CmsServiceBlueprintPostSignInHandler</c>). Zero registered handlers (a host using
+    /// Prism's auth without any optional feature that needs this hook) is a normal no-op.
     /// </summary>
-    private void ClaimAnonymousServiceRequests(HttpContext httpContext, ClaimsIdentity newIdentity)
+    private static void ClaimAnonymousServiceRequests(HttpContext httpContext, ClaimsIdentity newIdentity)
     {
-        var services = httpContext.RequestServices;
-        // Resolved by concrete type, not IProcessManager — that interface isn't
-        // registered as a keyed service (only IBusinessAppProcessManagerClient is, under "cms"), and
-        // a host that also registers its own business-app engine via AddPrismProcessManager()
-        // would make an unkeyed IProcessManager lookup ambiguous. CmsProcessManager
-        // itself is always registered by concrete type, so this is unambiguous regardless.
-        var engine = services.GetService<CmsProcessManager>();
-        if (engine is null)
+        var handlers = httpContext.RequestServices.GetServices<IPrismPostSignInHandler>();
+        foreach (var handler in handlers)
         {
-            // A host using Prism's auth without its CMS Workflow feature — nothing to claim.
-            return;
-        }
-
-        var identityResolver = services.GetRequiredService<CmsServiceRequestVisitorIdentityResolver>();
-        var anonymousUserId = identityResolver.PeekAnonymousVisitorId();
-        if (anonymousUserId is null)
-        {
-            return;
-        }
-
-        var newUserId = newIdentity.FindFirst("preferred_username")?.Value
-            ?? newIdentity.FindFirst(ClaimTypes.Email)?.Value;
-        if (string.IsNullOrWhiteSpace(newUserId))
-        {
-            return;
-        }
-
-        var tenantId = services.GetRequiredService<IPrismUserContext>().CurrentTenant?.Hostname ?? "default";
-
-        var claimed = engine.ClaimInstances(tenantId, anonymousUserId, newUserId);
-        if (claimed.Count > 0)
-        {
-            identityResolver.ClearAnonymousVisitorCookie();
-            logger.LogInformation(
-                "Claimed {Count} anonymous CMS Workflow instance(s) for tenant {TenantId} onto the newly signed-in user.",
-                claimed.Count, tenantId);
+            handler.OnSignedIn(httpContext, newIdentity);
         }
     }
 }

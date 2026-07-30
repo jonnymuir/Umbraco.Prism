@@ -5,8 +5,8 @@ using Umbraco.Cms.Api.Management.Controllers;
 using Umbraco.Cms.Api.Management.Routing;
 using Umbraco.Cms.Web.Common.Authorization;
 using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.ProcessManager.Services;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Engine.Services;
+using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.Core.Controllers;
 

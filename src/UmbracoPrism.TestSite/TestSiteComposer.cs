@@ -5,11 +5,11 @@ using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.Shared.Services.Sanitization;
+using Wayfinder.Services.Sanitization;
+using Wayfinder.Umbraco.Services;
 using UmbracoPrism.TestSite.BackgroundServices;
 using UmbracoPrism.TestSite.Services;
-using UmbracoPrism.ProcessManager.Abstractions;
+using Wayfinder.Engine.Abstractions;
 
 namespace UmbracoPrism.TestSite;
 
@@ -52,16 +52,16 @@ public class TestSiteComposer : IComposer
         // juggling licence") — demonstrates the service-sourced field extension point for a
         // logged-in member, shared across both since they're the same fictional membership
         // scheme. Re-registering
-        // CmsProcessManager here (after AddPrismCmsServiceBlueprint()'s own registration in
+        // UmbracoProcessManagerEngine here (after AddPrismCmsServiceBlueprint()'s own registration in
         // PrismComposer) supplies the serviceInputsResolver delegate; last registration wins
         // for single-instance resolution, and IProcessManager's factory (registered by
-        // Core) resolves CmsProcessManager lazily, so it picks up this one.
+        // Core) resolves UmbracoProcessManagerEngine lazily, so it picks up this one.
         builder.Services.AddSingleton<IJugglingSocietyMembershipClient, JugglingSocietyMembershipClient>();
         builder.Services.AddSingleton(sp =>
         {
             var membershipClient = sp.GetRequiredService<IJugglingSocietyMembershipClient>();
-            return new CmsProcessManager(
-                sp.GetRequiredService<ILogger<CmsProcessManager>>(),
+            return new UmbracoProcessManagerEngine(
+                sp.GetRequiredService<ILogger<UmbracoProcessManagerEngine>>(),
                 sp.GetRequiredService<IServiceBlueprintStore>(),
                 sp.GetRequiredService<IServiceContentSanitizer>(),
                 sp.GetRequiredService<IServiceRequestStore>(),

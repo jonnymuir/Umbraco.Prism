@@ -1,8 +1,8 @@
 using System.Text.Json;
 using FluentAssertions;
-using UmbracoPrism.Shared.Extensions;
-using UmbracoPrism.Shared.Models.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign.Components;
+using Wayfinder.Extensions;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign.Components;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.ProcessManager;
 

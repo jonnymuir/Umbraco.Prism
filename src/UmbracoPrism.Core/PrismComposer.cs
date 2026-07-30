@@ -144,6 +144,15 @@ public class PrismComposer : IComposer
                 policy.RequireAuthenticatedUser();
                 policy.AddRequirements(new PrismAdminRequirement());
             });
+
+            // Wayfinder.Umbraco's ServiceRequestPollController references this policy by name
+            // rather than hardcoding an authentication scheme — this is where Prism supplies
+            // its own member cookie scheme as what that policy actually means.
+            options.AddPolicy(Wayfinder.Umbraco.WayfinderUmbracoAuthorizationPolicies.ServiceRequestPolling, policy =>
+            {
+                policy.RequireAuthenticatedUser();
+                policy.AddAuthenticationSchemes("PrismMemberCookie");
+            });
         });
 
         builder.Services.Configure<PrismAdminOptions>(builder.Config.GetSection("Prism:AdminGroups"));

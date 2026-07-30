@@ -1,7 +1,7 @@
 using FluentAssertions;
-using UmbracoPrism.Shared.Builders;
-using UmbracoPrism.Shared.Extensions;
-using UmbracoPrism.Shared.Models.ServiceDesign.Components;
+using Wayfinder.Builders;
+using Wayfinder.Extensions;
+using Wayfinder.Models.ServiceDesign.Components;
 
 namespace UmbracoPrism.Core.Tests.Builders;
 

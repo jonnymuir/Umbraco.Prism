@@ -3,7 +3,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Moq;
-using UmbracoPrism.Core.Services.ServiceDesign;
+using Wayfinder.Umbraco.Services;
 
 namespace UmbracoPrism.Core.Tests.Services.Workflow;
 

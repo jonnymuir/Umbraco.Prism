@@ -9,13 +9,13 @@ Prism supports two practical authoring styles.
 | Style | Best when | Canonical source |
 | --- | --- | --- |
 | JSON seed files | You want simple content-like service blueprints or a demo harness | `src/UmbracoPrism.MockBusinessApp/service-blueprints/*.json` |
-| Fluent builder | You want compile-time help, shared code, or richer composition | `src/UmbracoPrism.Shared/Builders/ServiceBlueprintBuilder.cs` |
+| Fluent builder | You want compile-time help, shared code, or richer composition | `src/Wayfinder/Builders/ServiceBlueprintBuilder.cs` |
 
 Both produce the same runtime shape: `ServiceBlueprint` with `StageDefinition` states and `RouteFile` transitions.
 
 ## Definition contract
 
-Source: `src/UmbracoPrism.Shared/Models/ServiceDesign/ServiceBlueprint.cs`
+Source: `src/Wayfinder/Models/ServiceDesign/ServiceBlueprint.cs`
 
 | Property | Required | Notes |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ Step shell is inferred from `components`; it is not a separately-authored field 
 
 ## Component model
 
-The authored schema is the `PrismComponent` hierarchy declared in `src/UmbracoPrism.Shared/Models/ServiceDesign/Components/PrismComponent.cs`.
+The authored schema is the `PrismComponent` hierarchy declared in `src/Wayfinder/Models/ServiceDesign/Components/PrismComponent.cs`.
 
 ### Container components
 
@@ -90,11 +90,11 @@ Source: `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppProcessManager.cs`
 | `multiple` | Always create a new instance |
 | `prompt` | If an active instance exists, return `instance_picker`; otherwise create a new one |
 
-The instance list contract used by the service request hub lives in `src/UmbracoPrism.Shared/Models/ServiceDesign/ServiceRequestListEnvelope.cs`.
+The instance list contract used by the service request hub lives in `src/Wayfinder/Models/ServiceDesign/ServiceRequestListEnvelope.cs`.
 
 ## Response envelope
 
-Source: `src/UmbracoPrism.Shared/Models/ServiceDesign/ServiceRequestResponseEnvelope.cs`
+Source: `src/Wayfinder/Models/ServiceDesign/ServiceRequestResponseEnvelope.cs`
 
 | Property | Meaning |
 | --- | --- |

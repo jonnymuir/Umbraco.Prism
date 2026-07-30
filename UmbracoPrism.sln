@@ -13,7 +13,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.MockBusinessAp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.Core.Tests", "src\UmbracoPrism.Core.Tests\UmbracoPrism.Core.Tests.csproj", "{D12A6623-457A-4BC5-AD9E-602C8DB78D21}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.Shared", "src\UmbracoPrism.Shared\UmbracoPrism.Shared.csproj", "{F1BF998D-4C0A-4BFA-84B5-727AE0E35655}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wayfinder", "src\Wayfinder\Wayfinder.csproj", "{F1BF998D-4C0A-4BFA-84B5-727AE0E35655}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.ServiceDefaults", "src\UmbracoPrism.ServiceDefaults\UmbracoPrism.ServiceDefaults.csproj", "{5C15A872-213A-4CDB-B5D6-20B78CDB1675}"
 EndProject
@@ -21,15 +21,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.AppHost", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.KeycloakProxy", "src\UmbracoPrism.KeycloakProxy\UmbracoPrism.KeycloakProxy.csproj", "{6C8D7E44-BB7B-462D-AEA6-E0F0E9F838E9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.ServiceBlueprintEditor", "src\UmbracoPrism.ServiceBlueprintEditor\UmbracoPrism.ServiceBlueprintEditor.csproj", "{D927198A-179C-4F2A-ACC0-4746D3DCE043}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wayfinder.Editor", "src\Wayfinder.Editor\Wayfinder.Editor.csproj", "{D927198A-179C-4F2A-ACC0-4746D3DCE043}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.ProcessManager", "src\UmbracoPrism.ProcessManager\UmbracoPrism.ProcessManager.csproj", "{129A5F87-526B-41B7-A144-16FC17A35CEE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wayfinder.Engine", "src\Wayfinder.Engine\Wayfinder.Engine.csproj", "{129A5F87-526B-41B7-A144-16FC17A35CEE}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.uSync", "src\UmbracoPrism.uSync\UmbracoPrism.uSync.csproj", "{72A8536D-1AEC-488F-97F8-4EC3DC4A2A8D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.ProcessManager.Mcp", "src\UmbracoPrism.ProcessManager.Mcp\UmbracoPrism.ProcessManager.Mcp.csproj", "{85BB69AD-CD43-4F89-A2F1-C3447A92F455}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wayfinder.Engine.Mcp", "src\Wayfinder.Engine.Mcp\Wayfinder.Engine.Mcp.csproj", "{85BB69AD-CD43-4F89-A2F1-C3447A92F455}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UmbracoPrism.ProcessManager.Api", "src\UmbracoPrism.ProcessManager.Api\UmbracoPrism.ProcessManager.Api.csproj", "{1B1CFF82-A385-451A-BA88-C62BB4A8B3D0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wayfinder.Engine.Api", "src\Wayfinder.Engine.Api\Wayfinder.Engine.Api.csproj", "{1B1CFF82-A385-451A-BA88-C62BB4A8B3D0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

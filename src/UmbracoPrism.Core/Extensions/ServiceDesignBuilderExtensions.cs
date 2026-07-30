@@ -1,10 +1,8 @@
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.DependencyInjection;
-using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Services;
-using UmbracoPrism.Core.Services.Sanitization;
-using UmbracoPrism.Shared.Services.Sanitization;
+using Wayfinder.Umbraco.Extensions;
+using Wayfinder.Umbraco.Services;
 
 namespace UmbracoPrism.Core.Extensions;
 
@@ -20,15 +18,15 @@ public static class ServiceDesignBuilderExtensions
     /// <param name="builder">The Umbraco builder.</param>
     /// <returns>The Umbraco builder for method chaining.</returns>
     /// <remarks>
-    /// Registers:
-    /// - <see cref="IBusinessAppProcessManagerClient"/> (scoped) — HTTP client for calling the Business App
-    /// - <see cref="IStageNonceService"/> (singleton) — Nonce generation and validation for tamper-proof forms
-    /// - <see cref="IDistributedCache"/> (singleton) — In-memory cache (replace with Redis/SQL for multi-server)
-    /// - <see cref="PrismServiceDesignOptions"/> — Configuration from "Prism:Workflow" section
-    /// 
+    /// Registers <see cref="IBusinessAppProcessManagerClient"/> (scoped) — Prism's own HTTP client
+    /// for calling a remote Business App — plus <see cref="WayfinderUmbracoServiceCollectionExtensions.AddWayfinderUmbraco"/>,
+    /// the generic Umbraco-hosted service-design infrastructure (nonce, field validation, file
+    /// upload, content sanitization) every <c>ServiceRequestPageController{TViewModel}</c> flow
+    /// needs regardless of which client implementation a host uses.
+    ///
     /// The Business App is the authoritative source for all workflow state and definitions.
     /// Umbraco uses this client to ask "what's the next step?" and to submit collected data.
-    /// 
+    ///
     /// In development, configure <c>PrismBusinessApp:ApiBaseUrl</c> to the local HTTPS endpoint
     /// (e.g. <c>https://localhost:7245</c>) so browser and server-side flows share the same trusted origin.
     /// </remarks>
@@ -37,24 +35,7 @@ public static class ServiceDesignBuilderExtensions
         builder.Services.AddHttpClient("PrismBusinessApp");
         builder.Services.AddScoped<IBusinessAppProcessManagerClient, BusinessAppProcessManagerClient>();
 
-        // Distributed cache — works out of the box for single-server dev.
-        // Replace with AddStackExchangeRedisCache() or AddDistributedSqlServerCache() for multi-server production.
-        builder.Services.AddDistributedMemoryCache();
-
-        // Workflow configuration options
-        builder.Services.Configure<PrismServiceDesignOptions>(
-            builder.Config.GetSection("Prism:Workflow"));
-
-        // Workflow nonce service for tamper-proof form submission
-        builder.Services.AddSingleton<IStageNonceService, StageNonceService>();
-
-        // Workflow field validator for server-side structural validation
-        builder.Services.AddTransient<IServiceRequestFieldValidator, ServiceRequestFieldValidator>();
-
-        // Content sanitizer — Ganss.Xss-backed GDS allowlist (SEC-003 T2).
-        // Registered as singleton: HtmlSanitizer is thread-safe for concurrent Sanitize calls
-        // when configuration is not mutated after construction.
-        builder.Services.AddSingleton<IServiceContentSanitizer, ServiceContentSanitizer>();
+        builder.Services.AddWayfinderUmbraco();
 
         return builder;
     }

@@ -5,18 +5,16 @@ using System.Security.Claims;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
-using UmbracoPrism.Core.Controllers;
-using UmbracoPrism.Core.Models.ServiceDesign;
-using UmbracoPrism.Core.Services;
-using UmbracoPrism.Core.Services.ServiceDesign;
-using UmbracoPrism.Shared.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Umbraco.Controllers;
+using Wayfinder.Umbraco.Services;
 using UmbracoPrism.TestSite.Models;
 
 namespace UmbracoPrism.TestSite.Controllers;
 
 /// <summary>
 /// Umbraco route-hijacking controller for the <c>stagePage</c> document type.
-/// Extends <see cref="PrismServiceRequestPageController{TViewModel}"/> to provide claims-based field pre-population.
+/// Extends <see cref="ServiceRequestPageController{TViewModel}"/> to provide claims-based field pre-population.
 /// </summary>
 /// <remarks>
 /// Requires an authenticated PrismMemberCookie session; unauthenticated requests are challenged by the framework.
@@ -32,7 +30,7 @@ public class StagePageController(
     IServiceRequestFieldValidator fieldValidator,
     IServiceRequestFileStorage fileStorage,
     IUploadTokenService uploadTokenService)
-    : PrismServiceRequestPageController<StageViewModel>(
+    : ServiceRequestPageController<StageViewModel>(
         logger,
         compositeViewEngine,
         umbracoContextAccessor,
