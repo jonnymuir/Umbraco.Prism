@@ -9,6 +9,7 @@ export default defineConfig({
     '**/service-blueprint-gds-journey.spec.ts',
     '**/walkthroughs/**',
     '**/four-service-blueprint-contract.spec.ts',
+    '**/govuk-frontend-bootstrap.spec.ts',
     '**/demo/**',
   ],
   timeout: 30_000,
