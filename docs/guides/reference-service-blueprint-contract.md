@@ -23,7 +23,7 @@ For the embedded expression language used in `calculations` and `showWhen`, see
   "version": 1,                        // optimistic-concurrency version — see "Saving and conflicts" below
   "description": "...",                // optional
   "initialStage": "choose-start", // must match a stages[].stageKey
-  "requestPolicy": "single",           // "single" (one active service request per user) or "multiple"
+  "requestPolicy": "single",           // "single" (resume the one active instance), "multiple" (always new), or "prompt" (instance_picker when one is active)
   "queues": [ /* QueueDefinition[] — see Queues */ ],
   "stages": [ /* StageDefinition[] — see Stages and routes */ ],
   "gateways": [ /* ServiceBlueprintGatewayDefinition[] — see Gateways and routing */ ],

@@ -96,7 +96,7 @@ The canonical service blueprint contract is `ServiceBlueprint` (C#) / `AuthoredS
 - **`stages`** — service blueprint stages, each owning their own `routes` array (replacing the old flat `transitions` array).
 - **`gateways`** — first-class Split/Join gateway nodes. Stage routes must target a gateway; gateway routes may target stages or other gateways.
 - **`initialStage`** — key of the starting stage.
-- **`requestPolicy`** — `"single"` (one active service request per user) or `"multiple"`.
+- **`requestPolicy`** — `"single"` (one active service request per user, resumed on every visit), `"multiple"` (a new instance every visit), or `"prompt"` (an active instance triggers an `instance_picker` response instead of the form).
 
 Stage routes must always point to a gateway, never directly to another stage. `ValidateGatewayRouting()` enforces this at save time.
 
