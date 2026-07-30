@@ -1,6 +1,9 @@
 // Runs the shared calculation-language conformance fixtures against the TypeScript
-// evaluator. The C# evaluator runs the identical file (CalculationGoldenTests) — a
-// divergence between runtimes must fail one of the two suites.
+// evaluator. Wayfinder's C# evaluator runs the identical file (CalculationGoldenTests,
+// now in the standalone Wayfinder repo) — a divergence between runtimes must fail one of
+// the two suites. The fixture below is a vendored copy, not a live shared file: Wayfinder
+// and Umbraco.Prism are separate repos now, so keeping the two in sync is a manual
+// discipline (copy the file over) rather than a filesystem guarantee.
 //
 // Requires Node >= 23.6 (built-in TypeScript type stripping).
 import { readFileSync } from 'fs';
@@ -16,7 +19,7 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const fixturePath = join(
   here,
-  '..', '..', 'UmbracoPrism.Shared', 'calculation-fixtures', 'calculation-golden.json',
+  '..', 'calculation-fixtures', 'calculation-golden.json',
 );
 const { cases } = JSON.parse(readFileSync(fixturePath, 'utf8'));
 
