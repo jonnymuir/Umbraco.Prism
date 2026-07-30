@@ -1,12 +1,12 @@
 # Service Blueprint package design docs
 
-These documents explain how to build, integrate, and operate Prism service blueprints from a package consumer's point of view. They are grounded in the current implementation in:
+These documents explain how to build, integrate, and operate Prism service blueprints from a package consumer's point of view. They are grounded in the current implementation:
 
-- `src/Wayfinder/Models/ServiceDesign/*`
-- `src/Wayfinder/Builders/ServiceBlueprintBuilder.cs`
-- `src/Wayfinder.Umbraco/Controllers/ServiceRequestPageController.cs`
-- `src/Wayfinder.Umbraco/Views/*`
-- `src/UmbracoPrism.MockBusinessApp/*`
+- `Models/ServiceDesign/*`, `Builders/ServiceBlueprintBuilder.cs` — in [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder)
+- `Controllers/ServiceRequestPageController.cs`, `Views/*` — in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)
+- `src/UmbracoPrism.MockBusinessApp/*` — in this repo
+
+Wayfinder and Wayfinder.Umbraco moved out of this repo into their own repos, consumed here as published packages (see `NuGet.config` and `CLAUDE.md`) — the paths above are no longer under `src/` in this repo.
 
 ## Start here
 
