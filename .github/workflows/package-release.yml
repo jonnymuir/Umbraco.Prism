@@ -13,6 +13,7 @@ jobs:
       contents: write
     env:
       NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      WAYFINDER_PACKAGES_TOKEN: ${{ secrets.WAYFINDER_PACKAGES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
