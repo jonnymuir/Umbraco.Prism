@@ -251,7 +251,7 @@ queue's supported types before drafting a stage for it.
 
 Capabilities are a contract each host declares about itself, never a runtime
 call to another host's process. `PrismComponentTypeCatalog`
-(`UmbracoPrism.Shared`) reflects `PrismComponent`'s closed, compile-time-fixed
+(`Wayfinder`) reflects `PrismComponent`'s closed, compile-time-fixed
 set of `[JsonDerivedType]` discriminators — since that assembly is shared by
 every Prism-Core host, `PrismComponentTypeCatalog.AllDiscriminators` is a
 ready-made, honest declaration of "I'm a stock Prism-Core web host", provable
@@ -262,7 +262,7 @@ it implements.
 
 **Known limitation:** there is no mechanism today for a host to extend the
 component catalog itself with genuinely new types beyond what
-`UmbracoPrism.Shared` ships — the `[JsonDerivedType]` list is fixed at compile
+`Wayfinder` ships — the `[JsonDerivedType]` list is fixed at compile
 time. If that ever becomes possible, a host with real extensions would need
 its own way to publish an extended declaration; nothing exercises this today.
 

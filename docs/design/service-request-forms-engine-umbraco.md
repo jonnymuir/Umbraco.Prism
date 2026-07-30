@@ -8,7 +8,7 @@ This guide covers the Umbraco-facing side of Prism service blueprints: service r
 
 That call registers:
 
-- `IBusinessAppWorkflowClient`
+- `IBusinessAppProcessManagerClient`
 - `IStageNonceService`
 - `IServiceRequestFieldValidator`
 - `IServiceContentSanitizer`
@@ -37,7 +37,7 @@ For production, replace the default in-memory distributed cache with a shared ba
 
 ## Route hijacking controller
 
-`PrismServiceRequestPageController<TViewModel>` is the core integration point.
+`ServiceRequestPageController<TViewModel>` is the core integration point.
 
 Responsibilities on GET:
 
@@ -100,8 +100,8 @@ This is the piece that makes `multiple` and `prompt` instance policies user-frie
 sequenceDiagram
     participant Member as Authenticated member
     participant Page as stagePage
-    participant Controller as PrismServiceRequestPageController
-    participant Client as IBusinessAppWorkflowClient
+    participant Controller as ServiceRequestPageController
+    participant Client as IBusinessAppProcessManagerClient
     participant API as Business app API
 
     Member->>Page: GET /service-blueprint page

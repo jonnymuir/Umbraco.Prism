@@ -46,7 +46,7 @@ Before setting up a service blueprint, ensure:
 1. **Prism is installed** in your Umbraco 17+ project
 2. **Members are authenticated** using `PrismMemberCookie` authentication scheme (OIDC configured)
 3. **Business App is running** and accessible via HTTP(S) from Umbraco
-4. **IBusinessAppWorkflowClient is configured** in `appsettings.json` with the correct endpoint URL and bearer token
+4. **IBusinessAppProcessManagerClient is configured** in `appsettings.json` with the correct endpoint URL and bearer token
 
 ## Quick Start: 5 Steps to Running Your First Service Blueprint
 
@@ -502,7 +502,7 @@ graph LR
 
 ## Creating a Custom Field Type
 
-To add a new field type, create a Razor partial in `~/Views/Partials/PrismFields/` following the naming convention. The partial receives `@model UmbracoPrism.Core.Models.Service-Blueprint.PrismFieldContext`.
+To add a new field type, create a Razor partial in `~/Views/Partials/PrismFields/` following the naming convention. The partial receives `@model Wayfinder.Umbraco.Models.PrismFieldContext`.
 
 ### Step-by-Step Example: Star Rating
 
@@ -524,7 +524,7 @@ Suppose you want a 5-star rating field type that isn't provided out-of-the-box.
 File: `~/Views/Partials/PrismFields/_PrismField-Star-Rating.cshtml`
 
 ```cshtml
-@model UmbracoPrism.Core.Models.Service-Blueprint.PrismFieldContext
+@model Wayfinder.Umbraco.Models.PrismFieldContext
 
 <div class="@Model.WrapperClass"@Html.Raw(Model.WrapperAttrs)>
     @await Html.PartialAsync("~/Views/Partials/PrismFields/_PrismFieldLabel.cshtml", Model)
@@ -671,7 +671,7 @@ All field type partials receive a `PrismFieldContext` model containing field met
 ### Usage Example in a Custom Partial
 
 ```cshtml
-@model UmbracoPrism.Core.Models.Service-Blueprint.PrismFieldContext
+@model Wayfinder.Umbraco.Models.PrismFieldContext
 
 <div class="@Model.WrapperClass"@Html.Raw(Model.WrapperAttrs)>
     <label for="@Model.Field.FieldKey" class="govuk-label">
@@ -867,8 +867,8 @@ Prism provides a base controller class that handles all GET/POST logic automatic
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.Extensions.Logging;
-using UmbracoPrism.Core.Controllers;
-using UmbracoPrism.Core.Services;
+using Wayfinder.Umbraco.Controllers;
+using Wayfinder.Umbraco.Services;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Web;
 using Microsoft.AspNetCore.Antiforgery;
@@ -877,7 +877,7 @@ namespace YourApp.Controllers;
 
 /// <summary>
 /// Handles GET/POST for service-blueprint pages. The base class handles all routing,
-/// validation, and Business App communication. You only override PrePopulateFieldsFromClaims
+/// validation, and Business App communication. You only override PrePopulateFields
 /// if you want to auto-fill fields from the authenticated user's claims.
 /// </summary>
 [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
@@ -885,22 +885,25 @@ public class StagePageController(
     ILogger<StagePageController> logger,
     ICompositeViewEngine compositeViewEngine,
     IUmbracoContextAccessor umbracoContextAccessor,
-    IBusinessAppWorkflowClient workflowClient,
+    IBusinessAppProcessManagerClient workflowClient,
     IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery,
     IStageNonceService nonceService,
-    IServiceRequestFieldValidator fieldValidator)
-    : PrismServiceRequestPageController(logger, compositeViewEngine, umbracoContextAccessor,
-        workflowClient, publishedValueFallback, antiforgery, nonceService, fieldValidator)
+    IServiceRequestFieldValidator fieldValidator,
+    IServiceRequestFileStorage fileStorage,
+    IUploadTokenService uploadTokenService)
+    : ServiceRequestPageController(logger, compositeViewEngine, umbracoContextAccessor,
+        workflowClient, publishedValueFallback, antiforgery, nonceService, fieldValidator,
+        fileStorage, uploadTokenService)
 {
-    // The base class handles everything. Override PrePopulateFieldsFromClaims() below
+    // The base class handles everything. Override PrePopulateFields() below
     // only if you need to pre-fill fields from user claims.
 }
 ```
 
 ### Pre-Populating Fields from User Claims (Optional)
 
-If you want to auto-fill common fields (email, name) from the authenticated user's claims, override `PrePopulateFieldsFromClaims()`:
+If you want to auto-fill common fields (email, name) from the authenticated user's claims, override `PrePopulateFields()`:
 
 ```csharp
 [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
@@ -908,19 +911,22 @@ public class StagePageController(
     ILogger<StagePageController> logger,
     ICompositeViewEngine compositeViewEngine,
     IUmbracoContextAccessor umbracoContextAccessor,
-    IBusinessAppWorkflowClient workflowClient,
+    IBusinessAppProcessManagerClient workflowClient,
     IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery,
     IStageNonceService nonceService,
-    IServiceRequestFieldValidator fieldValidator)
-    : PrismServiceRequestPageController(logger, compositeViewEngine, umbracoContextAccessor,
-        workflowClient, publishedValueFallback, antiforgery, nonceService, fieldValidator)
+    IServiceRequestFieldValidator fieldValidator,
+    IServiceRequestFileStorage fileStorage,
+    IUploadTokenService uploadTokenService)
+    : ServiceRequestPageController(logger, compositeViewEngine, umbracoContextAccessor,
+        workflowClient, publishedValueFallback, antiforgery, nonceService, fieldValidator,
+        fileStorage, uploadTokenService)
 {
-    protected override ServiceRequestResponseEnvelope PrePopulateFieldsFromClaims(ServiceRequestResponseEnvelope envelope)
+    protected override ServiceRequestResponseEnvelope PrePopulateFields(ServiceRequestResponseEnvelope envelope)
     {
         // Base implementation already handles email-address and full-name from standard claims
         // Call base to get the standard behavior, then add custom logic below if needed
-        var updated = base.PrePopulateFieldsFromClaims(envelope);
+        var updated = base.PrePopulateFields(envelope);
 
         // Example: pre-fill a custom department field from a claim
         var department = HttpContext.User.FindFirstValue("department");

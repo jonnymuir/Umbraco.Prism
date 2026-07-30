@@ -4,11 +4,11 @@ Umbraco.Prism gives you a service blueprint rendering package for Umbraco sites 
 
 ## What the package gives you
 
-- A **service blueprint page** pattern built around `PrismServiceRequestPageController<TViewModel>`.
+- A **service blueprint page** pattern built around `ServiceRequestPageController<TViewModel>`.
 - A **service request hub** page that lists in-progress and completed instances.
 - A **component-based service blueprint schema** (`PrismComponent`) shared between authored definitions and rendered payloads.
 - Built-in **nonce-backed structural validation**, **optimistic concurrency**, and **HTML sanitization**.
-- A thin **HTTP client** (`IBusinessAppWorkflowClient`) that forwards the authenticated member token to your business app.
+- A thin **HTTP client** (`IBusinessAppProcessManagerClient`) that forwards the authenticated member token to your business app.
 
 ## Architecture
 
@@ -16,7 +16,7 @@ Umbraco.Prism gives you a service blueprint rendering package for Umbraco sites 
 flowchart LR
     A[Service-Blueprint\nJSON seed or fluent builder] --> B[Business app service-blueprint engine]
     B --> C[ServiceRequestResponseEnvelope]
-    C --> D[PrismServiceRequestPageController]
+    C --> D[ServiceRequestPageController]
     D --> E[Razor service-blueprint shells and Prism components]
     E --> F[Browser form submission]
     F --> D
@@ -58,7 +58,7 @@ Prism infers step type from the authored components in a state.
 | `status-timeline` | `WaitingComponent`, or a read-only shell with no actions | Processing / review status |
 | `task-list` | `TaskListComponent` | Multi-task journeys |
 
-Source: `src/UmbracoPrism.Shared/Extensions/PrismComponentExtensions.cs`.
+Source: `src/Wayfinder/Extensions/PrismComponentExtensions.cs`.
 
 For waiting journeys, the envelope step type is still inferred from the waiting component, but the Razor layer promotes that state to the dedicated `waiting` shell when waiting metadata is present.
 

@@ -92,7 +92,7 @@ You do not need to mirror the reference doctype names. The contract is the contr
 
 ## Step 4 — Route-hijack the service blueprint page
 
-Subclass `PrismServiceRequestPageController<T>` for your service blueprint page doctype. The base class handles GET, POST, antiforgery, nonce binding, field collection, validation, and the post-redirect-get flow.
+Subclass `ServiceRequestPageController<T>` for your service blueprint page doctype. The base class handles GET, POST, antiforgery, nonce binding, field collection, validation, and the post-redirect-get flow.
 
 ```csharp
 using UmbracoPrism.Core.Controllers;
@@ -102,12 +102,12 @@ public class StagePageController(
     ILogger<RenderController> logger,
     ICompositeViewEngine compositeViewEngine,
     IUmbracoContextAccessor umbracoContextAccessor,
-    IBusinessAppWorkflowClient workflowClient,
+    IBusinessAppProcessManagerClient workflowClient,
     IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery,
     IStageNonceService nonceService,
     IServiceRequestFieldValidator fieldValidator)
-    : PrismServiceRequestPageController<PrismServiceRequestViewModel>(
+    : ServiceRequestPageController<PrismServiceRequestViewModel>(
         logger, compositeViewEngine, umbracoContextAccessor,
         workflowClient, publishedValueFallback, antiforgery,
         nonceService, fieldValidator)

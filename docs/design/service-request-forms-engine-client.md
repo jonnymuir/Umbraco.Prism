@@ -4,14 +4,14 @@ Prism's client story is intentionally server-rendered: the business app returns 
 
 ## Rendering flow
 
-1. `PrismServiceRequestPageController` populates `PrismPrismServiceRequestViewModel`.
+1. `ServiceRequestPageController` populates `PrismServiceRequestViewModel`.
 2. `Views/stagePage.cshtml` decides which shell to use.
 3. The chosen partial renders top-level components and action buttons.
 4. Field values and validation errors are taken from the view model, not from browser-authored metadata.
 
 ## Shell selection
 
-`src/UmbracoPrism.Core/Views/stagePage.cshtml` and `src/UmbracoPrism.Core/Models/ServiceDesign/ServiceRequestRenderShellResolver.cs` are the main routing points.
+`src/Wayfinder.Umbraco/Views/stagePage.cshtml` and `src/Wayfinder.Umbraco/Models/ServiceRequestRenderShellResolver.cs` are the main routing points.
 
 Current shell mapping:
 
@@ -44,7 +44,7 @@ The resolver still normalizes a few legacy names (`collect`, `review`, `completi
 - `details`
 - `notification-banner`
 
-The views for these live under `src/UmbracoPrism.Core/Views/Partials/PrismComponents/`.
+The views for these live under `src/Wayfinder.Umbraco/Views/Partials/PrismComponents/`.
 
 ## Field payload rules worth knowing
 
@@ -95,7 +95,7 @@ Prism uses POST-Redirect-Get rather than rendering validation errors directly fr
 - preserved values via `TempData`,
 - `ServiceBlueprintProblem` values available both inline and in summaries.
 
-`PrismPrismServiceRequestViewModel` exposes:
+`PrismServiceRequestViewModel` exposes:
 
 - `Problems`
 - `FormValues`

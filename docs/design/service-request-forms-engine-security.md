@@ -38,8 +38,8 @@ Prism never trusts the browser to describe the form it rendered. It stores autho
 
 Sources:
 
-- `src/UmbracoPrism.Core/Services/ServiceDesign/StageNonceService.cs`
-- `src/UmbracoPrism.Core/Services/ServiceDesign/ServiceRequestFieldValidator.cs`
+- `src/Wayfinder.Umbraco/Services/StageNonceService.cs`
+- `src/Wayfinder.Umbraco/Services/ServiceRequestFieldValidator.cs`
 
 ### 4. State transitions use optimistic concurrency
 
@@ -53,7 +53,7 @@ Content components such as `body`, `details`, `inset-text`, and `notification-ba
 
 The default sanitizer allowlists a small GOV.UK-friendly subset of tags and safe URL schemes.
 
-Source: `src/UmbracoPrism.Core/Services/Sanitization/WorkflowContentSanitizer.cs`
+Source: `src/Wayfinder.Umbraco/Services/Sanitization/ServiceContentSanitizer.cs`
 
 ### 6. Service Desk endpoints stay a development tool
 

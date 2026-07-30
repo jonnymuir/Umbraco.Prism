@@ -65,7 +65,7 @@ Good example seeds live in:
 - `src/UmbracoPrism.MockBusinessApp/service-blueprints/planning-notification.json`
 
 If you prefer code-first authoring, the fluent builder is already documented in code:
-`src/UmbracoPrism.Shared/Builders/ServiceBlueprintBuilder.cs`.
+`src/Wayfinder/Builders/ServiceBlueprintBuilder.cs`.
 
 ## 2. Decide what belongs in Prism and what belongs in your business app
 
@@ -97,7 +97,7 @@ The current endpoint contract is deliberately small:
 
 In Umbraco, call `AddPrismWorkflowEngine()` so Prism can register:
 
-- `IBusinessAppWorkflowClient`
+- `IBusinessAppProcessManagerClient`
 - `IStageNonceService`
 - `IServiceRequestFieldValidator`
 - `IServiceContentSanitizer`

@@ -141,7 +141,7 @@ single source of any business maths. It is a total expression language (arithmet
 comparisons, boolean logic, `if/min/max/clamp/abs/floor/round/pow/lookup`; no eval, no
 loops, no side effects) with decimal semantics, evaluated by two conformant runtimes:
 
-- C#: `UmbracoPrism.Shared/Services/Calculations` — authoritative. The generic engine
+- C#: `Wayfinder/Services/Calculations` — authoritative. The generic engine
   evaluates the block on every render (typed scope built by `CalculationScopeBuilder`
   from the definition's own input components + defaults; hosts supply `source: "service"`
   inputs via the `ResolveServiceInputs` engine hook).
@@ -149,7 +149,7 @@ loops, no side effects) with decimal semantics, evaluated by two conformant runt
   indicative; the generic `prism-live-form` runtime re-evaluates the same definitions
   between POSTs.
 
-The shared conformance suite is `UmbracoPrism.Shared/calculation-fixtures/calculation-golden.json`,
+The shared conformance suite is `Wayfinder/calculation-fixtures/calculation-golden.json`,
 executed by `CalculationGoldenTests` (C#) and `npm run test:calc` (TS). Change either
 evaluator only alongside those fixtures. Do NOT hand-write business maths in host services
 or client components — put it in the definition's `calculations` block (or declare a

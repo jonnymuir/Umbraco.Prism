@@ -6,11 +6,11 @@ needs to compute. It's the **only** place business maths should live: don't
 hand-write it in a host service or a client component (see
 [CLAUDE.md](../../CLAUDE.md#declarative-calculations--live-stages-money-modeller-pattern)).
 Two runtimes implement this exact grammar with matching semantics — C#
-(`UmbracoPrism.Shared/Services/Calculations`, authoritative) and TypeScript
+(`Wayfinder/Services/Calculations`, authoritative) and TypeScript
 (`src/UmbracoPrism.Client/src/calculations/calculation-engine.ts`, indicative,
 re-evaluates the same definitions client-side between form submits). Both are
 checked against one conformance suite,
-[`calculation-golden.json`](../../src/UmbracoPrism.Shared/calculation-fixtures/calculation-golden.json)
+[`calculation-golden.json`](../../src/Wayfinder/calculation-fixtures/calculation-golden.json)
 — if you're unsure whether something is legal syntax, that file is the ground truth.
 
 This document is also exposed as an MCP resource (`service-blueprint-docs://calculation-language`)

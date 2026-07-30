@@ -40,8 +40,8 @@ Prism uses **route hijacking** to intercept requests to `stagePage` and `service
 
 The controllers:
 
-- **`StagePageController`** (in your site) — extends `PrismServiceRequestPageController<TViewModel>` from Core.
-- **`ServiceRequestHubController`** (in Core) — already implemented.
+- **`StagePageController`** (in your site) — extends `ServiceRequestPageController<TViewModel>` from Wayfinder.Umbraco.
+- **`ServiceRequestHubController`** (in Wayfinder.Umbraco) — already implemented.
 
 Both extend `RenderController`. Both require authentication via `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`.
 
