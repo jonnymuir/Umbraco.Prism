@@ -7,8 +7,8 @@ export default defineConfig({
     dedupe: ['react', 'react-dom'],
   },
   build: {
-    // This sends service-blueprint-editor assets to the ServiceBlueprintEditor package static web assets
-    outDir: '../UmbracoPrism.ServiceBlueprintEditor/wwwroot/dist',
+    // This sends service-blueprint-editor assets to the Wayfinder.Editor package static web assets
+    outDir: '../Wayfinder.Editor/wwwroot/dist',
     emptyOutDir: true,
     sourcemap: true,
     rollupOptions: {
