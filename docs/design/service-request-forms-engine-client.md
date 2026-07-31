@@ -11,7 +11,7 @@ Prism's client story is intentionally server-rendered: the business app returns 
 
 ## Shell selection
 
-`src/Wayfinder.Umbraco/Views/stagePage.cshtml` and `src/Wayfinder.Umbraco/Models/ServiceRequestRenderShellResolver.cs` are the main routing points.
+`Views/stagePage.cshtml` and `Models/ServiceRequestRenderShellResolver.cs` in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) are the main routing points.
 
 Current shell mapping:
 
@@ -44,7 +44,7 @@ The resolver still normalizes a few legacy names (`collect`, `review`, `completi
 - `details`
 - `notification-banner`
 
-The views for these live under `src/Wayfinder.Umbraco/Views/Partials/PrismComponents/`.
+The views for these live under `Views/Partials/PrismComponents/` in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco).
 
 ## Field payload rules worth knowing
 

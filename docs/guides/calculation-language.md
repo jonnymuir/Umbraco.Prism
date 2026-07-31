@@ -6,12 +6,15 @@ needs to compute. It's the **only** place business maths should live: don't
 hand-write it in a host service or a client component (see
 [CLAUDE.md](../../CLAUDE.md#declarative-calculations--live-stages-money-modeller-pattern)).
 Two runtimes implement this exact grammar with matching semantics — C#
-(`Wayfinder/Services/Calculations`, authoritative) and TypeScript
+(`Services/Calculations` in [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder), authoritative) and TypeScript
 (`src/UmbracoPrism.Client/src/calculations/calculation-engine.ts`, indicative,
 re-evaluates the same definitions client-side between form submits). Both are
-checked against one conformance suite,
-[`calculation-golden.json`](../../src/Wayfinder/calculation-fixtures/calculation-golden.json)
-— if you're unsure whether something is legal syntax, that file is the ground truth.
+checked against the same conformance suite — canonically
+[`calculation-golden.json`](https://github.com/jonnymuir/Wayfinder/blob/main/Wayfinder/calculation-fixtures/calculation-golden.json)
+in the Wayfinder repo, vendored into this repo at
+[`src/UmbracoPrism.Client/calculation-fixtures/calculation-golden.json`](../../src/UmbracoPrism.Client/calculation-fixtures/calculation-golden.json)
+for the TypeScript suite to run against (`npm run test:calc`) — if you're unsure whether
+something is legal syntax, that file is the ground truth.
 
 This document is also exposed as an MCP resource (`service-blueprint-docs://calculation-language`)
 so an AI agent authoring service blueprints through the MCP toolkit can fetch it directly, without

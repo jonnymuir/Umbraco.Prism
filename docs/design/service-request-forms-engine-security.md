@@ -6,7 +6,7 @@ Prism service blueprints are designed so Umbraco can host the journey without be
 
 ```mermaid
 flowchart TD
-    A[Authenticated member in Umbraco] --> B[BusinessAppWorkflowClient]
+    A[Authenticated member in Umbraco] --> B[BusinessAppProcessManagerClient]
     B -->|Forward bearer token| C[Business app API]
     C -->|Resolve tenant + user from claims| D[Service-Blueprint engine]
     D -->|Return authoritative envelope| E[Prism controller]
@@ -19,11 +19,11 @@ flowchart TD
 
 ### 1. Identity is forwarded, not copied
 
-`BusinessAppWorkflowClient` forwards the authenticated member's bearer token. The business app then resolves tenant and user from claims, rather than trusting tenant/user identifiers in the request body.
+`BusinessAppProcessManagerClient` forwards the authenticated member's bearer token. The business app then resolves tenant and user from claims, rather than trusting tenant/user identifiers in the request body.
 
 Sources:
 
-- `src/UmbracoPrism.Core/Services/BusinessAppWorkflowClient.cs`
+- `src/UmbracoPrism.Core/Services/BusinessAppProcessManagerClient.cs`
 - `src/UmbracoPrism.MockBusinessApp/Program.cs`
 
 ### 2. Instance ownership is re-checked server-side
@@ -36,10 +36,10 @@ This is what protects resumed service blueprints, hub links, and prompt-mode ins
 
 Prism never trusts the browser to describe the form it rendered. It stores authoritative field definitions in distributed cache and validates POSTs against them.
 
-Sources:
+Sources (both in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)):
 
-- `src/Wayfinder.Umbraco/Services/StageNonceService.cs`
-- `src/Wayfinder.Umbraco/Services/ServiceRequestFieldValidator.cs`
+- `Services/StageNonceService.cs`
+- `Services/ServiceRequestFieldValidator.cs`
 
 ### 4. State transitions use optimistic concurrency
 
@@ -53,7 +53,7 @@ Content components such as `body`, `details`, `inset-text`, and `notification-ba
 
 The default sanitizer allowlists a small GOV.UK-friendly subset of tags and safe URL schemes.
 
-Source: `src/Wayfinder.Umbraco/Services/Sanitization/ServiceContentSanitizer.cs`
+Source: `Services/Sanitization/ServiceContentSanitizer.cs` in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)
 
 ### 6. Service Desk endpoints stay a development tool
 
