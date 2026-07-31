@@ -213,7 +213,7 @@ Imagine the user submits valid data, but the Business App rejects it:
 }
 
 // Prism's structural validation passes ✅
-// Form is submitted to Business App POST /api/service-blueprint/advance
+// Form is submitted to Business App POST /api/service-request/{blueprintKey}/advance
 
 // Business App validation runs:
 // "This email is already registered in our system"
@@ -284,7 +284,7 @@ Your Business App can reject submissions for reasons beyond field structure. Exa
 
 ### Implementing Custom Validation
 
-**In your Business App's POST `/api/service-blueprint/advance` endpoint:**
+**In your Business App's POST `/api/service-request/{blueprintKey}/advance` endpoint:**
 
 ```csharp
 public IActionResult Advance(string workflowKey, string instanceId, string action, [FromBody] IDictionary<string, object?> fields)

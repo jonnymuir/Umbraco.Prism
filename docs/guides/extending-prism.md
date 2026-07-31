@@ -209,19 +209,18 @@ catch (Exception ex)
 
 ## Extending Service Blueprints
 
-Service Blueprints are defined in your Business App (the backend API), not in Prism Core. Your service blueprint endpoints define:
+Service Blueprints are defined in your Business App (the backend API), not in Prism Core. Your service blueprint defines:
 
-- **Step types** (question, confirmation, waiting, status-timeline, etc.)
-- **Field definitions** (what data to collect)
-- **State transitions** (what happens when a user advances)
+- **Stages, routes, and gateways** (the journey structure — see the [Reference Service Blueprint Contract](./reference-service-blueprint-contract.md))
+- **Components** (what data to collect, and what's shown)
 - **Validation rules** (business logic to enforce)
 
 Prism Core handles rendering, client-side validation, and form submission. Your Business App handles all the business logic.
 
-**Service Blueprint endpoints your app must implement:**
-- `GET /api/service-blueprint/get-current` — Return the current step
-- `POST /api/service-blueprint/advance` — Process the action and return the next step
-- `POST /api/service-blueprint/submit` (optional) — For explicit submission without advancing
+**Service request endpoints your app must implement:**
+- `POST /api/service-request/{blueprintKey}/current` — Return the current stage
+- `POST /api/service-request/{blueprintKey}/advance` — Process the action and return the next stage
+- `GET /api/service-request/instances` — Power the service request hub
 
 See [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md) for complete examples.
 
