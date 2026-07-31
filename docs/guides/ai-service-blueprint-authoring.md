@@ -232,8 +232,8 @@ in it — the MCP tools stay reachable over HTTP regardless of working directory
 2. **Add the two `Map...` calls** to your `Program.cs`, with whatever `.RequireAuthorization()` policy you need.
 3. **Read the reference implementation** at `src/UmbracoPrism.MockBusinessApp/Program.cs`.
 4. **Read the toolkit projects' own READMEs** for the full wire contract:
-   [`Wayfinder.Engine.Api`](../../src/Wayfinder.Engine.Api/README.md),
-   [`Wayfinder.Engine.Mcp`](../../src/Wayfinder.Engine.Mcp/README.md).
+   [`Wayfinder.Engine.Api`](https://github.com/jonnymuir/Wayfinder/blob/main/Wayfinder.Engine.Api/README.md),
+   [`Wayfinder.Engine.Mcp`](https://github.com/jonnymuir/Wayfinder/blob/main/Wayfinder.Engine.Mcp/README.md).
 
 ---
 

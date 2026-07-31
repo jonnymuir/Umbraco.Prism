@@ -90,16 +90,15 @@ Each step collects information or presents a review screen. Let's fill in the fo
 **Click Continue**
 
 1. 💡 **How this works:**
-   - The service blueprint step type is `question` — designed to collect user input.
-   - Each field is defined in a field group file (e.g., `src/UmbracoPrism.MockBusinessApp/service-blueprints/field-groups/project-info.json`), which specifies the field name, label, input type (`text` or `textarea`), required flag, and max-length validation.
-   - The Umbraco TestSite made an HTTP POST to `https://localhost:7245/api/service-blueprint/planning-notification/current` (the MockBusinessApp's service blueprint engine) with your tenant ID, user ID, and bearer token.
-   - The service blueprint engine created a new instance in memory, seeded it with the `project-info` field group, and returned a `ServiceRequestResponseEnvelope` describing the current state (display name, field definitions, allowed actions).
-   - The TestSite rendered those field definitions as HTML form inputs using Razor partials (e.g., `_WorkflowStep-Question.cshtml`).
+   - This stage's `fieldset` component declares its input fields inline (`text`/`textarea` components with `fieldKey`, `label`, `required`, `maxLength`) — there's no separate "field group" file; the fields live directly in the stage's `components` array in `planning-notification.json`.
+   - The Umbraco TestSite made an HTTP POST to `https://localhost:7245/api/service-request/planning-notification/current` (the MockBusinessApp's service blueprint engine) with your tenant ID, user ID, and bearer token.
+   - The service blueprint engine created a new instance in memory and returned a `ServiceRequestResponseEnvelope` describing the current stage (display name, rendered components, allowed actions).
+   - The TestSite's `<prism-component>` tag helper dispatched each component to a GDS-styled Razor partial by naming convention (e.g. a `fieldset` component to `_PrismComponent-Fieldset.cshtml`, a `text` field inside it to `_Component-Text.cshtml`).
 
 2. ✅ **Data validation happens in real-time:**
    - If you leave the **Project name** blank and click Continue, the browser validates (HTML5 `required` attribute) and the form doesn't submit.
    - If you exceed 100 characters, the browser truncates or the form rejects submission.
-   - Server-side validation happens when you click Continue — if the MockBusinessApp receives invalid data, it returns a `ServiceRequestResponseEnvelope` with `isValid: false` and error messages, which the TestSite re-renders.
+   - Server-side validation happens when you click Continue — if the submission fails structural or domain validation, the TestSite re-renders the stage with `Problems` from the response envelope shown against the relevant fields.
 
 ### Step 2: "Type of work"
 
@@ -120,11 +119,10 @@ Each step collects information or presents a review screen. Let's fill in the fo
 
 **Click Continue**
 
-1. 💡 **Field group reference:**
-   - This step uses the `work-type-info` field group (defined in `service-blueprints/field-groups/work-type-info.json`).
-   - The service blueprint (in `planning-notification.json`) specifies that the `work-type` state includes the `work-type-info` field group.
-   - The Umbraco client sent your filled-in `project-name`, `project-description`, and `property-address` values to the service blueprint engine along with an action `continue`.
-   - The service blueprint engine validated those fields, stored them in the in-memory instance, transitioned to the `work-type` state, and returned the new state's field group definitions.
+1. 💡 **What's happening:**
+   - This stage's radio component declares `conditionalChildren` — the "Describe the type of work" field only appears when `Other` is selected, both as a client-side reveal and as a server-enforced rule (a hidden conditional field isn't required to submit).
+   - The Umbraco client sent your filled-in `projectName`, `projectDescription`, and `propertyAddress` values to the service blueprint engine along with an action `continue`.
+   - The service blueprint engine validated those fields, stored them on the instance, advanced to the `work-type` stage, and returned that stage's components.
 
 ### Step 3: "Timeline and cost"
 
@@ -146,9 +144,9 @@ Each step collects information or presents a review screen. Let's fill in the fo
 **Click Continue**
 
 1. 💡 **What's happening:**
-   - The date field uses the GDS `date-input` step type, rendering three separate inputs with IDs `proposedStartDate-day`, `proposedStartDate-month`, and `proposedStartDate-year`. The service blueprint engine combines these into a single `D/M/YYYY` value stored under the base field key.
-   - The currency field stores the raw number and prepends the `£` prefix when displaying the value in the summary.
-   - When you click Continue, the TestSite POSTs the filled values to `/api/service-blueprint/planning-notification/advance` with action `continue`, and the engine transitions to the next state.
+   - The `date` component renders three separate inputs with IDs `proposedStartDate-day`, `proposedStartDate-month`, and `proposedStartDate-year`. The service blueprint engine combines these into a single date value stored under the base field key.
+   - The `decimal` component stores the raw number and its `prefix` (`£`) is rendered separately from the input, then shown alongside the value in the summary.
+   - When you click Continue, the TestSite POSTs the filled values to `/api/service-request/planning-notification/advance` with action `continue`, and the engine advances to the next stage.
 
 ### Step 4: "Affected parties"
 
@@ -165,7 +163,7 @@ Each step collects information or presents a review screen. Let's fill in the fo
 **Click Continue**
 
 1. ✅ **Multi-select fields:**
-   - These are checkboxes defined in the `affected-parties-info` field group.
+   - This is a `checkboxlist` component on the `affected-parties` stage.
    - The engine stores which boxes were checked.
    - Validation ensures at least one is selected (if `required: true`).
 
@@ -182,10 +180,10 @@ Each step collects information or presents a review screen. Let's fill in the fo
    - **Affected parties:** Checked options
 - Two buttons: **Back** (to edit) and **Submit**
 
-1. 💡 **The check-answers step type:**
-   - The service blueprint specifies `stepType: "check-answers"` for this state.
-   - The TestSite rendered a special partial (`_WorkflowStep-Review.cshtml`) that displays a read-only summary instead of input fields.
-   - The service blueprint engine aggregates all field groups from every previous step and presents them together — none of your earlier answers are lost.
+1. 💡 **The check-answers shell:**
+   - This stage's components are `summary-list` components, each with a `changeStateKey` pointing back to the stage that captured those answers — that's what powers the **Change** links.
+   - There's no separate `stepType` to author: the shell Prism renders is inferred from the components on the stage (a stage made entirely of `summary-list` components renders as `check-answers`).
+   - The summary lists re-declare the fields from each earlier stage so their captured values render read-only — none of your earlier answers are lost.
    - This is a UX checkpoint: users confirm their data is correct before submission.
 
 2. ✅ **What you can do:**
@@ -195,8 +193,8 @@ Each step collects information or presents a review screen. Let's fill in the fo
 **Click Submit**
 
 1. 💡 **Submitting the service blueprint:**
-   - The TestSite POSTs to `/api/service-blueprint/planning-notification/advance` with action `submit`.
-   - The service blueprint engine validates that all required fields are filled, transitions to the `complete` state, and marks the instance as finished.
+   - The TestSite POSTs to `/api/service-request/planning-notification/advance` with action `submit`.
+   - The service blueprint engine validates that all required fields are filled, advances to the `complete` stage, and marks the instance as terminal (no outgoing routes).
    - The Business App stores the instance in its in-memory state (for this demo; in production, it would persist to a database and possibly trigger downstream actions like sending emails or creating records).
 
 ### Step 6: "Application received"
@@ -213,16 +211,16 @@ Each step collects information or presents a review screen. Let's fill in the fo
   ```
 - One button: **Start another application**
 
-1. 💡 **The confirmation step type:**
-   - The service blueprint specifies `stepType: "confirmation"` for the `complete` state.
-   - The TestSite rendered a special partial (`_WorkflowStep-Completion.cshtml`) that displays a success message and next steps.
-   - The service blueprint engine includes a reference number (the instance ID) so the user can track their submission.
-   - Subsequent requests to `/api/service-blueprint/planning-notification/current` will show this same completion state (the instance is still active but completed).
+1. 💡 **The confirmation shell:**
+   - The `complete` stage's components are a `panel` plus `body`/`heading` content — a stage with a panel and no interactive inputs is what makes Prism infer the `confirmation` shell; there's no separate `stepType` to author.
+   - `_Stage-Completion.cshtml` (in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)) renders that shell.
+   - The reference number shown here is authored directly into the panel's content for this demo, rather than generated per-instance.
+   - Subsequent requests to `/api/service-request/planning-notification/current` will show this same completion stage (the instance is terminal, but still returned on every visit).
 
 2. ✅ **Starting another application:**
    - Click **Start another application**.
-   - The service blueprint engine creates a fresh instance for the same user/tenant/service blueprint combination.
-   - The `instancePolicy: "multiple"` setting in the service blueprint means users can start multiple instances.
+   - This blueprint's `requestPolicy` is `"single"` — not `"multiple"` — so a plain revisit always shows this same completed instance, by design (a returning visitor should see their real confirmation, not a silently-reset blank form).
+   - The button is a real product feature for exactly this case: it's a GET link back to the same page with `?action=start-new`, which the engine treats as an explicit, visitor-initiated request for a genuinely new instance — the one escape hatch past `"single"`'s normal resume behaviour.
 
 ---
 
@@ -232,20 +230,22 @@ Each step collects information or presents a review screen. Let's fill in the fo
 
 **Location:** `src/UmbracoPrism.MockBusinessApp/service-blueprints/planning-notification.json`
 
-This JSON file defines the entire service blueprint structure:
+This JSON file defines the entire service blueprint structure. See the
+[Reference Service Blueprint Contract](../guides/reference-service-blueprint-contract.md) for
+the full schema — the shape actually used here:
 
 ```json
 {
   "definitionKey": "planning-notification",
   "displayName": "Apply for Planning Permission",
   "version": 1,
-  "instancePolicy": "multiple",
-  "initialState": "project-details",
-  "states": [
-    { "stateKey": "project-details", "displayName": "Describe your project", "stepType": "question", ... },
-    { "stateKey": "work-type", "displayName": "Type of work", "stepType": "question", ... },
-    { "stateKey": "check-answers", "displayName": "Check your answers", "stepType": "check-answers", ... },
-    { "stateKey": "complete", "displayName": "Application received", "stepType": "confirmation", ... }
+  "requestPolicy": "single",
+  "initialStage": "project-details",
+  "stages": [
+    { "stageKey": "project-details", "displayName": "Describe your project", "components": [ ... ] },
+    { "stageKey": "work-type", "displayName": "Type of work", "components": [ ... ] },
+    { "stageKey": "check-answers", "displayName": "Check your answers", "components": [ ... ] },
+    { "stageKey": "complete", "displayName": "Application received", "components": [ ... ] }
   ],
   "transitions": [
     { "fromState": "project-details", "toState": "work-type", "action": "continue" },
@@ -255,89 +255,78 @@ This JSON file defines the entire service blueprint structure:
 ```
 
 **What this means:**
-- **definitionKey:** The unique service blueprint identifier (used in the URL: `/api/service-blueprint/planning-notification/...`).
+- **definitionKey:** The unique service blueprint identifier (used in the URL: `/api/service-request/planning-notification/...`).
 - **displayName:** Human-readable name shown to users.
-- **instancePolicy:** `"multiple"` means users can have multiple active instances.
-- **states:** Each state is a step in the service blueprint, with a `stepType` (`question`, `check-answers`, `confirmation`) and allowed actions (`continue`, `back`, `submit`).
-- **transitions:** Defines which state follows each action (e.g., "from `project-details`, if action is `continue`, go to `work-type`").
+- **requestPolicy:** `"single"` means each user has at most one instance, always resumed (see the "Starting another application" note above).
+- **stages:** Each stage owns its `components` — the shell Prism renders (`question`, `check-answers`, `confirmation`, ...) is inferred from what those components are, not authored separately.
+- **transitions:** This particular seed still uses the flat `fromState`/`toState`/`action` routing style — a supported back-compat form. Most current demo seeds (e.g. `payment-demo.json`, `money-modeller.json`) instead give each stage its own `routes` targeting first-class Split/Join `gateways`; see [Gateways and routing](../guides/reference-service-blueprint-contract.md#gateways-and-routing).
 
-### Polymorphic Component Model
+### Component Model
 
-The service blueprint uses a polymorphic component model where field definitions include a discriminator `type`:
-
-```json
-{
-  "type": "file",
-  "fieldKey": "supporting-docs",
-  "label": "Supporting documents",
-  "hint": "Upload plans, drawings, or photos (PDF, JPG, PNG up to 10MB each)",
-  "required": false,
-  "accept": ".pdf,.jpg,.jpeg,.png",
-  "maxFileSize": 10485760,
-  "multiple": true
-}
-```
-
-Field types include: `text`, `textarea`, `email`, `number`, `currency`, `date`, `radios`, `checkboxes`, `file`, and more.
+Stage `components` are a polymorphic tree discriminated by `"type"` — see
+[Components](../guides/reference-service-blueprint-contract.md#components) for the full catalog
+(input, content, structural, and data-display components). This blueprint's `checkboxlist` and
+`radio` components with `conditionalChildren`, and its `check-answers` stage's `summary-list`
+components with `changeStateKey`, are both documented there.
 
 ### The Service Blueprint Engine
 
 **Location:** `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppProcessManager.cs`
 
-This is the core engine that powers service blueprint logic. It:
+This is `MockBusinessApp`'s engine — it extends `Wayfinder.Engine`'s `ProcessManagerEngine`, the same generic state-machine engine `Wayfinder.Umbraco` hosts in-process for CMS Workflow. It:
 
-1. **Loads seed data at startup:** Reads all JSON files from `service-blueprints/` into memory as `ServiceBlueprint` and `FieldGroupFile` objects.
-2. **Maintains instance state:** Stores each user's service requests in a `ConcurrentDictionary<string, ServiceRequest>` keyed by `{tenantId}:{userId}:{workflowKey}`.
-3. **Handles GetCurrent:** Returns the current state of a service request, or creates a fresh one if none exists.
-4. **Handles Advance:** Validates the user's input against the current state's field definitions, transitions to the next state, and returns the new state's definition.
-5. **Tracks completed instances:** Once a service blueprint reaches a terminal state (e.g., `complete`), it marks the instance as finished but keeps it in memory so the UI can display the confirmation.
+1. **Loads seed data at startup:** reads all JSON files from `service-blueprints/` into memory as `ServiceBlueprint` objects.
+2. **Maintains instance state:** stores each user's service requests in memory, scoped by tenant, user, and blueprint key.
+3. **Handles current:** returns the current stage of a service request, or creates a fresh one according to `requestPolicy`.
+4. **Handles advance:** validates the submitted fields against the current stage's components, advances the instance, and returns the new stage.
+5. **Tracks terminal instances:** once a service blueprint reaches a stage with no outgoing routes (e.g. `complete`), it keeps returning that same stage on every subsequent visit rather than resetting.
 
 ### Integration: How Umbraco Calls the Engine
 
-**Location:** `src/UmbracoPrism.Core/Services/BusinessAppWorkflowClient.cs`
+**Location:** `src/UmbracoPrism.Core/Services/BusinessAppProcessManagerClient.cs`
 
 The Umbraco site (TestSite) includes a service that makes HTTP calls to the Business App:
 
-1. **GetCurrentAsync:** POSTs to `/api/service-blueprint/{workflowKey}/current`
-   - The TestSite controller routes this request through `BusinessAppWorkflowClient`.
+1. **GetCurrentAsync:** POSTs to `/api/service-request/{blueprintKey}/current`
+   - The TestSite controller routes this request through `BusinessAppProcessManagerClient`.
    - The client forwards your bearer token (JWT) so the Business App can verify your identity.
-   - Returns a `ServiceRequestResponseEnvelope` with the current state and field definitions.
+   - Returns a `ServiceRequestResponseEnvelope` with the current stage and rendered components.
 
-2. **AdvanceAsync:** POSTs to `/api/service-blueprint/{workflowKey}/advance` with your form data
+2. **AdvanceAsync:** POSTs to `/api/service-request/{blueprintKey}/advance` with your form data
    - The client serializes your filled-in fields as JSON.
-   - The Business App engine validates them, transitions the instance, and returns the new state.
-   - If validation fails, the engine returns an error envelope with validation messages.
+   - The Business App engine validates them, advances the instance, and returns the next envelope.
+   - If validation fails, the engine returns `Problems` on the envelope instead of advancing.
 
 ### The Response Envelope
 
-Every service blueprint API response from the Business App includes a `ServiceRequestResponseEnvelope`:
+Every service request API response from the Business App is a `ServiceRequestResponseEnvelope`
+(`Wayfinder.Models.ServiceDesign`, in [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder)):
 
 ```csharp
-public class ServiceRequestResponseEnvelope
+public record ServiceRequestResponseEnvelope
 {
-    public string InstanceId { get; set; }           // Unique ID for this service request
-    public string StateKey { get; set; }             // Current state (e.g., "project-details")
-    public string StateDisplayName { get; set; }     // User-facing name
-    public string StepType { get; set; }             // "question", "check-answers", "confirmation"
-    public Dictionary<string, object> CollectedData { get; set; } // User's filled-in values
-    public FieldGroup[] FieldGroups { get; set; }    // Field definitions for this state (if question type)
-    public string[] AllowedActions { get; set; }     // ["continue"], ["submit", "back"], etc.
-    public bool IsValid { get; set; }                // Whether the current state is valid
-    public string[] ErrorMessages { get; set; }      // Validation errors if !IsValid
+    public required string InstanceId { get; init; }        // Unique ID for this service request
+    public required string ResponseState { get; init; }     // render, defer, complete, error
+    public required int StateVersion { get; init; }         // Optimistic-concurrency token
+    public required string CorrelationId { get; init; }
+    public required DateTimeOffset ServerTimeUtc { get; init; }
+    public int? PollAfterMs { get; init; }                  // Set on "defer" responses
+    public StepContent? Render { get; init; }               // Present when ResponseState is "render"
+    public string? RequestPolicy { get; init; }             // Echoes the blueprint's requestPolicy
+    public IReadOnlyList<ServiceRequestProblem> Problems { get; init; }
 }
 ```
 
+`Render.StepType`, `.StateDisplayName`, `.Components`, and `.AvailableActions` are what the TestSite actually renders.
+
 ### Rendering: How Umbraco Displays the Service Blueprint
 
-**Location:** `src/UmbracoPrism.TestSite/Views/WorkflowPage.cshtml`
+**Location:** `stagePage.cshtml` in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)
 
-1. The TestSite controller fetches the current state via `BusinessAppWorkflowClient.GetCurrentAsync()`.
-2. It passes the `ServiceRequestResponseEnvelope` to `stagePage.cshtml`.
-3. The view maps the `StepType` to a partial view:
-   - `question` → `_WorkflowStep-Question.cshtml` (renders form inputs)
-   - `check-answers` → `_WorkflowStep-Review.cshtml` (renders read-only summary)
-   - `confirmation` → `_WorkflowStep-Completion.cshtml` (renders success message)
-4. Each partial uses the field definitions to generate HTML form fields.
+1. The TestSite controller fetches the current stage via `BusinessAppProcessManagerClient.GetCurrentAsync()`.
+2. It passes the `ServiceRequestResponseEnvelope` to `PrismServiceRequestViewModel`, which `stagePage.cshtml` renders.
+3. The view picks a shell partial based on the inferred step type (`_Stage-Question.cshtml`, `_Stage-Review.cshtml`, `_Stage-Completion.cshtml`, and so on).
+4. Each component on the stage is rendered by the `<prism-component>` tag helper, which dispatches by naming convention — a `summary-list` component to `_PrismComponent-SummaryList.cshtml`, a `text` field to `_Component-Text.cshtml`, and so on.
 
 ### Umbraco Backoffice Content
 
@@ -358,7 +347,7 @@ Log into the Umbraco backoffice to see how this service blueprint is wired:
 - Content publishing and unpublishing (determines if the page is visible to users).
 
 **What the backoffice user does NOT control:**
-- The service blueprint states, transitions, or field definitions — those are baked into the JSON seed files in the MockBusinessApp.
+- The service blueprint's stages, routes, or components — those are baked into the JSON seed files in the MockBusinessApp.
 - In a real system, the backoffice might include a visual service blueprint builder, but this demo uses JSON as the source of truth.
 
 ### Keycloak: Identity and Authorization

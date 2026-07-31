@@ -4,7 +4,7 @@ This guide covers the Umbraco-facing side of Prism service blueprints: service r
 
 ## Register the package services
 
-`src/UmbracoPrism.Core/Extensions/WorkflowBuilderExtensions.cs` exposes `AddPrismWorkflowEngine()`.
+`src/UmbracoPrism.Core/Extensions/ServiceDesignBuilderExtensions.cs` exposes `builder.AddPrismProcessManager()`.
 
 That call registers:
 
@@ -19,8 +19,8 @@ That call registers:
 
 | Setting | Purpose |
 | --- | --- |
-| `PrismBusinessApp:WorkflowApiBaseUrl` | Browser-facing service blueprint API base URL for the business app |
-| `Prism:Service-Blueprint:NonceExpiry` | How long the nonce cache should keep field definitions |
+| `PrismBusinessApp:ApiBaseUrl` | Service blueprint API base URL for the business app |
+| `Prism:Workflow:NonceExpiry` | How long the nonce cache should keep field definitions |
 
 For production, replace the default in-memory distributed cache with a shared backing store such as Redis or SQL Server.
 
@@ -46,7 +46,7 @@ Responsibilities on GET:
 3. support prompt-mode `instance_picker`,
 4. allow optional field pre-population,
 5. generate the nonce bound to the rendered field definitions,
-6. populate `PrismPrismServiceRequestViewModel`.
+6. populate `PrismServiceRequestViewModel`.
 
 Responsibilities on POST:
 
@@ -92,7 +92,7 @@ That means partial views can focus on fields and actions instead of rebuilding h
 - resolves the matching `stagePage` by `blueprintKey`,
 - appends `instanceId` for resumable journeys.
 
-This is the piece that makes `multiple` and `prompt` instance policies user-friendly rather than purely technical.
+This is the piece that makes `multiple` and `prompt` request policies user-friendly rather than purely technical.
 
 ## Request lifecycle in Umbraco
 
@@ -107,14 +107,14 @@ sequenceDiagram
     Member->>Page: GET /service-blueprint page
     Page->>Controller: Route hijack
     Controller->>Client: GetCurrentAsync(blueprintKey)
-    Client->>API: POST /api/service-blueprint/{key}/current
+    Client->>API: POST /api/service-request/{key}/current
     API-->>Client: Envelope
     Controller-->>Page: ViewModel + nonce
     Member->>Page: POST form
     Page->>Controller: HandlePost()
     Controller->>Controller: Antiforgery + nonce + field validation
     Controller->>Client: AdvanceAsync(...)
-    Client->>API: POST /api/service-blueprint/{key}/advance
+    Client->>API: POST /api/service-request/{key}/advance
     API-->>Client: Next envelope
     Controller-->>Member: Redirect back to GET
 ```

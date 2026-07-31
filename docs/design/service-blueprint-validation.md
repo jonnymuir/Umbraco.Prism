@@ -25,11 +25,11 @@ This protects against:
 - changed options,
 - relaxed client-side constraints.
 
-Source: `src/Wayfinder.Umbraco/Services/StageNonceService.cs`.
+Source: `Services/StageNonceService.cs` in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco).
 
 ## What the field validator checks
 
-`src/Wayfinder.Umbraco/Services/ServiceRequestFieldValidator.cs` currently enforces:
+`Services/ServiceRequestFieldValidator.cs` (also [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)) currently enforces:
 
 - unknown-field rejection,
 - required fields,
