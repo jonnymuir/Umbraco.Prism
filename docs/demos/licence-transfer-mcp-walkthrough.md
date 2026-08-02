@@ -1,5 +1,14 @@
 # Recorded demo: "Transfer a Professional Juggling Licence" — built live over MCP
 
+> **Historical record, not a reproducible guide.** This documents a demo that was actually
+> recorded, but the feature it's built on — Prism's own "CMS Service Blueprint" backoffice
+> authoring surface (`CmsServiceBlueprintAuthoringController`, its keyed MCP endpoint, the
+> `cms-visitor` queue) — was removed entirely once it became redundant with `Wayfinder.Umbraco`'s
+> own independent "Wayfinder" backoffice section. The demo content itself (the juggling-licence
+> transfer blueprint) still exists, now authored the same way any Wayfinder.Umbraco-hosted
+> definition is — see `UmbracoPrism.TestSite`'s own `PublicVisitorQueue`/`LicenceTransferServiceRequestSeeder`.
+> Kept as a record of what was built and how, not as current step-by-step instructions.
+
 A narrated screen recording (not a CI-gated behavioural walkthrough — see
 [Why this isn't under `docs/walkthroughs/`](#why-this-isnt-under-docswalkthroughs) below) showing
 an AI agent design and build a real, complex Prism Cms Service Blueprint — branching eligibility, a

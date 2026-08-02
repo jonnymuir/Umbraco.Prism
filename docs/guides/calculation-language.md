@@ -1,4 +1,4 @@
-# The Prism Calculation Language
+# The Wayfinder Calculation Language
 
 A total, side-effect-free expression language for the maths behind a service blueprint —
 pension quotes, eligibility thresholds, banded tax calculations, whatever a stage

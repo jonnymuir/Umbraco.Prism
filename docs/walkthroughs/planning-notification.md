@@ -93,7 +93,7 @@ Each step collects information or presents a review screen. Let's fill in the fo
    - This stage's `fieldset` component declares its input fields inline (`text`/`textarea` components with `fieldKey`, `label`, `required`, `maxLength`) — there's no separate "field group" file; the fields live directly in the stage's `components` array in `planning-notification.json`.
    - The Umbraco TestSite made an HTTP POST to `https://localhost:7245/api/service-request/planning-notification/current` (the MockBusinessApp's service blueprint engine) with your tenant ID, user ID, and bearer token.
    - The service blueprint engine created a new instance in memory and returned a `ServiceRequestResponseEnvelope` describing the current stage (display name, rendered components, allowed actions).
-   - The TestSite's `<prism-component>` tag helper dispatched each component to a GDS-styled Razor partial by naming convention (e.g. a `fieldset` component to `_PrismComponent-Fieldset.cshtml`, a `text` field inside it to `_Component-Text.cshtml`).
+   - The TestSite's `<wayfinder-component>` tag helper dispatched each component to a GDS-styled Razor partial by naming convention (e.g. a `fieldset` component to `_Component-Fieldset.cshtml`, a `text` field inside it to `_Component-Text.cshtml`).
 
 2. ✅ **Data validation happens in real-time:**
    - If you leave the **Project name** blank and click Continue, the browser validates (HTML5 `required` attribute) and the form doesn't submit.
@@ -273,7 +273,7 @@ components with `changeStateKey`, are both documented there.
 
 **Location:** `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppProcessManager.cs`
 
-This is `MockBusinessApp`'s engine — it extends `Wayfinder.Engine`'s `ProcessManagerEngine`, the same generic state-machine engine `Wayfinder.Umbraco` hosts in-process for CMS Workflow. It:
+This is `MockBusinessApp`'s engine — it extends `Wayfinder.Engine`'s `ProcessManagerEngine`, the same generic state-machine engine `Wayfinder.Umbraco` hosts in-process for its own backoffice-authored service blueprints (and that `UmbracoPrism.TestSite` hosts in-process for its own demo queue). It:
 
 1. **Loads seed data at startup:** reads all JSON files from `service-blueprints/` into memory as `ServiceBlueprint` objects.
 2. **Maintains instance state:** stores each user's service requests in memory, scoped by tenant, user, and blueprint key.
@@ -324,9 +324,9 @@ public record ServiceRequestResponseEnvelope
 **Location:** `stagePage.cshtml` in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)
 
 1. The TestSite controller fetches the current stage via `BusinessAppProcessManagerClient.GetCurrentAsync()`.
-2. It passes the `ServiceRequestResponseEnvelope` to `PrismServiceRequestViewModel`, which `stagePage.cshtml` renders.
+2. It passes the `ServiceRequestResponseEnvelope` to `ServiceRequestPageViewModel`, which `stagePage.cshtml` renders.
 3. The view picks a shell partial based on the inferred step type (`_Stage-Question.cshtml`, `_Stage-Review.cshtml`, `_Stage-Completion.cshtml`, and so on).
-4. Each component on the stage is rendered by the `<prism-component>` tag helper, which dispatches by naming convention — a `summary-list` component to `_PrismComponent-SummaryList.cshtml`, a `text` field to `_Component-Text.cshtml`, and so on.
+4. Each component on the stage is rendered by the `<wayfinder-component>` tag helper, which dispatches by naming convention — a `summary-list` component to `_Component-SummaryList.cshtml`, a `text` field to `_Component-Text.cshtml`, and so on.
 
 ### Umbraco Backoffice Content
 

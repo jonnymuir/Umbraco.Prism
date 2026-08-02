@@ -3,7 +3,7 @@
 A guide for integrators. Let an AI agent (Claude Code or any MCP client) list, read,
 validate, simulate, and save your business app's service blueprints.
 
-Prism doesn't build AI into itself. It ships a toolkit your business app hosts, the same
+Wayfinder doesn't build AI into itself. It ships a toolkit your business app hosts, the same
 way it ships the service blueprint editor for humans to host (see
 [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md)) — you add one or two
 lines to your own pipeline, and the AI-facing surface runs inside your app's own process,
@@ -18,8 +18,8 @@ Three layers, mirroring how the service blueprint engine itself is already layer
 | Layer | Package | What it does |
 |---|---|---|
 | Reusable authoring logic | `Wayfinder.Engine` | `ServiceBlueprintAuthoringService` — list/read/validate/save/simulate against an `IServiceBlueprintSourceStore` you implement. `ServiceBlueprintSimulationRunner` dry-runs a definition through the real engine with zero persistence. |
-| REST surface | `Wayfinder.Engine.Api` | `MapPrismServiceBlueprintAuthoringApi()` — one extension method, maps the same operations as HTTP endpoints. |
-| MCP surface | `Wayfinder.Engine.Mcp` | `MapPrismServiceBlueprintAuthoringMcp()` — one extension method, maps the same operations as MCP tools over HTTP, so Claude Code (or any MCP client) can call them directly. |
+| REST surface | `Wayfinder.Engine.Api` | `MapServiceBlueprintAuthoringApi()` — one extension method, maps the same operations as HTTP endpoints. |
+| MCP surface | `Wayfinder.Engine.Mcp` | `MapServiceBlueprintAuthoringMcp()` — one extension method, maps the same operations as MCP tools over HTTP, so Claude Code (or any MCP client) can call them directly. |
 
 Both surfaces call the same `ServiceBlueprintAuthoringService`, in-process. That matters: an MCP
 server can't run *inside* an externally-spawned stdio process and still see your app's
@@ -76,17 +76,17 @@ don't need to build this part yourself, just implement the store correctly.
 
 ```csharp
 builder.Services.AddSingleton<IServiceBlueprintSourceStore, YourServiceBlueprintSourceStore>();
-builder.Services.AddPrismServiceBlueprintAuthoring();      // registers ServiceBlueprintAuthoringService
-builder.Services.AddPrismServiceBlueprintAuthoringMcp();    // registers the MCP server
+builder.Services.AddServiceBlueprintAuthoring();      // registers ServiceBlueprintAuthoringService
+builder.Services.AddServiceBlueprintAuthoringMcp();    // registers the MCP server
 
 var app = builder.Build();
 
-app.MapPrismServiceBlueprintAuthoringApi();   // REST — GET/PUT /prism/service-blueprint-authoring/service-blueprints/*
-app.MapPrismServiceBlueprintAuthoringMcp();   // MCP  — POST   /prism/service-blueprint-authoring/mcp
+app.MapServiceBlueprintAuthoringApi();   // REST — GET/PUT /wayfinder/service-blueprint-authoring/service-blueprints/*
+app.MapServiceBlueprintAuthoringMcp();   // MCP  — POST   /wayfinder/service-blueprint-authoring/mcp
 ```
 
 Both `Map...` calls return a chainable endpoint builder — chain `.RequireAuthorization()`
-(or any other ASP.NET Core policy) the same way you would for any other endpoint. Prism
+(or any other ASP.NET Core policy) the same way you would for any other endpoint. Wayfinder
 doesn't ship an auth story for this surface, the same way it doesn't enforce queue-level
 access control for the runtime engine — that's always been the host's responsibility.
 `MockBusinessApp` leaves both unauthenticated intentionally, to prove the boundary works
@@ -99,74 +99,31 @@ Find your app's URL (under Aspire, `MockBusinessApp`'s dashboard row has a label
 including Claude Code's, won't trust a local ASP.NET Core dev certificate), then:
 
 ```
-claude mcp add --transport http prism-service-blueprint http://localhost:<port>/prism/service-blueprint-authoring/mcp
+claude mcp add --transport http wayfinder-service-blueprint http://localhost:<port>/wayfinder/service-blueprint-authoring/mcp
 ```
 
-If your endpoints require auth, pass it at registration:
+If your endpoint requires auth, pass it at registration:
 
 ```
-claude mcp add --transport http prism-service-blueprint <url> --header "Authorization: Bearer <token>"
+claude mcp add --transport http wayfinder-service-blueprint <url> --header "Authorization: Bearer <token>"
 ```
 
-## Two MCP surfaces in this repo — and how they differ
-
-This repo ships two concrete hosts, each with its own MCP endpoint, on its own URL, with its
-own auth. There's no server-side "which one is this" logic — the two are just separate HTTP
-endpoints on separate processes; the *client* config is where the distinction lives (two
-named entries, per the `claude mcp add` command twice, below).
-
-| | `UmbracoPrism.MockBusinessApp` | `UmbracoPrism.TestSite` (Cms Service Blueprint) |
-|---|---|---|
-| Endpoint | `MockBusinessApp`'s own port, `/prism/service-blueprint-authoring/mcp` | TestSite's own port, `/prism/service-blueprint-authoring/mcp` |
-| Auth | **None** — intentionally, to prove the toolkit's auth boundary is real without inheriting a policy. Local-dev-only reference host; its `/admin/service-blueprint/*` and `/service-blueprint-editor` routes have no auth either. | **Real backoffice admin auth** — `MapPrismCmsServiceBlueprintAuthoringMcp()` chains `RequireAuthorization(AuthorizationPolicies.BackOfficeAccess, "PrismAdmins")`, the exact same policy stack as `CmsServiceBlueprintAuthoringController` and the native backoffice editor. |
-| Aspire dashboard label | "Service Blueprint Authoring MCP (HTTP)" on the `businessapp` row | "CMS Service Blueprint Authoring MCP (HTTP, requires backoffice admin auth)" on the `testsite` row |
-
-### Connecting to the Cms Service Blueprint MCP surface (real auth)
-
-Umbraco 17 ships a first-class, non-Cloud client-credentials grant on its own Management API
-token endpoint — the exact same OpenIddict flow the interactive backoffice SPA uses for every
-call after its initial login, just with `grant_type=client_credentials` instead of
-`authorization_code`. `IBackOfficeSecurityAccessor.BackOfficeSecurity.CurrentUser` resolves the
-same real `IUser`, with real group memberships, regardless of which grant minted the token — so
-an MCP agent authenticating this way genuinely gets "the same security as doing it manually,"
-not a parallel scheme.
-
-1. **In the backoffice** (as an existing admin), create or designate a service-account user and
-   add it to whichever group `Prism:AdminGroups:GroupAliases` allows (default: `admin`).
-2. **Register client credentials for that user** — requires an authenticated admin session to
-   call:
-   ```
-   POST /umbraco/management/api/v1/user/{userId}/client-credentials
-   { "clientId": "prism-mcp-agent", "clientSecret": "<a-strong-secret-you-generate>" }
-   ```
-3. **Exchange the credentials for a bearer token** — this is what your MCP client needs; some
-   clients can do this exchange themselves, but Claude Code's HTTP transport expects a
-   ready-made header, so fetch one manually first:
-   ```
-   curl -k -X POST https://localhost:44345/umbraco/management/api/v1/security/back-office/token \
-     -d grant_type=client_credentials -d client_id=prism-mcp-agent -d client_secret=<your-secret>
-   ```
-   Tokens expire — repeat this to refresh, or automate it in your own MCP client config if it
-   supports a token-refresh hook.
-4. **Register it with Claude Code**, distinct from the business-service blueprint one above:
-   ```
-   claude mcp add --transport http prism-cms-service-blueprint http://localhost:9250/prism/service-blueprint-authoring/mcp \
-     --header "Authorization: Bearer <token-from-step-3>"
-   ```
-   (Port `9250` matches TestSite's `launchSettings.json` HTTP profile — check the Aspire
-   dashboard's "CMS Service Blueprint Authoring MCP" link on the `testsite` row for the live value, same
-   dev-cert-trust reasoning as the HTTP-not-HTTPS note above.)
-
-Verified live (`apply-for-a-juggling-licence.walkthrough.spec.ts`): this endpoint returns `401`
-with no token, exactly like `CmsServiceBlueprintAuthoringController`'s REST surface — there's no gap
-between what the backoffice UI enforces and what the MCP surface enforces.
+`UmbracoPrism.MockBusinessApp` is this repo's only MCP host — it leaves the endpoint
+unauthenticated intentionally, to prove the toolkit's auth boundary is real without inheriting
+a policy (its `/admin/service-blueprint/*` and `/service-blueprint-editor` routes have no auth
+either). If you want an authed example, add `.RequireAuthorization()` (or any other ASP.NET
+Core policy) to your own `Map...` calls per the "Wiring it up" section above — Umbraco's own
+client-credentials grant on `/umbraco/management/api/v1/security/back-office/token` works well
+for this if your host is Umbraco-based (the same flow the interactive backoffice SPA uses,
+just with `grant_type=client_credentials`), but that's a decision for your own host to make,
+not something this toolkit prescribes.
 
 ## Reference material for the agent
 
 Two things worth pointing an agent at before it starts authoring, rather than
 letting it infer syntax from trial and error:
 
-- **[The Prism Calculation Language](./calculation-language.md)** — the grammar,
+- **[The Wayfinder Calculation Language](./calculation-language.md)** — the grammar,
   function reference, and worked example for the `calculations` block and
   `showWhen` expressions. Also exposed as an MCP resource,
   `service-blueprint-docs://calculation-language`, so an agent connected only over MCP (no

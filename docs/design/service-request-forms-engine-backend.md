@@ -47,7 +47,7 @@ Source: `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppProcessManager.cs`
 | `RequestPolicy` | Echoes the blueprint's `requestPolicy` |
 | `Problems` | Validation or fatal problems (`ServiceRequestProblem[]`) |
 
-`StepContent` contains `StepType`, `StateDisplayName`, `Components` (`PrismComponentRenderPayload[]`), `AvailableActions`, and an optional `Data` (host-supplied structured display data resolved into "interactive" components — display data only, never instructions).
+`StepContent` contains `StepType`, `StateDisplayName`, `Components` (`ComponentRenderPayload[]`), `AvailableActions`, and an optional `Data` (host-supplied structured display data resolved into "interactive" components — display data only, never instructions).
 
 ### Render payload details that matter
 

@@ -7,7 +7,9 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
+using Microsoft.Extensions.Options;
 using Moq;
+using Wayfinder.Umbraco.Configuration;
 using Wayfinder.Umbraco.Models;
 using Wayfinder.Umbraco.Services;
 using Wayfinder.Umbraco.TagHelpers;
@@ -44,7 +46,10 @@ public class FieldTagHelperContentTypesTests
             Writer         = new StringWriter(),
         };
 
-        var helper = new ComponentTagHelper(htmlHelperMock.Object, new ComponentPartialResolver(viewEngineMock.Object))
+        var helper = new ComponentTagHelper(
+            htmlHelperMock.Object,
+            new ComponentPartialResolver(viewEngineMock.Object),
+            Options.Create(new WayfinderServiceDesignOptions()))
         {
             Field       = field,
             Errors      = errors,
