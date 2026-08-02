@@ -130,23 +130,17 @@ test.describe('Apply for a juggling licence (CMS ServiceBlueprint) walkthrough',
     await expect(page.getByRole('heading', { name: 'Application submitted' })).toBeVisible({ timeout: 30_000 });
   });
 
-  test('backoffice CMS ServiceBlueprint authoring API requires admin auth', async ({ request }) => {
+  test('backoffice Blueprints authoring API requires admin auth', async ({ request }) => {
+    // Wayfinder.Umbraco's ServiceBlueprintAuthoringController — the CMS Service Blueprint
+    // editor's real successor since the extraction — requires
+    // WayfinderUmbracoAuthorizationPolicies.BlueprintsAdmin (RequireAuthenticatedUser() plus
+    // membership of a WayfinderServiceDesignOptions.AdminGroupAliases group), enforced by
+    // WayfinderAdminHandler. An unauthenticated request fails the former, well before group
+    // membership is even considered.
     const response = await request.get(
-      'https://localhost:44345/umbraco/management/api/v1/prism/cms-service-blueprints/queues',
+      'https://localhost:44345/umbraco/management/api/v1/wayfinder/service-blueprints/queues',
       { ignoreHTTPSErrors: true } as never
     );
-    expect(response.status()).toBe(401);
-  });
-
-  test('CMS ServiceBlueprint AI-authoring MCP endpoint requires the same admin auth', async ({ request }) => {
-    // MapPrismCmsServiceBlueprintAuthoringMcp() chains RequireAuthorization(BackOfficeAccess,
-    // PrismAdmins) — same policy stack as the REST controller above and the backoffice
-    // editor itself. No separate auth story for the MCP surface.
-    const response = await request.post('https://localhost:44345/prism/service-blueprint-authoring/mcp', {
-      ignoreHTTPSErrors: true,
-      headers: { 'Content-Type': 'application/json' },
-      data: {},
-    } as never);
     expect(response.status()).toBe(401);
   });
 });
