@@ -4,31 +4,43 @@
   "version": "1.1.2",
   "extensions": [
     {
-      "type": "section",
-      "alias": "Prism.Section",
-      "name": "Prism",
+      "type": "workspace",
+      "kind": "default",
+      "alias": "Prism.Workspace.TenantRoot",
+      "name": "Prism Tenants Root Workspace",
       "meta": {
-        "label": "Prism",
-        "pathname": "prism",
-        "icon": "icon-prism"
+        "entityType": "prism-tenant-root",
+        "headline": "Tenants"
       }
     },
     {
-      "type": "dashboard",
-      "alias": "Prism.Dashboard",
-      "name": "Prism Dashboard",
+      "type": "workspaceView",
+      "alias": "Prism.WorkspaceView.TenantRoot",
+      "name": "Prism Tenants Root Workspace View",
       "elementName": "prism-dashboard",
       "js": "/App_Plugins/UmbracoPrism/dist/prism-dashboard.js",
-      "weight": -10,
-      "conditions": [
-        {
-          "alias": "Umb.Condition.SectionAlias",
-          "match": "Umb.Section.Content"
-        }
-      ],
       "meta": {
         "label": "Tenants",
-        "pathname": "tenants"
+        "pathname": "tenants",
+        "icon": "icon-server"
+      },
+      "conditions": [
+        {
+          "alias": "Umb.Condition.WorkspaceAlias",
+          "match": "Prism.Workspace.TenantRoot"
+        }
+      ]
+    },
+    {
+      "type": "menuItem",
+      "alias": "Prism.MenuItem.TenantRoot",
+      "name": "Prism Tenants Menu Item",
+      "weight": 100,
+      "meta": {
+        "label": "Tenants",
+        "icon": "icon-server",
+        "entityType": "prism-tenant-root",
+        "menus": ["Umb.Menu.AdvancedSettings"]
       }
     },
     {
