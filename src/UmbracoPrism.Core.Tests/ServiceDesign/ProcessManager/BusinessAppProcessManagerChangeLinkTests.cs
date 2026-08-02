@@ -75,7 +75,8 @@ public class BusinessAppWorkflowEngineChangeLinkTests : IDisposable
                     StageKey = "how-many-bins",
                     DisplayName = "How many bins do you have?",
                     QueueKey = "web-user",
-                    Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins", Required = true }]
+                    Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins", Required = true }],
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "how-many-bins--continue--fee-gateway", Target = "fee-gateway", Trigger = "continue" }]
                 },
                 new StageDefinition
                 {
@@ -97,11 +98,6 @@ public class BusinessAppWorkflowEngineChangeLinkTests : IDisposable
                     ]
                 }
             ],
-            Transitions =
-            [
-                new RouteFile { FromState = "how-many-bins", ToState = "fee-gateway", Action = "continue" },
-                new RouteFile { FromState = "fee-gateway", ToState = "collection-fee", Action = "" }
-            ],
             Metadata = new ServiceBlueprintMetadata
             {
                 AuthoredServiceBlueprintId = new Guid("aaaabbbb-cccc-dddd-eeee-000000000095"),
@@ -113,7 +109,8 @@ public class BusinessAppWorkflowEngineChangeLinkTests : IDisposable
                         DisplayName = "Fee gateway",
                         GatewayType = "Join",
                         QueueKey = "web-user",
-                        RequiredIncomingQueues = ["web-user"]
+                        RequiredIncomingQueues = ["web-user"],
+                        Routes = [new ServiceBlueprintRouteDefinition { Id = "fee-gateway--continue--collection-fee", Target = "collection-fee", Trigger = "continue" }]
                     }
                 ]
             }

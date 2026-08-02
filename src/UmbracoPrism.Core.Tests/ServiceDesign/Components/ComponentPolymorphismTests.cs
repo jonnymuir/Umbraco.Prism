@@ -381,11 +381,8 @@ public class ComponentPolymorphismTests
                     }
                 }
             },
-            Transitions = new List<RouteFile>
-            {
-                new() { FromState = "start", ToState = "check", Action = "continue" },
-                new() { FromState = "check", ToState = "complete", Action = "confirm" }
-            },
+            // This test asserts on JSON round-tripping (component polymorphism, Layout), not
+            // engine routing behaviour, so no Routes/Gateways are needed here.
             Layout = new ServiceBlueprintLayoutDefinition
             {
                 Nodes = new Dictionary<string, NodePosition>

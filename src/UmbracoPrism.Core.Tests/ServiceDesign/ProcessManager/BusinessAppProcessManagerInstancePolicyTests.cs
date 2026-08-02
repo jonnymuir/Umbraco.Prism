@@ -59,7 +59,11 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StageKey = "step-1",
                     DisplayName = "Step 1",
-                    Components = Array.Empty<Component>()
+                    Components = Array.Empty<Component>(),
+                    Routes = new[]
+                    {
+                        new ServiceBlueprintRouteDefinition { Id = "step-1--submit--to-done", Target = "to-done", Trigger = "submit" }
+                    }
                 },
                 new StageDefinition
                 {
@@ -68,14 +72,14 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                     Components = new Component[] { new PanelComponent { Heading = "Complete" } }
                 }
             },
-            Transitions = new[]
+            Gateways = new[]
             {
-                new RouteFile
+                new ServiceBlueprintGatewayDefinition
                 {
-                    FromState = "step-1",
-                    ToState = "done",
-                    Action = "submit",
-                    RequiresRole = null
+                    Key = "to-done",
+                    DisplayName = "To done",
+                    GatewayType = "Split",
+                    Routes = new[] { new ServiceBlueprintRouteDefinition { Id = "to-done--continue--done", Target = "done", Trigger = "continue" } }
                 }
             }
         };
@@ -93,7 +97,11 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StageKey = "step-1",
                     DisplayName = "Step 1",
-                    Components = Array.Empty<Component>()
+                    Components = Array.Empty<Component>(),
+                    Routes = new[]
+                    {
+                        new ServiceBlueprintRouteDefinition { Id = "step-1--submit--to-done", Target = "to-done", Trigger = "submit" }
+                    }
                 },
                 new StageDefinition
                 {
@@ -102,14 +110,14 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                     Components = new Component[] { new PanelComponent { Heading = "Complete" } }
                 }
             },
-            Transitions = new[]
+            Gateways = new[]
             {
-                new RouteFile
+                new ServiceBlueprintGatewayDefinition
                 {
-                    FromState = "step-1",
-                    ToState = "done",
-                    Action = "submit",
-                    RequiresRole = null
+                    Key = "to-done",
+                    DisplayName = "To done",
+                    GatewayType = "Split",
+                    Routes = new[] { new ServiceBlueprintRouteDefinition { Id = "to-done--continue--done", Target = "done", Trigger = "continue" } }
                 }
             }
         };
@@ -127,7 +135,11 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StageKey = "step-1",
                     DisplayName = "Step 1",
-                    Components = Array.Empty<Component>()
+                    Components = Array.Empty<Component>(),
+                    Routes = new[]
+                    {
+                        new ServiceBlueprintRouteDefinition { Id = "step-1--submit--to-done", Target = "to-done", Trigger = "submit" }
+                    }
                 },
                 new StageDefinition
                 {
@@ -136,14 +148,14 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                     Components = new Component[] { new PanelComponent { Heading = "Complete" } }
                 }
             },
-            Transitions = new[]
+            Gateways = new[]
             {
-                new RouteFile
+                new ServiceBlueprintGatewayDefinition
                 {
-                    FromState = "step-1",
-                    ToState = "done",
-                    Action = "submit",
-                    RequiresRole = null
+                    Key = "to-done",
+                    DisplayName = "To done",
+                    GatewayType = "Split",
+                    Routes = new[] { new ServiceBlueprintRouteDefinition { Id = "to-done--continue--done", Target = "done", Trigger = "continue" } }
                 }
             }
         };

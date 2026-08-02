@@ -2,8 +2,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using Wayfinder.Builders;
 using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Services.Sanitization;
 using Wayfinder.Engine.Abstractions;
 using Wayfinder.Engine.Models;
@@ -183,19 +183,44 @@ public class ProcessManagerEngineRequestStoreTests
             instanceStore);
     }
 
-    private static ServiceBlueprint BuildDefinition() =>
-        new ServiceBlueprintBuilder()
-            .Key("test-workflow")
-            .DisplayName("Test Workflow")
-            .StartsAt("start")
-            .AddState("start", s => s
-                .DisplayName("Start")
-                .Panel("Start"))
-            .AddState("done", s => s
-                .DisplayName("Done")
-                .Panel("Done"))
-            .AddTransition("start", "done", "submit")
-            .Build();
+    // Every stage route must target a gateway, never another stage directly (the legacy
+    // ServiceBlueprintBuilder.AddTransition shortcut for this was removed from Wayfinder) — so
+    // even this trivial two-stage fixture needs a pass-through gateway between them.
+    private static ServiceBlueprint BuildDefinition() => new()
+    {
+        DefinitionKey = "test-workflow",
+        DisplayName = "Test Workflow",
+        InitialStage = "start",
+        Stages =
+        [
+            new StageDefinition
+            {
+                StageKey = "start",
+                DisplayName = "Start",
+                Components = [new PanelComponent { Heading = "Start" }],
+                Routes =
+                [
+                    new ServiceBlueprintRouteDefinition { Id = "start--submit--to-done", Target = "to-done", Trigger = "submit" }
+                ]
+            },
+            new StageDefinition
+            {
+                StageKey = "done",
+                DisplayName = "Done",
+                Components = [new PanelComponent { Heading = "Done" }]
+            }
+        ],
+        Gateways =
+        [
+            new ServiceBlueprintGatewayDefinition
+            {
+                Key = "to-done",
+                DisplayName = "To done",
+                GatewayType = "Split",
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "to-done--continue--done", Target = "done", Trigger = "continue" }]
+            }
+        ]
+    };
 
     private static ServiceRequest CreateInstance(string instanceId, string currentState) => new()
     {

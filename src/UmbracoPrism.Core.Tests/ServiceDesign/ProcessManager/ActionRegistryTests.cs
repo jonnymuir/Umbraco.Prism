@@ -104,10 +104,6 @@ public class WorkflowActionRegistryTests
                 Stages = [
                     new StageDefinition { StageKey = "start", DisplayName = "Start", Components = [] },
                     new StageDefinition { StageKey = "review", DisplayName = "Review", Components = [] }
-                ],
-                Transitions =
-                [
-                    new RouteFile { FromState = "start", ToState = "review", Action = "submit" }
                 ]
             },
             Instance = new ServiceRequest
@@ -257,7 +253,32 @@ public class BusinessAppWorkflowEngineActionExecutionTests : IDisposable
                                 }
                             }
                         ]
-                    }
+                    },
+                    // OnTransition actions live directly on the stage's own route now (see
+                    // BusinessAppProcessManager.GetOrderedActions) — this is the hop the engine
+                    // actually resolves as "the transition" for a user-triggered action, before
+                    // ever reaching the trivial pass-through gateway below.
+                    Routes =
+                    [
+                        new ServiceBlueprintRouteDefinition
+                        {
+                            Id = "draft--submit--to-submitted",
+                            Target = "to-submitted",
+                            Trigger = "submit",
+                            Actions =
+                            [
+                                new ActionDefinition
+                                {
+                                    Type = "forms.submit",
+                                    Timing = "OnTransition",
+                                    Parameters =
+                                    {
+                                        ["formDefinitionId"] = "planning-application"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
                 },
                 new StageDefinition
                 {
@@ -282,28 +303,14 @@ public class BusinessAppWorkflowEngineActionExecutionTests : IDisposable
                     }
                 }
             ],
-            Transitions =
+            Gateways =
             [
-                new RouteFile
+                new ServiceBlueprintGatewayDefinition
                 {
-                    FromState = "draft",
-                    ToState = "submitted",
-                    Action = "submit",
-                    Metadata = new RouteMetadata
-                    {
-                        Actions =
-                        [
-                            new ActionDefinition
-                            {
-                                Type = "forms.submit",
-                                Timing = "OnTransition",
-                                Parameters =
-                                {
-                                    ["formDefinitionId"] = "planning-application"
-                                }
-                            }
-                        ]
-                    }
+                    Key = "to-submitted",
+                    DisplayName = "To submitted",
+                    GatewayType = "Split",
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "to-submitted--continue--submitted", Target = "submitted", Trigger = "continue" }]
                 }
             ]
         };
