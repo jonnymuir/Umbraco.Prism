@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Services.Sanitization;
+using Wayfinder.Umbraco;
 using Wayfinder.Umbraco.Services;
 using UmbracoPrism.TestSite.BackgroundServices;
 using UmbracoPrism.TestSite.Services;
@@ -61,7 +62,7 @@ public class TestSiteComposer : IComposer
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PublicServiceRequestContentType>();
 
         builder.Services.AddScoped<PublicVisitorIdentityResolver>();
-        builder.Services.AddKeyedScoped<IBusinessAppProcessManagerClient, InProcessPublicVisitorProcessManagerClient>("public");
+        builder.Services.AddKeyedScoped<IBusinessAppProcessManagerClient, InProcessPublicVisitorProcessManagerClient>(WayfinderUmbracoServiceKeys.InProcessQueueClient);
         builder.Services.AddScoped<IPrismPostSignInHandler, PublicServiceRequestPostSignInHandler>();
 
         // Explicit capability contract for public-visitor — matches Wayfinder.Umbraco's own

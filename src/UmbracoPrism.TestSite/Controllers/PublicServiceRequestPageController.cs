@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
+using Wayfinder.Umbraco;
 using Wayfinder.Umbraco.Controllers;
 using Wayfinder.Umbraco.Models;
 using Wayfinder.Umbraco.Services;
@@ -32,7 +33,7 @@ public class PublicServiceRequestPageController(
     ILogger<RenderController> logger,
     ICompositeViewEngine compositeViewEngine,
     IUmbracoContextAccessor umbracoContextAccessor,
-    [FromKeyedServices("public")] IBusinessAppProcessManagerClient workflowClient,
+    [FromKeyedServices(WayfinderUmbracoServiceKeys.InProcessQueueClient)] IBusinessAppProcessManagerClient workflowClient,
     IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery,
     IStageNonceService nonceService,
