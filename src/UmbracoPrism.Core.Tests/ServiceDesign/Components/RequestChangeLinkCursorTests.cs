@@ -127,14 +127,16 @@ public class RequestChangeLinkCursorTests
                 StageKey = "how-many-bins",
                 DisplayName = "How many bins do you have?",
                 QueueKey = "web-user",
-                Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins", Required = true }]
+                Components = [new NumberInputComponent { FieldKey = "binCount", Label = "Bins", Required = true }],
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "how-many-bins--continue--gateway-1", Target = "gateway-1", Trigger = "continue" }]
             },
             new StageDefinition
             {
                 StageKey = "property-address",
                 DisplayName = "What's the property address?",
                 QueueKey = "web-user",
-                Components = [new TextInputComponent { FieldKey = "propertyAddress", Label = "Address", Required = true }]
+                Components = [new TextInputComponent { FieldKey = "propertyAddress", Label = "Address", Required = true }],
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "property-address--continue--gateway-2", Target = "gateway-2", Trigger = "continue" }]
             },
             new StageDefinition
             {
@@ -160,13 +162,6 @@ public class RequestChangeLinkCursorTests
                 ]
             }
         ],
-        Transitions =
-        [
-            new RouteFile { FromState = "how-many-bins", ToState = "gateway-1", Action = "continue" },
-            new RouteFile { FromState = "gateway-1", ToState = "property-address", Action = "" },
-            new RouteFile { FromState = "property-address", ToState = "gateway-2", Action = "continue" },
-            new RouteFile { FromState = "gateway-2", ToState = "collection-fee", Action = "" }
-        ],
         Metadata = new ServiceBlueprintMetadata
         {
             AuthoredServiceBlueprintId = new Guid("aaaabbbb-cccc-dddd-eeee-000000000090"),
@@ -178,7 +173,8 @@ public class RequestChangeLinkCursorTests
                     DisplayName = "Gateway 1",
                     GatewayType = "Join",
                     QueueKey = "web-user",
-                    RequiredIncomingQueues = ["web-user"]
+                    RequiredIncomingQueues = ["web-user"],
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "gateway-1--continue--property-address", Target = "property-address", Trigger = "continue" }]
                 },
                 new ServiceBlueprintGatewayDefinition
                 {
@@ -186,7 +182,8 @@ public class RequestChangeLinkCursorTests
                     DisplayName = "Gateway 2",
                     GatewayType = "Join",
                     QueueKey = "web-user",
-                    RequiredIncomingQueues = ["web-user"]
+                    RequiredIncomingQueues = ["web-user"],
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "gateway-2--continue--collection-fee", Target = "collection-fee", Trigger = "continue" }]
                 }
             ]
         }

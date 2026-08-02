@@ -42,7 +42,8 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                                 }
                             ]
                         }
-                    ]
+                    ],
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "enter-details--submit--to-check-details", Target = "to-check-details", Trigger = "submit" }]
                 },
                 new StageDefinition
                 {
@@ -56,7 +57,8 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                             Children = [new TextInputComponent { FieldKey = "full-name", Label = "Full name" }],
                             ChangeStateKey = "enter-details"
                         }
-                    ]
+                    ],
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "check-details--submit--to-done", Target = "to-done", Trigger = "submit" }]
                 },
                 new StageDefinition
                 {
@@ -68,10 +70,22 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                     ]
                 }
             ],
-            Transitions =
+            Gateways =
             [
-                new RouteFile { FromState = "enter-details", ToState = "check-details", Action = "submit" },
-                new RouteFile { FromState = "check-details", ToState = "done", Action = "submit" }
+                new ServiceBlueprintGatewayDefinition
+                {
+                    Key = "to-check-details",
+                    DisplayName = "To check details",
+                    GatewayType = "Split",
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "to-check-details--continue--check-details", Target = "check-details", Trigger = "continue" }]
+                },
+                new ServiceBlueprintGatewayDefinition
+                {
+                    Key = "to-done",
+                    DisplayName = "To done",
+                    GatewayType = "Split",
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "to-done--continue--done", Target = "done", Trigger = "continue" }]
+                }
             ]
         });
 
@@ -142,7 +156,8 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                         {
                             Content = "You do not need to do anything else right now."
                         }
-                    ]
+                    ],
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "processing--complete--to-done", Target = "to-done", Trigger = "complete" }]
                 },
                 new StageDefinition
                 {
@@ -154,9 +169,15 @@ public class BusinessAppWorkflowEngineStepTypeInferenceTests
                     ]
                 }
             ],
-            Transitions =
+            Gateways =
             [
-                new RouteFile { FromState = "processing", ToState = "done", Action = "complete" }
+                new ServiceBlueprintGatewayDefinition
+                {
+                    Key = "to-done",
+                    DisplayName = "To done",
+                    GatewayType = "Split",
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "to-done--continue--done", Target = "done", Trigger = "continue" }]
+                }
             ]
         });
 

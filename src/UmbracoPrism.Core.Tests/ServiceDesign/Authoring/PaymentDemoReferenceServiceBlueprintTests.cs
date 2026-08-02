@@ -211,23 +211,10 @@ public class PaymentDemoReferenceWorkflowTests
                     QueueKey = "citizen-queue",
                     Components = new Component[] { new PanelComponent { Heading = "Done" } }
                 }
-            },
-            Transitions = new[]
-            {
-                new RouteFile
-                {
-                    FromState = "citizen-start",
-                    ToState = "finance-review",
-                    Action = "submit"
-                },
-                new RouteFile
-                {
-                    FromState = "finance-review",
-                    ToState = "done",
-                    Action = "approve",
-                    RequiresRole = "reviewer"
-                }
             }
+            // No Transitions block needed: both stages above already declare their own Routes,
+            // which GetOutgoingTransitions checks before ever falling back to Transitions — this
+            // array was fully redundant even before Transitions was removed from Wayfinder.
         };
 
         var sanitizer = new Mock<IServiceContentSanitizer>();

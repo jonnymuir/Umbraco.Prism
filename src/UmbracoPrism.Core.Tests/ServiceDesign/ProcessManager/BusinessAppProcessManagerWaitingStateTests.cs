@@ -4,154 +4,18 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using System.Text.Json;
 using UmbracoPrism.MockBusinessApp.Services;
-using Wayfinder.Builders;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.ProcessManager;
 
-
-/// <summary>
-/// Tests for the Waiting() fluent builder method.
-/// Validates that the builder correctly populates a WaitingComponent.
-/// </summary>
-public class WaitingBuilderTests
-{
-    private static WaitingComponent BuildSingleWaiting(Action<StateBuilder> configure)
-    {
-        var workflow = new ServiceBlueprintBuilder()
-            .Key("test")
-            .DisplayName("Test")
-            .Version(1)
-            .StartsAt("waiting")
-            .AddState("waiting", s =>
-            {
-                s.DisplayName("Waiting");
-                configure(s);
-            })
-            .Build();
-
-        return workflow.Stages.First().Components.OfType<WaitingComponent>().Single();
-    }
-
-    [Fact]
-    public void Waiting_AddsWaitingComponent()
-    {
-        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30));
-        component.Should().NotBeNull();
-    }
-
-    [Fact]
-    public void Waiting_PopulatesContent()
-    {
-        var component = BuildSingleWaiting(s => s.Waiting("Please hold tight.", expectedWaitSeconds: 30));
-        component.Content.Should().Be("Please hold tight.");
-    }
-
-    [Fact]
-    public void Waiting_PopulatesExpectedWaitSeconds()
-    {
-        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 120));
-        component.ExpectedWaitSeconds.Should().Be(120);
-    }
-
-    [Fact]
-    public void Waiting_UsesDefaultPollIntervalMsWhenNotSpecified()
-    {
-        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30));
-        component.PollIntervalMs.Should().Be(3000);
-    }
-
-    [Fact]
-    public void Waiting_UsesProvidedPollIntervalMsWhenSpecified()
-    {
-        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30, pollIntervalMs: 5000));
-        component.PollIntervalMs.Should().Be(5000);
-    }
-
-    [Fact]
-    public void Waiting_SetsAllowDeferTrueByDefault()
-    {
-        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30));
-        component.AllowDefer.Should().BeTrue();
-    }
-
-    [Fact]
-    public void Waiting_RespectsAllowDeferFalse()
-    {
-        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30, allowDefer: false));
-        component.AllowDefer.Should().BeFalse();
-    }
-
-    [Fact]
-    public void Waiting_SetsDeferMessageWhenProvided()
-    {
-        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30, deferMessage: "Come back later via My Applications."));
-        component.DeferMessage.Should().Be("Come back later via My Applications.");
-    }
-
-    [Fact]
-    public void Waiting_LeavesDeferMessageNullWhenNotProvided()
-    {
-        var component = BuildSingleWaiting(s => s.Waiting("Processing...", expectedWaitSeconds: 30));
-        component.DeferMessage.Should().BeNull();
-    }
-}
-
-/// <summary>
-/// Tests for the builder fluent API with waiting states.
-/// </summary>
-public class WaitingBuilderFluentTests
-{
-    [Fact]
-    public void Waiting_IsFluentReturnsSameBuilder()
-    {
-        var builder = new ServiceBlueprintBuilder();
-        StateBuilder? capturedBuilder = null;
-
-        builder
-            .Key("test")
-            .DisplayName("Test")
-            .Version(1)
-            .StartsAt("waiting")
-            .AddState("waiting", s =>
-            {
-                capturedBuilder = s;
-                var returned = s.Waiting("Processing...", expectedWaitSeconds: 30);
-                returned.Should().BeSameAs(capturedBuilder);
-            });
-    }
-
-    [Fact]
-    public void FullWorkflowBuiltWithWaiting_HasCorrectStateCountAndTransitions()
-    {
-        var workflow = new ServiceBlueprintBuilder()
-            .Key("test-workflow")
-            .DisplayName("Test Workflow")
-            .Version(1)
-            .StartsAt("start")
-            .RequestPolicy("single")
-            .AddState("start", s => s
-                .DisplayName("Start")
-                .Fieldset(f => f
-                    .TextInput("name", "Name", required: true)))
-            .AddState("processing", s => s
-                .DisplayName("Processing")
-                .Waiting("Please wait...", expectedWaitSeconds: 60))
-            .AddState("done", s => s
-                .DisplayName("Done")
-                .Panel("Complete"))
-            .AddTransition("start", "processing", "submit")
-            .AddTransition("processing", "done", "complete")
-            .Build();
-
-        workflow.Stages.Should().HaveCount(3);
-        workflow.Transitions.Should().HaveCount(2);
-        var processingState = workflow.Stages.First(s => s.StageKey == "processing");
-        processingState.Components.OfType<WaitingComponent>().Should().ContainSingle();
-    }
-}
+// WaitingBuilderTests/WaitingBuilderFluentTests (fluent-builder mechanics for
+// ServiceBlueprintBuilder.Waiting()/AddTransition) were removed along with
+// Wayfinder.Builders.ServiceBlueprintBuilder itself (see Wayfinder's refactor! commit
+// removing ServiceBlueprint.Transitions) — there is no builder left to test. WaitingComponent
+// is a plain record; the behaviour worth testing is BusinessAppWorkflowEngineWaitingStateTests
+// below, which exercises the real engine end to end.
 
 /// <summary>
 /// Tests for BusinessAppProcessManager integration with waiting states.
@@ -205,7 +69,11 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                 {
                     StageKey = "enter-details",
                     DisplayName = "Enter Details",
-                    Components = Array.Empty<Component>()
+                    Components = Array.Empty<Component>(),
+                    Routes = new[]
+                    {
+                        new ServiceBlueprintRouteDefinition { Id = "enter-details--submit--to-processing", Target = "to-processing", Trigger = "submit" }
+                    }
                 },
                 new StageDefinition
                 {
@@ -221,6 +89,10 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                             AllowDefer = true,
                             DeferMessage = "You can come back via My Applications."
                         }
+                    },
+                    Routes = new[]
+                    {
+                        new ServiceBlueprintRouteDefinition { Id = "processing--complete--to-done", Target = "to-done", Trigger = "complete" }
                     }
                 },
                 new StageDefinition
@@ -233,21 +105,24 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                     }
                 }
             },
-            Transitions = new[]
+            // Every stage route must target a gateway, never another stage directly — even
+            // this trivial pass-through shape needs one gateway per handoff (see Wayfinder's
+            // reference-service-blueprint-contract.md "gateway routing rule").
+            Gateways = new[]
             {
-                new RouteFile
+                new ServiceBlueprintGatewayDefinition
                 {
-                    FromState = "enter-details",
-                    ToState = "processing",
-                    Action = "submit",
-                    RequiresRole = null
+                    Key = "to-processing",
+                    DisplayName = "To processing",
+                    GatewayType = "Split",
+                    Routes = new[] { new ServiceBlueprintRouteDefinition { Id = "to-processing--continue--processing", Target = "processing", Trigger = "continue" } }
                 },
-                new RouteFile
+                new ServiceBlueprintGatewayDefinition
                 {
-                    FromState = "processing",
-                    ToState = "done",
-                    Action = "complete",
-                    RequiresRole = null
+                    Key = "to-done",
+                    DisplayName = "To done",
+                    GatewayType = "Split",
+                    Routes = new[] { new ServiceBlueprintRouteDefinition { Id = "to-done--continue--done", Target = "done", Trigger = "continue" } }
                 }
             }
         };
@@ -462,8 +337,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                             }
                         }
                     }
-                },
-                Transitions = Array.Empty<RouteFile>()
+                }
             };
 
             File.WriteAllText(
@@ -526,8 +400,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                             }
                         }
                     }
-                },
-                Transitions = Array.Empty<RouteFile>()
+                }
             };
 
             File.WriteAllText(

@@ -99,7 +99,6 @@ public sealed class InMemoryRuntimePublishedWorkflowStoreTests : IDisposable
         DisplayName = displayName,
         Version = 1,
         InitialStage = "start",
-        Stages = [],
-        Transitions = []
+        Stages = []
     };
 }

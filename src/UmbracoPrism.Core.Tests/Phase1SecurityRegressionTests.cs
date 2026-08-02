@@ -902,8 +902,7 @@ public class Phase1SecurityRegressionTests : IDisposable
                             new BodyComponent { Content = content }
                         }
                     }
-                },
-                Transitions = Array.Empty<RouteFile>()
+                }
             };
 
             File.WriteAllText(

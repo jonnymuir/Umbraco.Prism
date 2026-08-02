@@ -213,21 +213,24 @@ public class JoinGatewayEngineTests
             {
                 StageKey = "submit",
                 DisplayName = "Submit",
-                Components = [new FieldsetComponent()]
+                Components = [new FieldsetComponent()],
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "submit--submit--split-review", Target = "split-review", Trigger = "submit" }]
             },
             new StageDefinition
             {
                 StageKey = "finance-review",
                 DisplayName = "Finance Review",
                 Components = [new FieldsetComponent()],
-                QueueKey = "finance"
+                QueueKey = "finance",
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "finance-review--approve--join-reviews", Target = "join-reviews", Trigger = "approve" }]
             },
             new StageDefinition
             {
                 StageKey = "planning-review",
                 DisplayName = "Planning Review",
                 Components = [new FieldsetComponent()],
-                QueueKey = "planning"
+                QueueKey = "planning",
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "planning-review--approve--join-reviews", Target = "join-reviews", Trigger = "approve" }]
             },
             new StageDefinition
             {
@@ -235,15 +238,6 @@ public class JoinGatewayEngineTests
                 DisplayName = "Decision",
                 Components = [new PanelComponent { Heading = "Approved" }]
             }
-        ],
-        Transitions =
-        [
-            new RouteFile { FromState = "submit", ToState = "split-review", Action = "submit" },
-            new RouteFile { FromState = "split-review", ToState = "finance-review", Action = "split-auto" },
-            new RouteFile { FromState = "split-review", ToState = "planning-review", Action = "split-auto" },
-            new RouteFile { FromState = "finance-review", ToState = "join-reviews", Action = "approve" },
-            new RouteFile { FromState = "planning-review", ToState = "join-reviews", Action = "approve" },
-            new RouteFile { FromState = "join-reviews", ToState = "decision", Action = "release" }
         ],
         Metadata = new ServiceBlueprintMetadata
         {
@@ -255,7 +249,12 @@ public class JoinGatewayEngineTests
                     Key = "split-review",
                     DisplayName = "Start parallel reviews",
                     GatewayType = "Split",
-                    QueueKey = "applicant"
+                    QueueKey = "applicant",
+                    Routes =
+                    [
+                        new ServiceBlueprintRouteDefinition { Id = "split-review--split-auto--finance-review", Target = "finance-review", Trigger = "split-auto" },
+                        new ServiceBlueprintRouteDefinition { Id = "split-review--split-auto--planning-review", Target = "planning-review", Trigger = "split-auto" }
+                    ]
                 },
                 new ServiceBlueprintGatewayDefinition
                 {
@@ -266,7 +265,8 @@ public class JoinGatewayEngineTests
                     WaitingContent = "Waiting for all reviews to complete.",
                     WaitingExpectedSeconds = 60,
                     WaitingPollIntervalMs = 5000,
-                    RequiredIncomingQueues = ["finance", "planning"]
+                    RequiredIncomingQueues = ["finance", "planning"],
+                    Routes = [new ServiceBlueprintRouteDefinition { Id = "join-reviews--release--decision", Target = "decision", Trigger = "release" }]
                 }
             ]
         }

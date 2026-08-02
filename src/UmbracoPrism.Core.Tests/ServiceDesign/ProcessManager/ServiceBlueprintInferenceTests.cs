@@ -99,8 +99,7 @@ public class ServiceBlueprintInferenceTests
                     DisplayName = "Status",
                     Components = [new BodyComponent { Content = "No action needed." }]
                 }
-            ],
-            Transitions = []
+            ]
         };
 
         workflow.Stages.Select(s => s.Components.InferStepType())
