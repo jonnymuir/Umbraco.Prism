@@ -39,6 +39,9 @@
             }
           ]
         }
+      ],
+      "routes": [
+        { "id": "project-details--continue", "target": "project-details-continue", "trigger": "continue" }
       ]
     },
     {
@@ -89,6 +92,10 @@
             }
           ]
         }
+      ],
+      "routes": [
+        { "id": "work-type--continue", "target": "work-type-continue", "trigger": "continue" },
+        { "id": "work-type--back", "target": "work-type-back", "trigger": "back" }
       ]
     },
     {
@@ -126,6 +133,10 @@
             }
           ]
         }
+      ],
+      "routes": [
+        { "id": "timeline-cost--continue", "target": "timeline-cost-continue", "trigger": "continue" },
+        { "id": "timeline-cost--back", "target": "timeline-cost-back", "trigger": "back" }
       ]
     },
     {
@@ -165,6 +176,10 @@
             }
           ]
         }
+      ],
+      "routes": [
+        { "id": "affected-parties--continue", "target": "affected-parties-continue", "trigger": "continue" },
+        { "id": "affected-parties--back", "target": "affected-parties-back", "trigger": "back" }
       ]
     },
     {
@@ -313,6 +328,10 @@
             }
           ]
         }
+      ],
+      "routes": [
+        { "id": "check-answers--submit", "target": "check-answers-submit", "trigger": "submit" },
+        { "id": "check-answers--back", "target": "check-answers-back", "trigger": "back" }
       ]
     },
     {
@@ -343,51 +362,60 @@
       ]
     }
   ],
-  "transitions": [
+  "gateways": [
     {
-      "fromState": "project-details",
-      "toState": "work-type",
-      "action": "continue"
+      "key": "project-details-continue",
+      "displayName": "Continue to type of work",
+      "gatewayType": "Split",
+      "routes": [ { "id": "project-details-continue--continue", "target": "work-type", "trigger": "continue" } ]
     },
     {
-      "fromState": "work-type",
-      "toState": "timeline-cost",
-      "action": "continue"
+      "key": "work-type-continue",
+      "displayName": "Continue to timeline and cost",
+      "gatewayType": "Split",
+      "routes": [ { "id": "work-type-continue--continue", "target": "timeline-cost", "trigger": "continue" } ]
     },
     {
-      "fromState": "work-type",
-      "toState": "project-details",
-      "action": "back"
+      "key": "work-type-back",
+      "displayName": "Back to project details",
+      "gatewayType": "Split",
+      "routes": [ { "id": "work-type-back--continue", "target": "project-details", "trigger": "continue" } ]
     },
     {
-      "fromState": "timeline-cost",
-      "toState": "affected-parties",
-      "action": "continue"
+      "key": "timeline-cost-continue",
+      "displayName": "Continue to affected parties",
+      "gatewayType": "Split",
+      "routes": [ { "id": "timeline-cost-continue--continue", "target": "affected-parties", "trigger": "continue" } ]
     },
     {
-      "fromState": "timeline-cost",
-      "toState": "work-type",
-      "action": "back"
+      "key": "timeline-cost-back",
+      "displayName": "Back to type of work",
+      "gatewayType": "Split",
+      "routes": [ { "id": "timeline-cost-back--continue", "target": "work-type", "trigger": "continue" } ]
     },
     {
-      "fromState": "affected-parties",
-      "toState": "check-answers",
-      "action": "continue"
+      "key": "affected-parties-continue",
+      "displayName": "Continue to check answers",
+      "gatewayType": "Split",
+      "routes": [ { "id": "affected-parties-continue--continue", "target": "check-answers", "trigger": "continue" } ]
     },
     {
-      "fromState": "affected-parties",
-      "toState": "timeline-cost",
-      "action": "back"
+      "key": "affected-parties-back",
+      "displayName": "Back to timeline and cost",
+      "gatewayType": "Split",
+      "routes": [ { "id": "affected-parties-back--continue", "target": "timeline-cost", "trigger": "continue" } ]
     },
     {
-      "fromState": "check-answers",
-      "toState": "complete",
-      "action": "submit"
+      "key": "check-answers-submit",
+      "displayName": "Submit application",
+      "gatewayType": "Split",
+      "routes": [ { "id": "check-answers-submit--continue", "target": "complete", "trigger": "continue" } ]
     },
     {
-      "fromState": "check-answers",
-      "toState": "affected-parties",
-      "action": "back"
+      "key": "check-answers-back",
+      "displayName": "Back to affected parties",
+      "gatewayType": "Split",
+      "routes": [ { "id": "check-answers-back--continue", "target": "affected-parties", "trigger": "continue" } ]
     }
   ]
 }

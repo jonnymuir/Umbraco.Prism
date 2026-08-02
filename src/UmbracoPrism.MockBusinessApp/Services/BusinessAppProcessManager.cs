@@ -121,9 +121,28 @@ public class BusinessAppProcessManager : ProcessManagerEngine
             return validationEnvelope;
         }
 
-        var nextGateway = FindGateway(definition, transition.ToState);
-        if (nextGateway != null)
+        // Wayfinder now requires every stage route to target a gateway (no more direct
+        // stage-to-stage routes — see Wayfinder's refactor! commit removing
+        // ServiceBlueprint.Transitions), so transition.ToState is a gateway key on effectively
+        // every advance, not the exception. Auto-traverse a chain of trivial single-route
+        // pass-through gateways to find the real landing stage, so OnExit/OnTransition/OnEntry
+        // actions still fire for that (now overwhelmingly common) case. A gateway that fans out
+        // (>1 route — a real Split) or waits for other cursors (a Join) still defers entirely to
+        // the base engine below: actions don't fire mid-fan-out, and a Join may not land on a
+        // stage at all yet (the instance can end up waiting on other cursors).
+        var resolvedTargetKey = transition.ToState;
+        var gatewayOnPath = FindGateway(definition, resolvedTargetKey);
+        while (gatewayOnPath is not null
+            && !string.Equals(gatewayOnPath.GatewayType, "Join", StringComparison.OrdinalIgnoreCase)
+            && (gatewayOnPath.Routes?.Count ?? 0) == 1)
         {
+            resolvedTargetKey = gatewayOnPath.Routes![0].Target;
+            gatewayOnPath = FindGateway(definition, resolvedTargetKey);
+        }
+
+        if (gatewayOnPath is not null)
+        {
+            // Still resolves to a gateway (Split fan-out or Join) — defer entirely, no custom actions.
             return base.Advance(instanceId, tenantId, userId, accessProfile, action, expectedStateVersion, fieldValues);
         }
 
@@ -135,18 +154,19 @@ public class BusinessAppProcessManager : ProcessManagerEngine
                 "STATE_NOT_FOUND");
         }
 
-        var targetState = definition.Stages.FirstOrDefault(s => s.StageKey == transition.ToState);
+        var targetState = definition.Stages.FirstOrDefault(s => s.StageKey == resolvedTargetKey);
         if (targetState == null)
         {
-            return ErrorEnvelope(
-                $"State '{transition.ToState}' not found in definition '{definition.DefinitionKey}'.",
-                "STATE_NOT_FOUND");
+            // The resolved key isn't a gateway (loop above exited) but also isn't a real stage —
+            // a dangling target ValidateGatewayRouting would normally catch at save time. Defer
+            // to the base engine, which will surface its own error for this.
+            return base.Advance(instanceId, tenantId, userId, accessProfile, action, expectedStateVersion, fieldValues);
         }
 
         var mergedFieldValues = Merge(instance.FieldValues, fieldValues);
         var updated = instance with
         {
-            CurrentStage = transition.ToState,
+            CurrentStage = resolvedTargetKey,
             StateVersion = instance.StateVersion + 1,
             UpdatedAt = DateTimeOffset.UtcNow,
             FieldValues = mergedFieldValues
@@ -170,7 +190,7 @@ public class BusinessAppProcessManager : ProcessManagerEngine
             "Advanced instance {Id}: {From} → {To}",
             instanceId,
             visibleWorkItem.StageKey,
-            transition.ToState);
+            resolvedTargetKey);
 
         return BuildEnvelope(updated, definition, accessProfile, allowFallbackWhenHidden: true);
     }
@@ -384,7 +404,13 @@ public class BusinessAppProcessManager : ProcessManagerEngine
     {
         var actions = new List<ActionDefinition>();
         AddMatchingActions(actions, sourceState.Metadata?.Actions, "OnExit");
-        AddMatchingActions(actions, transition.Metadata?.Actions, "OnTransition");
+        // transition.Metadata is only ever populated when a RouteFile comes straight from the
+        // legacy ServiceBlueprint.Transitions array (removed in Wayfinder 0.3.0) — a route
+        // authored via the modern Stages[].Routes/Gateways model only ever carries its actions
+        // on the direct RouteFile.Actions property (see ProcessManagerEngine.GetOutgoingTransitions,
+        // which never sets .Metadata on the RouteFile it constructs). Fall back to the direct
+        // field so OnTransition actions still fire for gateway-routed blueprints.
+        AddMatchingActions(actions, transition.Metadata?.Actions ?? transition.Actions, "OnTransition");
         AddMatchingActions(actions, targetState.Metadata?.Actions, "OnEntry");
         return actions;
     }
