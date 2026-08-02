@@ -1,14 +1,18 @@
 using Microsoft.AspNetCore.Http;
 using UmbracoPrism.Core;
+using UmbracoPrism.Core.Auth;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Services.Sanitization;
+using Wayfinder.Umbraco;
 using Wayfinder.Umbraco.Services;
 using UmbracoPrism.TestSite.BackgroundServices;
 using UmbracoPrism.TestSite.Services;
+using UmbracoPrism.TestSite.Services.ServiceDesign;
 using Wayfinder.Engine.Abstractions;
 
 namespace UmbracoPrism.TestSite;
@@ -48,14 +52,36 @@ public class TestSiteComposer : IComposer
         // Stage Page demo — runs after PrismContentTypeSeeder has created the stagePage doc type
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, StagePageSeeder>();
 
-        // Prism CMS Service Blueprint demos ("Apply for a juggling licence" and "Transfer a professional
-        // juggling licence") — demonstrates the service-sourced field extension point for a
-        // logged-in member, shared across both since they're the same fictional membership
-        // scheme. Re-registering
-        // UmbracoProcessManagerEngine here (after AddPrismCmsServiceBlueprint()'s own registration in
-        // PrismComposer) supplies the serviceInputsResolver delegate; last registration wins
-        // for single-instance resolution, and IProcessManager's factory (registered by
-        // Core) resolves UmbracoProcessManagerEngine lazily, so it picks up this one.
+        // TestSite's own public service request demo ("Apply for a juggling licence" and "Transfer
+        // a professional juggling licence") — an anonymous-first, in-Umbraco-hosted service
+        // blueprint running entirely in-process against Wayfinder.Umbraco's engine (no remote
+        // Business App). Content type, identity resolution, keyed process-manager client, and
+        // post-sign-in reattachment are all host-owned here (not a Core package feature) — see
+        // PublicServiceRequestContentType / PublicVisitorIdentityResolver /
+        // InProcessPublicVisitorProcessManagerClient / PublicServiceRequestPostSignInHandler.
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PublicServiceRequestContentType>();
+
+        builder.Services.AddScoped<PublicVisitorIdentityResolver>();
+        builder.Services.AddKeyedScoped<IBusinessAppProcessManagerClient, InProcessPublicVisitorProcessManagerClient>(WayfinderUmbracoServiceKeys.InProcessQueueClient);
+        builder.Services.AddScoped<IPrismPostSignInHandler, PublicServiceRequestPostSignInHandler>();
+
+        // Explicit capability contract for public-visitor — matches Wayfinder.Umbraco's own
+        // generic component partials (see Wayfinder.Umbraco's _Component-*.cshtml set): an agent
+        // authoring via list_queue_capabilities can see exactly what this host's stock rendering
+        // pipeline supports, instead of the check being silently skipped.
+        builder.Services.AddSingleton<IQueueCapabilitiesProvider>(new StaticQueueCapabilitiesProvider(
+            new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+            {
+                [PublicVisitorQueue.Key] = ComponentTypeCatalog.AllDiscriminators
+            }));
+
+        // Demonstrates the service-sourced field extension point for a logged-in member, shared
+        // across both juggling-licence demos since they're the same fictional membership scheme.
+        // Re-registering UmbracoProcessManagerEngine here (after AddWayfinderUmbraco()'s own
+        // registration via PrismComposer's AddPrismProcessManager()) supplies the
+        // serviceInputsResolver delegate; last registration wins for single-instance resolution,
+        // and IProcessManager's factory (registered by Wayfinder.Umbraco) resolves
+        // UmbracoProcessManagerEngine lazily, so it picks up this one.
         builder.Services.AddSingleton<IJugglingSocietyMembershipClient, JugglingSocietyMembershipClient>();
         builder.Services.AddSingleton(sp =>
         {
@@ -83,7 +109,7 @@ public class TestSiteComposer : IComposer
                     };
                 });
         });
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, JugglingLicenceCmsServiceBlueprintSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, JugglingLicenceServiceRequestSeeder>();
 
         // Guidance articles for "Transfer a Professional Juggling Licence" — seeded ahead of
         // time so a live MCP build has real CMS content to link to rather than needing to author
@@ -93,8 +119,8 @@ public class TestSiteComposer : IComposer
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, GuidanceArticleSeeder>();
 
         // The "here's one we made earlier" reference copy of the definition the recording builds
-        // live via MCP — see LicenceTransferCmsServiceBlueprintSeeder's own remarks for what a future
+        // live via MCP — see LicenceTransferServiceRequestSeeder's own remarks for what a future
         // re-recording needs to do first.
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, LicenceTransferCmsServiceBlueprintSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, LicenceTransferServiceRequestSeeder>();
     }
 }

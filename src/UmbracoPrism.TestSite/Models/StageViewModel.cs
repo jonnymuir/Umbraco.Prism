@@ -5,9 +5,9 @@ namespace UmbracoPrism.TestSite.Models;
 
 /// <summary>
 /// View model for the StagePage route-hijacking controller.
-/// Extends <see cref="PrismServiceRequestViewModel"/> with TestSite-specific properties (none currently).
+/// Extends <see cref="ServiceRequestPageViewModel"/> with TestSite-specific properties (none currently).
 /// </summary>
-public class StageViewModel : PrismServiceRequestViewModel
+public class StageViewModel : ServiceRequestPageViewModel
 {
     public StageViewModel(IPublishedContent content, IPublishedValueFallback publishedValueFallback)
         : base(content, publishedValueFallback) { }

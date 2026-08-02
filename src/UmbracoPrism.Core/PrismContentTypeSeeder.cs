@@ -41,7 +41,6 @@ public class PrismContentTypeSeeder(
         await EnsureDocumentTypeAsync("memberDashboard", "Member Dashboard", allowedAsRoot: false);
         await EnsureServiceBlueprintDemoPageAsync();
         await EnsureStagePageAsync();
-        await EnsureCmsServiceRequestPageAsync();
         await EnsureServiceRequestHubAsync();
         await EnsureSettingsDocumentTypeAsync();
         await EnsureHomeAllowedChildrenAsync();
@@ -87,7 +86,7 @@ public class PrismContentTypeSeeder(
         var homePage = contentTypeService.Get("homePage");
         if (homePage == null) return;
 
-        var childAliases = new[] { "stagePage", "cmsServiceRequestPage", "serviceRequestHub", "memberDashboard" };
+        var childAliases = new[] { "stagePage", "serviceRequestHub", "memberDashboard" };
         var existingAliases = (homePage.AllowedContentTypes ?? []).Select(sort => sort.Alias).ToHashSet();
         if (childAliases.All(existingAliases.Contains)) return;
 
@@ -104,7 +103,7 @@ public class PrismContentTypeSeeder(
         contentTypeService.Save(homePage);
 #pragma warning restore CS0618
 
-        logger.LogInformation("PRISM: homePage now allows stagePage/cmsServiceRequestPage/serviceRequestHub/memberDashboard as children");
+        logger.LogInformation("PRISM: homePage now allows stagePage/serviceRequestHub/memberDashboard as children");
         await Task.CompletedTask;
     }
 
@@ -123,45 +122,6 @@ public class PrismContentTypeSeeder(
                 Name = name,
                 AllowedAsRoot = true,
                 Icon = "icon-activity"
-            };
-#pragma warning disable CS0618
-            contentTypeService.Save(contentType);
-#pragma warning restore CS0618
-        }
-        else if (contentType.AllowedAsRoot)
-        {
-            contentType.AllowedAsRoot = false;
-#pragma warning disable CS0618
-            contentTypeService.Save(contentType);
-#pragma warning restore CS0618
-        }
-
-        await EnsureBlueprintKeyPropertyAsync(contentType);
-        await EnsureTemplateAsync(contentType, name);
-    }
-
-    /// <summary>
-    /// The CMS Service Blueprint implementation's own document type — distinct from
-    /// <c>stagePage</c> (the business-service-blueprint demo pattern, route-hijacked by a
-    /// per-host controller) so Umbraco's naming-convention routing dispatches to
-    /// <c>CmsServiceRequestPageController</c> instead, which ships ready to use directly in Core
-    /// with no host-side controller needed.
-    /// </summary>
-    private async Task EnsureCmsServiceRequestPageAsync()
-    {
-        const string alias = "cmsServiceRequestPage";
-        const string name = "CMS Service Request Page";
-
-        var contentType = contentTypeService.Get(alias);
-
-        if (contentType == null)
-        {
-            contentType = new ContentType(shortStringHelper, -1)
-            {
-                Alias = alias,
-                Name = name,
-                AllowedAsRoot = true,
-                Icon = "icon-diagram"
             };
 #pragma warning disable CS0618
             contentTypeService.Save(contentType);

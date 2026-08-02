@@ -84,17 +84,8 @@ jobs:
       - name: Run Storybook tests
         run: npm run test-storybook:ci:all
 
-      - name: Run service blueprint graph visual regression
-        run: npm run test:playwright:service-blueprint-graph-visual
-
   core-tests:
     runs-on: ubuntu-latest
-    env:
-      # Needed to restore Wayfinder/Wayfinder.Umbraco from the Wayfinder repos' GitHub
-      # Packages feed (see NuGet.config) — a classic PAT with read:packages, since this
-      # repo's own GITHUB_TOKEN doesn't read another repo's packages under a personal
-      # account.
-      WAYFINDER_PACKAGES_TOKEN: ${{ secrets.WAYFINDER_PACKAGES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -112,8 +103,6 @@ jobs:
     defaults:
       run:
         working-directory: src/UmbracoPrism.Client
-    env:
-      WAYFINDER_PACKAGES_TOKEN: ${{ secrets.WAYFINDER_PACKAGES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -176,8 +165,6 @@ jobs:
     defaults:
       run:
         working-directory: src/UmbracoPrism.Client
-    env:
-      WAYFINDER_PACKAGES_TOKEN: ${{ secrets.WAYFINDER_PACKAGES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 

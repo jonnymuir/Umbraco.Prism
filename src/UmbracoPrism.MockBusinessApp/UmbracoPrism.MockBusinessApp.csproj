@@ -19,15 +19,15 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" PrivateAssets="all" />
-    <PackageReference Include="Wayfinder" Version="0.1.1" />
-    <PackageReference Include="Wayfinder.Engine" Version="0.1.1" />
-    <PackageReference Include="Wayfinder.Engine.Api" Version="0.1.1" />
-    <PackageReference Include="Wayfinder.Engine.Mcp" Version="0.1.1" />
+    <PackageReference Include="Wayfinder" Version="0.2.0" />
+    <PackageReference Include="Wayfinder.Editor" Version="0.1.3" />
+    <PackageReference Include="Wayfinder.Engine" Version="0.2.0" />
+    <PackageReference Include="Wayfinder.Engine.Api" Version="0.2.0" />
+    <PackageReference Include="Wayfinder.Engine.Mcp" Version="0.2.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../UmbracoPrism.Core/UmbracoPrism.Core.csproj" />
-    <ProjectReference Include="../Wayfinder.Editor/Wayfinder.Editor.csproj" />
   </ItemGroup>
 
 </Project>

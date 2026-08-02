@@ -6,7 +6,7 @@ Umbraco.Prism gives you a service blueprint rendering package for Umbraco sites 
 
 - A **service blueprint page** pattern built around `ServiceRequestPageController<TViewModel>`.
 - A **service request hub** page that lists in-progress and completed instances.
-- A **component-based service blueprint schema** (`PrismComponent`) shared between authored definitions and rendered payloads.
+- A **component-based service blueprint schema** (`Component`) shared between authored definitions and rendered payloads.
 - Built-in **nonce-backed structural validation**, **optimistic concurrency**, and **HTML sanitization**.
 - A thin **HTTP client** (`IBusinessAppProcessManagerClient`) that forwards the authenticated member token to your business app.
 
@@ -40,9 +40,9 @@ The rest of this doc set expands each step in order.
 | Term | Meaning in the current package |
 | --- | --- |
 | Service Blueprint | A `ServiceBlueprint` with a key, queues, stages, gateways, and a request policy |
-| Stage | A `StageDefinition` keyed by `stageKey`, owning its own `routes` and authored `PrismComponent` values |
+| Stage | A `StageDefinition` keyed by `stageKey`, owning its own `routes` and authored `Component` values |
 | Gateway | A `ServiceBlueprintGatewayDefinition` — a first-class Split/Join routing node; a stage's routes must always target a gateway, never another stage directly |
-| Component | A polymorphic `PrismComponent` such as `fieldset`, `summary-list`, `waiting`, `body`, or `radio` |
+| Component | A polymorphic `Component` such as `fieldset`, `summary-list`, `waiting`, `body`, or `radio` |
 | Step type | The shell Prism renders: `question`, `check-answers`, `confirmation`, `status-timeline`, or `task-list` |
 | Response state | What the client should do next: usually `render`, `defer`, `complete`, or `error` |
 | Request policy | Whether a service blueprint is single-instance, multi-instance, or prompt-on-reentry (`requestPolicy`) |

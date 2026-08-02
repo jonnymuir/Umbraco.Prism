@@ -38,15 +38,15 @@ public class UmbracoCmsServiceBlueprintStoreTests
     public async Task SaveAsync_NewDefinition_InsertsAtVersionOneAndPushesToEngine()
     {
         var (store, db, engine) = BuildStore();
-        db.Setup(d => d.FirstOrDefault<PrismCmsServiceBlueprintSchema>(
+        db.Setup(d => d.FirstOrDefault<ServiceBlueprintSchema>(
                 It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns((PrismCmsServiceBlueprintSchema?)null);
+            .Returns((ServiceBlueprintSchema?)null);
 
         var result = await store.SaveAsync(BuildWorkflow(), expectedVersion: 0);
 
         result.Saved.Should().BeTrue();
         result.CurrentVersion.Should().Be(1);
-        db.Verify(d => d.Insert(It.Is<PrismCmsServiceBlueprintSchema>(r =>
+        db.Verify(d => d.Insert(It.Is<ServiceBlueprintSchema>(r =>
             r.DefinitionKey == "apply-for-a-juggling-licence" && r.Version == 1)), Times.Once);
         engine.Verify(e => e.UpdateDefinition(
             "apply-for-a-juggling-licence", It.Is<ServiceBlueprint>(w => w.Version == 1)), Times.Once);
@@ -56,15 +56,15 @@ public class UmbracoCmsServiceBlueprintStoreTests
     public async Task SaveAsync_NewDefinition_WithNonZeroExpectedVersion_FailsWithoutInserting()
     {
         var (store, db, engine) = BuildStore();
-        db.Setup(d => d.FirstOrDefault<PrismCmsServiceBlueprintSchema>(
+        db.Setup(d => d.FirstOrDefault<ServiceBlueprintSchema>(
                 It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns((PrismCmsServiceBlueprintSchema?)null);
+            .Returns((ServiceBlueprintSchema?)null);
 
         var result = await store.SaveAsync(BuildWorkflow(), expectedVersion: 3);
 
         result.Saved.Should().BeFalse();
         result.CurrentVersion.Should().Be(0);
-        db.Verify(d => d.Insert(It.IsAny<PrismCmsServiceBlueprintSchema>()), Times.Never);
+        db.Verify(d => d.Insert(It.IsAny<ServiceBlueprintSchema>()), Times.Never);
         engine.Verify(e => e.UpdateDefinition(It.IsAny<string>(), It.IsAny<ServiceBlueprint>()), Times.Never);
     }
 
@@ -72,11 +72,11 @@ public class UmbracoCmsServiceBlueprintStoreTests
     public async Task SaveAsync_MatchingExpectedVersion_UpdatesAtomicallyAndPushesToEngine()
     {
         var (store, db, engine) = BuildStore();
-        db.Setup(d => d.FirstOrDefault<PrismCmsServiceBlueprintSchema>(
+        db.Setup(d => d.FirstOrDefault<ServiceBlueprintSchema>(
                 It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns(new PrismCmsServiceBlueprintSchema { DefinitionKey = "apply-for-a-juggling-licence", Version = 2 });
+            .Returns(new ServiceBlueprintSchema { DefinitionKey = "apply-for-a-juggling-licence", Version = 2 });
         db.Setup(d => d.Execute(
-                It.Is<string>(sql => sql.Contains("UPDATE prismCmsServiceBlueprint")),
+                It.Is<string>(sql => sql.Contains("UPDATE wayfinderServiceBlueprint")),
                 It.IsAny<object[]>()))
             .Returns(1);
 
@@ -92,9 +92,9 @@ public class UmbracoCmsServiceBlueprintStoreTests
     public async Task SaveAsync_StaleExpectedVersion_FailsBeforeAttemptingUpdate()
     {
         var (store, db, engine) = BuildStore();
-        db.Setup(d => d.FirstOrDefault<PrismCmsServiceBlueprintSchema>(
+        db.Setup(d => d.FirstOrDefault<ServiceBlueprintSchema>(
                 It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns(new PrismCmsServiceBlueprintSchema { DefinitionKey = "apply-for-a-juggling-licence", Version = 5 });
+            .Returns(new ServiceBlueprintSchema { DefinitionKey = "apply-for-a-juggling-licence", Version = 5 });
 
         var result = await store.SaveAsync(BuildWorkflow(), expectedVersion: 2);
 
@@ -110,12 +110,12 @@ public class UmbracoCmsServiceBlueprintStoreTests
         // Both writers read Version=2; a concurrent save already advanced it to 3, so this
         // writer's UPDATE ... WHERE Version = @expectedVersion matches zero rows.
         var (store, db, engine) = BuildStore();
-        db.SetupSequence(d => d.FirstOrDefault<PrismCmsServiceBlueprintSchema>(
+        db.SetupSequence(d => d.FirstOrDefault<ServiceBlueprintSchema>(
                 It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns(new PrismCmsServiceBlueprintSchema { DefinitionKey = "apply-for-a-juggling-licence", Version = 2 })
-            .Returns(new PrismCmsServiceBlueprintSchema { DefinitionKey = "apply-for-a-juggling-licence", Version = 3 });
+            .Returns(new ServiceBlueprintSchema { DefinitionKey = "apply-for-a-juggling-licence", Version = 2 })
+            .Returns(new ServiceBlueprintSchema { DefinitionKey = "apply-for-a-juggling-licence", Version = 3 });
         db.Setup(d => d.Execute(
-                It.Is<string>(sql => sql.Contains("UPDATE prismCmsServiceBlueprint")),
+                It.Is<string>(sql => sql.Contains("UPDATE wayfinderServiceBlueprint")),
                 It.IsAny<object[]>()))
             .Returns(0);
 
@@ -131,7 +131,7 @@ public class UmbracoCmsServiceBlueprintStoreTests
     {
         var (store, db, engine) = BuildStore();
         db.Setup(d => d.Execute(
-                It.Is<string>(sql => sql.Contains("DELETE FROM prismCmsServiceBlueprint")),
+                It.Is<string>(sql => sql.Contains("DELETE FROM wayfinderServiceBlueprint")),
                 It.IsAny<object[]>()))
             .Returns(1);
 
@@ -146,7 +146,7 @@ public class UmbracoCmsServiceBlueprintStoreTests
     {
         var (store, db, engine) = BuildStore();
         db.Setup(d => d.Execute(
-                It.Is<string>(sql => sql.Contains("DELETE FROM prismCmsServiceBlueprint")),
+                It.Is<string>(sql => sql.Contains("DELETE FROM wayfinderServiceBlueprint")),
                 It.IsAny<object[]>()))
             .Returns(0);
 

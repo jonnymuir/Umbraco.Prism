@@ -1,6 +1,6 @@
 # Embedding the Service Blueprint Editor
 
-A guide for integrators. Build a business app on top of Prism.
+A guide for integrators. Build a business app on top of Wayfinder.
 
 The service blueprint editor is Lit web component. It renders the visual editor. But it does not decide where your service blueprints live.
 
@@ -10,10 +10,10 @@ You tell the editor where service blueprints come from.
 
 ## What You Get
 
-Prism ships two Lit elements:
+Wayfinder ships two Lit elements:
 
-- **`<prism-service-blueprint-editor>`** — the visual editor (canvas, inspector, validation, history, simulation).
-- **`<prism-service-blueprint-editor-shell>`** — a wrapper that adds service blueprint selection and displays.
+- **`<wayfinder-service-blueprint-editor>`** — the visual editor (canvas, inspector, validation, history, simulation).
+- **`<wayfinder-service-blueprint-editor-shell>`** — a wrapper that adds service blueprint selection and displays.
 
 You drop them in your page. They render the editor.
 
@@ -102,15 +102,20 @@ For real persistence, replace the `Map` with a fetch call to your own backend.
 
 Create an instance of your source. Assign it to the editor element:
 
+There's no npm package for the editor — it's delivered as the `Wayfinder.Editor` NuGet
+package's static web assets (`_content/Wayfinder.Editor/dist/wayfinder-elements.js` by
+default, once your app references the package; a non-.NET host can just self-host the same
+compiled bundle instead).
+
 ```javascript
-import '@umbraco-prism/client/service-blueprint-editor/prism-service-blueprint-editor.js';
+import '/_content/Wayfinder.Editor/dist/wayfinder-elements.js';
 import { MapBackedServiceBlueprintSource } from './map-backed-service-blueprint-source.js';
 
 const source = new MapBackedServiceBlueprintSource([
   // seed with your service-blueprints here
 ]);
 
-const editor = document.querySelector('prism-service-blueprint-editor');
+const editor = document.querySelector('wayfinder-service-blueprint-editor');
 editor.workflowSource = source;
 ```
 
@@ -126,14 +131,14 @@ That is all you need.
   <title>Service-Blueprint Editor</title>
 </head>
 <body>
-  <prism-service-blueprint-editor></prism-service-blueprint-editor>
+  <wayfinder-service-blueprint-editor></wayfinder-service-blueprint-editor>
 
   <script type="module">
-    import '@umbraco-prism/client/service-blueprint-editor/prism-service-blueprint-editor.js';
+    import '/_content/Wayfinder.Editor/dist/wayfinder-elements.js';
     import { MapBackedServiceBlueprintSource } from './map-backed-service-blueprint-source.js';
 
     const source = new MapBackedServiceBlueprintSource();
-    const editor = document.querySelector('prism-service-blueprint-editor');
+    const editor = document.querySelector('wayfinder-service-blueprint-editor');
     editor.workflowSource = source;
   </script>
 </body>
@@ -146,7 +151,7 @@ The editor loads. It calls `source.list()` to populate the service blueprint pic
 
 ## The Reference Implementation
 
-Prism ships a reference business app called **MockBusinessApp**. It demonstrates the full pattern.
+This repo ships a reference business app called **MockBusinessApp**. It demonstrates the full pattern.
 
 The source code lives here:
 
@@ -264,9 +269,9 @@ If you do not set `authorContext`, the editor assumes the user can save.
 
 ---
 
-## Why There Is No HTTP API in Prism
+## Why There Is No HTTP API in Wayfinder
 
-Prism is **service-design tooling**. It helps you describe service blueprints. It does not run them. It does not store them.
+Wayfinder is **service-design tooling**. It helps you describe service blueprints. It does not run them. It does not store them.
 
 Different business apps have different needs:
 
@@ -275,9 +280,9 @@ Different business apps have different needs:
 - **Audit:** One app logs every save to a compliance system. Another does not care.
 - **Multi-tenancy:** One app partitions service blueprints by tenant. Another does not have tenants.
 
-Prism does not pick for you. It gives you `ServiceBlueprintSource`. You implement it. Your implementation knows your storage, your identity, your audit, your multi-tenancy.
+Wayfinder does not pick for you. It gives you `ServiceBlueprintSource`. You implement it. Your implementation knows your storage, your identity, your audit, your multi-tenancy.
 
-That keeps Prism simple. That keeps your business logic where it belongs.
+That keeps Wayfinder simple. That keeps your business logic where it belongs.
 
 ---
 
@@ -285,9 +290,9 @@ That keeps Prism simple. That keeps your business logic where it belongs.
 
 This is a **domain-driven design** boundary. Two domains:
 
-### Service-Design Domain (Prism)
+### Service-Design Domain (Wayfinder)
 
-This is what Prism **is**:
+This is what Wayfinder **is**:
 
 - The visual editor (canvas, inspector, validation)
 - The authored model (`AuthoredServiceBlueprint`, `AuthoredStage`, `AuthoredGateway`, `AuthoredRoute`)
@@ -296,7 +301,10 @@ This is what Prism **is**:
 - The projector (convert authored model to runtime model)
 - The simulator (dry-run a service blueprint path)
 
-All of this lives in `UmbracoPrism.Client` and `UmbracoPrism.Core`. It is domain-agnostic. It does not know about your business rules.
+All of this lives in the [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder) repo
+(`Wayfinder.Editor.Client`, `Wayfinder.Engine`) — nothing in this repo (`UmbracoPrism.Client`/
+`UmbracoPrism.Core`) implements any of it anymore. It is domain-agnostic. It does not know
+about your business rules.
 
 ### Business Domain (Your App)
 
@@ -309,7 +317,7 @@ This is what **your app** owns:
 - Notifications (send email when a form is submitted)
 - The actual UI presented to end users (the forms, the buttons, the confirmation pages)
 
-Your app ships its own backend code. Your app ships its own frontend code. Your app uses Prism's editor to author service blueprints. Your app uses Prism's runtime to execute service blueprints. But your app owns the business logic.
+Your app ships its own backend code. Your app ships its own frontend code. Your app uses Wayfinder's editor to author service blueprints. Your app uses Wayfinder's runtime to execute service blueprints. But your app owns the business logic.
 
 ### The Boundary
 
@@ -319,7 +327,7 @@ The interfaces are the boundary:
 - **`ServiceBlueprintActionCatalog`** — the editor shows available actions through this.
 - **`ServiceBlueprintAuthorContext`** — the editor reads save permissions through this.
 
-Those three interfaces keep the domains separate. Prism never crosses into your business logic. Your business logic never crosses into Prism's service-design concerns.
+Those three interfaces keep the domains separate. Wayfinder never crosses into your business logic. Your business logic never crosses into Wayfinder's service-design concerns.
 
 ---
 

@@ -12,7 +12,7 @@ public class ServiceRequestRenderShellResolverTests
         var shell = ServiceRequestRenderShellResolver.ResolveShell(
             new[]
             {
-                new PrismComponentRenderPayload { Type = "waiting", Content = "Please wait." }
+                new ComponentRenderPayload { Type = "waiting", Content = "Please wait." }
             },
             legacyStepType: string.Empty,
             hasWaitingConfig: false,
@@ -25,7 +25,7 @@ public class ServiceRequestRenderShellResolverTests
     public void GivenSummaryListsAndContent_WhenResolvingShell_ThenReturnsCheckAnswers()
     {
         var shell = ServiceRequestRenderShellResolver.ResolveShell(
-            new PrismComponentRenderPayload[]
+            new ComponentRenderPayload[]
             {
                 new()
                 {
@@ -60,8 +60,8 @@ public class ServiceRequestRenderShellResolverTests
         var shell = ServiceRequestRenderShellResolver.ResolveShell(
             new[]
             {
-                new PrismComponentRenderPayload { Type = "panel", Heading = "Done" },
-                new PrismComponentRenderPayload { Type = "body", Content = "Thanks." }
+                new ComponentRenderPayload { Type = "panel", Heading = "Done" },
+                new ComponentRenderPayload { Type = "body", Content = "Thanks." }
             },
             legacyStepType: string.Empty,
             hasWaitingConfig: false,
@@ -76,8 +76,8 @@ public class ServiceRequestRenderShellResolverTests
         var shell = ServiceRequestRenderShellResolver.ResolveShell(
             new[]
             {
-                new PrismComponentRenderPayload { Type = "heading", Content = "Under review" },
-                new PrismComponentRenderPayload { Type = "body", Content = "No action needed right now." }
+                new ComponentRenderPayload { Type = "heading", Content = "Under review" },
+                new ComponentRenderPayload { Type = "body", Content = "No action needed right now." }
             },
             legacyStepType: string.Empty,
             hasWaitingConfig: false,
@@ -92,7 +92,7 @@ public class ServiceRequestRenderShellResolverTests
         var shell = ServiceRequestRenderShellResolver.ResolveShell(
             new[]
             {
-                new PrismComponentRenderPayload
+                new ComponentRenderPayload
                 {
                     Type = "fieldset",
                     Fields =
@@ -118,7 +118,7 @@ public class ServiceRequestRenderShellResolverTests
     public void GivenLegacyAliasWithoutComponents_WhenResolvingShell_ThenFallsBackToCanonicalShell()
     {
         var shell = ServiceRequestRenderShellResolver.ResolveShell(
-            Array.Empty<PrismComponentRenderPayload>(),
+            Array.Empty<ComponentRenderPayload>(),
             legacyStepType: "review",
             hasWaitingConfig: false,
             hasAvailableActions: false);

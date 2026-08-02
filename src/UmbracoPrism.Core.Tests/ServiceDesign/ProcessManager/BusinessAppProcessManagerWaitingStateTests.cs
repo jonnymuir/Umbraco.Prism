@@ -205,13 +205,13 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                 {
                     StageKey = "enter-details",
                     DisplayName = "Enter Details",
-                    Components = Array.Empty<PrismComponent>()
+                    Components = Array.Empty<Component>()
                 },
                 new StageDefinition
                 {
                     StageKey = "processing",
                     DisplayName = "Processing",
-                    Components = new PrismComponent[]
+                    Components = new Component[]
                     {
                         new WaitingComponent
                         {
@@ -227,7 +227,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                 {
                     StageKey = "done",
                     DisplayName = "Done",
-                    Components = new PrismComponent[]
+                    Components = new Component[]
                     {
                         new PanelComponent { Heading = "Complete" }
                     }
@@ -450,7 +450,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                     {
                         StageKey = "processing",
                         DisplayName = "Processing",
-                        Components = new PrismComponent[]
+                        Components = new Component[]
                         {
                             new WaitingComponent
                             {
@@ -514,7 +514,7 @@ public class BusinessAppWorkflowEngineWaitingStateTests : IDisposable
                     {
                         StageKey = "processing",
                         DisplayName = "Processing",
-                        Components = new PrismComponent[]
+                        Components = new Component[]
                         {
                             new WaitingComponent
                             {

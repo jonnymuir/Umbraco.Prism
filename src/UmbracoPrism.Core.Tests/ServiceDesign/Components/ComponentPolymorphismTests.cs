@@ -27,11 +27,11 @@ public class ComponentPolymorphismTests
         // Arrange
         var component = componentType switch
         {
-            "fieldset" => (PrismComponent)new FieldsetComponent
+            "fieldset" => (Component)new FieldsetComponent
             {
                 Legend = "Personal details",
                 LegendSize = "l",
-                Children = new List<PrismComponent>
+                Children = new List<Component>
                 {
                     new TextInputComponent { FieldKey = "name", Label = "Full name", Required = true }
                 }
@@ -44,7 +44,7 @@ public class ComponentPolymorphismTests
                     {
                         Heading = "Section 1",
                         Summary = "Optional summary",
-                        Children = new List<PrismComponent>
+                        Children = new List<Component>
                         {
                             new BodyComponent { Content = "Content here" }
                         }
@@ -57,7 +57,7 @@ public class ComponentPolymorphismTests
 
         // Act
         var json = JsonSerializer.Serialize(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<PrismComponent>(json, JsonOptions);
+        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions);
 
         // Assert
         deserialized.Should().NotBeNull();
@@ -85,7 +85,7 @@ public class ComponentPolymorphismTests
         // Arrange
         var component = componentType switch
         {
-            "text" => (PrismComponent)new TextInputComponent
+            "text" => (Component)new TextInputComponent
             {
                 FieldKey = "full-name",
                 Label = "Full name",
@@ -127,9 +127,9 @@ public class ComponentPolymorphismTests
                 Label = "How should we contact you?",
                 Required = true,
                 Options = new List<string> { "Email", "Phone", "Post" },
-                ConditionalChildren = new Dictionary<string, IReadOnlyList<PrismComponent>>
+                ConditionalChildren = new Dictionary<string, IReadOnlyList<Component>>
                 {
-                    ["Email"] = new List<PrismComponent>
+                    ["Email"] = new List<Component>
                     {
                         new EmailComponent { FieldKey = "email", Label = "Email address", Required = true }
                     }
@@ -141,9 +141,9 @@ public class ComponentPolymorphismTests
                 Label = "What are you interested in?",
                 Required = false,
                 Options = new List<string> { "Sports", "Music", "Reading" },
-                ConditionalChildren = new Dictionary<string, IReadOnlyList<PrismComponent>>
+                ConditionalChildren = new Dictionary<string, IReadOnlyList<Component>>
                 {
-                    ["Sports"] = new List<PrismComponent>
+                    ["Sports"] = new List<Component>
                     {
                         new TextInputComponent { FieldKey = "favorite-sport", Label = "Favorite sport", Required = false }
                     }
@@ -183,7 +183,7 @@ public class ComponentPolymorphismTests
 
         // Act
         var json = JsonSerializer.Serialize(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<PrismComponent>(json, JsonOptions);
+        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions);
 
         // Assert
         deserialized.Should().NotBeNull();
@@ -207,7 +207,7 @@ public class ComponentPolymorphismTests
         // Arrange
         var component = componentType switch
         {
-            "body" => (PrismComponent)new BodyComponent { Content = "This is body text content." },
+            "body" => (Component)new BodyComponent { Content = "This is body text content." },
             "heading" => new HeadingComponent { Level = 2, Content = "Section heading" },
             "inset-text" => new InsetTextComponent { Content = "Important information in an inset box." },
             "warning-text" => new WarningTextComponent { Content = "You must complete this step." },
@@ -227,7 +227,7 @@ public class ComponentPolymorphismTests
 
         // Act
         var json = JsonSerializer.Serialize(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<PrismComponent>(json, JsonOptions);
+        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions);
 
         // Assert
         deserialized.Should().NotBeNull();
@@ -250,7 +250,7 @@ public class ComponentPolymorphismTests
         // Arrange
         var component = componentType switch
         {
-            "waiting" => (PrismComponent)new WaitingComponent
+            "waiting" => (Component)new WaitingComponent
             {
                 Content = "We're processing your payment. This usually takes 30 seconds.",
                 ExpectedWaitSeconds = 30,
@@ -260,7 +260,7 @@ public class ComponentPolymorphismTests
             },
             "summary-list" => new SummaryListComponent
             {
-                Children = new List<PrismComponent>
+                Children = new List<Component>
                 {
                     new TextInputComponent { FieldKey = "full-name", Label = "Full name" },
                     new EmailComponent { FieldKey = "email-address", Label = "Email address" },
@@ -308,7 +308,7 @@ public class ComponentPolymorphismTests
 
         // Act
         var json = JsonSerializer.Serialize(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<PrismComponent>(json, JsonOptions);
+        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions);
 
         // Assert
         deserialized.Should().NotBeNull();
@@ -337,14 +337,14 @@ public class ComponentPolymorphismTests
                 {
                     StageKey = "start",
                     DisplayName = "Start",
-                    Components = new List<PrismComponent>
+                    Components = new List<Component>
                     {
                         new HeadingComponent { Level = 1, Content = "Welcome" },
                         new BodyComponent { Content = "Please provide your details." },
                         new FieldsetComponent
                         {
                             Legend = "Personal information",
-                            Children = new List<PrismComponent>
+                            Children = new List<Component>
                             {
                                 new TextInputComponent { FieldKey = "name", Label = "Name", Required = true },
                                 new EmailComponent { FieldKey = "email", Label = "Email", Required = true }
@@ -356,11 +356,11 @@ public class ComponentPolymorphismTests
                 {
                     StageKey = "check",
                     DisplayName = "Check your answers",
-                    Components = new List<PrismComponent>
+                    Components = new List<Component>
                     {
                         new SummaryListComponent
                         {
-                            Children = new List<PrismComponent>
+                            Children = new List<Component>
                             {
                                 new TextInputComponent { FieldKey = "name", Label = "Name", Required = true },
                                 new EmailComponent { FieldKey = "email", Label = "Email", Required = true }
@@ -374,7 +374,7 @@ public class ComponentPolymorphismTests
                 {
                     StageKey = "complete",
                     DisplayName = "Complete",
-                    Components = new List<PrismComponent>
+                    Components = new List<Component>
                     {
                         new PanelComponent { Heading = "Application complete" },
                         new BodyComponent { Content = "Thank you for your submission." }
@@ -425,9 +425,9 @@ public class ComponentPolymorphismTests
             Label = "Do you have a partner?",
             Required = true,
             Options = new List<string> { "Yes", "No" },
-            ConditionalChildren = new Dictionary<string, IReadOnlyList<PrismComponent>>
+            ConditionalChildren = new Dictionary<string, IReadOnlyList<Component>>
             {
-                ["Yes"] = new List<PrismComponent>
+                ["Yes"] = new List<Component>
                 {
                     new TextInputComponent
                     {
@@ -446,8 +446,8 @@ public class ComponentPolymorphismTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize<PrismComponent>(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<PrismComponent>(json, JsonOptions) as RadiosComponent;
+        var json = JsonSerializer.Serialize<Component>(component, JsonOptions);
+        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions) as RadiosComponent;
 
         // Assert
         deserialized.Should().NotBeNull();
@@ -465,7 +465,7 @@ public class ComponentPolymorphismTests
         var component = new FieldsetComponent
         {
             Legend = "Outer fieldset",
-            Children = new List<PrismComponent>
+            Children = new List<Component>
             {
                 new HeadingComponent { Level = 3, Content = "Nested heading" },
                 new AccordionComponent
@@ -475,7 +475,7 @@ public class ComponentPolymorphismTests
                         new()
                         {
                             Heading = "Nested section",
-                            Children = new List<PrismComponent>
+                            Children = new List<Component>
                             {
                                 new TextInputComponent
                                 {
@@ -491,8 +491,8 @@ public class ComponentPolymorphismTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize<PrismComponent>(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<PrismComponent>(json, JsonOptions) as FieldsetComponent;
+        var json = JsonSerializer.Serialize<Component>(component, JsonOptions);
+        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions) as FieldsetComponent;
 
         // Assert
         deserialized.Should().NotBeNull();
@@ -506,7 +506,7 @@ public class ComponentPolymorphismTests
     public void ComponentList_WithMixedTypes_RoundtripsCorrectly()
     {
         // Arrange
-        var components = new List<PrismComponent>
+        var components = new List<Component>
         {
             new HeadingComponent { Level = 1, Content = "Application form" },
             new BodyComponent { Content = "Please complete all sections." },
@@ -514,7 +514,7 @@ public class ComponentPolymorphismTests
             new FieldsetComponent
             {
                 Legend = "Personal details",
-                Children = new List<PrismComponent>
+                Children = new List<Component>
                 {
                     new TextInputComponent { FieldKey = "name", Label = "Name", Required = true },
                     new NumberInputComponent { FieldKey = "age", Label = "Age", Required = true }
@@ -526,7 +526,7 @@ public class ComponentPolymorphismTests
 
         // Act
         var json = JsonSerializer.Serialize(components, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<List<PrismComponent>>(json, JsonOptions);
+        var deserialized = JsonSerializer.Deserialize<List<Component>>(json, JsonOptions);
 
         // Assert
         deserialized.Should().NotBeNull();

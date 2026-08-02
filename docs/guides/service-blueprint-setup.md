@@ -23,7 +23,7 @@ graph LR
     A["Umbraco content<br/>(stagePage, blueprintKey)"] --> B["StagePageController<br/>(extends ServiceRequestPageController)"]
     B -->|IBusinessAppProcessManagerClient| C["Business app<br/>/api/service-request/*"]
     C -->|ServiceRequestResponseEnvelope| B
-    B -->|prism-component tag helper| D["GOV.UK-styled Razor views"]
+    B -->|wayfinder-component tag helper| D["GOV.UK-styled Razor views"]
     D -->|user input, POST| B
     B -->|FieldValues + Action| C
 ```
@@ -32,7 +32,7 @@ graph LR
 
 | Layer | Owner | Customise? |
 |---|---|---|
-| Form rendering (Razor views, `prism-component` tag helper, CSS) | `Wayfinder.Umbraco` | Yes — override partials, CSS variables |
+| Form rendering (Razor views, `wayfinder-component` tag helper, CSS) | `Wayfinder.Umbraco` | Yes — override partials, CSS variables |
 | Antiforgery + nonce tamper-proofing | `Wayfinder.Umbraco` | No — automatic |
 | Member authentication & sessions | `UmbracoPrism.Core` | No — `PrismMemberCookie` scheme |
 | `stagePage`/`serviceRequestHub` content types & route hijacking | `Wayfinder.Umbraco` | No — seeded automatically |
@@ -133,7 +133,7 @@ public class StagePageController(
 }
 ```
 
-`StageViewModel` can be `PrismServiceRequestViewModel` itself, or a thin subclass if your
+`StageViewModel` can be `ServiceRequestPageViewModel` itself, or a thin subclass if your
 own views need extra properties.
 
 ### 3. Pre-populate fields from claims (optional)
@@ -178,27 +178,29 @@ its own notion of "who this is" via the engine's `ActorProfile`.
 
 ## Customising rendering
 
-The `<prism-component>` tag helper (`Wayfinder.Umbraco.TagHelpers.PrismComponentTagHelper`)
-dispatches every authored component to a Razor partial by naming convention. Kebab-case
-`type` becomes PascalCase: `"summary-list"` → `SummaryList`, `"notification-banner"` →
-`NotificationBanner`.
+The `<wayfinder-component>`/`<wayfinder-field>` tag helper (`Wayfinder.Umbraco.TagHelpers.ComponentTagHelper`,
+resolution logic in `Wayfinder.Umbraco.Services.ComponentPartialResolver`) dispatches every
+authored component to a Razor partial by naming convention. Kebab-case `type` becomes
+PascalCase: `"summary-list"` → `SummaryList`, `"notification-banner"` → `NotificationBanner`.
 
 **Top-level components** (`stages[].components`, container/content/data-display types) —
-resolved against `~/Views/Partials/PrismComponents/`:
+resolved against `~/Views/Partials/Components/` in *your own app* first, then
+Wayfinder.Umbraco's own built-in catalog:
 
 ```
-type: "fieldset" → _PrismComponent-Fieldset.cshtml
-type: "unknown"  → _PrismComponent-Default.cshtml (fallback)
+type: "fieldset" → _Component-Fieldset.cshtml
+type: "unknown"  → _Component-Default.cshtml (fallback)
 ```
 
-**Input fields** (declare a `fieldKey`) — resolved against `~/Views/Partials/PrismFields/`:
+**Input fields** (declare a `fieldKey`) — resolved against `~/Views/Partials/Fields/` in your
+own app first, same fallback pattern:
 
 ```
 fieldType: "text"    → _Component-Text.cshtml
 fieldType: "unknown" → _Component-Default.cshtml (fallback)
 ```
 
-Every field partial receives `Wayfinder.Umbraco.Models.PrismFieldContext` — pre-built ARIA
+Every field partial receives `Wayfinder.Umbraco.Models.FieldContext` — pre-built ARIA
 attributes, CSS classes, and the resolved display value, so partials stay declarative:
 
 | Property | Purpose |
@@ -214,14 +216,18 @@ attributes, CSS classes, and the resolved display value, so partials stay declar
 ### Overriding a built-in field type
 
 Create a partial with the same resolved name under your own app's
-`~/Views/Partials/PrismFields/` — Umbraco's view engine resolves your app's copy first.
-For example, to restyle `text`:
+`~/Views/Partials/Fields/`. This is *not* the path Wayfinder.Umbraco's own built-in catalog
+lives at (that's a package-internal `~/Views/Partials/_WayfinderFields/`, deliberately kept
+separate) — `ComponentPartialResolver` checks your app's `Fields/` path first, explicitly,
+and only falls back to the package's own default if nothing's there. New override files are
+picked up on the next app restart (resolution is cached per type for the process lifetime, so
+a render never re-checks the filesystem). For example, to restyle `text`:
 
 ```cshtml
-@* ~/Views/Partials/PrismFields/_Component-Text.cshtml *@
-@model Wayfinder.Umbraco.Models.PrismFieldContext
+@* ~/Views/Partials/Fields/_Component-Text.cshtml *@
+@model Wayfinder.Umbraco.Models.FieldContext
 <div class="@Model.WrapperClass"@Html.Raw(Model.WrapperAttrs)>
-    @await Html.PartialAsync("~/Views/Partials/PrismFields/_ComponentLabel.cshtml", Model)
+    @await Html.PartialAsync("~/Views/Partials/Fields/_ComponentLabel.cshtml", Model)
     <input class="govuk-input@(Model.HasFieldError ? " govuk-input--error" : "")"
            type="text"
            id="@Model.Field.FieldKey"
@@ -231,26 +237,29 @@ For example, to restyle `text`:
 </div>
 ```
 
+Note: if you override `_ComponentLabel.cshtml` too, place it at your own `~/Views/Partials/Fields/_ComponentLabel.cshtml` — the package's own field partials call it via that same host-override-first path, so your copy is picked up automatically without touching anything else.
+
 ### Adding a new field type
 
 Authoring a component with a `type`/`fieldType` outside the built-in catalog (below) just
-falls back to `_Component-Default.cshtml`/`_PrismComponent-Default.cshtml` unless you add a
-partial for it — the tag helper never rejects an unrecognised discriminator, it just
-renders the fallback. Add `~/Views/Partials/PrismFields/_Component-{PascalName}.cshtml`
-(model `PrismFieldContext`) and it's picked up automatically. Note the built-in
-`PrismComponent` catalog is closed at compile time (see
+falls back to `_Component-Default.cshtml` unless you add a partial for it — the tag helper
+never rejects an unrecognised discriminator, it just renders the fallback. Add
+`~/Views/Partials/Fields/_Component-{PascalName}.cshtml` (model `FieldContext`) and it's
+picked up automatically. Note the built-in `Component` catalog is closed at compile time (see
 [queue render capabilities](./reference-service-blueprint-contract.md#queue-render-capabilities-host-declared))
-— a genuinely new authored `type` discriminator needs your own `PrismComponent` derived
+— a genuinely new authored `type` discriminator needs your own `Component`-derived
 type and `[JsonDerivedType]` entry, not just a partial; a partial alone only lets you
 *re-render* an existing discriminator differently.
 
 ### Built-in component/field catalog
 
-Input field types (`Views/Partials/PrismFields/_Component-*.cshtml`): `text`, `number`,
+Input field types (`Wayfinder.Umbraco`'s own `Views/Partials/_WayfinderFields/_Component-*.cshtml` —
+override at `Views/Partials/Fields/` in your own app): `text`, `number`,
 `decimal`, `select`, `radio`, `checkboxlist`, `date`, `email`, `textarea`, `boolean`,
 `slider`, `file-upload`, `guidance-checklist`.
 
-Top-level component types (`Views/Partials/PrismComponents/_PrismComponent-*.cshtml`):
+Top-level component types (`Wayfinder.Umbraco`'s own `Views/Partials/_WayfinderComponents/_Component-*.cshtml` —
+override at `Views/Partials/Components/` in your own app):
 `fieldset`, `accordion`, `panel`, `body`, `heading`, `inset-text`, `warning-text`,
 `details`, `notification-banner`, `waiting`, `summary-list`, `task-list`, `stat-group`,
 `chart`.
@@ -264,7 +273,7 @@ There's no per-stage "waiting" configuration in the current model — waiting is
 of a **Join gateway** converging cursors from a Split. A Join carries
 `waitingContent`/`waitingExpectedSeconds`/`waitingPollIntervalMs`/`waitingAllowDefer`/
 `waitingDeferMessage`/`requiredIncomingQueues`; the client receives `ResponseState: "defer"`
-with `PollAfterMs`, and `PrismServiceRequestViewModel.PollAfterMs` drives the polling UI's
+with `PollAfterMs`, and `ServiceRequestPageViewModel.PollAfterMs` drives the polling UI's
 refresh interval. See
 [Gateways and routing](./reference-service-blueprint-contract.md#gateways-and-routing) for
 the full shape and the authoring conventions around Join loop-backs.
@@ -278,7 +287,7 @@ have:
 |---|---|
 | `"single"` | At most one instance per user — an existing instance (including a terminal one) is always resumed. |
 | `"multiple"` | Every visit creates a new instance. |
-| `"prompt"` | If an active (non-terminal) instance exists, the response is `instance_picker` (`PrismServiceRequestViewModel.ShowInstancePicker`) instead of the form — the view offers "continue" or "start new". |
+| `"prompt"` | If an active (non-terminal) instance exists, the response is `instance_picker` (`ServiceRequestPageViewModel.ShowInstancePicker`) instead of the form — the view offers "continue" or "start new". |
 
 ## Role-gated routes
 

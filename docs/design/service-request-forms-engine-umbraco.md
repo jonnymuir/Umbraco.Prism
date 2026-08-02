@@ -46,7 +46,7 @@ Responsibilities on GET:
 3. support prompt-mode `instance_picker`,
 4. allow optional field pre-population,
 5. generate the nonce bound to the rendered field definitions,
-6. populate `PrismServiceRequestViewModel`.
+6. populate `ServiceRequestPageViewModel`.
 
 Responsibilities on POST:
 

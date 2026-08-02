@@ -5,9 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && vite build --config vite.cms-service-blueprint-manifests.config.ts && vite build --config vite.service-blueprint-editor.config.ts",
+    "build": "tsc && vite build",
     "test:calc": "node scripts/run-calculation-golden.mjs",
-    "test:editor-roundtrip": "node --import ./scripts/register-ts-js-resolve.mjs scripts/run-editor-roundtrip.mjs",
     "test:save-error-parsing": "node --experimental-transform-types --import ./scripts/register-ts-js-resolve.mjs scripts/run-save-error-parsing-tests.mjs",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
@@ -17,11 +16,9 @@
     "test-storybook:ci": "start-server-and-test \"storybook dev -p 6006 --ci\" http://127.0.0.1:6006 test-storybook",
     "test-storybook:ci:all": "start-server-and-test \"storybook dev -p 6006 --ci\" http://127.0.0.1:6006 \"npm run test-storybook:all\"",
     "test:playwright": "playwright test",
-    "test:playwright:service-blueprint-graph-visual": "playwright test tests/service-blueprint-editor/service-blueprint-graph-visual.spec.ts --reporter=line",
     "test:playwright:localhost-auth": "node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite && playwright test -c playwright.localhost-auth.config.ts --reporter=line",
     "test:playwright:planning-smoke": "node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite && playwright test -c playwright.localhost-auth.config.ts --grep '01-planning-service-blueprint-editor' --reporter=line --max-failures=1",
     "test:playwright:ui": "playwright test --ui",
-    "test:graph-layout": "node scripts/run-graph-layout-tests.mjs",
     "demo:record": "playwright test tests/demo/garden-waste-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line",
     "demo:record:licence-transfer": "playwright test tests/demo/licence-transfer-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line"
   },

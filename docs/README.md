@@ -32,7 +32,7 @@ Handle backend downtime at the edge. Custom error pages or Workers for branded m
 ### [Reference Service Blueprint Contract](guides/reference-service-blueprint-contract.md)
 The `ServiceBlueprint` JSON contract: states, routes, gateways, queues, components, and response states — the shape every service blueprint is authored in, by a human or an AI agent.
 
-### [The Prism Calculation Language](guides/calculation-language.md)
+### [The Wayfinder Calculation Language](guides/calculation-language.md)
 Grammar, functions, tables/series, and `showWhen` for the declarative expression language behind service blueprint calculations.
 
 ---

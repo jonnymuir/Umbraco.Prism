@@ -3,13 +3,13 @@
 // Generic live-form runtime. Progressive enhancement for any stage whose
 // definition declares a calculations block:
 //
-//  - reads the embedded live model ([data-prism-live-model]): the calculation set,
+//  - reads the embedded live model ([data-wayfinder-live-model]): the calculation set,
 //    input types/defaults and service-sourced values the server evaluated with,
 //  - listens to the stage's ordinary form controls (fields[...]) and re-evaluates the
 //    same declarative definitions via the shared expression engine on every change,
-//  - updates whatever declares a binding: stat cards ([data-prism-stat-field]),
-//    charts ([data-prism-chart]), slider value readouts ([data-prism-slider]), and
-//    visibility wrappers ([data-prism-show-when]).
+//  - updates whatever declares a binding: stat cards ([data-wayfinder-stat-field]),
+//    charts ([data-wayfinder-chart]), slider value readouts ([data-wayfinder-slider]), and
+//    visibility wrappers ([data-wayfinder-show-when]).
 //
 // It contains no domain knowledge and no layout: the service blueprint JSON decides what exists
 // on the page; this runtime only keeps it live between (nonce-validated) POSTs. The
@@ -46,7 +46,7 @@ function formatValue(value: CalcValue, format: string | undefined): string {
 }
 
 function boot(): void {
-  const modelScript = document.querySelector('script[data-prism-live-model]');
+  const modelScript = document.querySelector('script[data-wayfinder-live-model]');
   if (!modelScript?.textContent) {
     return;
   }
@@ -61,7 +61,7 @@ function boot(): void {
     return;
   }
 
-  const form = modelScript.closest('form') ?? document.querySelector('form.prism-service-request-form') ?? document;
+  const form = modelScript.closest('form') ?? document.querySelector('form.wayfinder-service-request-form') ?? document;
   const serviceScope = toScope(model.service ?? {});
 
   const readInput = (key: string): unknown => {
@@ -123,20 +123,20 @@ function boot(): void {
     const fullScope: CalcScope = { ...scope, ...output.fields };
 
     // Stat cards (and anything else bound to a calculated field).
-    document.querySelectorAll<HTMLElement>('[data-prism-stat-field]').forEach((card) => {
-      const fieldKey = card.dataset.prismStatField!;
+    document.querySelectorAll<HTMLElement>('[data-wayfinder-stat-field]').forEach((card) => {
+      const fieldKey = card.dataset.wayfinderStatField!;
       const value = output.fields[fieldKey];
       if (value === undefined) {
         return;
       }
 
       const format = model.calculations.fields[fieldKey]?.format;
-      card.querySelector('.prism-stat-card__value')?.replaceChildren(formatValue(value, format));
+      card.querySelector('.wayfinder-stat-card__value')?.replaceChildren(formatValue(value, format));
     });
 
     // Visibility wrappers.
-    document.querySelectorAll<HTMLElement>('[data-prism-show-when]').forEach((wrapper) => {
-      const expression = wrapper.dataset.prismShowWhen!;
+    document.querySelectorAll<HTMLElement>('[data-wayfinder-show-when]').forEach((wrapper) => {
+      const expression = wrapper.dataset.wayfinderShowWhen!;
       try {
         const visible = evaluateExpression(expression, fullScope, model.calculations) !== false;
         wrapper.hidden = !visible;
@@ -146,14 +146,14 @@ function boot(): void {
     });
 
     // Charts.
-    document.querySelectorAll<HTMLElement>('[data-prism-chart]').forEach((figure) => {
+    document.querySelectorAll<HTMLElement>('[data-wayfinder-chart]').forEach((figure) => {
       rebuildChart(figure, output.series);
     });
   };
 
   const updateSliderReadout = (input: HTMLInputElement): void => {
-    const wrapper = input.closest('[data-prism-slider]');
-    const readout = wrapper?.querySelector<HTMLElement>('[data-prism-slider-value]');
+    const wrapper = input.closest('[data-wayfinder-slider]');
+    const readout = wrapper?.querySelector<HTMLElement>('[data-wayfinder-slider-value]');
     if (readout) {
       readout.textContent = `${readout.dataset.prefix ?? ''}${input.value}${readout.dataset.suffix ?? ''}`;
     }
@@ -161,7 +161,7 @@ function boot(): void {
 
   form.addEventListener('input', (event) => {
     const target = event.target as HTMLElement;
-    if (target instanceof HTMLInputElement && target.matches('[data-prism-slider-input]')) {
+    if (target instanceof HTMLInputElement && target.matches('[data-wayfinder-slider-input]')) {
       updateSliderReadout(target);
     }
 
@@ -178,7 +178,7 @@ function boot(): void {
 }
 
 function rebuildChart(figure: HTMLElement, series: Record<string, Array<Record<string, CalcValue>>>): void {
-  const configScript = figure.querySelector('script[data-prism-chart-config]');
+  const configScript = figure.querySelector('script[data-wayfinder-chart-config]');
   if (!configScript?.textContent) {
     return;
   }
@@ -215,12 +215,12 @@ function rebuildChart(figure: HTMLElement, series: Record<string, Array<Record<s
   const maxTotal = Math.max(1, ...numeric.map((row) => row.values.reduce((a, b) => a + b, 0)));
   const plotHeight = 160;
 
-  const plot = figure.querySelector<HTMLElement>('[data-prism-chart-plot]');
+  const plot = figure.querySelector<HTMLElement>('[data-wayfinder-chart-plot]');
   if (plot) {
     plot.replaceChildren(
       ...numeric.map((row) => {
         const bar = document.createElement('div');
-        bar.className = 'prism-chart__bar';
+        bar.className = 'wayfinder-chart__bar';
         bar.title = `${config.x} ${row.x}: ${row.values.reduce((a, b) => a + b, 0).toLocaleString('en-GB')}`;
         row.values.forEach((value, i) => {
           const segment = document.createElement('div');
@@ -233,7 +233,7 @@ function rebuildChart(figure: HTMLElement, series: Record<string, Array<Record<s
     );
   }
 
-  const labels = figure.querySelector<HTMLElement>('[data-prism-chart-labels]');
+  const labels = figure.querySelector<HTMLElement>('[data-wayfinder-chart-labels]');
   if (labels) {
     labels.replaceChildren(
       ...numeric.map((row) => {
@@ -244,7 +244,7 @@ function rebuildChart(figure: HTMLElement, series: Record<string, Array<Record<s
     );
   }
 
-  const tableBody = figure.querySelector<HTMLElement>('[data-prism-chart-table] tbody');
+  const tableBody = figure.querySelector<HTMLElement>('[data-wayfinder-chart-table] tbody');
   if (tableBody) {
     tableBody.replaceChildren(
       ...numeric
@@ -272,19 +272,19 @@ function rebuildChart(figure: HTMLElement, series: Record<string, Array<Record<s
 // boot()'s early return. The actual required-all-acknowledged gate is still server-side
 // validation on submit; this is purely a display nicety.
 function bootGuidanceChecklists(): void {
-  document.querySelectorAll<HTMLElement>('[data-prism-guidance-checklist]').forEach((container) => {
-    const progress = container.querySelector<HTMLElement>('[data-prism-guidance-progress]');
-    const total = Number(progress?.dataset.prismGuidanceTotal ?? '0');
+  document.querySelectorAll<HTMLElement>('[data-wayfinder-guidance-checklist]').forEach((container) => {
+    const progress = container.querySelector<HTMLElement>('[data-wayfinder-guidance-progress]');
+    const total = Number(progress?.dataset.wayfinderGuidanceTotal ?? '0');
     if (!progress || total === 0) {
       return;
     }
 
     container.addEventListener('change', (event) => {
-      if (!(event.target as HTMLElement).matches('[data-prism-guidance-checkbox]')) {
+      if (!(event.target as HTMLElement).matches('[data-wayfinder-guidance-checkbox]')) {
         return;
       }
 
-      const completed = container.querySelectorAll('[data-prism-guidance-checkbox]:checked').length;
+      const completed = container.querySelectorAll('[data-wayfinder-guidance-checkbox]:checked').length;
       progress.textContent = `${completed} of ${total} guidance articles completed`;
     });
   });

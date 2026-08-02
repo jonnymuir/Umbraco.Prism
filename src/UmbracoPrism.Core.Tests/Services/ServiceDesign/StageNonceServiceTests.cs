@@ -15,10 +15,10 @@ public class StageNonceServiceTests
 
     private static StageNonceService BuildService(
         IDistributedCache? cache = null,
-        PrismServiceDesignOptions? options = null)
+        WayfinderServiceDesignOptions? options = null)
     {
         cache ??= new Mock<IDistributedCache>().Object;
-        options ??= new PrismServiceDesignOptions();
+        options ??= new WayfinderServiceDesignOptions();
         return new StageNonceService(cache, Options.Create(options));
     }
 
@@ -80,7 +80,7 @@ public class StageNonceServiceTests
 
         cacheMock.Verify(
             c => c.SetAsync(
-                It.Is<string>(key => key.StartsWith("prism:workflow:nonce:")),
+                It.Is<string>(key => key.StartsWith("wayfinder:workflow:nonce:")),
                 It.IsAny<byte[]>(),
                 It.IsAny<DistributedCacheEntryOptions>(),
                 It.IsAny<CancellationToken>()),
@@ -91,7 +91,7 @@ public class StageNonceServiceTests
     public async Task CreateAsync_UsesTtlFromOptions()
     {
         var cacheMock = new Mock<IDistributedCache>();
-        var options = new PrismServiceDesignOptions { NonceExpiry = TimeSpan.FromMinutes(30) };
+        var options = new WayfinderServiceDesignOptions { NonceExpiry = TimeSpan.FromMinutes(30) };
         var service = BuildService(cache: cacheMock.Object, options: options);
         var fields = CreateSampleFields();
 
@@ -119,7 +119,7 @@ public class StageNonceServiceTests
         var nonce = await service.CreateAsync(fields);
 
         cacheMock.Setup(c => c.GetAsync(
-                It.Is<string>(k => k == $"prism:workflow:nonce:{nonce}"),
+                It.Is<string>(k => k == $"wayfinder:workflow:nonce:{nonce}"),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((string key, CancellationToken _) =>
             {
@@ -179,7 +179,7 @@ public class StageNonceServiceTests
 
         cacheMock.Verify(
             c => c.GetAsync(
-                "prism:workflow:nonce:abc123def456abc123def456abc12345",
+                "wayfinder:workflow:nonce:abc123def456abc123def456abc12345",
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

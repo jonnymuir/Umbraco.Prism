@@ -35,7 +35,7 @@ Wayfinder and Wayfinder.Umbraco moved out of this repo into their own repos, con
 
 ## Current implementation notes
 
-- The authored service blueprint schema is the polymorphic `PrismComponent` tree, not the older field-group model.
+- The authored service blueprint schema is the polymorphic `Component` tree, not the older field-group model.
 - Step type is inferred from authored components via `PrismComponentExtensions.InferStepType()`.
 - The main response states are `render`, `defer`, `complete`, and `error`; the demo business app also uses `instance_picker` for prompt-mode resume/start decisions and `validation_error` for domain-specific failures.
 - Seed files live in `src/UmbracoPrism.MockBusinessApp/service-blueprints/` and are the best short examples of the current JSON shape.

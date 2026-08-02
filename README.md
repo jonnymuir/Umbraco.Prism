@@ -257,7 +257,7 @@ In backoffice:
 |---|---|
 | **Service Blueprint Editor** | |
 | [Embedding the Service Blueprint Editor](docs/guides/embedding-the-service-blueprint-editor.md) | **Primary integrator recipe.** Build a business app on top of Prism. Implement `ServiceBlueprintSource`, wire the editor, extend the action catalog. |
-| [AI-Ready Service Blueprint Authoring](docs/guides/ai-service-blueprint-authoring.md) | Let an AI agent (Claude Code or any MCP client) list, read, validate, simulate, and save your service blueprints — `MapPrismServiceBlueprintAuthoringApi()` / `MapPrismServiceBlueprintAuthoringMcp()`. |
+| [AI-Ready Service Blueprint Authoring](docs/guides/ai-service-blueprint-authoring.md) | Let an AI agent (Claude Code or any MCP client) list, read, validate, simulate, and save your service blueprints — `MapServiceBlueprintAuthoringApi()` / `MapServiceBlueprintAuthoringMcp()`. |
 | [Gateway-First Authoring](docs/walkthroughs/gateway-first-authoring.md) | How the gateway-and-route model works. Every move from one stage to another happens through a gateway. Worked example: the Leave Request 5-gateway fan-in pattern. |
 | **Walkthroughs** | |
 | [Service Blueprint Walkthrough — Payment Demo](docs/walkthroughs/payment-demo.md) | Step-by-step demo of the payment service blueprint — shows Prism's core "submit now, finish later" pattern with waiting states, real-time updates, and reviewer actions |

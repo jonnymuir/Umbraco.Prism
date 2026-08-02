@@ -4,7 +4,7 @@ Prism's client story is intentionally server-rendered: the business app returns 
 
 ## Rendering flow
 
-1. `ServiceRequestPageController` populates `PrismServiceRequestViewModel`.
+1. `ServiceRequestPageController` populates `ServiceRequestPageViewModel`.
 2. `Views/stagePage.cshtml` decides which shell to use.
 3. The chosen partial renders top-level components and action buttons.
 4. Field values and validation errors are taken from the view model, not from browser-authored metadata.
@@ -29,7 +29,7 @@ The resolver still normalizes a few legacy names (`collect`, `review`, `completi
 
 ## Top-level component payloads
 
-`PrismComponentRenderPayload` is a transport-friendly rendering model. The top-level `Type` values used by the current views are:
+`ComponentRenderPayload` is a transport-friendly rendering model. The top-level `Type` values used by the current views are:
 
 - `fieldset`
 - `summary-list`
@@ -44,7 +44,7 @@ The resolver still normalizes a few legacy names (`collect`, `review`, `completi
 - `details`
 - `notification-banner`
 
-The views for these live under `Views/Partials/PrismComponents/` in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco).
+The views for these live under `Views/Partials/_WayfinderComponents/` (built-in) in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) — a host overrides one at `Views/Partials/Components/` in its own app.
 
 ## Field payload rules worth knowing
 
@@ -95,7 +95,7 @@ Prism uses POST-Redirect-Get rather than rendering validation errors directly fr
 - preserved values via `TempData`,
 - `ServiceBlueprintProblem` values available both inline and in summaries.
 
-`PrismServiceRequestViewModel` exposes:
+`ServiceRequestPageViewModel` exposes:
 
 - `Problems`
 - `FormValues`
@@ -112,7 +112,7 @@ The example override in `src/UmbracoPrism.TestSite/Controllers/StagePageControll
 
 - Treat the render payload as authoritative; do not rebuild field rules in JavaScript.
 - Keep component examples short and targeted. Seed files are the best place for longer real definitions.
-- If you add a new component type, document both the authored `PrismComponent` shape and the rendered `PrismComponentRenderPayload` that the views consume.
+- If you add a new component type, document both the authored `Component` shape and the rendered `ComponentRenderPayload` that the views consume.
 
 ## Related docs
 

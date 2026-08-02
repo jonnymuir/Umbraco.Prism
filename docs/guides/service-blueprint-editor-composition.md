@@ -1,12 +1,18 @@
 # Service Blueprint Editor Composition — Advanced Patterns
 
+> **Outdated.** Written before the editor's TS source (`src/service-blueprint-editor/`) moved
+> out of this repo entirely to the `Wayfinder` repo's own `Wayfinder.Editor.Client`, compiled
+> into the `Wayfinder.Editor` NuGet package. The composition patterns and component-API links
+> below point at files that no longer exist here. For the current architecture see
+> `Wayfinder.Umbraco`'s own README (the backoffice editor — install the package, no host
+> wiring) and [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder) if you need to
+> change the editor itself. Kept for the composition-pattern thinking, not as current guidance.
+
 > **Note:** For the integration recipe (how to embed the editor in your business app), see [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md). This document covers advanced composition patterns for custom hosts.
 
 This guide shows advanced patterns for composing the service blueprint editor into your own application. It assumes you have already implemented `ServiceBlueprintSource` and understand the basic integration flow.
 
 **For context:**
-- **Component API reference (public elements, attributes, events)?** See [`src/UmbracoPrism.Client/src/service-blueprint-editor/README.md`](../../src/UmbracoPrism.Client/src/service blueprint-editor/README.md)
-- **Understanding the editor design?** See [Service Blueprint Editor V1 Design](../design/service-blueprint-editor-v1/README.md)
 - **Setting up service blueprints in Umbraco?** See [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md)
 
 > The editor lives in your **business app** — never inside the Umbraco backoffice, and not in TestSite (TestSite is the reference runtime). MockBusinessApp is the reference authoring host; your own host follows the same pattern. The Storybook harness is fine for development and tests. If you only need to display a published service blueprint on a public Umbraco page, use the read-only viewer (`<prism-service-blueprint-graph read-only>`) — see [Read-only public viewer](#read-only-public-viewer).
@@ -204,15 +210,7 @@ A one-line Razor embed for a published service blueprint:
 
 Inside `<prism-service-blueprint-editor>` the **Definition** tab shows an editable JSON view of the current service blueprint. It stays in sync with the visual canvas in both directions — visual edits re-serialise the JSON, and valid JSON edits flow back into the canvas through the normal commit path (so undo and redo still work). Invalid JSON keeps the canvas on the last good state and explains the problem in a banner.
 
-This is a power-user feature for copy-paste, quick edits, and diffing — there is nothing for the host to configure. See [`src/UmbracoPrism.Client/src/service-blueprint-editor/README.md`](../../src/UmbracoPrism.Client/src/service blueprint-editor/README.md) for the test hooks and exact sync rules.
-
----
-
-## Visual testing
-
-The editor has a dedicated visual regression suite that pins five reading-level concerns on the canvas — lane fit, no overlap, label fit, scroll behaviour, and arrow legibility — plus an ergonomics suite covering the named author flows (add stage, selection survives a tab switch, keyboard reach). If you build a custom host, the same suite is the contract you embed against: if your host renders `<prism-service-blueprint-editor>` in a normal page, the canvas behaviour is already covered.
-
-See [`docs/testing/service-blueprint-editor-visual-tests.md`](../testing/service-blueprint-editor-visual-tests.md) for the full strategy and run instructions.
+This is a power-user feature for copy-paste, quick edits, and diffing — there is nothing for the host to configure.
 
 ---
 

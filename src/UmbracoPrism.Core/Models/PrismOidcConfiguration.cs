@@ -7,7 +7,6 @@ using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
-using UmbracoPrism.Core.Services.ServiceDesign;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Client;
 using System.Security.Authentication;

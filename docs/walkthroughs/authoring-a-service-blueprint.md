@@ -1,5 +1,17 @@
 # Walkthrough — Wiring the Prism Service Blueprint Editor into Your Umbraco App
 
+> **This walkthrough predates the Wayfinder extraction and describes an architecture that no
+> longer exists** — fictional APIs (`AddPrismWorkflowEditor`, `ServiceBlueprintAuthoringPolicies`),
+> a project layout from before the service blueprint engine moved into its own `Wayfinder`/
+> `Wayfinder.Umbraco` repos, and a dead link to the now-deleted `src/UmbracoPrism.Client/src/service-blueprint-editor/`.
+> For accurate, current guidance use
+> [AI-Ready Service Blueprint Authoring](../guides/ai-service-blueprint-authoring.md) (REST/MCP
+> authoring toolkit wiring), [Setting Up a Prism Service Blueprint](../guides/service-blueprint-setup.md)
+> (member-facing rendering), and [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)'s
+> own README (the backoffice editor — install the package, done, no wiring). Left in place
+> as historical context rather than rewritten from unverified guesses; flag for a full rewrite
+> or removal as a follow-up.
+
 This walkthrough is for integrators starting from a working Umbraco v17 site. By the end, you will have:
 
 - the Prism packages installed
@@ -169,7 +181,5 @@ For a tour of the editor itself — what each tab does, how the lanes read, how 
 ## Related guides
 
 - **Editor composition and the read-only viewer:** [Composing the Service Blueprint Editor](../guides/service-blueprint-editor-composition.md)
-- **Component API (public elements, attributes, events):** [`src/UmbracoPrism.Client/src/service-blueprint-editor/README.md`](../../src/UmbracoPrism.Client/src/service blueprint-editor/README.md)
-- **Editor visual test contract:** [`docs/testing/service-blueprint-editor-visual-tests.md`](../testing/service-blueprint-editor-visual-tests.md)
 - **Service Blueprint setup deep-dive:** [Setting Up a Prism Service Blueprint](../guides/service-blueprint-setup.md)
 - **Reference service blueprint contract:** [Reference Service Blueprint Contract](../guides/reference-service-blueprint-contract.md)

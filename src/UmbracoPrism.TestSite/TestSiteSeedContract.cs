@@ -43,7 +43,7 @@ public static class TestSiteSeedContract
     public const string ServiceRequestHubName = "My Service Requests";
     public const string ServiceRequestHubUrl = "/my-service-requests";
 
-    public const string CmsServiceRequestPageAlias = "cmsServiceRequestPage";
+    public const string ServiceRequestPageAlias = "publicServiceRequestPage";
     public const string JugglingLicencePageName = "Apply for a juggling licence";
     public const string JugglingLicencePageUrl = "/apply-for-a-juggling-licence";
     public const string JugglingLicenceBlueprintKey = "apply-for-a-juggling-licence";
@@ -69,16 +69,16 @@ public static class TestSiteSeedContract
                    content.ContentType.Alias == StagePageAlias
                    && string.Equals(content.GetValue<string>("blueprintKey"), blueprintKey, StringComparison.OrdinalIgnoreCase));
 
-    // cmsServiceRequestPage is a distinct doc type from stagePage above (Prism's newer,
-    // Umbraco-only-hosted CMS Service Blueprint, not the older business-service-blueprint demos) — and more than
-    // one cmsServiceRequestPage instance can now exist (apply-for-a-juggling-licence,
-    // transfer-a-juggling-licence), so a seeder checking "does my page already exist" must
-    // filter by blueprintKey, not just by alias (which would match whichever page happens to be
-    // first in the tree and wrongly skip creating the other one).
-    public static IContent? FindCmsServiceRequestPageByKey(IContentService contentService, string blueprintKey)
+    // publicServiceRequestPage is a distinct doc type from stagePage above (TestSite's own
+    // anonymous-first, Umbraco-only-hosted demo, not the older business-service-blueprint
+    // demos) — and more than one publicServiceRequestPage instance can now exist
+    // (apply-for-a-juggling-licence, transfer-a-juggling-licence), so a seeder checking "does my
+    // page already exist" must filter by blueprintKey, not just by alias (which would match
+    // whichever page happens to be first in the tree and wrongly skip creating the other one).
+    public static IContent? FindServiceRequestPageByKey(IContentService contentService, string blueprintKey)
         => EnumerateContentTree(contentService)
                .FirstOrDefault(content =>
-                   content.ContentType.Alias == CmsServiceRequestPageAlias
+                   content.ContentType.Alias == ServiceRequestPageAlias
                    && string.Equals(content.GetValue<string>("blueprintKey"), blueprintKey, StringComparison.OrdinalIgnoreCase));
 
     public static IPublishedContent? FindPublishedByAlias(IEnumerable<IPublishedContent> roots, string alias)

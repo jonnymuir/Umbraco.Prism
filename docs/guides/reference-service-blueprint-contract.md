@@ -1,7 +1,7 @@
 # Reference Service Blueprint Contract
 
 The technical specification for `ServiceBlueprint` — the JSON contract every
-Prism service blueprint is authored in, whether by a human in the visual editor or an AI
+service blueprint is authored in, whether by a human in the visual editor or an AI
 agent through the [MCP/REST authoring toolkit](./ai-service-blueprint-authoring.md). This is
 the shape you read from `read_service_blueprint`, write for `save_service_blueprint`, and check
 against `validate_service_blueprint`.
@@ -10,7 +10,7 @@ This document is also exposed as an MCP resource (`service-blueprint-docs://auth
 so an agent can fetch it directly without needing filesystem access to this repo.
 
 For the embedded expression language used in `calculations` and `showWhen`, see
-[The Prism Calculation Language](./calculation-language.md).
+[The Wayfinder Calculation Language](./calculation-language.md).
 
 ---
 
@@ -61,7 +61,7 @@ A stage (`StageDefinition`) is one stage of the service blueprint:
   "actor": "member",
   "queueKey": "web-user",
   "roleGates": ["..."],
-  "components": [ /* PrismComponent[] — see Components */ ],
+  "components": [ /* Component[] — see Components */ ],
   "routes": [
     { "id": "model--recalculate--recalculate-loop", "target": "recalculate-loop", "trigger": "recalculate", "label": "Recalculate", "style": "secondary" }
   ]
@@ -155,7 +155,7 @@ returns per step) carries a `responseState` — what the client should do next:
 
 ## Components
 
-`stages[].components` is a list of `PrismComponent` — a polymorphic type
+`stages[].components` is a list of `Component` — a polymorphic type
 discriminated by `"type"`. The full catalog:
 
 **Input components** (declare a `fieldKey`, participate in the calculation scope —
@@ -250,11 +250,11 @@ types for that queue today. Use `list_queue_capabilities` to discover a
 queue's supported types before drafting a stage for it.
 
 Capabilities are a contract each host declares about itself, never a runtime
-call to another host's process. `PrismComponentTypeCatalog`
-(`Wayfinder`) reflects `PrismComponent`'s closed, compile-time-fixed
+call to another host's process. `ComponentTypeCatalog`
+(`Wayfinder`) reflects `Component`'s closed, compile-time-fixed
 set of `[JsonDerivedType]` discriminators — since that assembly is shared by
-every Prism-Core host, `PrismComponentTypeCatalog.AllDiscriminators` is a
-ready-made, honest declaration of "I'm a stock Prism-Core web host", provable
+every host rendering the stock component catalog, `ComponentTypeCatalog.AllDiscriminators` is a
+ready-made, honest declaration of "I render the stock Wayfinder component set", provable
 locally with no dependency on any other app actually running. A host with
 bespoke rendering (like `UmbracoPrism.MockBusinessApp`'s admin surface)
 declares its own smaller, hand-maintained list instead, matching exactly what
@@ -309,7 +309,7 @@ reference, in roughly increasing order of complexity:
 
 ## Related documentation
 
-- [The Prism Calculation Language](./calculation-language.md) — grammar, functions, `showWhen`
+- [The Wayfinder Calculation Language](./calculation-language.md) — grammar, functions, `showWhen`
 - [AI-Ready Service Blueprint Authoring](./ai-service-blueprint-authoring.md) — the MCP/REST toolkit, the author loop, saving/conflicts
 - [Reference Business App README](../../src/UmbracoPrism.MockBusinessApp/README.md) — configuration and setup
 
