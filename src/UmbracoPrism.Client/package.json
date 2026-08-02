@@ -16,7 +16,6 @@
     "test-storybook:ci": "start-server-and-test \"storybook dev -p 6006 --ci\" http://127.0.0.1:6006 test-storybook",
     "test-storybook:ci:all": "start-server-and-test \"storybook dev -p 6006 --ci\" http://127.0.0.1:6006 \"npm run test-storybook:all\"",
     "test:playwright": "playwright test",
-    "test:playwright:service-blueprint-graph-visual": "playwright test tests/service-blueprint-editor/service-blueprint-graph-visual.spec.ts --reporter=line",
     "test:playwright:localhost-auth": "node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite && playwright test -c playwright.localhost-auth.config.ts --reporter=line",
     "test:playwright:planning-smoke": "node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite && playwright test -c playwright.localhost-auth.config.ts --grep '01-planning-service-blueprint-editor' --reporter=line --max-failures=1",
     "test:playwright:ui": "playwright test --ui",

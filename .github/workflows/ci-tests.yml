@@ -84,9 +84,6 @@ jobs:
       - name: Run Storybook tests
         run: npm run test-storybook:ci:all
 
-      - name: Run service blueprint graph visual regression
-        run: npm run test:playwright:service-blueprint-graph-visual
-
   core-tests:
     runs-on: ubuntu-latest
     steps:

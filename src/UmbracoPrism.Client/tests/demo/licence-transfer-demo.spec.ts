@@ -904,9 +904,9 @@ test.describe.serial('licence transfer demo', () => {
       "Now let's sign in as a real member and go through it properly — that also proves this same service works just as well for a signed-in visitor as an anonymous one.",
       { position: 'top' }
     );
-    // No need to clear cookies here: CmsServiceRequestVisitorIdentityResolver.Resolve() keys a
+    // No need to clear cookies here: PublicVisitorIdentityResolver.Resolve() keys a
     // logged-in visitor's instance by their real member email, entirely independent of the
-    // anonymous PrismCmsServiceRequestVisitor cookie — signing in below already gives this a genuinely
+    // anonymous PrismPublicServiceRequestVisitor cookie — signing in below already gives this a genuinely
     // fresh identity (and so a fresh requestPolicy: "single" instance), exactly the way a real
     // visitor moving from anonymous browsing to a real account would.
     await page.goto('/');

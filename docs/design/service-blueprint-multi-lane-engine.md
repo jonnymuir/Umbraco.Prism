@@ -1,7 +1,15 @@
 ---
 last_updated: 2026-05-25T16:48:28.029+01:00
-status: canonical
+status: outdated
 ---
+
+> **Outdated.** Written before the service blueprint engine was extracted to the standalone
+> `Wayfinder`/`Wayfinder.Engine`/`Wayfinder.Umbraco` repos — the "What must stay green" test
+> list below points at C# and Playwright files that no longer exist in this repo (some don't
+> exist anywhere anymore, others moved to `Wayfinder.Umbraco`/`Wayfinder`'s own test suites).
+> Multi-lane/parallel-path engine behaviour, if still wanted, is now a `Wayfinder.Engine`
+> design question, not a Prism one. Kept for the behavioural-model thinking, not as a current
+> test gate.
 
 # Multi-lane service blueprint engine design
 
