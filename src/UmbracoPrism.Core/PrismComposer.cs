@@ -50,7 +50,6 @@ public class PrismComposer : IComposer
             builder.Config.GetSection(PrismConfiguration.SectionName));
         // 2. Workflow Engine
         builder.AddPrismProcessManager();
-        builder.Services.AddPrismCmsServiceBlueprint();
 
         // 3. Middleware Registration
         // ForwardedHeaders must run before any middleware that reads RemoteIpAddress

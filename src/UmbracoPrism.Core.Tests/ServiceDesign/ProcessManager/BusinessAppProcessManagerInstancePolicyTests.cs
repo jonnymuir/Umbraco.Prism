@@ -59,13 +59,13 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StageKey = "step-1",
                     DisplayName = "Step 1",
-                    Components = Array.Empty<PrismComponent>()
+                    Components = Array.Empty<Component>()
                 },
                 new StageDefinition
                 {
                     StageKey = "done",
                     DisplayName = "Done",
-                    Components = new PrismComponent[] { new PanelComponent { Heading = "Complete" } }
+                    Components = new Component[] { new PanelComponent { Heading = "Complete" } }
                 }
             },
             Transitions = new[]
@@ -93,13 +93,13 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StageKey = "step-1",
                     DisplayName = "Step 1",
-                    Components = Array.Empty<PrismComponent>()
+                    Components = Array.Empty<Component>()
                 },
                 new StageDefinition
                 {
                     StageKey = "done",
                     DisplayName = "Done",
-                    Components = new PrismComponent[] { new PanelComponent { Heading = "Complete" } }
+                    Components = new Component[] { new PanelComponent { Heading = "Complete" } }
                 }
             },
             Transitions = new[]
@@ -127,13 +127,13 @@ public class BusinessAppWorkflowEngineInstancePolicyTests : IDisposable
                 {
                     StageKey = "step-1",
                     DisplayName = "Step 1",
-                    Components = Array.Empty<PrismComponent>()
+                    Components = Array.Empty<Component>()
                 },
                 new StageDefinition
                 {
                     StageKey = "done",
                     DisplayName = "Done",
-                    Components = new PrismComponent[] { new PanelComponent { Heading = "Complete" } }
+                    Components = new Component[] { new PanelComponent { Heading = "Complete" } }
                 }
             },
             Transitions = new[]

@@ -92,10 +92,6 @@ app.UseUmbraco()
     {
         u.UseBackOfficeEndpoints();
         u.UseWebsiteEndpoints();
-
-        // AI-agent authoring for CMS Service Blueprint — same PrismAdmins/BackOfficeAccess gate as the
-        // native backoffice editor. See CmsServiceDesignBuilderExtensions.MapPrismCmsServiceBlueprintAuthoringMcp.
-        u.EndpointRouteBuilder.MapPrismCmsServiceBlueprintAuthoringMcp();
     });
 
 await app.RunAsync();

@@ -12,10 +12,10 @@ public class UploadTokenServiceTests
 {
     private static UploadTokenService BuildService(
         IDistributedCache? cache = null,
-        PrismServiceDesignOptions? options = null)
+        WayfinderServiceDesignOptions? options = null)
     {
         cache ??= new Mock<IDistributedCache>().Object;
-        options ??= new PrismServiceDesignOptions();
+        options ??= new WayfinderServiceDesignOptions();
         return new UploadTokenService(cache, Options.Create(options));
     }
 
@@ -59,7 +59,7 @@ public class UploadTokenServiceTests
 
         cacheMock.Verify(
             c => c.SetAsync(
-                It.Is<string>(key => key.StartsWith("prism:workflow:upload-token:")),
+                It.Is<string>(key => key.StartsWith("wayfinder:workflow:upload-token:")),
                 It.IsAny<byte[]>(),
                 It.IsAny<DistributedCacheEntryOptions>(),
                 It.IsAny<CancellationToken>()),
@@ -70,7 +70,7 @@ public class UploadTokenServiceTests
     public async Task CreateAsync_UsesTtlFromOptions()
     {
         var cacheMock = new Mock<IDistributedCache>();
-        var options = new PrismServiceDesignOptions { NonceExpiry = TimeSpan.FromMinutes(45) };
+        var options = new WayfinderServiceDesignOptions { NonceExpiry = TimeSpan.FromMinutes(45) };
         var service = BuildService(cache: cacheMock.Object, options: options);
 
         await service.CreateAsync("instance-1", "current-licence-upload", SampleReference());
@@ -125,7 +125,7 @@ public class UploadTokenServiceTests
 
         cacheMock.Verify(
             c => c.GetAsync(
-                "prism:workflow:upload-token:abc123def456abc123def456abc12345",
+                "wayfinder:workflow:upload-token:abc123def456abc123def456abc12345",
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

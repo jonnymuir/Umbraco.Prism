@@ -38,14 +38,10 @@
     <PackageReference Include="Umbraco.Cms.Core" Version="$(UmbracoVersion)" />
     <PackageReference Include="Umbraco.Cms.Web.Common" Version="$(UmbracoVersion)" />
     <PackageReference Include="Umbraco.Cms.Web.Website" Version="$(UmbracoVersion)" />
-    <PackageReference Include="Wayfinder" Version="0.1.1" />
-    <PackageReference Include="Wayfinder.Engine" Version="0.1.1" />
-    <PackageReference Include="Wayfinder.Engine.Mcp" Version="0.1.1" />
-    <PackageReference Include="Wayfinder.Umbraco" Version="0.1.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Wayfinder.Editor\Wayfinder.Editor.csproj" />
+    <PackageReference Include="Wayfinder" Version="0.2.0" />
+    <PackageReference Include="Wayfinder.Engine" Version="0.2.0" />
+    <PackageReference Include="Wayfinder.Engine.Mcp" Version="0.2.0" />
+    <PackageReference Include="Wayfinder.Umbraco" Version="0.2.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -54,11 +50,6 @@
     <None Include="../../assets/logo-vertical-lockup.png" Pack="true" PackagePath="assets/" />
     <None Include="../../LICENSE" Pack="true" PackagePath="/" />
     <Content Update="wwwroot/**" Pack="true" PackagePath="/" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="service-blueprints\*.json" />
-    <EmbeddedResource Include="service-blueprints\field-groups\*.json" />
   </ItemGroup>
 
 </Project>

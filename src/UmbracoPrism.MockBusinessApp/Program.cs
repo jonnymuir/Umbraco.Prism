@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Primitives;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
@@ -38,11 +39,11 @@ builder.Services.AddSingleton<IServiceContentSanitizer, PassthroughSanitizer>();
 // editor's own save endpoint) and the AI/tooling authoring surface below share this same
 // IServiceBlueprintSourceStore, so a save from either surface is immediately visible to both
 // (InMemoryRuntimePublishedServiceBlueprintStore.SaveAsync calls engine.UpdateDefinition). See
-// MapPrismServiceBlueprintAuthoringApi()/MapPrismServiceBlueprintAuthoringMcp() below.
+// MapServiceBlueprintAuthoringApi()/MapServiceBlueprintAuthoringMcp() below.
 builder.Services.AddSingleton<IServiceBlueprintSourceStore, InMemoryRuntimePublishedServiceBlueprintStore>();
 builder.Services.AddSingleton<IQueueCapabilitiesProvider>(ReferenceQueues.CapabilitiesProvider());
-builder.Services.AddPrismServiceBlueprintAuthoring();
-builder.Services.AddPrismServiceBlueprintAuthoringMcp();
+builder.Services.AddServiceBlueprintAuthoring();
+builder.Services.AddServiceBlueprintAuthoringMcp();
 
 builder.Services.AddBusinessAppActions();
 
@@ -56,24 +57,27 @@ builder.Services.AddSingleton<IProcessManager>(sp => sp.GetRequiredService<Busin
 
 var app = builder.Build();
 
-// Serve the Vite-built service-blueprint-editor.html (and its JS/CSS assets) from the ServiceBlueprintEditor wwwroot/dist
-// output directory. This lets the walkthrough spec navigate to /service-blueprint-editor.html on this host.
-var distPath = Path.GetFullPath(
-    Path.Combine(builder.Environment.ContentRootPath, "..", "Wayfinder.Editor", "wwwroot", "dist"));
-if (Directory.Exists(distPath))
+// Serve the compiled editor (Wayfinder.Editor's own service-blueprint-editor.html plus its
+// JS/CSS assets) from the Wayfinder.Editor NuGet package's static web assets, at web root — the
+// page's own build emits root-relative asset references (e.g. "/service-blueprint-editor.js"),
+// so it must be served from "/", not the package's own default "_content/Wayfinder.Editor/dist/"
+// prefix. SubPathFileProvider re-roots the composite WebRootFileProvider (which already includes
+// every referenced package's static web assets) at that one package subpath, without hardcoding
+// any machine-specific NuGet cache location.
+app.UseStaticFiles(new StaticFileOptions
 {
-    app.UseStaticFiles(new StaticFileOptions
+    FileProvider = new SubPathFileProvider(app.Environment.WebRootFileProvider, "_content/Wayfinder.Editor/dist"),
+    RequestPath = "",
+    OnPrepareResponse = ctx =>
     {
-        FileProvider = new PhysicalFileProvider(distPath),
-        RequestPath = "",
-        OnPrepareResponse = ctx =>
+        if (ctx.File.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
         {
             ctx.Context.Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
             ctx.Context.Response.Headers.Pragma = "no-cache";
             ctx.Context.Response.Headers.Expires = "0";
         }
-    });
-}
+    }
+});
 
 app.MapGet("/service-blueprint-editor", (HttpRequest request) =>
 {
@@ -150,8 +154,8 @@ var mockServiceBlueprintJsonOptions = new JsonSerializerOptions
 // exposing this to anything beyond localhost. Same story for the MCP endpoint — an AI
 // agent (e.g. Claude Code via `claude mcp add --transport http`) calls the same
 // ServiceBlueprintAuthoringService in-process, so a save reaches the live engine immediately.
-app.MapPrismServiceBlueprintAuthoringApi();
-app.MapPrismServiceBlueprintAuthoringMcp();
+app.MapServiceBlueprintAuthoringApi();
+app.MapServiceBlueprintAuthoringMcp();
 
 app.MapGet("/mockapp/service-blueprints", async (IServiceBlueprintSourceStore store, CancellationToken ct) =>
     Results.Json(await store.ListAsync(ct), mockServiceBlueprintJsonOptions));
@@ -443,7 +447,7 @@ app.MapGet("/admin/service-desk", async (BusinessAppProcessManager engine, IServ
     // business-user's capability in ReferenceQueues.CapabilitiesProvider() — anything
     // outside this set isn't rendered specially (queue-capability validation is what actually
     // prevents a state from using something unsupported, not this renderer).
-    string RenderComponent(PrismComponent component, IReadOnlyDictionary<string, object?> fieldValues) => component switch
+    string RenderComponent(Component component, IReadOnlyDictionary<string, object?> fieldValues) => component switch
     {
         BodyComponent body => $"<p class=\"field-body\">{Esc(body.Content)}</p>",
         PanelComponent panel => $"""<div class="gds-panel"><strong>{Esc(panel.Heading)}</strong></div>""",
@@ -835,4 +839,21 @@ public record ServiceRequestAdvanceApiRequest(
 file sealed class PassthroughSanitizer : IServiceContentSanitizer
 {
     public string Sanitize(string? html) => html ?? string.Empty;
+}
+
+/// <summary>
+/// Re-roots an <see cref="IFileProvider"/> at a fixed subpath — used to serve one referenced
+/// NuGet package's static web assets (found under its default "_content/{PackageId}/..." prefix
+/// inside the app's composite <c>WebRootFileProvider</c>) at web root instead, without hardcoding
+/// any machine-specific NuGet cache path.
+/// </summary>
+file sealed class SubPathFileProvider(IFileProvider inner, string subpath) : IFileProvider
+{
+    private string Rebase(string path) => $"{subpath}/{path.TrimStart('/')}";
+
+    public IFileInfo GetFileInfo(string subpath_) => inner.GetFileInfo(Rebase(subpath_));
+
+    public IDirectoryContents GetDirectoryContents(string subpath_) => inner.GetDirectoryContents(Rebase(subpath_));
+
+    public IChangeToken Watch(string filter) => inner.Watch(Rebase(filter));
 }

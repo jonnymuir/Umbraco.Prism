@@ -25,7 +25,7 @@ public class UmbracoCmsServiceRequestStoreTests
         return (store, mockDb);
     }
 
-    private static PrismCmsServiceRequestSchema BuildRow(string instanceId, DateTime expiresUtc) => new()
+    private static ServiceRequestSchema BuildRow(string instanceId, DateTime expiresUtc) => new()
     {
         InstanceId = instanceId,
         BlueprintKey = "apply-for-a-juggling-licence",
@@ -46,7 +46,7 @@ public class UmbracoCmsServiceRequestStoreTests
     public void TryGet_UnexpiredRow_ReturnsTrueAndRefreshesTheSlidingWindow()
     {
         var (store, db) = BuildStore();
-        db.Setup(d => d.FirstOrDefault<PrismCmsServiceRequestSchema>(
+        db.Setup(d => d.FirstOrDefault<ServiceRequestSchema>(
                 It.IsAny<string>(), It.IsAny<object[]>()))
             .Returns(BuildRow("instance-1", DateTime.UtcNow.AddMinutes(10)));
 
@@ -55,7 +55,7 @@ public class UmbracoCmsServiceRequestStoreTests
         found.Should().BeTrue();
         instance.CurrentStage.Should().Be("eligibility");
         db.Verify(d => d.Execute(
-            It.Is<string>(sql => sql.Contains("UPDATE prismCmsServiceRequest SET ExpiresUtc")),
+            It.Is<string>(sql => sql.Contains("UPDATE wayfinderServiceRequest SET ExpiresUtc")),
             It.IsAny<object[]>()), Times.Once);
     }
 
@@ -63,7 +63,7 @@ public class UmbracoCmsServiceRequestStoreTests
     public void TryGet_ExpiredRow_ReturnsFalseAndDoesNotRefresh()
     {
         var (store, db) = BuildStore();
-        db.Setup(d => d.FirstOrDefault<PrismCmsServiceRequestSchema>(
+        db.Setup(d => d.FirstOrDefault<ServiceRequestSchema>(
                 It.IsAny<string>(), It.IsAny<object[]>()))
             .Returns(BuildRow("instance-1", DateTime.UtcNow.AddMinutes(-1)));
 
@@ -78,9 +78,9 @@ public class UmbracoCmsServiceRequestStoreTests
     public void TryGet_UnknownRow_ReturnsFalse()
     {
         var (store, db) = BuildStore();
-        db.Setup(d => d.FirstOrDefault<PrismCmsServiceRequestSchema>(
+        db.Setup(d => d.FirstOrDefault<ServiceRequestSchema>(
                 It.IsAny<string>(), It.IsAny<object[]>()))
-            .Returns((PrismCmsServiceRequestSchema?)null);
+            .Returns((ServiceRequestSchema?)null);
 
         store.TryGet("missing", out _).Should().BeFalse();
     }
@@ -90,7 +90,7 @@ public class UmbracoCmsServiceRequestStoreTests
     {
         var (store, db) = BuildStore();
         db.Setup(d => d.Execute(
-                It.Is<string>(sql => sql.StartsWith("UPDATE prismCmsServiceRequest SET BlueprintKey")),
+                It.Is<string>(sql => sql.StartsWith("UPDATE wayfinderServiceRequest SET BlueprintKey")),
                 It.IsAny<object[]>()))
             .Returns(0);
 
@@ -103,7 +103,7 @@ public class UmbracoCmsServiceRequestStoreTests
             CurrentStage = "eligibility"
         });
 
-        db.Verify(d => d.Insert(It.Is<PrismCmsServiceRequestSchema>(r =>
+        db.Verify(d => d.Insert(It.Is<ServiceRequestSchema>(r =>
             r.InstanceId == "instance-1" && r.UserId == "user-1")), Times.Once);
     }
 
@@ -112,7 +112,7 @@ public class UmbracoCmsServiceRequestStoreTests
     {
         var (store, db) = BuildStore();
         db.Setup(d => d.Execute(
-                It.Is<string>(sql => sql.StartsWith("UPDATE prismCmsServiceRequest SET BlueprintKey")),
+                It.Is<string>(sql => sql.StartsWith("UPDATE wayfinderServiceRequest SET BlueprintKey")),
                 It.IsAny<object[]>()))
             .Returns(1);
 
@@ -125,7 +125,7 @@ public class UmbracoCmsServiceRequestStoreTests
             CurrentStage = "check-answers"
         });
 
-        db.Verify(d => d.Insert(It.IsAny<PrismCmsServiceRequestSchema>()), Times.Never);
+        db.Verify(d => d.Insert(It.IsAny<ServiceRequestSchema>()), Times.Never);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public class UmbracoCmsServiceRequestStoreTests
     {
         var (store, db) = BuildStore();
         db.Setup(d => d.Execute(
-                It.Is<string>(sql => sql.StartsWith("UPDATE prismCmsServiceRequest SET BlueprintKey")),
+                It.Is<string>(sql => sql.StartsWith("UPDATE wayfinderServiceRequest SET BlueprintKey")),
                 It.IsAny<object[]>()))
             .Returns(0);
 
@@ -147,7 +147,7 @@ public class UmbracoCmsServiceRequestStoreTests
             CurrentStage = "eligibility"
         });
 
-        db.Verify(d => d.Insert(It.Is<PrismCmsServiceRequestSchema>(r =>
+        db.Verify(d => d.Insert(It.Is<ServiceRequestSchema>(r =>
             r.InstanceId == "instance-1" && r.ExpiresUtc == DateTime.MaxValue)), Times.Once);
     }
 
@@ -157,7 +157,7 @@ public class UmbracoCmsServiceRequestStoreTests
         var (store, db) = BuildStore();
         DateTime? capturedExpiresUtc = null;
         db.Setup(d => d.Execute(
-                It.Is<string>(sql => sql.StartsWith("UPDATE prismCmsServiceRequest SET BlueprintKey")),
+                It.Is<string>(sql => sql.StartsWith("UPDATE wayfinderServiceRequest SET BlueprintKey")),
                 It.IsAny<object[]>()))
             .Callback<string, object[]>((_, args) => capturedExpiresUtc = (DateTime)args[4])
             .Returns(1);
@@ -181,7 +181,7 @@ public class UmbracoCmsServiceRequestStoreTests
         var (store, db) = BuildStore();
         DateTime? capturedExpiresUtc = null;
         db.Setup(d => d.Execute(
-                It.Is<string>(sql => sql.StartsWith("UPDATE prismCmsServiceRequest SET BlueprintKey")),
+                It.Is<string>(sql => sql.StartsWith("UPDATE wayfinderServiceRequest SET BlueprintKey")),
                 It.IsAny<object[]>()))
             .Callback<string, object[]>((_, args) => capturedExpiresUtc = (DateTime)args[4])
             .Returns(1);
@@ -214,7 +214,7 @@ public class UmbracoCmsServiceRequestStoreTests
             IsAuthenticated = true,
             CurrentStage = "eligibility"
         });
-        db.Setup(d => d.FirstOrDefault<PrismCmsServiceRequestSchema>(
+        db.Setup(d => d.FirstOrDefault<ServiceRequestSchema>(
                 It.IsAny<string>(), It.IsAny<object[]>()))
             .Returns(row);
 
@@ -223,7 +223,7 @@ public class UmbracoCmsServiceRequestStoreTests
         found.Should().BeTrue();
         instance.IsAuthenticated.Should().BeTrue();
         db.Verify(d => d.Execute(
-            It.Is<string>(sql => sql.Contains("UPDATE prismCmsServiceRequest SET ExpiresUtc")),
+            It.Is<string>(sql => sql.Contains("UPDATE wayfinderServiceRequest SET ExpiresUtc")),
             It.IsAny<object[]>()), Times.Never,
             "an already-permanent row needs no sliding-window refresh — that would just be a wasted write");
     }
@@ -233,7 +233,7 @@ public class UmbracoCmsServiceRequestStoreTests
     {
         var (store, db) = BuildStore();
         db.Setup(d => d.Execute(
-                It.Is<string>(sql => sql.Contains("DELETE FROM prismCmsServiceRequest WHERE InstanceId")),
+                It.Is<string>(sql => sql.Contains("DELETE FROM wayfinderServiceRequest WHERE InstanceId")),
                 It.IsAny<object[]>()))
             .Returns(1);
 
@@ -244,7 +244,7 @@ public class UmbracoCmsServiceRequestStoreTests
     public void GetAll_OnlyFetchesUnexpiredRows()
     {
         var (store, db) = BuildStore();
-        db.Setup(d => d.Fetch<PrismCmsServiceRequestSchema>(
+        db.Setup(d => d.Fetch<ServiceRequestSchema>(
                 It.Is<string>(sql => sql.Contains("WHERE ExpiresUtc >=")),
                 It.IsAny<object[]>()))
             .Returns([BuildRow("instance-1", DateTime.UtcNow.AddMinutes(10))]);

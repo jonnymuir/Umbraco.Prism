@@ -810,7 +810,7 @@ public class Phase1SecurityRegressionTests : IDisposable
     // 6. SERVICE REQUEST CONTENT SANITIZATION (SEC-003)
     //
     // These tests assert that when the engine processes a malicious Content
-    // payload, the rendered PrismComponentRenderPayload.Content does NOT
+    // payload, the rendered ComponentRenderPayload.Content does NOT
     // contain the malicious vector. They use the real ServiceContentSanitizer
     // (Ganss.Xss-backed GDS allowlist) wired into a minimal engine instance.
     // ------------------------------------------------------------------
@@ -897,7 +897,7 @@ public class Phase1SecurityRegressionTests : IDisposable
                     {
                         StageKey = "step-1",
                         DisplayName = "Step 1",
-                        Components = new PrismComponent[]
+                        Components = new Component[]
                         {
                             new BodyComponent { Content = content }
                         }

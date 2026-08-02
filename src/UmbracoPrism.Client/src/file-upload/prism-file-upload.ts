@@ -3,13 +3,14 @@
 // Generic progressive enhancement for any file-upload field. Independent of prism-live-form.ts
 // (which only boots when a stage declares a calculations block) — a stage can have
 // file-upload fields with no calculations at all, so this boots on its own, gated purely on
-// whether [data-prism-file-upload] exists on the page (see PrismServiceRequestViewModel.HasFileUploadField
-// for the server-side half of that gate).
+// whether [data-wayfinder-file-upload] exists on the page (see Wayfinder.Umbraco's
+// ServiceRequestPageViewModel.HasFileUploadField for the server-side half of that gate).
 //
 // On choosing a file, uploads it immediately via XMLHttpRequest (not fetch — upload.onprogress
-// is what makes a real, accessible progress bar possible) to CmsServiceRequestFileUploadController,
-// ahead of the stage's own Continue button. A hidden input then carries the server-issued token
-// as the field's actual submitted value; PrismServiceRequestPageController.HandlePost resolves it back
+// is what makes a real, accessible progress bar possible) to a host's own file-upload endpoint
+// (e.g. TestSite's PublicServiceRequestFileUploadController), ahead of the stage's own Continue
+// button. A hidden input then carries the server-issued token as the field's actual submitted
+// value; Wayfinder.Umbraco's ServiceRequestPageController{TViewModel}.HandlePost resolves it back
 // to the already-saved file. It contains no domain knowledge — the service blueprint JSON decides
 // which fields exist; this runtime only wires up whatever it finds.
 
@@ -23,7 +24,7 @@ interface UploadResult {
 }
 
 function injectStylesOnce(): void {
-  const id = 'prism-file-upload-styles';
+  const id = 'wayfinder-file-upload-styles';
   if (document.getElementById(id)) return;
 
   const style = document.createElement('style');
@@ -32,7 +33,7 @@ function injectStylesOnce(): void {
   // close to govuk-frontend's own visual language (its grey/blue palette) rather than
   // introducing a new one.
   style.textContent = `
-    .prism-file-upload-progress-track {
+    .wayfinder-file-upload-progress-track {
       background: #b1b4b6;
       border-radius: 5px;
       height: 10px;
@@ -40,7 +41,7 @@ function injectStylesOnce(): void {
       margin: 10px 0;
       max-width: 400px;
     }
-    .prism-file-upload-progress-fill {
+    .wayfinder-file-upload-progress-fill {
       background: #1d70b8;
       height: 100%;
       width: 0%;
@@ -60,7 +61,7 @@ function formatMaxSize(bytes: number): string {
 }
 
 function fieldOf(host: HTMLElement, hook: string): HTMLElement | null {
-  return host.querySelector<HTMLElement>(`[data-prism-file-upload-${hook}]`);
+  return host.querySelector<HTMLElement>(`[data-wayfinder-file-upload-${hook}]`);
 }
 
 function setError(host: HTMLElement, message: string | null): void {
@@ -142,11 +143,11 @@ function showEmpty(host: HTMLElement): void {
 }
 
 function uploadFile(host: HTMLElement, file: File): void {
-  const uploadUrl = host.dataset.prismUploadUrl ?? '';
-  const nonce = host.dataset.prismNonce ?? '';
-  const maxSize = Number(host.dataset.prismMaxSize ?? '0');
-  const accept = (host.dataset.prismAccept ?? '').split(',').map(s => s.trim()).filter(Boolean);
-  const label = host.dataset.prismLabel || 'This file';
+  const uploadUrl = host.dataset.wayfinderUploadUrl ?? '';
+  const nonce = host.dataset.wayfinderNonce ?? '';
+  const maxSize = Number(host.dataset.wayfinderMaxSize ?? '0');
+  const accept = (host.dataset.wayfinderAccept ?? '').split(',').map(s => s.trim()).filter(Boolean);
+  const label = host.dataset.wayfinderLabel || 'This file';
 
   if (maxSize > 0 && file.size > maxSize) {
     setError(host, `${label} must be smaller than ${formatMaxSize(maxSize)}.`);
@@ -213,7 +214,7 @@ function bootField(host: HTMLElement): void {
 }
 
 function boot(): void {
-  const fields = document.querySelectorAll<HTMLElement>('[data-prism-file-upload]');
+  const fields = document.querySelectorAll<HTMLElement>('[data-wayfinder-file-upload]');
   if (fields.length === 0) return;
   injectStylesOnce();
   fields.forEach(bootField);

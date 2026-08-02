@@ -164,7 +164,7 @@ public class WorkflowDefinitionUpdateTests : IDisposable
         return null;
     }
 
-    private static InputComponent? FindInComponents(IEnumerable<PrismComponent> components, string fieldKey)
+    private static InputComponent? FindInComponents(IEnumerable<Component> components, string fieldKey)
     {
         foreach (var component in components)
         {

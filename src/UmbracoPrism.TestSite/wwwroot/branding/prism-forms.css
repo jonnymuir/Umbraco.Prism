@@ -76,19 +76,19 @@
   initial-value: #ef4444;
 }
 
-@property --prism-button-font-size {
+@property --wayfinder-button-font-size {
   syntax: '<length>';
   inherits: true;
   initial-value: 19px;
 }
 
-@property --prism-button-padding {
+@property --wayfinder-button-padding {
   syntax: '*';
   inherits: true;
   initial-value: 8px 10px 7px;
 }
 
-@property --prism-button-border-radius {
+@property --wayfinder-button-border-radius {
   syntax: '<length>';
   inherits: true;
   initial-value: 0px;
@@ -147,9 +147,9 @@
     --prism-hint-color: var(--prism-muted);
     --prism-hint-font-size: 16px;
     --prism-required-color: var(--prism-danger);
-    --prism-button-font-size: 19px;
-    --prism-button-padding: 8px 16px 7px;
-    --prism-button-border-radius: 0;
+    --wayfinder-button-font-size: 19px;
+    --wayfinder-button-padding: 8px 16px 7px;
+    --wayfinder-button-border-radius: 0;
     --prism-actions-gap: 1rem;
     --prism-panel-confirmation-border-color: var(--prism-success);
     --prism-panel-confirmation-bg: color-mix(in srgb, var(--prism-success) 8%, var(--prism-surface));
@@ -350,19 +350,19 @@
    Buttons
    -------------------------------------------------------------------------- */
 
-.prism-button {
+.wayfinder-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
     min-height: 44px;
-    font-size: var(--prism-button-font-size);
+    font-size: var(--wayfinder-button-font-size);
     font-family: inherit;
     font-weight: 700;
     line-height: 1.2;
-    padding: var(--prism-button-padding);
+    padding: var(--wayfinder-button-padding);
     border: 2px solid transparent;
-    border-radius: var(--prism-button-border-radius);
+    border-radius: var(--wayfinder-button-border-radius);
     cursor: pointer;
     text-decoration: none;
     text-align: center;
@@ -371,57 +371,57 @@
     box-shadow: 0 2px 0 var(--prism-text);
 }
 
-.prism-button:focus-visible {
+.wayfinder-button:focus-visible {
     outline: 3px solid var(--prism-focus);
     outline-offset: 0;
     box-shadow: 0 2px 0 var(--prism-text), inset 0 0 0 1px var(--prism-text);
 }
 
-.prism-button:focus:not(:focus-visible) {
+.wayfinder-button:focus:not(:focus-visible) {
     outline: none;
 }
 
-.prism-button:active {
+.wayfinder-button:active {
     transform: translateY(2px);
     box-shadow: none;
 }
 
-.prism-button--primary {
+.wayfinder-button--primary {
     background-color: var(--prism-success);
     color: var(--prism-primary-contrast);
 }
 
-.prism-button--primary:hover {
+.wayfinder-button--primary:hover {
     background-color: color-mix(in srgb, var(--prism-success) 75%, black);
 }
 
 /* GDS-style green submit button for final form submission actions */
-.prism-button--submit {
+.wayfinder-button--submit {
     background-color: var(--prism-success);
     color: var(--prism-primary-contrast);
     border-color: var(--prism-success);
 }
 
-.prism-button--submit:hover {
+.wayfinder-button--submit:hover {
     background-color: color-mix(in srgb, var(--prism-success) 80%, black);
     border-color: color-mix(in srgb, var(--prism-success) 80%, black);
 }
 
-.prism-button--secondary {
+.wayfinder-button--secondary {
     background-color: var(--prism-surface-alt);
     color: var(--prism-text);
 }
 
-.prism-button--secondary:hover {
+.wayfinder-button--secondary:hover {
     background-color: color-mix(in srgb, var(--prism-surface-alt) 85%, var(--prism-text));
 }
 
-.prism-button--destructive {
+.wayfinder-button--destructive {
     background-color: var(--prism-danger);
     color: var(--prism-primary-contrast);
 }
 
-.prism-button--destructive:hover {
+.wayfinder-button--destructive:hover {
     background-color: color-mix(in srgb, var(--prism-danger) 75%, black);
 }
 
@@ -543,7 +543,7 @@
         grid-template-columns: 1fr;
     }
 
-    .prism-button {
+    .wayfinder-button {
         width: 100%;
         justify-content: center;
     }
@@ -677,48 +677,48 @@
 }
 
 /* Error summary — GDS-style page-level error summary box */
-.prism-error-summary {
+.wayfinder-error-summary {
     border: 5px solid var(--prism-danger);
     padding: 20px 15px;
     margin-bottom: 30px;
     background: var(--prism-surface);
 }
 
-.prism-error-summary:focus,
-.prism-error-summary:focus-visible {
+.wayfinder-error-summary:focus,
+.wayfinder-error-summary:focus-visible {
     outline: 3px solid var(--prism-focus);
     outline-offset: 0;
     box-shadow: inset 0 0 0 1px var(--prism-text);
 }
 
-.prism-error-summary__title {
+.wayfinder-error-summary__title {
     font-size: var(--prism-text-size-lg);
     font-weight: 700;
     color: var(--prism-danger);
     margin: 0 0 15px;
 }
 
-.prism-error-summary__list {
+.wayfinder-error-summary__list {
     list-style: none;
     margin: 0;
     padding: 0;
 }
 
-.prism-error-summary__list li {
+.wayfinder-error-summary__list li {
     margin-bottom: 10px;
 }
 
-.prism-error-summary__list a {
+.wayfinder-error-summary__list a {
     color: var(--prism-danger);
     font-weight: 700;
     text-decoration: underline;
 }
 
-.prism-error-summary__list a:hover {
+.wayfinder-error-summary__list a:hover {
     text-decoration: none;
 }
 
-.prism-error-summary__list a:focus-visible {
+.wayfinder-error-summary__list a:focus-visible {
     outline: 3px solid var(--prism-focus);
     outline-offset: 0;
     background-color: var(--prism-focus);
@@ -760,11 +760,11 @@ textarea[aria-invalid="true"] {
    Conditional fields
    -------------------------------------------------------------------------- */
 
-.prism-field--conditional[hidden] {
+.wayfinder-field--conditional[hidden] {
   display: none;
 }
 
-.prism-field--conditional:not([hidden]) {
+.wayfinder-field--conditional:not([hidden]) {
   animation: prism-field-reveal 0.15s ease-out;
 }
 
@@ -777,17 +777,17 @@ textarea[aria-invalid="true"] {
    Service Request Hub
    -------------------------------------------------------------------------- */
 
-.prism-service-request-hub {
+.wayfinder-service-request-hub {
   margin: 0;
   padding: 0;
 }
 
-.prism-service-request-hub__header {
+.wayfinder-service-request-hub__header {
   margin-bottom: var(--prism-section-gap);
   padding-top: 0;
 }
 
-.prism-service-request-hub__title {
+.wayfinder-service-request-hub__title {
   font-size: clamp(32px, 5vw, var(--prism-text-size-xl));
   font-weight: 700;
   line-height: 1.1;
@@ -795,18 +795,18 @@ textarea[aria-invalid="true"] {
   color: var(--prism-text);
 }
 
-.prism-service-request-hub__subtitle {
+.wayfinder-service-request-hub__subtitle {
   font-size: var(--prism-text-size-md);
   color: var(--prism-muted);
   margin: 0;
   line-height: 1.5;
 }
 
-.prism-service-request-hub__section {
+.wayfinder-service-request-hub__section {
   margin-bottom: 40px;
 }
 
-.prism-service-request-hub__section-title {
+.wayfinder-service-request-hub__section-title {
   font-size: var(--prism-text-size-lg);
   font-weight: 700;
   border-bottom: 1px solid var(--prism-border);
@@ -815,13 +815,13 @@ textarea[aria-invalid="true"] {
   color: var(--prism-text);
 }
 
-.prism-service-request-hub__empty {
+.wayfinder-service-request-hub__empty {
   text-align: center;
   padding: 60px 20px;
   color: var(--prism-muted);
 }
 
-.prism-service-request-hub__empty-text {
+.wayfinder-service-request-hub__empty-text {
   font-size: var(--prism-text-size-md);
   margin-bottom: 30px;
   line-height: 1.5;
@@ -829,7 +829,7 @@ textarea[aria-invalid="true"] {
 
 /* Instance List */
 
-.prism-instance-list {
+.wayfinder-instance-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -838,7 +838,7 @@ textarea[aria-invalid="true"] {
   gap: 15px;
 }
 
-.prism-instance-card {
+.wayfinder-instance-card {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -849,29 +849,29 @@ textarea[aria-invalid="true"] {
   gap: 1.5rem;
 }
 
-.prism-instance-card:hover,
-.prism-instance-card:focus-within {
+.wayfinder-instance-card:hover,
+.wayfinder-instance-card:focus-within {
   border-left-color: var(--prism-primary);
   background: color-mix(in srgb, var(--prism-primary) 3%, var(--prism-surface));
 }
 
-.prism-instance-card__body {
+.wayfinder-instance-card__body {
   flex: 1;
 }
 
-.prism-instance-card__title {
+.wayfinder-instance-card__title {
   font-size: var(--prism-text-size-md);
   font-weight: 700;
   margin: 0 0 5px;
   color: var(--prism-text);
 }
 
-.prism-instance-card__status {
+.wayfinder-instance-card__status {
   margin: 0 0 5px;
   font-size: var(--prism-text-size-sm);
 }
 
-.prism-instance-card__state-badge {
+.wayfinder-instance-card__state-badge {
   display: inline-block;
   padding: 2px 8px;
   background: var(--prism-surface-alt);
@@ -881,20 +881,20 @@ textarea[aria-invalid="true"] {
   font-weight: 700;
 }
 
-.prism-instance-card__meta {
+.wayfinder-instance-card__meta {
   font-size: 14px;
   color: var(--prism-muted);
   margin: 0;
   line-height: 1.4;
 }
 
-.prism-instance-card__actions {
+.wayfinder-instance-card__actions {
   flex-shrink: 0;
 }
 
 /* Instance Picker */
 
-.prism-instance-picker {
+.wayfinder-instance-picker {
   border: 1px solid var(--prism-border);
   border-left: 5px solid var(--prism-border);
   padding: 20px;
@@ -902,21 +902,21 @@ textarea[aria-invalid="true"] {
   background: var(--prism-surface-alt);
 }
 
-.prism-instance-picker__title {
+.wayfinder-instance-picker__title {
   font-size: var(--prism-text-size-lg);
   font-weight: 700;
   margin: 0 0 10px;
   color: var(--prism-text);
 }
 
-.prism-instance-picker__description {
+.wayfinder-instance-picker__description {
   margin: 0 0 20px;
   font-size: var(--prism-text-size-md);
   color: var(--prism-text);
   line-height: 1.5;
 }
 
-.prism-instance-picker__actions {
+.wayfinder-instance-picker__actions {
   display: flex;
   gap: 15px;
   flex-wrap: wrap;
@@ -925,19 +925,19 @@ textarea[aria-invalid="true"] {
 
 /* Responsive */
 @media (max-width: 600px) {
-  .prism-instance-card {
+  .wayfinder-instance-card {
     flex-direction: column;
     align-items: flex-start;
     padding: 15px;
   }
-  .prism-instance-card__actions {
+  .wayfinder-instance-card__actions {
     width: 100%;
   }
-  .prism-instance-card__actions .prism-button {
+  .wayfinder-instance-card__actions .wayfinder-button {
     width: 100%;
   }
   
-  .prism-service-request-hub__empty {
+  .wayfinder-service-request-hub__empty {
     padding: 40px 15px;
   }
 }

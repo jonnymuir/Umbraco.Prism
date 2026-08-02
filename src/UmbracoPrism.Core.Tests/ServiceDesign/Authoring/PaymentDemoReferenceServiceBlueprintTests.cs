@@ -176,7 +176,7 @@ public class PaymentDemoReferenceWorkflowTests
                     StageKey = "citizen-start",
                     DisplayName = "Citizen start",
                     QueueKey = "citizen-queue",
-                    Components = new PrismComponent[] { new FieldsetComponent() },
+                    Components = new Component[] { new FieldsetComponent() },
                     Routes = new[]
                     {
                         new ServiceBlueprintRouteDefinition
@@ -192,7 +192,7 @@ public class PaymentDemoReferenceWorkflowTests
                     StageKey = "finance-review",
                     DisplayName = "Finance review",
                     QueueKey = "finance-queue",
-                    Components = new PrismComponent[] { new FieldsetComponent() },
+                    Components = new Component[] { new FieldsetComponent() },
                     Routes = new[]
                     {
                         new ServiceBlueprintRouteDefinition
@@ -209,7 +209,7 @@ public class PaymentDemoReferenceWorkflowTests
                     StageKey = "done",
                     DisplayName = "Done",
                     QueueKey = "citizen-queue",
-                    Components = new PrismComponent[] { new PanelComponent { Heading = "Done" } }
+                    Components = new Component[] { new PanelComponent { Heading = "Done" } }
                 }
             },
             Transitions = new[]
@@ -286,7 +286,7 @@ public class PaymentDemoReferenceWorkflowTests
         var capabilities = MockReferenceWorkflowQueues.CapabilitiesProvider();
 
         capabilities.GetSupportedComponentTypes(MockReferenceWorkflowQueues.WebUser)
-            .Should().BeEquivalentTo(PrismComponentTypeCatalog.AllDiscriminators,
+            .Should().BeEquivalentTo(ComponentTypeCatalog.AllDiscriminators,
                 because: "web-user's declared capability must be Prism's own catalog contract, not a stale hand-copied list");
     }
 
