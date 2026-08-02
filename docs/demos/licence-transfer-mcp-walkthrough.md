@@ -4,7 +4,7 @@
 > recorded, but the feature it's built on — Prism's own "CMS Service Blueprint" backoffice
 > authoring surface (`CmsServiceBlueprintAuthoringController`, its keyed MCP endpoint, the
 > `cms-visitor` queue) — was removed entirely once it became redundant with `Wayfinder.Umbraco`'s
-> own independent "Wayfinder" backoffice section. The demo content itself (the juggling-licence
+> own independent "Blueprints" backoffice section. The demo content itself (the juggling-licence
 > transfer blueprint) still exists, now authored the same way any Wayfinder.Umbraco-hosted
 > definition is — see `UmbracoPrism.TestSite`'s own `PublicVisitorQueue`/`LicenceTransferServiceRequestSeeder`.
 > Kept as a record of what was built and how, not as current step-by-step instructions.
