@@ -19,11 +19,11 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" PrivateAssets="all" />
-    <PackageReference Include="Wayfinder" Version="0.3.0" />
-    <PackageReference Include="Wayfinder.Editor" Version="0.1.4" />
-    <PackageReference Include="Wayfinder.Engine" Version="0.3.0" />
-    <PackageReference Include="Wayfinder.Engine.Api" Version="0.3.0" />
-    <PackageReference Include="Wayfinder.Engine.Mcp" Version="0.3.0" />
+    <PackageReference Include="Wayfinder" Version="0.4.3" />
+    <PackageReference Include="Wayfinder.Editor" Version="0.1.5" />
+    <PackageReference Include="Wayfinder.Engine" Version="0.4.3" />
+    <PackageReference Include="Wayfinder.Engine.Api" Version="0.4.3" />
+    <PackageReference Include="Wayfinder.Engine.Mcp" Version="0.4.3" />
   </ItemGroup>
 
   <ItemGroup>

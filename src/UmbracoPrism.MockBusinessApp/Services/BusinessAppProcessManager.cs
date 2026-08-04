@@ -192,7 +192,7 @@ public class BusinessAppProcessManager : ProcessManagerEngine
             visibleWorkItem.StageKey,
             resolvedTargetKey);
 
-        return BuildEnvelope(updated, definition, accessProfile, allowFallbackWhenHidden: true);
+        return BuildEnvelope(updated, definition, accessProfile);
     }
 
     public BusinessAppProcessManager(
