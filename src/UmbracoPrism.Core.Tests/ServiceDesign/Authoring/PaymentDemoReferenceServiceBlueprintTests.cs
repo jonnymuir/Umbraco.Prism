@@ -121,11 +121,26 @@ public class PaymentDemoReferenceWorkflowTests
             MockReferenceWorkflowQueues.BusinessUserProfile(),
             "confirm",
             workItem.StateVersion,
-            fieldValues: null);
+            new Dictionary<string, object?>
+            {
+                ["confirmationReference"] = "REF-100",
+                ["amountReceived"] = 42.50m
+            });
 
-        afterConfirmation.ResponseState.Should().Be("complete");
-        afterConfirmation.Render!.StateDisplayName.Should().Be("Payment complete");
-        afterConfirmation.Render.Components.Should().Contain(component =>
+        // "payment-complete" belongs to the web-user queue — the confirming business user has
+        // no visibility into it (Wayfinder dropped its implicit cross-queue fallback rendering:
+        // a queue with no visible work item now always gets ACCESS_DENIED), so the confirming
+        // actor's own envelope is correctly ACCESS_DENIED. Confirm completion from the applicant
+        // who actually owns that queue instead.
+        afterConfirmation.ResponseState.Should().Be("error");
+        var applicantView = engine.GetCurrent(
+            "payment-demo",
+            "tenant-1",
+            "applicant@example.com",
+            MockReferenceWorkflowQueues.WebUserProfile());
+        applicantView.ResponseState.Should().Be("complete");
+        applicantView.Render!.StateDisplayName.Should().Be("Payment complete");
+        applicantView.Render.Components.Should().Contain(component =>
             component.Type == "panel" && component.Heading == "Payment confirmed");
     }
 
@@ -264,7 +279,14 @@ public class PaymentDemoReferenceWorkflowTests
             financeWork.StateVersion,
             fieldValues: null);
 
-        complete.ResponseState.Should().Be("complete");
+        // financeProfile can only see "finance-queue" — "done" belongs to "citizen-queue", so
+        // the acting profile's own envelope from Advance is correctly ACCESS_DENIED (Wayfinder
+        // dropped its implicit cross-queue fallback rendering: a queue with no visible work item
+        // now always gets ACCESS_DENIED, never a peek at whatever stage the instance landed on).
+        // Confirm completion from the queue that actually owns "done" instead.
+        complete.ResponseState.Should().Be("error");
+        var citizenView = engine.GetCurrent("queue-test", "tenant-1", "user-1", citizenProfile);
+        citizenView.ResponseState.Should().Be("complete");
     }
 
     [Fact]

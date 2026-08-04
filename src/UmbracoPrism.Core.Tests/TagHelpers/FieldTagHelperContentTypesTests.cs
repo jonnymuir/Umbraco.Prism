@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.Extensions.Options;
 using Moq;
+using Wayfinder.Rendering.GovUk;
 using Wayfinder.Umbraco.Configuration;
 using Wayfinder.Umbraco.Models;
 using Wayfinder.Umbraco.Services;
@@ -49,6 +50,7 @@ public class FieldTagHelperContentTypesTests
         var helper = new ComponentTagHelper(
             htmlHelperMock.Object,
             new ComponentPartialResolver(viewEngineMock.Object),
+            new GovUkComponentRenderer(),
             Options.Create(new WayfinderServiceDesignOptions()))
         {
             Field       = field,
@@ -87,7 +89,11 @@ public class FieldTagHelperContentTypesTests
         var html = await ProcessAsync(field);
 
         html.Should().Contain(@"class=""govuk-inset-text""");
-        html.Should().Contain("We&#39;ll only use your contact details to respond to your enquiry.");
+        // Content-only field types pass the (already-sanitized) Content straight through — see
+        // Wayfinder.Rendering.GovUk's GovUkFields, which deliberately doesn't re-HTML-encode on
+        // top of IServiceContentSanitizer, since that would break any inline HTML a sanitized
+        // value is allowed to carry (e.g. a link). A bare apostrophe needs no escaping in HTML text.
+        html.Should().Contain("We'll only use your contact details to respond to your enquiry.");
         html.Should().NotContain("govuk-form-group");
     }
 
@@ -171,7 +177,7 @@ public class FieldTagHelperContentTypesTests
 
         html.Should().Contain(@"class=""govuk-notification-banner""");
         html.Should().Contain(@"role=""region""");
-        html.Should().Contain("We&#39;ll reply within 2 working days.");
+        html.Should().Contain("We'll reply within 2 working days.");
         html.Should().NotContain("govuk-input");
     }
 
