@@ -38,9 +38,9 @@
     <PackageReference Include="Umbraco.Cms.Core" Version="$(UmbracoVersion)" />
     <PackageReference Include="Umbraco.Cms.Web.Common" Version="$(UmbracoVersion)" />
     <PackageReference Include="Umbraco.Cms.Web.Website" Version="$(UmbracoVersion)" />
-    <PackageReference Include="Wayfinder" Version="0.4.4" />
-    <PackageReference Include="Wayfinder.Engine" Version="0.4.4" />
-    <PackageReference Include="Wayfinder.Umbraco" Version="0.5.3" />
+    <PackageReference Include="Wayfinder" Version="0.4.5" />
+    <PackageReference Include="Wayfinder.Engine" Version="0.4.5" />
+    <PackageReference Include="Wayfinder.Umbraco" Version="0.6.0" />
   </ItemGroup>
 
   <ItemGroup>

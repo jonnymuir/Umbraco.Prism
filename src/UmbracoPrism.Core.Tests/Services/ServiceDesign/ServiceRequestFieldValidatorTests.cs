@@ -1,14 +1,11 @@
 using FluentAssertions;
-using Wayfinder.Umbraco.Models;
 using Wayfinder.Models.ServiceDesign;
-using Wayfinder.Umbraco.Services;
+using Wayfinder.Services.Validation;
 
 namespace UmbracoPrism.Core.Tests.Services.Workflow;
 
 public class ServiceRequestFieldValidatorTests
 {
-    private static readonly ServiceRequestFieldValidator Validator = new();
-
     // ------------------------------------------------------------------ Happy Path
 
     [Fact]
@@ -25,7 +22,7 @@ public class ServiceRequestFieldValidatorTests
             ["email"] = "jane@example.com"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
         result.Errors.Should().BeEmpty();
@@ -44,7 +41,7 @@ public class ServiceRequestFieldValidatorTests
             ["name"] = "Jane"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -81,7 +78,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["field"] = value };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -95,7 +92,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["password"] = "12345678" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -109,7 +106,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["code"] = "12345" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -125,7 +122,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["name"] = "" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("name");
@@ -141,7 +138,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["email"] = "" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("email");
@@ -164,7 +161,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["country"] = "" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("country");
@@ -187,7 +184,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["plan"] = "" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("plan");
@@ -208,7 +205,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["email"] = invalidEmail };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("email");
@@ -227,7 +224,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["age"] = invalidNumber };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("age");
@@ -246,7 +243,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["dob"] = invalidDate };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("dob");
@@ -271,7 +268,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["color"] = "yellow" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("color");
@@ -294,7 +291,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["membership"] = "hacked-admin" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("membership");
@@ -317,7 +314,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["features"] = "sso,injected-feature" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("features");
@@ -342,7 +339,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["username"] = "abc" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("username");
@@ -365,7 +362,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["code"] = "12345678901" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("code");
@@ -388,7 +385,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["postcode"] = "12AB" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("postcode");
@@ -411,7 +408,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["quantity"] = "5" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("quantity");
@@ -434,7 +431,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["rating"] = "10" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("rating");
@@ -456,7 +453,7 @@ public class ServiceRequestFieldValidatorTests
             ["injected_field"] = "malicious"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("injected_field");
@@ -472,7 +469,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string>();
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -489,7 +486,7 @@ public class ServiceRequestFieldValidatorTests
             ["comment"] = "<script>alert('xss')</script>"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -505,7 +502,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string>();
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -526,7 +523,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["interests"] = "sports,reading" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -547,7 +544,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["tags[]"] = "tech,design" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -568,7 +565,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["choice"] = "anything" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -589,7 +586,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["postcode"] = "AB12" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -611,7 +608,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["score"] = "75" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -632,7 +629,7 @@ public class ServiceRequestFieldValidatorTests
             ["age"] = "15"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().HaveCount(3);
@@ -653,7 +650,7 @@ public class ServiceRequestFieldValidatorTests
             ["amount"] = "0"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("amount");
@@ -676,7 +673,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["color"] = "red" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -700,7 +697,7 @@ public class ServiceRequestFieldValidatorTests
             // enquiry-type-other intentionally absent — trigger doesn't match
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue("the conditional field should be skipped when its trigger is not satisfied");
     }
@@ -721,7 +718,7 @@ public class ServiceRequestFieldValidatorTests
             // enquiry-type-other is absent but required when trigger matches
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("enquiry-type-other");
@@ -743,7 +740,7 @@ public class ServiceRequestFieldValidatorTests
             ["enquiry-type-other"] = "Something else entirely"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -761,7 +758,7 @@ public class ServiceRequestFieldValidatorTests
         var submitted = new Dictionary<string, string> { ["type"] = "other" }; // lowercase
 
         // The trigger value "other" matches VisibleWhen "Other" case-insensitively
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse("type-other is required when type=Other (case-insensitive)");
         result.Errors.Should().ContainKey("type-other");
@@ -784,7 +781,7 @@ public class ServiceRequestFieldValidatorTests
             ["message"] = "Hello from a test"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue("ReadOnly fields are skipped in server-side validation");
     }
@@ -803,7 +800,7 @@ public class ServiceRequestFieldValidatorTests
             ["email"] = "not-an-email"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue("ReadOnly field type/format validation is skipped server-side");
     }
@@ -835,7 +832,7 @@ public class ServiceRequestFieldValidatorTests
             ["message"] = "I have a question about the Prism package and how it integrates with Umbraco workflows."
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -859,7 +856,7 @@ public class ServiceRequestFieldValidatorTests
             ["message"] = "Some message that is long enough to pass min length validation easily"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue("optional conditional field absence should not fail validation");
     }
@@ -882,7 +879,7 @@ public class ServiceRequestFieldValidatorTests
             ["message"] = "Some message"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("enquiry-type-other");
@@ -905,7 +902,7 @@ public class ServiceRequestFieldValidatorTests
             ["dob-year"] = "1990"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -924,7 +921,7 @@ public class ServiceRequestFieldValidatorTests
             // day missing
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("dob");
@@ -944,7 +941,7 @@ public class ServiceRequestFieldValidatorTests
             ["dob-year"] = "99"  // 2-digit year
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
     }
@@ -958,7 +955,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string>(); // nothing submitted
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -978,7 +975,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["cost"] = value };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().Be(expectedValid);
     }
@@ -999,7 +996,7 @@ public class ServiceRequestFieldValidatorTests
             ["event-date-year"] = "1899"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("event-date");
@@ -1020,7 +1017,7 @@ public class ServiceRequestFieldValidatorTests
             ["event-date-year"] = "2101"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("event-date");
@@ -1041,7 +1038,7 @@ public class ServiceRequestFieldValidatorTests
             ["event-date-year"] = "1900"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -1060,7 +1057,7 @@ public class ServiceRequestFieldValidatorTests
             ["event-date-year"] = "2100"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -1086,7 +1083,7 @@ public class ServiceRequestFieldValidatorTests
             ["guidance"] = "transfer-rules,international-transfers,supporting-evidence"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -1110,7 +1107,7 @@ public class ServiceRequestFieldValidatorTests
             ["guidance"] = "transfer-rules"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse("a plain checkboxlist would accept a non-empty subset, but a required guidance-checklist must not");
         result.Errors.Should().ContainKey("guidance");
@@ -1132,7 +1129,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["guidance"] = "" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("guidance");
@@ -1154,7 +1151,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["guidance"] = "transfer-rules" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue("the require-all rule only applies when the field is required");
     }
@@ -1172,7 +1169,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string> { ["current-licence"] = "uploaded" };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }
@@ -1186,7 +1183,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string>();
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainKey("current-licence");
@@ -1202,7 +1199,7 @@ public class ServiceRequestFieldValidatorTests
         };
         var submitted = new Dictionary<string, string>();
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
     }

@@ -15,13 +15,12 @@ using Wayfinder.Umbraco.Models;
 using Wayfinder.Umbraco.Services;
 using Wayfinder.Umbraco.TagHelpers;
 using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Services.Validation;
 
 namespace UmbracoPrism.Core.Tests.TagHelpers;
 
 public class FieldTagHelperContentTypesTests
 {
-    private static readonly ServiceRequestFieldValidator Validator = new();
-
     // ------------------------------------------------------------------ Helpers
 
     private static async Task<string> ProcessAsync(
@@ -200,7 +199,7 @@ public class FieldTagHelperContentTypesTests
             // Content fields deliberately absent — validator must not flag them
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeTrue();
         result.Errors.Should().BeEmpty();
@@ -219,7 +218,7 @@ public class FieldTagHelperContentTypesTests
         };
         var submitted = new Dictionary<string, string>();
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Keys.Should().BeEquivalentTo(["your-role", "enquiry-type", "message"]);
@@ -278,7 +277,7 @@ public class FieldTagHelperContentTypesTests
             ["privacy-note"] = "injected value"
         };
 
-        var result = Validator.Validate(authoritative, submitted);
+        var result = FieldValueValidator.Validate(authoritative, submitted);
 
         // privacy-note is in authoritative so it's whitelisted — submitted value ignored harmlessly
         result.IsValid.Should().BeTrue();

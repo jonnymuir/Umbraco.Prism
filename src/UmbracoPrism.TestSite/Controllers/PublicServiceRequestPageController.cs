@@ -37,7 +37,6 @@ public class PublicServiceRequestPageController(
     IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery,
     IStageNonceService nonceService,
-    IServiceRequestFieldValidator fieldValidator,
     IServiceRequestFileStorage fileStorage,
     IUploadTokenService uploadTokenService)
     : ServiceRequestPageController<ServiceRequestPageViewModel>(
@@ -48,7 +47,6 @@ public class PublicServiceRequestPageController(
         publishedValueFallback,
         antiforgery,
         nonceService,
-        fieldValidator,
         fileStorage,
         uploadTokenService)
 {
