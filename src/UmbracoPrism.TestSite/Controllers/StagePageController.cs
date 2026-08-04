@@ -27,7 +27,6 @@ public class StagePageController(
     IPublishedValueFallback publishedValueFallback,
     IAntiforgery antiforgery,
     IStageNonceService nonceService,
-    IServiceRequestFieldValidator fieldValidator,
     IServiceRequestFileStorage fileStorage,
     IUploadTokenService uploadTokenService)
     : ServiceRequestPageController<StageViewModel>(
@@ -38,7 +37,6 @@ public class StagePageController(
         publishedValueFallback,
         antiforgery,
         nonceService,
-        fieldValidator,
         fileStorage,
         uploadTokenService)
 {
