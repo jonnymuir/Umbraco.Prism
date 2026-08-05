@@ -40,7 +40,7 @@
     <PackageReference Include="Umbraco.Cms.Web.Website" Version="$(UmbracoVersion)" />
     <PackageReference Include="Wayfinder" Version="0.4.5" />
     <PackageReference Include="Wayfinder.Engine" Version="0.4.5" />
-    <PackageReference Include="Wayfinder.Umbraco" Version="0.6.0" />
+    <PackageReference Include="Wayfinder.Umbraco" Version="0.6.1" />
   </ItemGroup>
 
   <ItemGroup>
