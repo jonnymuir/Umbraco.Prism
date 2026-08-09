@@ -3,7 +3,7 @@ using Wayfinder.Models.ServiceDesign.Components;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Components;
 
-public class ComponentTypeCatalogTests
+public class ComponentTypeRegistryTests
 {
     // The full, exhaustive set of [JsonDerivedType] discriminators actually declared on
     // Component today. Cross-checked directly against Component.cs's attribute
@@ -20,7 +20,7 @@ public class ComponentTypeCatalogTests
     [Fact]
     public void AllDiscriminators_MatchesTheKnownGoodSet()
     {
-        ComponentTypeCatalog.AllDiscriminators.Should().BeEquivalentTo(ExpectedDiscriminators);
+        ComponentTypeRegistry.AllDiscriminators.Should().BeEquivalentTo(ExpectedDiscriminators);
     }
 
     [Fact]
@@ -29,17 +29,17 @@ public class ComponentTypeCatalogTests
         // TelComponent exists as a C# type but has no [JsonDerivedType] entry on Component
         // — it's already dead/unregistered, and stays that way; this test guards against it
         // being accidentally reintroduced without deliberately deciding to fix it.
-        ComponentTypeCatalog.AllDiscriminators.Should().NotContain("tel");
+        ComponentTypeRegistry.AllDiscriminators.Should().NotContain("tel");
     }
 
     [Fact]
     public void DiscriminatorFor_KnownComponent_ReturnsItsDiscriminator()
     {
-        ComponentTypeCatalog.DiscriminatorFor(new TextInputComponent { FieldKey = "x", Label = "X" })
+        ComponentTypeRegistry.DiscriminatorFor(new TextInputComponent { FieldKey = "x", Label = "X" })
             .Should().Be("text");
-        ComponentTypeCatalog.DiscriminatorFor(new FieldsetComponent())
+        ComponentTypeRegistry.DiscriminatorFor(new FieldsetComponent())
             .Should().Be("fieldset");
-        ComponentTypeCatalog.DiscriminatorFor(new SummaryListComponent())
+        ComponentTypeRegistry.DiscriminatorFor(new SummaryListComponent())
             .Should().Be("summary-list");
     }
 }

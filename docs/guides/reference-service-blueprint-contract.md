@@ -250,10 +250,10 @@ types for that queue today. Use `list_queue_capabilities` to discover a
 queue's supported types before drafting a stage for it.
 
 Capabilities are a contract each host declares about itself, never a runtime
-call to another host's process. `ComponentTypeCatalog`
+call to another host's process. `ComponentTypeRegistry`
 (`Wayfinder`) reflects `Component`'s closed, compile-time-fixed
 set of `[JsonDerivedType]` discriminators — since that assembly is shared by
-every host rendering the stock component catalog, `ComponentTypeCatalog.AllDiscriminators` is a
+every host rendering the stock component catalog, `ComponentTypeRegistry.AllDiscriminators` is a
 ready-made, honest declaration of "I render the stock Wayfinder component set", provable
 locally with no dependency on any other app actually running. A host with
 bespoke rendering (like `UmbracoPrism.MockBusinessApp`'s admin surface)

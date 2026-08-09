@@ -295,7 +295,7 @@ public class PaymentDemoReferenceWorkflowTests
         var capabilities = MockReferenceWorkflowQueues.CapabilitiesProvider();
 
         capabilities.GetSupportedComponentTypes(MockReferenceWorkflowQueues.WebUser)
-            .Should().BeEquivalentTo(ComponentTypeCatalog.AllDiscriminators,
+            .Should().BeEquivalentTo(ComponentTypeRegistry.AllDiscriminators,
                 because: "web-user's declared capability must be Prism's own catalog contract, not a stale hand-copied list");
     }
 

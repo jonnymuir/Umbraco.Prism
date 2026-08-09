@@ -72,7 +72,7 @@ public class TestSiteComposer : IComposer
         builder.Services.AddSingleton<IQueueCapabilitiesProvider>(new StaticQueueCapabilitiesProvider(
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
             {
-                [PublicVisitorQueue.Key] = ComponentTypeCatalog.AllDiscriminators
+                [PublicVisitorQueue.Key] = ComponentTypeRegistry.AllDiscriminators
             }));
 
         // Demonstrates the service-sourced field extension point for a logged-in member, shared
