@@ -38,14 +38,14 @@ public static class ReferenceQueues
     /// component catalog is a closed, compile-time-fixed set declared on Component in
     /// Wayfinder — a package both TestSite and MockBusinessApp already reference —
     /// "what a stock Prism-Core web host renders" is provable locally via
-    /// ComponentTypeCatalog, not something that requires calling back into TestSite's
+    /// ComponentTypeRegistry, not something that requires calling back into TestSite's
     /// process. business-user is MockBusinessApp's own contract about itself, since it owns and
     /// writes that admin-rendering code directly.
     /// </summary>
     public static IQueueCapabilitiesProvider CapabilitiesProvider() => new StaticQueueCapabilitiesProvider(
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
         {
-            [WebUser] = ComponentTypeCatalog.AllDiscriminators,
+            [WebUser] = ComponentTypeRegistry.AllDiscriminators,
             [BusinessUser] = BusinessUserSupportedComponentTypes
         });
 }
