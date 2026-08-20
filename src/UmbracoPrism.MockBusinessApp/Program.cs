@@ -6,7 +6,6 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.MockBusinessApp.Services.SupportSystem;
-using Wayfinder.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 

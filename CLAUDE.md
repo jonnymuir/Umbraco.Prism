@@ -29,12 +29,15 @@ Solo developer project. Work directly on `main` for simple fixes; use feature br
 `Wayfinder`, `Wayfinder.Engine`/`.Api`/`.Mcp`, `Wayfinder.Editor`, and `Wayfinder.Umbraco` are no
 longer part of this repo — see [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder) and
 [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) if you need
-to work on the service blueprint engine itself. `UmbracoPrism.Core` still references
-`Wayfinder`/`Wayfinder.Engine`/`Wayfinder.Umbraco` — but only for the generic, unchanged
-web-user/business-app queue plumbing (`AddPrismProcessManager()`, `BusinessAppProcessManagerClient`),
-not for any CMS/backoffice service-design feature of its own. `UmbracoPrism.TestSite` is the
-only project that installs `Wayfinder.Umbraco` for its *own* demo-queue implementation, on top
-of what Core already brings in transitively.
+to work on the service blueprint engine itself. `UmbracoPrism.Core` has **zero** dependency on
+any Wayfinder package — not even for generic queue plumbing; the old `AddPrismProcessManager()`/
+`BusinessAppProcessManagerClient` (an HTTP proxy to a remote "Business App" treated as the
+authoritative workflow engine) was removed outright once `UmbracoPrism.MockBusinessApp` narrowed
+to a genuine downstream support system and Wayfinder.Umbraco itself became authoritative,
+in-process, natively multi-queue (front-stage + backstage in one host, no separate business app
+needed — see that repo's own `docs/guides/work-allocation.md`/`team-assignment.md`).
+`UmbracoPrism.TestSite` is the *only* project in this repo with a `PackageReference` to any
+Wayfinder package, for its own demo-queue implementation.
 
 ---
 

@@ -11,10 +11,9 @@ namespace UmbracoPrism.Core.Auth;
 /// existing at all.
 /// </summary>
 /// <remarks>
-/// Introduced for CMS Workflow's anonymous-instance reattachment (see
-/// <c>CmsServiceBlueprintPostSignInHandler</c> in <c>CmsServiceDesignBuilderExtensions</c>) —
-/// that logic lives in Wayfinder.Umbraco-consuming code, not Core itself, so Core cannot
-/// reference it directly without creating a circular package dependency.
+/// Introduced for a service-design host's own anonymous-instance reattachment — that logic lives
+/// in whatever consumes Wayfinder.Umbraco (e.g. UmbracoPrism.TestSite), never in Core itself,
+/// which carries no Wayfinder dependency at all.
 /// </remarks>
 public interface IPrismPostSignInHandler
 {

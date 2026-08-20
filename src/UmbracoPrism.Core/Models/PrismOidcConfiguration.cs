@@ -584,9 +584,9 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
     /// <summary>
     /// Gives every registered <see cref="IPrismPostSignInHandler"/> a chance to react to "this
-    /// identity just authenticated" — e.g. CMS Workflow's anonymous-instance reattachment (see
-    /// <c>CmsServiceBlueprintPostSignInHandler</c>). Zero registered handlers (a host using
-    /// Prism's auth without any optional feature that needs this hook) is a normal no-op.
+    /// identity just authenticated" — e.g. a service-design host's own anonymous-instance
+    /// reattachment. Zero registered handlers (a host using Prism's auth without any optional
+    /// feature that needs this hook) is a normal no-op.
     /// </summary>
     private static void ClaimAnonymousServiceRequests(HttpContext httpContext, ClaimsIdentity newIdentity)
     {
