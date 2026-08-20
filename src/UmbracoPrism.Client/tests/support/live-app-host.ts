@@ -47,16 +47,18 @@ const readinessChecks = [
     bodyIncludes: [
       '"ready":true',
       '"routeContractReady":true',
-      '"challengePath":"/auth/login?ReturnUrl=%2Fmy-service-requests"'
+      '"challengePath":"/auth/login?ReturnUrl=%2Fcaseworker-queue"'
     ]
   },
   {
-    // Behavioural confirmation: the protected authored URL now challenges with the expected return target.
-    // Doubles as a Razor view-compilation warmup so the first test doesn't pay the cold-render cost.
-    name: 'ServiceBlueprint hub seed',
-    url: 'https://localhost:44345/my-service-requests',
-    allowedStatuses: [302],
-    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fmy-service-requests' }]
+    // Behavioural confirmation + Razor view-compilation warmup for the NJF Contributions Team's
+    // worklist page. Wayfinder.Umbraco's blocks carry no access-control opinion of their own — an
+    // unauthenticated visitor gets a 200 with an inline "please sign in" envelope, not an HTTP
+    // redirect (see wayfinderServicePage.cshtml's own isNjfTeamPage gate).
+    name: 'Caseworker queue route',
+    url: 'https://localhost:44345/caseworker-queue',
+    allowedStatuses: [200],
+    bodyIncludes: ['You need to sign in as a Prism member']
   },
   {
     // Dashboard route warmup. MemberDashboardController has [Authorize]; the cookie auth
@@ -68,32 +70,20 @@ const readinessChecks = [
     headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fdashboard' }]
   },
   {
-    // Community-enquiry service blueprint page warmup (used by both localhost-auth and service-blueprint-all-demos suites).
-    name: 'Community enquiry service blueprint route',
-    url: 'https://localhost:44345/get-in-touch',
-    allowedStatuses: [302],
-    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fget-in-touch' }]
+    // Juggling licence service blueprint page warmup — anonymous-first, so it renders the stage
+    // envelope directly (200), not a redirect. Doubles as a Razor view-compilation warmup.
+    name: 'Juggling licence service blueprint route',
+    url: 'https://localhost:44345/apply-for-a-juggling-licence',
+    allowedStatuses: [200],
+    bodyIncludes: ['You can apply for a juggling licence if you are 16 or over']
   },
   {
-    // Planning service blueprint page warmup (service-blueprint-gds-journey + service-blueprint-all-demos).
-    name: 'Planning service blueprint route',
-    url: 'https://localhost:44345/apply-for-planning-permission',
-    allowedStatuses: [302],
-    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fapply-for-planning-permission' }]
-  },
-  {
-    // Payment-demo service blueprint page warmup (service-blueprint-all-demos).
-    name: 'Payment demo service blueprint route',
-    url: 'https://localhost:44345/payment-demo',
-    allowedStatuses: [302],
-    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Fpayment-demo' }]
-  },
-  {
-    // Information-request service blueprint page warmup (service-blueprint-all-demos).
-    name: 'Information request service blueprint route',
-    url: 'https://localhost:44345/request-information',
-    allowedStatuses: [302],
-    headerIncludes: [{ name: 'location', valueIncludes: '/auth/login?ReturnUrl=%2Frequest-information' }]
+    // Bulk-contributions service blueprint page warmup (NJF Contributions Team, gated the same
+    // way as the caseworker queue route above).
+    name: 'Contributions file service blueprint route',
+    url: 'https://localhost:44345/submit-contributions-file',
+    allowedStatuses: [200],
+    bodyIncludes: ['You need to sign in as a Prism member']
   },
   {
     name: 'Keycloak',

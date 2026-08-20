@@ -19,8 +19,7 @@
     "test:playwright:localhost-auth": "node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite && playwright test -c playwright.localhost-auth.config.ts --reporter=line",
     "test:playwright:planning-smoke": "node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite && playwright test -c playwright.localhost-auth.config.ts --grep '01-planning-service-blueprint-editor' --reporter=line --max-failures=1",
     "test:playwright:ui": "playwright test --ui",
-    "demo:record": "playwright test tests/demo/garden-waste-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line",
-    "demo:record:licence-transfer": "playwright test tests/demo/licence-transfer-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line"
+    "demo:record": "playwright test tests/demo/garden-waste-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",

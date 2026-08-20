@@ -1,4 +1,4 @@
-import { test, expect, type Locator, type Page, type Response } from '@playwright/test';
+import { test, expect, type Page, type Response } from '@playwright/test';
 
 import { LiveAppHost } from './support/live-app-host';
 
@@ -7,12 +7,6 @@ const demoCredentials = {
   username: 'demo@prism.local',
   password: 'password'
 };
-const expectedServiceBlueprintDemos = [
-  { title: 'Get in Touch', path: /\/get-in-touch$/ },
-  { title: 'Apply for Planning Permission', path: /\/apply-for-planning-permission$/ },
-  { title: 'Payment Demo', path: /\/payment-demo$/ },
-  { title: 'Request Information', path: /\/request-information$/ }
-] as const;
 
 test.describe('Localhost auth/session behavioural contracts', () => {
   test.describe.configure({ mode: 'serial' });
@@ -37,16 +31,12 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await callBusinessAppApi(page);
   });
 
-  test('signed-in member can open My Service Requests', async ({ page }) => {
+  test('signed-in member can open the caseworker queue', async ({ page }) => {
     await signIn(page);
-    await page.goto('/my-service-requests');
+    await page.goto('/caseworker-queue');
 
-    await expect(page.getByRole('heading', { name: 'My Service Requests' })).toBeVisible();
-    await expectAnyVisible(
-      page.getByText("You don't have any active service requests yet."),
-      page.getByRole('heading', { name: 'In Progress' }),
-      page.getByRole('heading', { name: 'Completed' })
-    );
+    await expect(page.getByRole('heading', { name: 'Caseworker queue' })).toBeVisible();
+    await expect(page.getByText('No service requests match the current filters')).toBeVisible();
   });
 
   test('anonymous public service request instance is claimed and resumable after signing in', async ({ page }) => {
@@ -65,60 +55,47 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await signIn(page);
 
     // The claim succeeded: the anonymous cookie is gone (nothing left to correlate against —
-    // the instance now belongs to the signed-in member) and it shows up as resumable.
+    // the instance now belongs to the signed-in member).
     const cookiesAfterSignIn = await page.context().cookies();
     expect(cookiesAfterSignIn.some(c => c.name === 'PrismPublicServiceRequestVisitor')).toBe(false);
 
-    await page.goto('/my-service-requests');
-    await expect(page.getByRole('heading', { name: 'In Progress' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Apply for a juggling licence', level: 3 })).toBeVisible();
-    await expect(page.getByText('Your details')).toBeVisible();
-
-    // Resuming lands back on the exact step left off, not a fresh restart.
-    await page.getByRole('link', { name: 'Continue' }).click();
-    await expect(page).toHaveURL(/\/apply-for-a-juggling-licence\/?\?instanceId=/);
+    // Revisiting the same "single"-policy service blueprint resumes the claimed instance at the
+    // exact step left off, not a fresh restart from Eligibility. This page always resolves the
+    // instance-owner-restricted public-visitor profile regardless of sign-in state (see
+    // TestSiteComposer.IsJugglingLicenceContext), so the signed-in member sees their own claimed
+    // instance and nobody else's.
+    await page.goto('/apply-for-a-juggling-licence');
     await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
   });
 
-  test('signed-in member can open the seeded service blueprint start page', async ({ page }) => {
-    await signIn(page);
-    await page.goto('/get-in-touch');
+  test('anonymous visitor can open the seeded juggling licence start page', async ({ page }) => {
+    // The full anonymous-vs-signed-in journey (including the member fee discount) is covered by
+    // apply-for-a-juggling-licence.walkthrough.spec.ts; this is just the smoke check.
+    await page.goto('/apply-for-a-juggling-licence');
 
-    await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Submit' })).toBeVisible();
+    await expect(page.getByText('You can apply for a juggling licence if you are 16 or over')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible();
   });
 
-  test('signed-in member can reach seeded service blueprint pages from the dashboard', async ({ page }) => {
+  test('signed-in member can reach the Wayfinder service design demo from the dashboard', async ({ page }) => {
     await signIn(page);
     await openDashboard(page);
 
-    await page.getByRole('link', { name: 'View Service Requests' }).click();
-    await expect(page).toHaveURL(/\/my-service-requests$/);
-
-    await openDashboard(page);
-    for (const serviceBlueprint of expectedServiceBlueprintDemos) {
-      await expect(serviceBlueprintDemoCard(page, serviceBlueprint.title)).toBeVisible();
-      await expect(serviceBlueprintDemoCard(page, serviceBlueprint.title).getByRole('link', { name: 'Start' })).toHaveAttribute(
-        'href',
-        serviceBlueprint.path
-      );
-    }
-
-    await serviceBlueprintDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
-    await expect(page).toHaveURL(expectedServiceBlueprintDemos[0].path);
-    await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
+    await page.getByRole('link', { name: 'Start' }).click();
+    await expect(page).toHaveURL(/\/submit-contributions-file\/?$/);
+    await expect(page.getByLabel('Contributions file')).toBeVisible();
   });
 
   test('signed-in member stays signed in across a full restart', async ({ page }) => {
     await signIn(page);
     await appHost.restart();
-    
+
     // After restart, verify member is still authenticated
     await expectSignedInHome(page);
-    
+
     // Verify persistent session allows protected API calls
     await callBusinessAppApi(page);
-    
+
     // Verify clean sign-out still works after restart
     await signOut(page);
     await expectSignedOutHome(page);
@@ -219,7 +196,7 @@ async function callBusinessAppApi(page: Page): Promise<void> {
 
   // Contract: Browser-facing API responses must not expose internal backchannel URLs
   const displayedUrl = await apiUrl.textContent();
-  expect(displayedUrl).not.toContain(':5163', 
+  expect(displayedUrl).not.toContain(':5163',
     'displayed URL must not expose the internal backchannel port 5163');
   expect(displayedUrl).toContain('https://localhost:7245',
     'displayed URL must show the public-facing HTTPS endpoint');
@@ -240,23 +217,9 @@ async function openDashboard(page: Page): Promise<void> {
     capture.dispose();
   }
 
-  await expect(page.getByRole('link', { name: 'View Service Requests' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'View queue' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Call Mock Business App API' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Service Blueprint Demos' })).toBeVisible();
-}
-
-function serviceBlueprintDemoCard(page: Page, title: string): Locator {
-  return page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first();
-}
-
-async function expectAnyVisible(...locators: Locator[]): Promise<void> {
-  for (const locator of locators) {
-    if (await locator.isVisible().catch(() => false)) {
-      return;
-    }
-  }
-
-  throw new Error('Expected at least one service blueprint state indicator to be visible.');
+  await expect(page.getByRole('heading', { name: 'Wayfinder service design demo' })).toBeVisible();
 }
 
 type ResponseCapture = {

@@ -80,12 +80,21 @@ public class TestSiteComposer : IComposer
 
             // Two disjoint personas for this demo — see NjfContributionsTeam's own remarks for
             // why an authenticated member never also gets PublicVisitorQueue access in the same
-            // profile. A real host would resolve team membership from its own claims/role source
-            // instead of "any authenticated member".
+            // profile (RestrictToInstanceOwner is a single flag for the whole ActorProfile in
+            // Wayfinder.Engine 0.7.2 — no per-queue mechanism exists yet to mix an
+            // instance-owner-restricted queue with a team-wide one). A signed-in Prism member can
+            // still be BOTH personas at different times, though: the juggling licence journey is
+            // reachable while signed in (to pick up the membership-tier fee discount — see
+            // apply-for-a-juggling-licence.json's serviceInputsResolver wiring), so this resolver
+            // picks the persona from *which page originated the request*, not just whether the
+            // caller is authenticated. A real host would resolve team membership from its own
+            // claims/role source instead of "any authenticated member".
             options.ResolveAccessProfile = ctx =>
-                ctx.User.Identity?.IsAuthenticated == true
-                    ? NjfContributionsTeam.AccessProfile
-                    : PublicVisitorQueue.AccessProfile;
+                IsJugglingLicenceContext(ctx)
+                    ? PublicVisitorQueue.AccessProfile
+                    : ctx.User.Identity?.IsAuthenticated == true
+                        ? NjfContributionsTeam.AccessProfile
+                        : PublicVisitorQueue.AccessProfile;
         });
 
         // ServiceRequestPollController (the join-gateway waiting screen's own poll endpoint)
@@ -162,5 +171,27 @@ public class TestSiteComposer : IComposer
 
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WayfinderServicePageContentType>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WayfinderServicePageSeeder>();
+    }
+
+    /// <summary>
+    /// True for the juggling licence page's own GET render, and for the requests it fans out to
+    /// (<see cref="Wayfinder.Umbraco.Controllers.WayfinderStageSurfaceController"/>'s advance POST,
+    /// and TestSite's own file upload/download controllers) — none of those carry the originating
+    /// blueprint in their own route, only in the <c>Referer</c> header a same-origin form
+    /// POST/fetch call always sends (TestSite sets no <c>Referrer-Policy</c> that would strip it).
+    /// A heuristic, not a security boundary in itself: it only ever *widens* access from the NJF
+    /// team profile down to the narrower, instance-owner-restricted public-visitor one, never the
+    /// reverse, so a spoofed Referer could at most make a caller look like an anonymous citizen —
+    /// exactly the access level they'd already have signed out.
+    /// </summary>
+    private static bool IsJugglingLicenceContext(HttpContext ctx)
+    {
+        if (ctx.Request.Path.StartsWithSegments(TestSiteSeedContract.JugglingLicencePageUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var referer = ctx.Request.Headers.Referer.ToString();
+        return referer.Contains(TestSiteSeedContract.JugglingLicencePageUrl, StringComparison.OrdinalIgnoreCase);
     }
 }

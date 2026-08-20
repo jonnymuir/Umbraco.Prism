@@ -11,10 +11,12 @@ namespace UmbracoPrism.TestSite.Services.ServiceDesign;
 /// A visitor who was browsing TestSite's public service request demo anonymously and has just
 /// signed in gets their in-progress instance(s) re-keyed onto their new authenticated identity,
 /// so what would otherwise become an orphaned, soon-to-expire anonymous session survives as a
-/// resumable one under "My Service Requests" instead. Registered by TestSite only — a host
-/// using Prism's auth without this demo gets no handler at all, which
-/// <see cref="PrismOidcConfiguration"/>'s <c>IPrismPostSignInHandler</c> loop already treats as
-/// a normal no-op.
+/// resumable one instead — revisiting the same page picks up exactly where they left off (see
+/// <c>TestSiteComposer.IsJugglingLicenceContext</c>, which keeps that page resolving the
+/// instance-owner-restricted public-visitor profile regardless of sign-in state, precisely so
+/// this claim keeps meaning something). Registered by TestSite only — a host using Prism's auth
+/// without this demo gets no handler at all, which <see cref="PrismOidcConfiguration"/>'s
+/// <c>IPrismPostSignInHandler</c> loop already treats as a normal no-op.
 /// </summary>
 public sealed class PublicServiceRequestPostSignInHandler(
     UmbracoProcessManagerEngine engine,
