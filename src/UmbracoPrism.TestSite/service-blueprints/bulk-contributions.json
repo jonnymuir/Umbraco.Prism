@@ -1,0 +1,172 @@
+{
+  "definitionKey": "bulk-contributions",
+  "displayName": "Submit a contributions file",
+  "version": 1,
+  "schemaVersion": "1.0",
+  "description": "The NJF Contributions Team's monthly contributions file — Prism + Wayfinder.Umbraco's worked example of a caseworker worklist backed by a real downstream support system (Mock Business App).",
+  "initialStage": "upload",
+  "requestPolicy": "single",
+  "queues": [
+    {
+      "key": "njf-upload",
+      "displayName": "NJF Contributions Team (submission)",
+      "description": "Whoever starts a contributions file submission owns it through to the wait screen — no pickup needed to submit your own file.",
+      "actor": "caseworker",
+      "roleGates": ["njf-contributions-review"],
+      "assignmentPolicy": "assign-to-initiator"
+    },
+    {
+      "key": "njf-review",
+      "displayName": "NJF Contributions Team (review)",
+      "description": "Any NJF Contributions Team member can pick up a validated submission to review.",
+      "actor": "caseworker",
+      "roleGates": ["njf-contributions-review"],
+      "assignmentPolicy": "team-tray",
+      "owningTeamId": "njf-contributions-team"
+    },
+    {
+      "key": "automation",
+      "displayName": "Mock Business App",
+      "actor": "system"
+    }
+  ],
+  "stages": [
+    {
+      "stageKey": "upload",
+      "displayName": "Submit contributions file",
+      "stageType": "Question",
+      "actor": "caseworker",
+      "queueKey": "njf-upload",
+      "components": [
+        {
+          "type": "body",
+          "content": "Upload this cycle's CSV of member contributions. Mock Business App will validate the file and return a decision."
+        },
+        {
+          "type": "file-upload",
+          "fieldKey": "contributionsFile",
+          "label": "Contributions file",
+          "required": true,
+          "acceptedFileTypes": [".csv"]
+        }
+      ],
+      "routes": [
+        { "id": "upload--submit--to-support-system", "target": "to-support-system", "trigger": "submit" }
+      ]
+    },
+    {
+      "stageKey": "automation",
+      "displayName": "Processing",
+      "actor": "system",
+      "queueKey": "automation",
+      "components": [
+        { "type": "panel", "heading": "Processing the contributions file" }
+      ],
+      "actions": [
+        {
+          "type": "support-system-call",
+          "timing": "onEnter",
+          "params": {
+            "supportSystemKey": "mock-business-app-contributions",
+            "capabilityKey": "validate-contributions-file",
+            "inputs": { "file": "contributionsFile" }
+          }
+        }
+      ],
+      "routes": [
+        { "id": "automation--approved--check-complete", "target": "check-complete", "trigger": "approved" },
+        { "id": "automation--rejected--check-complete", "target": "check-complete", "trigger": "rejected" }
+      ]
+    },
+    {
+      "stageKey": "review",
+      "displayName": "Review decision",
+      "stageType": "CheckAnswers",
+      "actor": "caseworker",
+      "queueKey": "njf-review",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Approved",
+          "showWhen": "contributionsDecision = 'approved'"
+        },
+        {
+          "type": "warning-text",
+          "showWhen": "contributionsDecision = 'rejected'",
+          "content": "Mock Business App rejected this file. Check the notes below before finishing this cycle."
+        },
+        {
+          "type": "summary-list",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "contributionsDecision",
+              "label": "Decision",
+              "required": false
+            },
+            {
+              "type": "text",
+              "fieldKey": "contributionsDecisionNotes",
+              "label": "Notes",
+              "required": false
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "review--accept--to-done",
+          "target": "to-done",
+          "trigger": "accept",
+          "label": "Finish"
+        }
+      ]
+    },
+    {
+      "stageKey": "done",
+      "displayName": "Contributions file reviewed",
+      "stageType": "Confirmation",
+      "actor": "caseworker",
+      "queueKey": "njf-review",
+      "components": [
+        { "type": "panel", "heading": "Contributions file reviewed" },
+        { "type": "body", "content": "No further action is needed for this cycle." }
+      ],
+      "routes": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "to-support-system",
+      "displayName": "Send to Mock Business App",
+      "gatewayType": "Split",
+      "queueKey": "njf-upload",
+      "routes": [
+        { "id": "to-support-system--submit--check-complete", "target": "check-complete", "trigger": "submit" },
+        { "id": "to-support-system--submit--automation", "target": "automation", "trigger": "submit" }
+      ]
+    },
+    {
+      "key": "check-complete",
+      "displayName": "Awaiting Mock Business App",
+      "gatewayType": "Join",
+      "queueKey": "njf-upload",
+      "waitingContent": "Mock Business App is validating the contributions file. We'll update this page once a decision is made.",
+      "waitingExpectedSeconds": 30,
+      "waitingPollIntervalMs": 3000,
+      "routes": [
+        { "id": "check-complete--processed--review", "target": "review", "trigger": "processed" }
+      ],
+      "requiredIncomingQueues": ["njf-upload", "automation"]
+    },
+    {
+      "key": "to-done",
+      "displayName": "Finish",
+      "gatewayType": "Split",
+      "queueKey": "njf-review",
+      "routes": [
+        { "id": "to-done--accept--done", "target": "done", "trigger": "accept" }
+      ]
+    }
+  ]
+}

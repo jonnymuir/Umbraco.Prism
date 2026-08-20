@@ -1,0 +1,49 @@
+﻿@using System.IO
+@using System.Text.Encodings.Web
+@using Umbraco.Cms.Core.Models.Blocks
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "~/Views/Shared/Master.cshtml";
+
+    var stageGrid = Model.Value<BlockGridModel>("stageArea");
+    var worklistGrid = Model.Value<BlockGridModel>("worklistArea");
+    var hasStageBlock = stageGrid is not null && stageGrid.Any();
+    var hasWorklistBlock = worklistGrid is not null && worklistGrid.Any();
+
+    // Wayfinder.Umbraco's blocks carry no access-control opinion of their own — a signed-out
+    // visitor renders an empty/filtered worklist, or an "access denied" stage envelope, not a
+    // refusal at the page level. This is TestSite's own (deliberately simple) friendlier gate for
+    // the NJF Contributions Team pages specifically.
+    var isNjfTeamPage = hasWorklistBlock
+        || string.Equals(Model.Name, TestSiteSeedContract.ContributionsPageName, StringComparison.Ordinal);
+    var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
+
+    var blockHtml = "";
+    if (hasStageBlock)
+    {
+        using var stageWriter = new StringWriter();
+        (await Html.GetBlockGridHtmlAsync(stageGrid!)).WriteTo(stageWriter, HtmlEncoder.Default);
+        blockHtml += stageWriter.ToString();
+    }
+
+    if (hasWorklistBlock)
+    {
+        using var worklistWriter = new StringWriter();
+        (await Html.GetBlockGridHtmlAsync(worklistGrid!)).WriteTo(worklistWriter, HtmlEncoder.Default);
+        blockHtml += worklistWriter.ToString();
+    }
+}
+<main class="page">
+    <h1 class="govuk-heading-l">@Model.Name</h1>
+
+    @if (isNjfTeamPage && !isAuthenticated)
+    {
+        <div class="stage-alert stage-alert--error">
+            <p>You need to sign in as a Prism member to use this page. <a class="govuk-link" href="/auth/login">Sign in</a></p>
+        </div>
+    }
+    else
+    {
+        @Html.Raw(blockHtml)
+    }
+</main>

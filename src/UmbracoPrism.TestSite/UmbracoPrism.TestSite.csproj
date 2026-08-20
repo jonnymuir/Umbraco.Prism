@@ -22,9 +22,9 @@
          dependency at all (see docs/guides/support-systems.md in the core Wayfinder repo).
          TestSite installs Wayfinder.Umbraco directly to demonstrate Prism + Wayfinder.Umbraco
          composed together. -->
-    <PackageReference Include="Wayfinder" Version="0.4.8" />
-    <PackageReference Include="Wayfinder.Engine" Version="0.4.8" />
-    <PackageReference Include="Wayfinder.Umbraco" Version="0.6.5" />
+    <PackageReference Include="Wayfinder" Version="0.7.2" />
+    <PackageReference Include="Wayfinder.Engine" Version="0.7.2" />
+    <PackageReference Include="Wayfinder.Umbraco" Version="0.7.0" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" Condition="$(RuntimeIdentifier.StartsWith('linux')) or $(RuntimeIdentifier.StartsWith('win')) or ('$(RuntimeIdentifier)' == '' and !$([MSBuild]::IsOSPlatform('osx')))" />
   </ItemGroup>
 
@@ -35,12 +35,6 @@
 
   <ItemGroup>
     <Content Remove="wwwroot/App_Plugins/UmbracoPrism/**" />
-    <!-- CI (Linux, case-sensitive filesystem) reports Views/GuidanceArticle.cshtml as a
-         duplicate Content item; this Remove+Include pair collapses whatever double glob match
-         is occurring back to a single clean item, regardless of which two SDK/Umbraco-targets
-         inclusion paths are colliding. -->
-    <Content Remove="Views/GuidanceArticle.cshtml" />
-    <Content Include="Views/GuidanceArticle.cshtml" />
   </ItemGroup>
 
   <ItemGroup>

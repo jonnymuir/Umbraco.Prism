@@ -1,35 +1,42 @@
 using Microsoft.AspNetCore.Mvc;
-using UmbracoPrism.TestSite.Services.ServiceDesign;
+using Microsoft.Extensions.Options;
+using Wayfinder.Umbraco.Configuration;
 using Wayfinder.Umbraco.Services;
 
 namespace UmbracoPrism.TestSite.Controllers;
 
 /// <summary>
-/// Serves a file previously uploaded against a public service request instance's
-/// <c>file-upload</c> field — the "view this document" link on a check-answers/summary-list row
-/// or the field's own "already uploaded" state.
+/// Serves a file previously uploaded against a service request instance's <c>file-upload</c>
+/// field — the "view this document" link on a check-answers/summary-list row, or the field's own
+/// "already uploaded" state. Mounted at Wayfinder.Umbraco's own
+/// <see cref="WayfinderServiceDesignOptions.FileEndpointBasePath"/> default (<c>/service-request</c>)
+/// — the package renders download/upload links against that base but owns no controller of its
+/// own at it, since a host needs to enforce ownership its own way (see that option's remarks).
 /// </summary>
 /// <remarks>
-/// Deliberately unauthenticated at the framework level, exactly like
-/// <see cref="PublicServiceRequestPageController"/> itself (this demo is anonymous-first) —
-/// security comes from resolving the requester's identity the same way
-/// (<see cref="PublicVisitorIdentityResolver"/>) and requiring it to own the instance
+/// Deliberately unauthenticated at the framework level — this demo has both an anonymous-first
+/// persona (public-visitor) and an authenticated one (NJF Contributions Team); security comes
+/// from resolving the requester's identity/access profile the same way
+/// <see cref="WayfinderServiceDesignOptions.ResolveTenantId"/>/<c>ResolveUserId</c>/
+/// <c>ResolveAccessProfile</c> do, and requiring it to own the instance
 /// (<see cref="UmbracoProcessManagerEngine.TryGetOwnedFileReference"/>), not from a login challenge.
 /// </remarks>
 [ApiController]
 [Route("service-request/files")]
 public class PublicServiceRequestFileDownloadController(
     UmbracoProcessManagerEngine engine,
-    PublicVisitorIdentityResolver identityResolver,
-    IServiceRequestFileStorage fileStorage) : ControllerBase
+    IServiceRequestFileStorage fileStorage,
+    IOptions<WayfinderServiceDesignOptions> optionsAccessor) : ControllerBase
 {
     [HttpGet("{instanceId}/{fieldKey}")]
     public async Task<IActionResult> Download(string instanceId, string fieldKey, CancellationToken cancellationToken)
     {
-        var (tenantId, userId, _) = identityResolver.Resolve();
-        var reference = engine.TryGetOwnedFileReference(
-            instanceId, tenantId, userId, PublicVisitorQueue.AccessProfile, fieldKey);
+        var options = optionsAccessor.Value;
+        var tenantId = options.ResolveTenantId!(HttpContext);
+        var userId = options.ResolveUserId(HttpContext);
+        var accessProfile = options.ResolveAccessProfile!(HttpContext);
 
+        var reference = engine.TryGetOwnedFileReference(instanceId, tenantId, userId, accessProfile, fieldKey);
         if (reference is null)
         {
             return NotFound();

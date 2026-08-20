@@ -1,14 +1,18 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using UmbracoPrism.Core;
 using UmbracoPrism.Core.Auth;
+using UmbracoPrism.Core.Services;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Services.Sanitization;
 using Wayfinder.Umbraco;
+using Wayfinder.Umbraco.Extensions;
 using Wayfinder.Umbraco.Services;
 using UmbracoPrism.TestSite.BackgroundServices;
 using UmbracoPrism.TestSite.Services;
@@ -18,7 +22,9 @@ using Wayfinder.Engine.Abstractions;
 namespace UmbracoPrism.TestSite;
 
 /// <summary>
-/// Registers TestSite-specific notification handlers.
+/// Registers TestSite-specific notification handlers, plus TestSite's own identity/authorization
+/// wiring for Wayfinder.Umbraco (a bare package reference supplies none of that — see
+/// <see cref="Wayfinder.Umbraco.Configuration.WayfinderServiceDesignOptions"/>'s own remarks).
 /// <see cref="MobileNavSchemaSetup"/> runs before <see cref="DemoMobileNavSeeder"/>
 /// so the Block List element type exists before the seeder inspects the Settings node.
 /// Vinyl Vault: <see cref="VinylVaultContentTypes"/> runs before <see cref="VinylVaultSeeder"/>
@@ -26,8 +32,7 @@ namespace UmbracoPrism.TestSite;
 /// <para>
 /// <see cref="ComposeAfterAttribute"/> on <see cref="PrismComposer"/> guarantees that
 /// <see cref="PrismContentTypeSeeder"/> is registered — and therefore runs — before any
-/// handler registered here. <see cref="StagePageSeeder"/> depends on <c>stagePage</c>
-/// and <c>serviceRequestHub</c> content types created by <see cref="PrismContentTypeSeeder"/>.
+/// handler registered here.
 /// Umbraco dispatches <see cref="UmbracoApplicationStartedNotification"/> handlers
 /// sequentially in registration order, so composer ordering is the correct coordination mechanism.
 /// </para>
@@ -43,46 +48,93 @@ public class TestSiteComposer : IComposer
 
         // Localhost tenant (Keycloak) — dev only, idempotent
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, DemoTenantSeeder>();
-        
+
         // Vinyl Vault demo (Phase 2: Notifications)
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, VinylVaultContentTypes>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, VinylVaultSeeder>();
         builder.Services.AddHostedService<LimitedEditionDropNotifier>();
 
-        // Stage Page demo — runs after PrismContentTypeSeeder has created the stagePage doc type
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, StagePageSeeder>();
+        ComposeWayfinderServiceDesign(builder);
+    }
 
-        // TestSite's own public service request demo ("Apply for a juggling licence" and "Transfer
-        // a professional juggling licence") — an anonymous-first, in-Umbraco-hosted service
-        // blueprint running entirely in-process against Wayfinder.Umbraco's engine (no remote
-        // Business App). Content type, identity resolution, keyed process-manager client, and
-        // post-sign-in reattachment are all host-owned here (not a Core package feature) — see
-        // PublicServiceRequestContentType / PublicVisitorIdentityResolver /
-        // InProcessPublicVisitorProcessManagerClient / PublicServiceRequestPostSignInHandler.
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PublicServiceRequestContentType>();
-
+    /// <summary>
+    /// Everything Wayfinder.Umbraco needs from a host: identity resolution
+    /// (<see cref="PublicVisitorIdentityResolver"/>'s anonymous-cookie-or-Prism-member logic),
+    /// the <c>ServiceRequestPolling</c> authorization policy the waiting-screen poll endpoint
+    /// requires, and TestSite's two worked examples — see
+    /// <c>docs/guides/support-systems.md</c> in the core Wayfinder repo for why service design
+    /// itself lives entirely in Wayfinder.Umbraco now, not here.
+    /// </summary>
+    private static void ComposeWayfinderServiceDesign(IUmbracoBuilder builder)
+    {
         builder.Services.AddScoped<PublicVisitorIdentityResolver>();
-        builder.Services.AddKeyedScoped<IBusinessAppProcessManagerClient, InProcessPublicVisitorProcessManagerClient>(WayfinderUmbracoServiceKeys.InProcessQueueClient);
         builder.Services.AddScoped<IPrismPostSignInHandler, PublicServiceRequestPostSignInHandler>();
 
-        // Explicit capability contract for public-visitor — matches Wayfinder.Umbraco's own
-        // generic component partials (see Wayfinder.Umbraco's _Component-*.cshtml set): an agent
-        // authoring via list_queue_capabilities can see exactly what this host's stock rendering
-        // pipeline supports, instead of the check being silently skipped.
+        builder.Services.AddWayfinderUmbraco(options =>
+        {
+            options.ResolveTenantId = ctx =>
+                ctx.RequestServices.GetRequiredService<IPrismUserContext>().CurrentTenant?.Hostname ?? "default";
+
+            options.ResolveUserId = ctx =>
+                ctx.RequestServices.GetRequiredService<PublicVisitorIdentityResolver>().Resolve().UserId;
+
+            // Two disjoint personas for this demo — see NjfContributionsTeam's own remarks for
+            // why an authenticated member never also gets PublicVisitorQueue access in the same
+            // profile. A real host would resolve team membership from its own claims/role source
+            // instead of "any authenticated member".
+            options.ResolveAccessProfile = ctx =>
+                ctx.User.Identity?.IsAuthenticated == true
+                    ? NjfContributionsTeam.AccessProfile
+                    : PublicVisitorQueue.AccessProfile;
+        });
+
+        // ServiceRequestPollController (the join-gateway waiting screen's own poll endpoint)
+        // requires this policy but deliberately ships with it unregistered — see
+        // WayfinderUmbracoAuthorizationPolicies.ServiceRequestPolling's own remarks. Only the
+        // bulk-contributions demo's Join gateway ever shows a waiting screen, and that's always an
+        // authenticated NJF Contributions Team member (see NjfContributionsTeam), so a plain
+        // authenticated-user requirement is enough — no anonymous-visitor case to accommodate here.
+        builder.Services.Configure<AuthorizationOptions>(options =>
+        {
+            options.AddPolicy(WayfinderUmbracoAuthorizationPolicies.ServiceRequestPolling, policy =>
+                policy.RequireAuthenticatedUser());
+        });
+
+        // Explicit capability contract for both queues — matches Wayfinder.Umbraco's own generic
+        // component partials (see Wayfinder.Umbraco's _Component-*.cshtml set): an agent authoring
+        // via list_queue_capabilities can see exactly what this host's stock rendering pipeline
+        // supports, instead of the check being silently skipped.
         builder.Services.AddSingleton<IQueueCapabilitiesProvider>(new StaticQueueCapabilitiesProvider(
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
             {
-                [PublicVisitorQueue.Key] = ComponentTypeRegistry.AllDiscriminators
+                [PublicVisitorQueue.Key] = ComponentTypeRegistry.AllDiscriminators,
+                [NjfContributionsTeam.UploadKey] = ComponentTypeRegistry.AllDiscriminators,
+                [NjfContributionsTeam.ReviewKey] = ComponentTypeRegistry.AllDiscriminators
             }));
 
-        // Demonstrates the service-sourced field extension point for a logged-in member, shared
-        // across both juggling-licence demos since they're the same fictional membership scheme.
+        // Demonstrates the service-sourced field extension point for a logged-in member.
         // Re-registering UmbracoProcessManagerEngine here (after AddWayfinderUmbraco()'s own
-        // registration via PrismComposer's AddPrismProcessManager()) supplies the
-        // serviceInputsResolver delegate; last registration wins for single-instance resolution,
-        // and IProcessManager's factory (registered by Wayfinder.Umbraco) resolves
-        // UmbracoProcessManagerEngine lazily, so it picks up this one.
+        // registration above) supplies the serviceInputsResolver delegate; last registration wins
+        // for single-instance resolution, and IProcessManager's factory (also registered by
+        // AddWayfinderUmbraco) resolves UmbracoProcessManagerEngine lazily, so it picks up this one.
         builder.Services.AddSingleton<IJugglingSocietyMembershipClient, JugglingSocietyMembershipClient>();
+
+        // Freezes on first read — must run before anything reads SupportSystemRegistry, which
+        // this composer's own registrations below never do, but a blueprint load/save does (see
+        // MockBusinessAppContributions.Register's own remarks).
+        MockBusinessAppContributions.Register();
+
+        // Mock Business App's own resource address — same config key DownstreamDemoController
+        // already reads (PrismBusinessApp:ApiBaseUrl, set by UmbracoPrism.AppHost).
+        var businessAppBaseUrl = builder.Config["PrismBusinessApp:ApiBaseUrl"];
+        builder.Services.AddHttpClient(MockBusinessAppContributionsClient.HttpClientName, client =>
+        {
+            if (!string.IsNullOrWhiteSpace(businessAppBaseUrl))
+            {
+                client.BaseAddress = new Uri(businessAppBaseUrl);
+            }
+        });
+        builder.Services.AddSingleton<ISupportSystemClient, MockBusinessAppContributionsClient>();
         builder.Services.AddSingleton(sp =>
         {
             var membershipClient = sp.GetRequiredService<IJugglingSocietyMembershipClient>();
@@ -94,10 +146,7 @@ public class TestSiteComposer : IComposer
                 sp.GetRequiredService<IHttpContextAccessor>(),
                 (instance, definition, _) =>
                 {
-                    var isJugglingLicenceServiceBlueprint =
-                        string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceBlueprintKey, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceTransferBlueprintKey, StringComparison.OrdinalIgnoreCase);
-                    if (!isJugglingLicenceServiceBlueprint)
+                    if (!string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceBlueprintKey, StringComparison.OrdinalIgnoreCase))
                     {
                         return null;
                     }
@@ -107,20 +156,11 @@ public class TestSiteComposer : IComposer
                     {
                         ["member"] = new Dictionary<string, object?> { ["tier"] = membership.Tier }
                     };
-                });
+                },
+                sp.GetServices<ISupportSystemClient>());
         });
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, JugglingLicenceServiceRequestSeeder>();
 
-        // Guidance articles for "Transfer a Professional Juggling Licence" — seeded ahead of
-        // time so a live MCP build has real CMS content to link to rather than needing to author
-        // it on camera. Must run before LicenceTransferCmsServiceBlueprintSeeder below only in the sense
-        // that both are idempotent and order-independent; listed here because it's the same demo.
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, GuidanceArticleContentTypes>();
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, GuidanceArticleSeeder>();
-
-        // The "here's one we made earlier" reference copy of the definition the recording builds
-        // live via MCP — see LicenceTransferServiceRequestSeeder's own remarks for what a future
-        // re-recording needs to do first.
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, LicenceTransferServiceRequestSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WayfinderServicePageContentType>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WayfinderServicePageSeeder>();
     }
 }

@@ -6,22 +6,8 @@
     var displayName = ViewBag.DisplayName as string ?? "Member";
     var email = ViewBag.Email as string ?? "";
     var userOid = ViewBag.UserOid as string ?? "";
-    var rootContent = Umbraco.ContentAtRoot().ToList();
-    var serviceRequestHubUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.ServiceRequestHubAlias),
-        TestSiteSeedContract.ServiceRequestHubUrl);
-    var stagePageUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.BlueprintKey),
-        TestSiteSeedContract.ServiceRequestPageUrl);
-    var paymentDemoUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.PaymentDemoBlueprintKey),
-        TestSiteSeedContract.PaymentDemoPageUrl);
-    var planningUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.PlanningBlueprintKey),
-        TestSiteSeedContract.PlanningStagePageUrl);
-    var informationRequestUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.InformationRequestBlueprintKey),
-        TestSiteSeedContract.InformationRequestPageUrl);
+    var contributionsUrl = TestSiteSeedContract.ContributionsPageUrl;
+    var caseworkerQueueUrl = TestSiteSeedContract.CaseworkerQueuePageUrl;
 }
 
 <main class="dash-page">
@@ -50,40 +36,25 @@
             </div>
             <div class="dash-card dash-card--cta">
                 <div class="dash-card__icon dash-card__icon--service-request">📋</div>
-                <h3>My Service Requests</h3>
-                <p>View all your active and completed service request submissions in one place.</p>
-                <a href="@serviceRequestHubUrl" class="btn btn-primary" style="margin-top: 12px;">View Service Requests</a>
+                <h3>Caseworker queue</h3>
+                <p>The NJF Contributions Team's worklist — pick up and review submitted contributions files.</p>
+                <a href="@caseworkerQueueUrl" class="btn btn-primary" style="margin-top: 12px;">View queue</a>
             </div>
         </div>
 
-        <!-- Service blueprint demos — all types discoverable from one place -->
+        <!-- Wayfinder service design demo — service-design capability itself lives entirely in
+             Wayfinder.Umbraco (see docs/guides/support-systems.md in the core Wayfinder repo);
+             this dashboard only proves Prism + Wayfinder.Umbraco compose well as a member of the
+             NJF Contributions Team, so it links to just this one worked example. -->
         <div class="dash-section">
-            <h2>Service Blueprint Demos</h2>
-            <p>Start any of the available service blueprint types. Each demo exercises a different Prism capability.</p>
+            <h2>Wayfinder service design demo</h2>
+            <p>As an NJF Contributions Team member, submit and review a monthly contributions file — Wayfinder's bulk data review capability, backed by a real downstream support system (Mock Business App).</p>
             <div class="dash-grid" style="margin-top: 16px;">
                 <div class="dash-card dash-card--cta">
-                    <div class="dash-card__icon dash-card__icon--service-request">📝</div>
-                    <h3>Get in Touch</h3>
-                    <p>Multi-step community enquiry with pre-filled member details and question components.</p>
-                    <a href="@stagePageUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
-                </div>
-                <div class="dash-card dash-card--cta">
-                    <div class="dash-card__icon dash-card__icon--service-request">🏗️</div>
-                    <h3>Apply for Planning Permission</h3>
-                    <p>Planning notification service blueprint demonstrating document-upload and review steps.</p>
-                    <a href="@planningUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
-                </div>
-                <div class="dash-card dash-card--cta">
-                    <div class="dash-card__icon dash-card__icon--service-request">💳</div>
-                    <h3>Payment Demo</h3>
-                    <p>Waiting-state service blueprint that simulates an asynchronous payment processing step.</p>
-                    <a href="@paymentDemoUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
-                </div>
-                <div class="dash-card dash-card--cta">
-                    <div class="dash-card__icon dash-card__icon--service-request">ℹ️</div>
-                    <h3>Request Information</h3>
-                    <p>Information request service blueprint with conditional field display and summary review.</p>
-                    <a href="@informationRequestUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
+                    <div class="dash-card__icon dash-card__icon--service-request">📤</div>
+                    <h3>Submit contributions file</h3>
+                    <p>Upload the monthly CSV of member contributions for validation.</p>
+                    <a href="@contributionsUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
                 </div>
             </div>
         </div>
