@@ -36,7 +36,8 @@ using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 using UmbracoPrism.Core.TagHelpers;
-using UmbracoPrism.MockBusinessApp.Services;
+using Wayfinder.Engine.Services;
+using Wayfinder.Engine.Stores;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Services.Sanitization;
@@ -878,57 +879,43 @@ public class Phase1SecurityRegressionTests : IDisposable
     /// </summary>
     private static string BuildEnginePayloadForBody(string content)
     {
-        var testSeedDir = Path.Combine(Directory.GetCurrentDirectory(), $"sec003-test-{Guid.NewGuid()}");
-        Directory.CreateDirectory(testSeedDir);
-        Directory.CreateDirectory(Path.Combine(testSeedDir, "service-blueprints"));
-
-        try
+        var workflow = new ServiceBlueprint
         {
-            var workflow = new ServiceBlueprint
+            DefinitionKey = "sec003-test",
+            DisplayName = "SEC-003 Test",
+            Version = 1,
+            InitialStage = "step-1",
+            RequestPolicy = "single",
+            Stages = new[]
             {
-                DefinitionKey = "sec003-test",
-                DisplayName = "SEC-003 Test",
-                Version = 1,
-                InitialStage = "step-1",
-                RequestPolicy = "single",
-                Stages = new[]
+                new StageDefinition
                 {
-                    new StageDefinition
+                    StageKey = "step-1",
+                    DisplayName = "Step 1",
+                    Components = new Component[]
                     {
-                        StageKey = "step-1",
-                        DisplayName = "Step 1",
-                        Components = new Component[]
-                        {
-                            new BodyComponent { Content = content }
-                        }
+                        new BodyComponent { Content = content }
                     }
                 }
-            };
+            }
+        };
 
-            File.WriteAllText(
-                Path.Combine(testSeedDir, "service-blueprints", "sec003-test.json"),
-                JsonSerializer.Serialize(workflow, new JsonSerializerOptions { WriteIndented = true }));
+        // Real sanitizer — exercises the GDS allowlist security boundary. A plain core
+        // ProcessManagerEngine (no MockBusinessApp involved — this security test only needs a
+        // real engine instance, not a hosted business app) fed the definition directly, no file
+        // I/O needed.
+        var sanitizer = new Wayfinder.Umbraco.Services.Sanitization.ServiceContentSanitizer();
+        var engine = new ProcessManagerEngine(
+            NullLogger.Instance,
+            new SingleDefinitionServiceBlueprintStore(workflow),
+            sanitizer);
 
-            var mockEnv = new Mock<IWebHostEnvironment>();
-            mockEnv.Setup(e => e.ContentRootPath).Returns(testSeedDir);
+        var result = engine.GetCurrent("sec003-test", "tenant1", "user1");
 
-            var logger = new Mock<ILogger<BusinessAppProcessManager>>();
-            // Real sanitizer — exercises the GDS allowlist security boundary.
-            var sanitizer = new Wayfinder.Umbraco.Services.Sanitization.ServiceContentSanitizer();
+        var bodyComponent = result.Render!.Components.FirstOrDefault(c =>
+            string.Equals(c.Type, "body", StringComparison.OrdinalIgnoreCase));
 
-            var engine = new BusinessAppProcessManager(logger.Object, mockEnv.Object, sanitizer);
-            var result = engine.GetCurrent("sec003-test", "tenant1", "user1");
-
-            var bodyComponent = result.Render!.Components.FirstOrDefault(c =>
-                string.Equals(c.Type, "body", StringComparison.OrdinalIgnoreCase));
-
-            return bodyComponent?.Content ?? string.Empty;
-        }
-        finally
-        {
-            if (Directory.Exists(testSeedDir))
-                Directory.Delete(testSeedDir, recursive: true);
-        }
+        return bodyComponent?.Content ?? string.Empty;
     }
 
     // ------------------------------------------------------------------ SEC-PT2-006: DataProtection key persistence
