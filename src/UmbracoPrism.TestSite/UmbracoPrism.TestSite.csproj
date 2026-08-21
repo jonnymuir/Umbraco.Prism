@@ -22,8 +22,8 @@
          dependency at all (see docs/guides/support-systems.md in the core Wayfinder repo).
          TestSite installs Wayfinder.Umbraco directly to demonstrate Prism + Wayfinder.Umbraco
          composed together. -->
-    <PackageReference Include="Wayfinder" Version="0.7.2" />
-    <PackageReference Include="Wayfinder.Engine" Version="0.7.2" />
+    <PackageReference Include="Wayfinder" Version="0.7.3" />
+    <PackageReference Include="Wayfinder.Engine" Version="0.7.3" />
     <PackageReference Include="Wayfinder.Umbraco" Version="0.7.3" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" Condition="$(RuntimeIdentifier.StartsWith('linux')) or $(RuntimeIdentifier.StartsWith('win')) or ('$(RuntimeIdentifier)' == '' and !$([MSBuild]::IsOSPlatform('osx')))" />
   </ItemGroup>
