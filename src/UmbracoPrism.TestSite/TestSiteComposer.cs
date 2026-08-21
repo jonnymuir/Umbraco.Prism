@@ -200,15 +200,29 @@ public class TestSiteComposer : IComposer
     }
 
     /// <summary>
-    /// True for the juggling licence page's own GET render, and for the requests it fans out to
-    /// (<see cref="Wayfinder.Umbraco.Controllers.WayfinderStageSurfaceController"/>'s advance POST,
-    /// and TestSite's own file upload/download controllers) — none of those carry the originating
-    /// blueprint in their own route, only in the <c>Referer</c> header a same-origin form
-    /// POST/fetch call always sends (TestSite sets no <c>Referrer-Policy</c> that would strip it).
-    /// A heuristic, not a security boundary in itself: it only ever *widens* access from the NJF
-    /// team profile down to the narrower, instance-owner-restricted public-visitor one, never the
-    /// reverse, so a spoofed Referer could at most make a caller look like an anonymous citizen —
-    /// exactly the access level they'd already have signed out.
+    /// True for the juggling licence page's own GET render, and for its advance POST
+    /// (<see cref="Wayfinder.Umbraco.Controllers.WayfinderStageSurfaceController"/> — a single
+    /// route shared by every blueprint, so its own URL carries no clue which one originated a
+    /// given request). Never uses the <c>Referer</c> header for this: it's supplied entirely by
+    /// the client and trivially forged by anything that isn't a browser honouring same-origin
+    /// navigation (curl, a script, a browser with referrers stripped) — not a signal any
+    /// access-control decision should read at all. Previously used Referer as a fallback here and
+    /// it was a real bug, not just bad practice: clicking "Caseworker queue" in the top nav
+    /// straight from the juggling licence page carried that page as the *next* request's own
+    /// Referer, misclassifying the entire caseworker queue page as "juggling licence context" and
+    /// handing a signed-in-but-not-NJF member (demo@prism.local) the public citizen's own access
+    /// profile there instead of correctly denying them — they saw their own in-progress
+    /// applications sitting in what looked like the caseworker queue. (Not a privilege-escalation
+    /// bug in practice — PublicVisitorQueue.AccessProfile's own queue key/capabilities never
+    /// overlap with the NJF queue's, so the engine's own ActorProfile checks still fully bounded
+    /// it — but a real information-disclosure/UX bug all the same, and exactly the kind of thing
+    /// that stops being harmless the day a real deployment's queues aren't so cleanly disjoint.)
+    ///
+    /// The advance POST's own form already carries the authoritative answer
+    /// (<c>BlueprintKey</c> — the same field <c>ServiceRequestStageService.AdvanceAsync</c> itself
+    /// reads later) instead: the *controller* already read <c>Request.Form</c> before calling into
+    /// this resolver, so ASP.NET Core has it buffered and reading it back off <paramref name="ctx"/>
+    /// here needs no further await/stream access.
     /// </summary>
     private static bool IsJugglingLicenceContext(HttpContext ctx)
     {
@@ -217,7 +231,16 @@ public class TestSiteComposer : IComposer
             return true;
         }
 
-        var referer = ctx.Request.Headers.Referer.ToString();
-        return referer.Contains(TestSiteSeedContract.JugglingLicencePageUrl, StringComparison.OrdinalIgnoreCase);
+        if (!ctx.Request.Path.StartsWithSegments(
+                Wayfinder.Umbraco.Controllers.WayfinderStageSurfaceController.RoutePath, StringComparison.OrdinalIgnoreCase)
+            || !ctx.Request.HasFormContentType)
+        {
+            return false;
+        }
+
+        return string.Equals(
+            ctx.Request.Form["BlueprintKey"].ToString(),
+            TestSiteSeedContract.JugglingLicenceBlueprintKey,
+            StringComparison.OrdinalIgnoreCase);
     }
 }
