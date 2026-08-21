@@ -2,6 +2,25 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v4.0.0] — 2026-08-21
+
+### Breaking Changes
+
+- **`UmbracoPrism.Core` now has zero Wayfinder dependency.** Service design capability — citizen journeys, caseworker worklists, blueprint authoring — lives entirely in `Wayfinder.Umbraco` now, hosted in-process by a site's own TestSite/host project, not proxied through Prism. Removed `AddPrismProcessManager()`, `BusinessAppProcessManagerClient`/`IBusinessAppProcessManagerClient`, the `ServiceRequestPolling` policy registration, and the `stagePage`/`serviceBlueprintDemoPage`/`serviceRequestHub` content-type seeding from `PrismContentTypeSeeder`. `UmbracoPrism.uSync` also has zero Wayfinder dependency (confirmed unused — dead weight removed).
+- **`UmbracoPrism.MockBusinessApp` is no longer a workflow/service-blueprint engine host.** It's narrowed to a genuine, separate downstream application: proving Prism's own Bearer-token identity propagation (`GET /api/backoffice/me`) and a generic downstream support-system reference implementation (`POST /submissions`, `GET /submissions/{id}`, `GET /queue`, `POST /queue/{id}/decide` — mirrors the core Wayfinder repo's own `SafetyNetUnderwriting`). Removed `/admin/service-desk`, `/api/service-request/*`, `/service-blueprint-editor`, `/mockapp/service-blueprints/*`, the five generic reference blueprints, and the Actions-catalog subsystem (1,067 lines) — all superseded by Wayfinder.Umbraco's own in-process engine and editor.
+- **`UmbracoPrism.TestSite`'s citizen/caseworker pages are now Block Grid-composed**, not package-owned routes. Deleted `StagePageController`, `PublicServiceRequestPageController`, `ServiceRequestHubController`, and every old demo blueprint (community-enquiry, planning, payment-demo, information-request, licence-transfer) outright. A single `wayfinderServicePage` content type now carries Wayfinder.Umbraco's packaged Block Grid stage/worklist areas, seeded for two worked examples: "Apply for a juggling licence" (anonymous-first citizen journey) and "Submit contributions file" + a caseworker queue for a fictional NJF Contributions Team, backed by a real downstream support-system call to Mock Business App.
+
+### New Features & Improvements
+
+- Requires `Wayfinder.Umbraco` 0.7.0+ (the published Block Grid stage/worklist elements) and `Wayfinder`/`Wayfinder.Engine` 0.7.2+.
+- Two distinct signed-in personas on the reference site, not one: a plain Prism member and an NJF Contributions Team caseworker (a real, explicit roster — not "every authenticated member"), each seeing different dashboard content.
+
+### Bug Fixes
+
+- Fixed a real access-control regression this branch's own earlier commit introduced: a signed-in Prism member had lost the ability to apply for a juggling licence and receive their membership discount, because the new caseworker-profile resolution didn't account for the citizen journey remaining reachable while signed in. Fixed without reopening the caseworker-side data leak it was closing.
+- Fixed the reference site's debug panel Sign Out button doing nothing — it posted a GET to an endpoint that requires POST + a CSRF token.
+- Fixed four dead links (`/admin/service-desk`, `/service-blueprint-editor`, two MCP endpoint variants) still advertised on the Aspire dashboard after the routes behind them were removed.
+
 ## [v3.0.0] — 2026-08-09
 
 ### Breaking Changes
