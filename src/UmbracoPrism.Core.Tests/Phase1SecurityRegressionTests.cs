@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -179,7 +180,8 @@ public class Phase1SecurityRegressionTests : IDisposable
             Mock.Of<ITenantService>(),
             new ConfigurationBuilder().Build(),
             Mock.Of<IAuthenticationSchemeProvider>(),
-            new FakeWebHostEnvironment(isDevelopment: false));
+            new FakeWebHostEnvironment(isDevelopment: false),
+            Mock.Of<IAntiforgery>());
 
         tagHelper.ViewContext = new ViewContext
         {

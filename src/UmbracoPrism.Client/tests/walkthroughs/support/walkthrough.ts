@@ -11,7 +11,12 @@ const docsRoot = path.resolve(process.cwd(), '../../docs/images/walkthroughs');
 
 export const businessAppOrigin = 'https://localhost:7245';
 
+// Two distinct personas seeded in keycloak/realm-export.json — demo@prism.local is a plain,
+// no-special-access Prism member (see NjfContributionsTeam's own remarks: this is deliberate,
+// not every signed-in member is an NJF Contributions Team caseworker); njf-caseworker@prism.local
+// is the only account on that team's roster.
 export const demoCredentials = { username: 'demo@prism.local', password: 'password' };
+export const njfCaseworkerCredentials = { username: 'njf-caseworker@prism.local', password: 'password' };
 const defaultScreenshotMaxHeight = 3_600;
 const defaultScreenshotPadding = 48;
 
@@ -99,15 +104,18 @@ export async function step(
   }
 }
 
-export async function signIn(page: Page): Promise<void> {
+export async function signIn(
+  page: Page,
+  credentials: { username: string; password: string } = demoCredentials
+): Promise<void> {
   if (process.env.CAPTURE_SCREENSHOTS === '1') {
     await enterScreenshotMode(page);
   }
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign In' }).click();
   await page.locator('#username').waitFor({ timeout: 120_000 });
-  await page.locator('#username').fill(demoCredentials.username);
-  await page.locator('#password').fill(demoCredentials.password);
+  await page.locator('#username').fill(credentials.username);
+  await page.locator('#password').fill(credentials.password);
   await Promise.all([
     page.waitForURL(
       url => url.origin === 'https://localhost:44345' && url.pathname !== '/signin-oidc',
@@ -119,12 +127,19 @@ export async function signIn(page: Page): Promise<void> {
   await page.getByRole('link', { name: 'Go to Dashboard' }).waitFor({ timeout: 30_000 });
 }
 
+/** Signs in as the NJF Contributions Team's only roster member — see NjfContributionsTeam's own remarks. */
+export async function signInAsCaseworker(page: Page): Promise<void> {
+  await signIn(page, njfCaseworkerCredentials);
+}
+
 export async function openDashboard(page: Page): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Go to Dashboard' })).toBeVisible({ timeout: 30_000 });
   await page.getByRole('link', { name: 'Go to Dashboard' }).click();
   await expect(page).toHaveURL(/\/dashboard\/?$/, { timeout: 30_000 });
-  await expect(page.getByRole('heading', { name: 'Wayfinder service design demo' })).toBeVisible({ timeout: 30_000 });
+  // The dashboard's own "Wayfinder service design demo" section only renders for the NJF
+  // Contributions Team roster — assert something every signed-in persona sees instead.
+  await expect(page.getByRole('button', { name: 'Call Mock Business App API' })).toBeVisible({ timeout: 30_000 });
 }
 
 export async function resetServiceBlueprints(request: APIRequestContext): Promise<void> {

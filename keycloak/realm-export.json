@@ -76,6 +76,25 @@
         "user",
         "offline_access"
       ]
+    },
+    {
+      "username": "njf-caseworker@prism.local",
+      "email": "njf-caseworker@prism.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "NJF",
+      "lastName": "Caseworker",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user",
+        "offline_access"
+      ]
     }
   ],
   "roles": {

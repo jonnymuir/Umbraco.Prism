@@ -1,4 +1,5 @@
-﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Web.Common.PublishedModels.MemberDashboard>
+﻿@using UmbracoPrism.TestSite.Services.ServiceDesign
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Web.Common.PublishedModels.MemberDashboard>
 @{
     Layout = "~/Views/Shared/Master.cshtml";
 
@@ -8,6 +9,13 @@
     var userOid = ViewBag.UserOid as string ?? "";
     var contributionsUrl = TestSiteSeedContract.ContributionsPageUrl;
     var caseworkerQueueUrl = TestSiteSeedContract.CaseworkerQueuePageUrl;
+    var jugglingLicenceUrl = TestSiteSeedContract.JugglingLicencePageUrl;
+    // Every signed-in Prism member reaches this dashboard the same way, but only the NJF
+    // Contributions Team roster (see NjfContributionsTeam's own remarks) actually has access to
+    // the caseworker queue / contributions upload — most members are demo@prism.local, a plain
+    // citizen persona, not a caseworker. Gate the cards on the real roster rather than showing an
+    // affordance that leads to "Access denied" for most signed-in visitors.
+    var isNjfCaseworker = NjfContributionsTeam.IsMember(email);
 }
 
 <main class="dash-page">
@@ -34,30 +42,47 @@
                 <h3>Support</h3>
                 <p>Get help with your account. Contact our team or browse frequently asked questions.</p>
             </div>
-            <div class="dash-card dash-card--cta">
-                <div class="dash-card__icon dash-card__icon--service-request">📋</div>
-                <h3>Caseworker queue</h3>
-                <p>The NJF Contributions Team's worklist — pick up and review submitted contributions files.</p>
-                <a href="@caseworkerQueueUrl" class="btn btn-primary" style="margin-top: 12px;">View queue</a>
-            </div>
+            @if (isNjfCaseworker)
+            {
+                <div class="dash-card dash-card--cta">
+                    <div class="dash-card__icon dash-card__icon--service-request">📋</div>
+                    <h3>Caseworker queue</h3>
+                    <p>The NJF Contributions Team's worklist — pick up and review submitted contributions files.</p>
+                    <a href="@caseworkerQueueUrl" class="btn btn-primary" style="margin-top: 12px;">View queue</a>
+                </div>
+            }
+            else
+            {
+                <div class="dash-card dash-card--cta">
+                    <div class="dash-card__icon dash-card__icon--service-request">🤹</div>
+                    <h3>Apply for a juggling licence</h3>
+                    <p>Signed-in members get their Juggling Society membership discount applied automatically.</p>
+                    <a href="@jugglingLicenceUrl" class="btn btn-primary" style="margin-top: 12px;">Start application</a>
+                </div>
+            }
         </div>
 
         <!-- Wayfinder service design demo — service-design capability itself lives entirely in
-             Wayfinder.Umbraco (see docs/guides/support-systems.md in the core Wayfinder repo);
-             this dashboard only proves Prism + Wayfinder.Umbraco compose well as a member of the
-             NJF Contributions Team, so it links to just this one worked example. -->
-        <div class="dash-section">
-            <h2>Wayfinder service design demo</h2>
-            <p>As an NJF Contributions Team member, submit and review a monthly contributions file — Wayfinder's bulk data review capability, backed by a real downstream support system (Mock Business App).</p>
-            <div class="dash-grid" style="margin-top: 16px;">
-                <div class="dash-card dash-card--cta">
-                    <div class="dash-card__icon dash-card__icon--service-request">📤</div>
-                    <h3>Submit contributions file</h3>
-                    <p>Upload the monthly CSV of member contributions for validation.</p>
-                    <a href="@contributionsUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
+             Wayfinder.Umbraco (see docs/guides/support-systems.md in the core Wayfinder repo).
+             Only the NJF Contributions Team roster (njf-caseworker@prism.local) has access to
+             this worked example — see NjfContributionsTeam's own remarks; a plain member
+             (demo@prism.local) doesn't see this section at all, since the link would only lead
+             to "Access denied". -->
+        @if (isNjfCaseworker)
+        {
+            <div class="dash-section">
+                <h2>Wayfinder service design demo</h2>
+                <p>As an NJF Contributions Team member, submit and review a monthly contributions file — Wayfinder's bulk data review capability, backed by a real downstream support system (Mock Business App).</p>
+                <div class="dash-grid" style="margin-top: 16px;">
+                    <div class="dash-card dash-card--cta">
+                        <div class="dash-card__icon dash-card__icon--service-request">📤</div>
+                        <h3>Submit contributions file</h3>
+                        <p>Upload the monthly CSV of member contributions for validation.</p>
+                        <a href="@contributionsUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
+                    </div>
                 </div>
             </div>
-        </div>
+        }
 
         <!-- Biometric authentication section -->
         <div class="dash-section">

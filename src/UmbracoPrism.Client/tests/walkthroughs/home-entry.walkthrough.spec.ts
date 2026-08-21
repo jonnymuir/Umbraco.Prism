@@ -1,7 +1,7 @@
 // Executable counterpart of docs/walkthroughs/home-entry.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { test, expect } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
-import { assertHealthyPage, step, signIn } from './support/walkthrough';
+import { assertHealthyPage, step, signIn, signInAsCaseworker } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
 
@@ -48,8 +48,24 @@ test.describe('Home entry walkthrough', () => {
     await expect(page.getByRole('link', { name: 'Sign In' })).toHaveCount(0);
   });
 
-  test('authenticated user navigates from homepage to dashboard and the Wayfinder service design demo', async ({ page }) => {
+  test('signed-in plain member sees the juggling licence card, not the NJF caseworker content', async ({ page }) => {
+    // demo@prism.local is deliberately a plain Prism member, not an NJF Contributions Team
+    // caseworker — see NjfContributionsTeam's own remarks. The dashboard reflects that: no
+    // "Wayfinder service design demo" section, no caseworker queue link.
     await signIn(page);
+    await page.getByRole('link', { name: 'Go to Dashboard' }).click();
+    await page.waitForURL(/\/dashboard\/?$/, { timeout: 30_000 });
+
+    const jugglingLicenceCard = serviceDesignDemoCard(page, 'Apply for a juggling licence');
+    await expect(jugglingLicenceCard).toBeVisible();
+    await expect(jugglingLicenceCard.getByRole('link', { name: 'Start application' })).toBeVisible();
+
+    await expect(page.getByRole('heading', { name: 'Wayfinder service design demo' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'View queue' })).toHaveCount(0);
+  });
+
+  test('NJF caseworker navigates from homepage to dashboard and the Wayfinder service design demo', async ({ page }) => {
+    await signInAsCaseworker(page);
 
     // Start from home
     await assertHealthyPage(page, {

@@ -78,23 +78,38 @@ public class TestSiteComposer : IComposer
             options.ResolveUserId = ctx =>
                 ctx.RequestServices.GetRequiredService<PublicVisitorIdentityResolver>().Resolve().UserId;
 
-            // Two disjoint personas for this demo — see NjfContributionsTeam's own remarks for
-            // why an authenticated member never also gets PublicVisitorQueue access in the same
-            // profile (RestrictToInstanceOwner is a single flag for the whole ActorProfile in
+            // Three personas for this demo, not two: an anonymous/plain-member citizen
+            // (public-visitor), an NJF Contributions Team caseworker (NjfContributionsTeam —
+            // only njf-caseworker@prism.local in keycloak/realm-export.json, see that class's own
+            // roster remarks), and a signed-in Prism member who is neither (NoAccessProfile —
+            // demo@prism.local is deliberately this, so signing in never silently grants NJF
+            // access just from being authenticated). See NjfContributionsTeam's own remarks for
+            // why an NJF caseworker never also gets PublicVisitorQueue access in the same profile
+            // (RestrictToInstanceOwner is a single flag for the whole ActorProfile in
             // Wayfinder.Engine 0.7.2 — no per-queue mechanism exists yet to mix an
-            // instance-owner-restricted queue with a team-wide one). A signed-in Prism member can
-            // still be BOTH personas at different times, though: the juggling licence journey is
-            // reachable while signed in (to pick up the membership-tier fee discount — see
-            // apply-for-a-juggling-licence.json's serviceInputsResolver wiring), so this resolver
-            // picks the persona from *which page originated the request*, not just whether the
-            // caller is authenticated. A real host would resolve team membership from its own
-            // claims/role source instead of "any authenticated member".
+            // instance-owner-restricted queue with a team-wide one). Every persona can still reach
+            // the juggling licence journey, though (an NJF caseworker is also a citizen; a plain
+            // member gets their membership-tier fee discount — see
+            // apply-for-a-juggling-licence.json's serviceInputsResolver wiring): this resolver
+            // picks the persona from *which page originated the request* for that one page, not
+            // just from who's signed in.
             options.ResolveAccessProfile = ctx =>
-                IsJugglingLicenceContext(ctx)
-                    ? PublicVisitorQueue.AccessProfile
-                    : ctx.User.Identity?.IsAuthenticated == true
-                        ? NjfContributionsTeam.AccessProfile
-                        : PublicVisitorQueue.AccessProfile;
+            {
+                if (IsJugglingLicenceContext(ctx))
+                {
+                    return PublicVisitorQueue.AccessProfile;
+                }
+
+                if (ctx.User.Identity?.IsAuthenticated != true)
+                {
+                    return PublicVisitorQueue.AccessProfile;
+                }
+
+                var email = ctx.RequestServices.GetRequiredService<IPrismUserContext>().Email;
+                return NjfContributionsTeam.IsMember(email)
+                    ? NjfContributionsTeam.AccessProfile
+                    : NjfContributionsTeam.NoAccessProfile;
+            };
         });
 
         // ServiceRequestPollController (the join-gateway waiting screen's own poll endpoint)

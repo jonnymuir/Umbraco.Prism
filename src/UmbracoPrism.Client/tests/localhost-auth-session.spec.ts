@@ -3,8 +3,15 @@ import { test, expect, type Page, type Response } from '@playwright/test';
 import { LiveAppHost } from './support/live-app-host';
 
 const appHost = new LiveAppHost();
+// demo@prism.local is a plain Prism member with no NJF Contributions Team access;
+// njf-caseworker@prism.local is the only account on that team's roster — see
+// NjfContributionsTeam's own remarks (both seeded in keycloak/realm-export.json).
 const demoCredentials = {
   username: 'demo@prism.local',
+  password: 'password'
+};
+const njfCaseworkerCredentials = {
+  username: 'njf-caseworker@prism.local',
   password: 'password'
 };
 
@@ -31,7 +38,19 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await callBusinessAppApi(page);
   });
 
-  test('signed-in member can open the caseworker queue', async ({ page }) => {
+  test('NJF caseworker can open the caseworker queue', async ({ page }) => {
+    await signInAsCaseworker(page);
+    await page.goto('/caseworker-queue');
+
+    await expect(page.getByRole('heading', { name: 'Caseworker queue' })).toBeVisible();
+    await expect(page.getByText('No service requests match the current filters')).toBeVisible();
+  });
+
+  test('signed-in plain member cannot see any rows on the caseworker queue', async ({ page }) => {
+    // demo@prism.local is not on the NJF Contributions Team roster — the worklist block filters
+    // every row out for them (NjfContributionsTeam.NoAccessProfile), rendering the same
+    // empty-state text a genuinely empty team queue would. Not a security leak (nothing real is
+    // visible or actionable either way) — see that class's own remarks on this UX trade-off.
     await signIn(page);
     await page.goto('/caseworker-queue');
 
@@ -77,13 +96,22 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible();
   });
 
-  test('signed-in member can reach the Wayfinder service design demo from the dashboard', async ({ page }) => {
-    await signIn(page);
+  test('NJF caseworker can reach the Wayfinder service design demo from the dashboard', async ({ page }) => {
+    await signInAsCaseworker(page);
     await openDashboard(page);
 
+    await expect(page.getByRole('heading', { name: 'Wayfinder service design demo' })).toBeVisible();
     await page.getByRole('link', { name: 'Start' }).click();
     await expect(page).toHaveURL(/\/submit-contributions-file\/?$/);
     await expect(page.getByLabel('Contributions file')).toBeVisible();
+  });
+
+  test('signed-in plain member sees no Wayfinder service design demo section on the dashboard', async ({ page }) => {
+    await signIn(page);
+    await openDashboard(page);
+
+    await expect(page.getByRole('heading', { name: 'Wayfinder service design demo' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'View queue' })).toHaveCount(0);
   });
 
   test('signed-in member stays signed in across a full restart', async ({ page }) => {
@@ -114,21 +142,21 @@ async function expectSignedOutHome(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: /Your account, your way/i })).toBeVisible();
 }
 
-async function expectSignedInHome(page: Page): Promise<void> {
+async function expectSignedInHome(page: Page, displayName = 'Demo User'): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Go to Dashboard' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign Out' }).first()).toBeVisible();
-  await expect(page.getByText('Welcome back, Demo User')).toBeVisible();
+  await expect(page.getByText(`Welcome back, ${displayName}`)).toBeVisible();
 }
 
-async function signIn(page: Page): Promise<void> {
+async function signIn(page: Page, credentials: { username: string; password: string } = demoCredentials): Promise<void> {
   await expectSignedOutHome(page);
 
   await page.getByRole('link', { name: 'Sign In' }).click();
 
   await expect(page.locator('#username')).toBeVisible({ timeout: 120_000 });
-  await page.locator('#username').fill(demoCredentials.username);
-  await page.locator('#password').fill(demoCredentials.password);
+  await page.locator('#username').fill(credentials.username);
+  await page.locator('#password').fill(credentials.password);
 
   const capture = captureResponses(page, /localhost:44345\/(signin-oidc|dashboard\/?$|$)/);
   try {
@@ -145,7 +173,12 @@ async function signIn(page: Page): Promise<void> {
     capture.dispose();
   }
 
-  await expectSignedInHome(page);
+  const displayName = credentials.username === njfCaseworkerCredentials.username ? 'NJF Caseworker' : 'Demo User';
+  await expectSignedInHome(page, displayName);
+}
+
+async function signInAsCaseworker(page: Page): Promise<void> {
+  await signIn(page, njfCaseworkerCredentials);
 }
 
 async function signOut(page: Page): Promise<void> {
@@ -217,9 +250,10 @@ async function openDashboard(page: Page): Promise<void> {
     capture.dispose();
   }
 
-  await expect(page.getByRole('link', { name: 'View queue' })).toBeVisible();
+  // "View queue" / "Wayfinder service design demo" only render for the NJF Contributions Team
+  // roster (see NjfContributionsTeam) — this helper is used by both personas, so assert only
+  // what every signed-in member sees.
   await expect(page.getByRole('button', { name: 'Call Mock Business App API' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Wayfinder service design demo' })).toBeVisible();
 }
 
 type ResponseCapture = {
