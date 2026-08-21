@@ -1,7 +1,6 @@
 // Executable counterpart of docs/walkthroughs/design-system.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { test } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
-import { resetServiceBlueprints } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
 
@@ -15,10 +14,6 @@ test.describe('Design system walkthrough', () => {
 
   test.afterAll(async () => {
     await appHost.stop();
-  });
-
-  test.beforeEach(async ({ request }) => {
-    await resetServiceBlueprints(request);
   });
 
   // Storybook pages are automatable. Backoffice branding editor steps require

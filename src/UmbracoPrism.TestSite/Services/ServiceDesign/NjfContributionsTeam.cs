@@ -14,19 +14,18 @@ namespace UmbracoPrism.TestSite.Services.ServiceDesign;
 /// queue too.
 /// </summary>
 /// <remarks>
-/// Two queues, not one — confirmed live: pickup is mandatory for any non-owner-restricted queue
-/// with no <c>assign-to-initiator</c> policy (see docs/guides/team-assignment.md), including the
-/// very first stage of a brand-new instance. A single team-tray queue covering both "submit a new
-/// file" and "review a decision" would leave the initiator unable to submit their own first form
-/// (nothing exists yet to pick up). <see cref="UploadKey"/> is <c>assign-to-initiator</c> so
-/// starting fresh needs no pickup; <see cref="ReviewKey"/> is <c>team-tray</c> so the worklist's
-/// pickup/putback UI actually has something to demonstrate.
+/// One queue, not two — a submission comes back to whoever initiated it, all the way through
+/// review, correction, and resubmission, never a teammate. Deliberately not <c>team-tray</c>: the
+/// bulk-contributions blueprint's own resubmit loop re-fires the same Split/Join pair the initial
+/// submit does, and a Join gateway's own "human side" arrival is tagged with whichever queue the
+/// triggering cursor is currently sitting in (see <c>ProcessManagerEngine</c>'s split-fan-out
+/// logic) — a second, review-only queue meant the resubmit's arrival never matched what the join
+/// was still waiting for, wedging the wait screen forever. Found live, via a real Playwright
+/// walkthrough that got all the way to a working "Resubmit corrected file" button before hanging.
 /// </remarks>
 public static class NjfContributionsTeam
 {
     public const string UploadKey = "njf-upload";
-    public const string ReviewKey = "njf-review";
-    public const string TeamId = "njf-contributions-team";
     public const string RoleGate = "njf-contributions-review";
 
     /// <summary>
@@ -51,12 +50,11 @@ public static class NjfContributionsTeam
 
     public static readonly ActorProfile AccessProfile = new()
     {
-        VisibleQueues = [UploadKey, ReviewKey],
-        StartableQueues = [UploadKey, ReviewKey],
-        ActionableQueues = [UploadKey, ReviewKey],
+        VisibleQueues = [UploadKey],
+        StartableQueues = [UploadKey],
+        ActionableQueues = [UploadKey],
         RestrictToInstanceOwner = false,
-        Capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { RoleGate },
-        TeamIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { TeamId }
+        Capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { RoleGate }
     };
 
     /// <summary>

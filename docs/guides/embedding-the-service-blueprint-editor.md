@@ -343,7 +343,6 @@ Those three interfaces keep the domains separate. Wayfinder never crosses into y
 
 ## Related Documentation
 
-- [Gateway-First Authoring](../walkthroughs/gateway-first-authoring.md) — how the gateway-and-route model works
 - [Service Blueprint Editor Composition](./service-blueprint-editor-composition.md) — advanced patterns for custom hosts
 - [Authoring a Service Blueprint](../walkthroughs/authoring-a-service-blueprint.md) — how to author service blueprints in the editor
 

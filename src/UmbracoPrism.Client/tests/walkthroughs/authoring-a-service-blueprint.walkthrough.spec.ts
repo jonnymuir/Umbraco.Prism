@@ -1,7 +1,7 @@
 // Executable counterpart of docs/walkthroughs/authoring-a-service-blueprint.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { test } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
-import { signIn, resetServiceBlueprints } from './support/walkthrough';
+import { signIn } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
 
@@ -15,10 +15,6 @@ test.describe('Authoring a service blueprint walkthrough', () => {
 
   test.afterAll(async () => {
     await appHost.stop();
-  });
-
-  test.beforeEach(async ({ request }) => {
-    await resetServiceBlueprints(request);
   });
 
   // Most of this walkthrough covers source files and JSON — not interactive browser

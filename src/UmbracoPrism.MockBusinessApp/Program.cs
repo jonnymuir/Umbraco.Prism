@@ -24,6 +24,7 @@ builder.Services.AddHttpClient();
 // and back-stage (caseworker) hosting both now live entirely in Wayfinder.Umbraco, in-process —
 // this app has no engine of its own any more.
 builder.Services.AddSingleton<SupportSystemStore>();
+builder.Services.AddSingleton<ContributionsStore>();
 
 var app = builder.Build();
 
@@ -59,6 +60,7 @@ app.UseAuthorization();
 // not something Wayfinder or Prism prescribes — this mirrors SafetyNetUnderwriting's own
 // reference-app posture in the core Wayfinder repo.
 app.MapSupportSystem();
+app.MapContributions();
 
 app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user, HttpContext context, ILogger<Program> logger) =>
 {

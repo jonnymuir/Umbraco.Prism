@@ -1,42 +1,45 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using Wayfinder.Engine.Abstractions;
+using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Models.ServiceDesign.SupportSystems;
 
 namespace UmbracoPrism.TestSite.Services.ServiceDesign;
 
 /// <summary>
-/// Registers the <see cref="SupportSystemDescriptor"/> for Mock Business App's own generic
-/// support-system surface (<c>UmbracoPrism.MockBusinessApp/Services/SupportSystem/SupportSystemEndpoints.cs</c>)
-/// — a real, separate downstream decisioning backend, the same pattern
-/// <c>SafetyNetUnderwriting</c> demonstrates in the core Wayfinder repo (see
-/// docs/guides/support-systems.md there). Deliberately whole-file, not row-level: Mock Business
-/// App's <c>/submissions</c> endpoint is plain JSON, not a file-in/file-out exchange, so this
-/// capability submits just the file's own metadata (name, size) for a human reviewer at Mock
-/// Business App to approve/reject via its own <c>/queue</c> page — see
-/// <see cref="MockBusinessAppContributionsClient"/> for the HTTP calls.
+/// Registers the <see cref="SupportSystemDescriptor"/> for Mock Business App's own contributions
+/// validation endpoints (<c>UmbracoPrism.MockBusinessApp/Services/SupportSystem/ContributionsEndpoints.cs</c>)
+/// — a real, separate downstream system that validates every row of an NJF contributions file
+/// automatically and hands back the same file annotated with a matched member id and any
+/// error/warning text, the exact shape <c>bulk-dataset-ingest</c> expects. Mirrors the core
+/// Wayfinder repo's own <c>SafetyNetUnderwriting</c> reference implementation of the identical
+/// pattern (see docs/guides/bulk-data-review.md there) — automatic rules, not a human decision,
+/// so there's no staff queue involved for this capability and only Poll makes sense as a
+/// completion mode.
 /// </summary>
 public static class MockBusinessAppContributions
 {
     public const string SupportSystemKey = "mock-business-app-contributions";
     public const string ValidateContributionsFileCapability = "validate-contributions-file";
-    public const string ApprovedOutcome = "approved";
-    public const string RejectedOutcome = "rejected";
+    public const string ProcessedOutcome = "processed";
+    public const string ContributionsResponseFileOutputKey = "contributionsResponseFile";
 
     public static void Register() =>
         SupportSystemRegistry.Register(new SupportSystemDescriptor
         {
             Key = SupportSystemKey,
             DisplayName = "Mock Business App",
-            Description = "A real, separate downstream system that reviews an NJF contributions file submission.",
+            Description = "A real, separate downstream system that validates an NJF contributions file submission.",
             Capabilities =
             [
                 new SupportSystemCapabilityDescriptor
                 {
                     Key = ValidateContributionsFileCapability,
                     DisplayName = "Validate a contributions file",
-                    Description = "Submits the uploaded file's own metadata to Mock Business App's staff queue for a human approve/reject decision.",
+                    Description = "Uploads a CSV of member contributions; Mock Business App returns the same file " +
+                                  "annotated with a matched member ID and per-row error/warning status — see " +
+                                  "docs/guides/bulk-data-review.md in the core Wayfinder repo.",
                     Inputs =
                     [
                         new()
@@ -50,37 +53,39 @@ public static class MockBusinessAppContributions
                     [
                         new()
                         {
-                            Key = "contributionsDecision", Title = "Decision",
-                            ValueKind = ComponentPropertyValueKind.String,
-                        },
-                        new()
-                        {
-                            Key = "contributionsDecisionNotes", Title = "Decision notes",
+                            Key = ContributionsResponseFileOutputKey, Title = "Annotated response file",
+                            Description = "Mock Business App's own response — the same CSV with a matched member " +
+                                          "ID and per-row error/warning columns appended.",
                             ValueKind = ComponentPropertyValueKind.String,
                         },
                     ],
                     SupportedCompletionModes = [SupportSystemCompletionMode.Poll],
-                    Outcomes =
-                    [
-                        new() { Key = ApprovedOutcome, DisplayName = "Approved" },
-                        new() { Key = RejectedOutcome, DisplayName = "Rejected" },
-                    ],
+                    Outcomes = [new() { Key = ProcessedOutcome, DisplayName = "Processed" }],
                 },
             ],
         });
 }
 
 /// <summary>
-/// Talks to Mock Business App's generic support-system endpoints over HTTP — the host-side half
-/// of the registration in <see cref="MockBusinessAppContributions"/>. Reads only the uploaded
-/// file's own metadata (<see cref="Wayfinder.Models.ServiceDesign.ServiceRequestFileReference.OriginalFileName"/>/
-/// <c>SizeBytes</c>) via the capability input's already-resolved
-/// <see cref="SupportSystemInputValue.FileReference"/> — never opens the file itself, since Mock
-/// Business App's own <c>/submissions</c> endpoint only accepts plain JSON fields, not a file body.
+/// Talks to the real, separately-running Mock Business App over HTTP — the host-side half of the
+/// registration in <see cref="MockBusinessAppContributions"/>. Reads file bytes itself via
+/// <see cref="IServiceRequestFileStorage"/> when a capability input resolves to a
+/// <see cref="ServiceRequestFileReference"/>, exactly the way any other host code reads an
+/// uploaded file — the engine that invoked this client never touched the bytes.
 /// </summary>
-public sealed class MockBusinessAppContributionsClient(IHttpClientFactory httpClientFactory) : ISupportSystemClient
+public sealed class MockBusinessAppContributionsClient(
+    IHttpClientFactory httpClientFactory,
+    IServiceRequestFileStorage fileStorage) : ISupportSystemClient
 {
     public const string HttpClientName = "mock-business-app-contributions";
+
+    // CheckStatusAsync only ever gets a capabilityKey + receipt, no instanceId — but saving the
+    // response file via IServiceRequestFileStorage needs one (SaveAsync partitions by instance).
+    // Captured here at InvokeAsync time instead, the same "no server-side session, just correlate
+    // by the one token we're given" shape SupportSystemInvocationContext.InvocationId already
+    // uses elsewhere. This client is a singleton shared across concurrent requests, so this must
+    // be concurrency-safe.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _instanceIdByExternalReference = new();
 
     public string SupportSystemKey => MockBusinessAppContributions.SupportSystemKey;
 
@@ -90,24 +95,20 @@ public sealed class MockBusinessAppContributionsClient(IHttpClientFactory httpCl
         SupportSystemInvocationContext context,
         CancellationToken ct = default)
     {
-        var fileReference = inputs.GetValueOrDefault("file")?.FileReference;
+        using var form = new MultipartFormDataContent();
+        await AddFilePartAsync(form, inputs, ct);
 
         var client = httpClientFactory.CreateClient(HttpClientName);
-        var response = await client.PostAsJsonAsync("/submissions", new
-        {
-            fileName = fileReference?.OriginalFileName ?? "(unknown file)",
-            sizeBytes = fileReference?.SizeBytes ?? 0
-        }, ct);
+        var response = await client.PostAsync("/contributions/submissions", form, ct);
         response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadFromJsonAsync<JsonObject>(ct)
                    ?? throw new InvalidOperationException("Mock Business App returned an empty submission response.");
+        var submissionId = body["submissionId"]?.GetValue<string>()
+                            ?? throw new InvalidOperationException("Mock Business App response had no submissionId.");
 
-        return new SupportSystemInvocationReceipt
-        {
-            ExternalReference = body["submissionId"]?.GetValue<string>()
-                                 ?? throw new InvalidOperationException("Mock Business App response had no submissionId.")
-        };
+        _instanceIdByExternalReference[submissionId] = context.InstanceId;
+        return new SupportSystemInvocationReceipt { ExternalReference = submissionId };
     }
 
     public async Task<SupportSystemOutcome?> CheckStatusAsync(
@@ -116,27 +117,72 @@ public sealed class MockBusinessAppContributionsClient(IHttpClientFactory httpCl
         CancellationToken ct = default)
     {
         var client = httpClientFactory.CreateClient(HttpClientName);
-        var response = await client.GetAsync($"/submissions/{receipt.ExternalReference}", ct);
-        response.EnsureSuccessStatusCode();
+        var statusResponse = await client.GetAsync($"/contributions/submissions/{receipt.ExternalReference}", ct);
+        statusResponse.EnsureSuccessStatusCode();
 
-        var body = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
-        var status = body?["status"]?.GetValue<string>();
-        if (status != "decided")
+        var statusBody = await statusResponse.Content.ReadFromJsonAsync<JsonObject>(ct);
+        if (statusBody?["status"]?.GetValue<string>() != "processed")
         {
             return null;
         }
 
-        var outcomeKey = body?["outcomeKey"]?.GetValue<string>() ?? MockBusinessAppContributions.RejectedOutcome;
+        var fileResponse = await client.GetAsync($"/contributions/submissions/{receipt.ExternalReference}/file", ct);
+        fileResponse.EnsureSuccessStatusCode();
+        var csvBytes = await fileResponse.Content.ReadAsByteArrayAsync(ct);
+
+        if (!_instanceIdByExternalReference.TryGetValue(receipt.ExternalReference, out var instanceId))
+        {
+            throw new InvalidOperationException(
+                $"No instance id captured for submission '{receipt.ExternalReference}' — InvokeAsync must run before CheckStatusAsync.");
+        }
+
+        await using var contentStream = new MemoryStream(csvBytes);
+        var storageKey = await fileStorage.SaveAsync(
+            instanceId, MockBusinessAppContributions.ContributionsResponseFileOutputKey, contentStream, "contributions-response.csv", ct);
+
+        var fileReference = new ServiceRequestFileReference
+        {
+            StorageKey = storageKey,
+            OriginalFileName = "contributions-response.csv",
+            ContentType = "text/csv",
+            SizeBytes = csvBytes.LongLength,
+        };
+
         return new SupportSystemOutcome
         {
-            OutcomeKey = outcomeKey,
+            OutcomeKey = MockBusinessAppContributions.ProcessedOutcome,
             ResultPayload = new JsonObject
             {
-                ["contributionsDecision"] = outcomeKey,
-                ["contributionsDecisionNotes"] = outcomeKey == MockBusinessAppContributions.ApprovedOutcome
-                    ? "Mock Business App approved this file."
-                    : "Mock Business App rejected this file — see the staff queue for details."
+                [MockBusinessAppContributions.ContributionsResponseFileOutputKey] = System.Text.Json.JsonSerializer.SerializeToNode(fileReference)
             }
         };
+    }
+
+    private async Task AddFilePartAsync(
+        MultipartFormDataContent form, IReadOnlyDictionary<string, SupportSystemInputValue> inputs, CancellationToken ct)
+    {
+        if (inputs.GetValueOrDefault("file")?.FileReference is not { } fileReference)
+        {
+            return;
+        }
+
+        var fileStream = await fileStorage.OpenReadAsync(fileReference.StorageKey, ct);
+        if (fileStream is null)
+        {
+            return;
+        }
+
+        await using (fileStream)
+        {
+            using var memory = new MemoryStream();
+            await fileStream.CopyToAsync(memory, ct);
+            var fileContent = new ByteArrayContent(memory.ToArray());
+            if (!string.IsNullOrWhiteSpace(fileReference.ContentType))
+            {
+                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(fileReference.ContentType);
+            }
+
+            form.Add(fileContent, "file", fileReference.OriginalFileName);
+        }
     }
 }

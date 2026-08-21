@@ -132,8 +132,7 @@ public class TestSiteComposer : IComposer
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
             {
                 [PublicVisitorQueue.Key] = ComponentTypeRegistry.AllDiscriminators,
-                [NjfContributionsTeam.UploadKey] = ComponentTypeRegistry.AllDiscriminators,
-                [NjfContributionsTeam.ReviewKey] = ComponentTypeRegistry.AllDiscriminators
+                [NjfContributionsTeam.UploadKey] = ComponentTypeRegistry.AllDiscriminators
             }));
 
         // Demonstrates the service-sourced field extension point for a logged-in member.
@@ -170,18 +169,30 @@ public class TestSiteComposer : IComposer
                 sp.GetRequiredService<IHttpContextAccessor>(),
                 (instance, definition, _) =>
                 {
-                    if (!string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceBlueprintKey, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceBlueprintKey, StringComparison.OrdinalIgnoreCase))
                     {
-                        return null;
+                        var membership = membershipClient.GetForUser(instance.UserId);
+                        return new Dictionary<string, object?>
+                        {
+                            ["member"] = new Dictionary<string, object?> { ["tier"] = membership.Tier }
+                        };
                     }
 
-                    var membership = membershipClient.GetForUser(instance.UserId);
-                    return new Dictionary<string, object?>
-                    {
-                        ["member"] = new Dictionary<string, object?> { ["tier"] = membership.Tier }
-                    };
+                    // Generic fallback for every other blueprint's own source: "service" calc
+                    // fields — mirrors the core Wayfinder repo's own Wayfinder.ReferenceApp
+                    // resolver exactly. Most of these (e.g. bulk-contributions.json's
+                    // contributionsErrorCount/WarningCount/AcceptedCount/DirtyCount) aren't a true
+                    // external lookup a host needs to fetch at all — they're written into
+                    // FieldValues by the engine's own bulk-dataset-ingest action; the calc
+                    // evaluator still requires *something* supplied for every declared service
+                    // field or it throws CalculationException, so this passes through whatever's
+                    // already there (null before the action first runs, the real value after).
+                    return (definition.Calculations?.Fields ?? new Dictionary<string, Wayfinder.Models.ServiceDesign.Calculations.ServiceBlueprintCalculationField>())
+                        .Where(field => string.Equals(field.Value.Source, "service", StringComparison.OrdinalIgnoreCase))
+                        .ToDictionary(field => field.Key, field => instance.FieldValues.GetValueOrDefault(field.Key));
                 },
-                sp.GetServices<ISupportSystemClient>());
+                sp.GetServices<ISupportSystemClient>(),
+                sp.GetRequiredService<IBulkDatasetStore>());
         });
 
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WayfinderServicePageContentType>();

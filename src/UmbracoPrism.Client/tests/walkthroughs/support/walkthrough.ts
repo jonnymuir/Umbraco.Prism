@@ -2,7 +2,7 @@
  * Shared helpers for walkthrough executable specs.
  * See .claude/skills/walkthroughs-as-executable-specs/SKILL.md for the policy.
  */
-import { expect, type Page, type APIRequestContext } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -142,9 +142,6 @@ export async function openDashboard(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'Call Mock Business App API' })).toBeVisible({ timeout: 30_000 });
 }
 
-export async function resetServiceBlueprints(request: APIRequestContext): Promise<void> {
-  await request.delete(`${businessAppOrigin}/api/test/reset`, { ignoreHTTPSErrors: true });
-}
 
 /**
  * Set the `prism-screenshot-mode` cookie so the server suppresses the mobile
