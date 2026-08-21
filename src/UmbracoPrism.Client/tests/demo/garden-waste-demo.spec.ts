@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { signIn, resetServiceBlueprints, businessAppOrigin } from '../walkthroughs/support/walkthrough';
+import { signIn, businessAppOrigin } from '../walkthroughs/support/walkthrough';
 import { beat, showSlate, clearSlate, moveNarrationTo, startNarrationTimeline, getNarrationTimeline } from './support/narration';
 import { humanClick, humanType } from './support/human-interactions';
 
@@ -100,10 +100,6 @@ async function connectToClaudeTerminal(page: Page): Promise<void> {
 }
 
 test.describe.serial('garden waste permit demo', () => {
-  test.beforeAll(async ({ request }) => {
-    await resetServiceBlueprints(request);
-  });
-
   let page: Page;
   let publishedUrl: string;
 
@@ -780,9 +776,11 @@ test.describe.serial('garden waste permit demo', () => {
     // clicking the nav link here just RESUMES that instance at its current state instead of
     // starting fresh (confirmed live: landed straight on the review stage, bin count already "5"
     // from Act 6, address "Not answered" since that field didn't exist yet when Act 6 ran) —
-    // exactly wrong for "let's run it again" framing, which means starting over. Only the
-    // instance needs clearing; resetServiceBlueprints() doesn't touch the definition Act 7 just saved.
-    await resetServiceBlueprints(request);
+    // exactly wrong for "let's run it again" framing, which means starting over.
+    // TODO: this recording script owns no app-host lifecycle of its own (it drives an
+    // already-running stack an operator starts by hand — see demo:record's own npm script), so
+    // it can't do a full tear-down-and-restart between acts the way LiveAppHost-owning specs now
+    // do. Needs its own solution before Act 7 can genuinely start Act 6's instance over.
 
     // Two-stage ground truth now: how-many-bins then property-address before the fee stage, so the
     // expected-fee simulation has to walk both steps (discovering each stage's own action key from

@@ -734,34 +734,24 @@ public class DownstreamDemoController(
             TestSiteSeedContract.DashboardAlias,
             TestSiteSeedContract.DashboardName,
             TestSiteSeedContract.DashboardUrl);
-        var stagePage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.BlueprintKey),
-            TestSiteSeedContract.StagePageAlias,
-            TestSiteSeedContract.StagePageName,
-            TestSiteSeedContract.ServiceRequestPageUrl);
-        var serviceRequestHub = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.ServiceRequestHubAlias),
-            TestSiteSeedContract.ServiceRequestHubAlias,
-            TestSiteSeedContract.ServiceRequestHubName,
-            TestSiteSeedContract.ServiceRequestHubUrl);
-        var planningStagePage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.PlanningBlueprintKey),
-            TestSiteSeedContract.StagePageAlias,
-            TestSiteSeedContract.PlanningStagePageName,
-            TestSiteSeedContract.PlanningStagePageUrl);
-        var paymentDemoPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.PaymentDemoBlueprintKey),
-            TestSiteSeedContract.StagePageAlias,
-            TestSiteSeedContract.PaymentDemoPageName,
-            TestSiteSeedContract.PaymentDemoPageUrl);
-        var informationRequestPage = BuildSeededRoute(
-            TestSiteSeedContract.FindPublishedStagePage(roots, TestSiteSeedContract.InformationRequestBlueprintKey),
-            TestSiteSeedContract.StagePageAlias,
-            TestSiteSeedContract.InformationRequestPageName,
-            TestSiteSeedContract.InformationRequestPageUrl);
+        var jugglingLicencePage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedWayfinderServicePageByName(roots, TestSiteSeedContract.JugglingLicencePageName),
+            WayfinderServicePageContentType.Alias,
+            TestSiteSeedContract.JugglingLicencePageName,
+            TestSiteSeedContract.JugglingLicencePageUrl);
+        var contributionsPage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedWayfinderServicePageByName(roots, TestSiteSeedContract.ContributionsPageName),
+            WayfinderServicePageContentType.Alias,
+            TestSiteSeedContract.ContributionsPageName,
+            TestSiteSeedContract.ContributionsPageUrl);
+        var caseworkerQueuePage = BuildSeededRoute(
+            TestSiteSeedContract.FindPublishedWayfinderServicePageByName(roots, TestSiteSeedContract.CaseworkerQueuePageName),
+            WayfinderServicePageContentType.Alias,
+            TestSiteSeedContract.CaseworkerQueuePageName,
+            TestSiteSeedContract.CaseworkerQueuePageUrl);
         var settings = TestSiteSeedContract.FindPublishedByAlias(roots, TestSiteSeedContract.SettingsAlias);
         var mobileNav = BuildMobileNavStatus(settings);
-        var challengePath = $"/auth/login?ReturnUrl={Uri.EscapeDataString(TestSiteSeedContract.ServiceRequestHubUrl)}";
+        var challengePath = $"/auth/login?ReturnUrl={Uri.EscapeDataString(TestSiteSeedContract.CaseworkerQueuePageUrl)}";
         // routeContractReady waits for every authored URL the Playwright suite navigates to, so
         // the first request to any of them lands on a fully-warm Umbraco route + Razor view —
         // not a cold-start that returns 404 / Home / a half-rendered page (the symptom that
@@ -770,11 +760,9 @@ public class DownstreamDemoController(
         var routeContractReady =
             home.MatchesExpected &&
             dashboard.MatchesExpected &&
-            stagePage.MatchesExpected &&
-            serviceRequestHub.MatchesExpected &&
-            planningStagePage.MatchesExpected &&
-            paymentDemoPage.MatchesExpected &&
-            informationRequestPage.MatchesExpected &&
+            jugglingLicencePage.MatchesExpected &&
+            contributionsPage.MatchesExpected &&
+            caseworkerQueuePage.MatchesExpected &&
             mobileNav.Ready;
 
         return new SeedContractStatus(
@@ -783,11 +771,9 @@ public class DownstreamDemoController(
             Auth: new SeedAuthStatus("/auth/login", "/auth/logout", challengePath),
             Home: home,
             Dashboard: dashboard,
-            StagePage: stagePage,
-            ServiceRequestHub: serviceRequestHub,
-            PlanningStagePage: planningStagePage,
-            PaymentDemoPage: paymentDemoPage,
-            InformationRequestPage: informationRequestPage,
+            JugglingLicencePage: jugglingLicencePage,
+            ContributionsPage: contributionsPage,
+            CaseworkerQueuePage: caseworkerQueuePage,
             MobileNav: mobileNav);
     }
 
@@ -816,16 +802,16 @@ public class DownstreamDemoController(
             ?? [];
         var hasHome = navUrls.Contains(NormalizePath(TestSiteSeedContract.HomePageUrl));
         var hasDashboard = navUrls.Contains(NormalizePath(TestSiteSeedContract.DashboardUrl));
-        var hasServiceRequestHub = navUrls.Contains(NormalizePath(TestSiteSeedContract.ServiceRequestHubUrl));
+        var hasCaseworkerQueue = navUrls.Contains(NormalizePath(TestSiteSeedContract.CaseworkerQueuePageUrl));
         var ready =
             settings != null &&
             mobileNavLinks != null &&
             mobileNavLinks.Any() &&
             hasHome &&
             hasDashboard &&
-            hasServiceRequestHub;
+            hasCaseworkerQueue;
 
-        return new MobileNavStatus(settings != null, mobileNavLinks?.Count ?? 0, hasHome, hasDashboard, hasServiceRequestHub, ready);
+        return new MobileNavStatus(settings != null, mobileNavLinks?.Count ?? 0, hasHome, hasDashboard, hasCaseworkerQueue, ready);
     }
 
     private sealed record SeedContractStatus(
@@ -834,11 +820,9 @@ public class DownstreamDemoController(
         SeedAuthStatus Auth,
         SeededRouteStatus Home,
         SeededRouteStatus Dashboard,
-        SeededRouteStatus StagePage,
-        SeededRouteStatus ServiceRequestHub,
-        SeededRouteStatus PlanningStagePage,
-        SeededRouteStatus PaymentDemoPage,
-        SeededRouteStatus InformationRequestPage,
+        SeededRouteStatus JugglingLicencePage,
+        SeededRouteStatus ContributionsPage,
+        SeededRouteStatus CaseworkerQueuePage,
         MobileNavStatus MobileNav);
 
     private sealed record SeedAuthStatus(string LoginPath, string LogoutPath, string ChallengePath);
@@ -856,7 +840,7 @@ public class DownstreamDemoController(
         int ItemCount,
         bool HasHome,
         bool HasDashboard,
-        bool HasServiceRequestHub,
+        bool HasCaseworkerQueue,
         bool Ready);
 
     private static string NormalizePath(string? path)

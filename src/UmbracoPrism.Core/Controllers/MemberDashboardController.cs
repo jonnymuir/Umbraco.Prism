@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Cms.Web.Common.Controllers;
@@ -19,8 +18,7 @@ public class MemberDashboardController(
     ILogger<MemberDashboardController> logger,
     ICompositeViewEngine compositeViewEngine,
     IUmbracoContextAccessor umbracoContextAccessor,
-    IPrismContext prismContext,
-    IConfiguration configuration)
+    IPrismContext prismContext)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     /// <summary>
@@ -51,16 +49,6 @@ public class MemberDashboardController(
                           ?? User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
                           ?? "";
         ViewBag.Tenant = prismContext.CurrentTenant;
-
-        // Derive the MockBusinessApp service-desk admin URL from the configured public base URL.
-        // In Codespaces this resolves to the forwarded port URL; locally it is https://localhost:7245.
-        var businessAppApiBase = configuration["PrismBusinessApp:ApiBaseUrl"]?.TrimEnd('/');
-        ViewBag.ServiceDeskUrl = string.IsNullOrWhiteSpace(businessAppApiBase)
-            ? null
-            : $"{businessAppApiBase}/admin/service-desk";
-        ViewBag.ServiceBlueprintEditorUrl = string.IsNullOrWhiteSpace(businessAppApiBase)
-            ? null
-            : $"{businessAppApiBase}/service-blueprint-editor";
 
         // Render the authored dashboard view directly. On the first authenticated
         // navigation after /signin-oidc, CurrentTemplate(CurrentPage!) can settle

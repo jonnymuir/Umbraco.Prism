@@ -61,6 +61,11 @@ var needsKeycloakSveWorkaround =
 // NOTE: port is null to let Aspire assign an ephemeral port in Codespaces and local dev.
 // The actual runtime port is retrieved via keycloak.GetEndpoint("http") and passed to
 // services that need backchannel access (TestSite, MockBusinessApp, KeycloakProxy).
+// GOTCHA: --import-realm only imports on first boot — once the bind-mounted h2 data directory
+// (keycloakDataRoot below) has a persisted "prism-dev" realm, editing keycloak/realm-export.json
+// (e.g. adding a new demo user) has no effect until that directory is cleared, since Keycloak
+// won't re-import an already-existing realm. `rm -rf artifacts/aspire/keycloak-data/*` before the
+// next boot to force a fresh import.
 var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.0.0")
     .WithHttpEndpoint(port: null, targetPort: 8080, name: "http")
     .WithHttpHealthCheck("/realms/prism-dev/.well-known/openid-configuration")
@@ -94,6 +99,14 @@ var keycloakProxy = builder.AddProject("keycloak-proxy", "../UmbracoPrism.Keyclo
 // Add TestSite with environment variable pointing to Keycloak HTTPS proxy.
 // The Umbraco project uses a custom launch profile name, so select it explicitly
 // so Aspire can discover the applicationUrl endpoints and advertise them.
+// MockBusinessApp's own dashboard shortcut: its one remaining human-facing page, the generic
+// support-system staff queue (SupportSystemEndpoints.RenderQueue) — everything else it serves
+// (/api/backoffice/me, /submissions, /queue/{id}/decide, /debug/auth) is API-only. The
+// /admin/service-desk, /service-blueprint-editor, and /prism/service-blueprint-authoring/mcp
+// shortcuts this block used to advertise were all removed from MockBusinessApp when it was
+// narrowed to a genuine downstream support system (see docs/guides/support-systems.md in the
+// core Wayfinder repo) — service design authoring/hosting now lives entirely in
+// Wayfinder.Umbraco, in-process in TestSite.
 var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj", launchProfileName: "https")
     .WithEnvironment("PrismBusinessApp__Tenants__2__OidcAuthority", $"{keycloakProxyUrl}/realms/prism-dev")
     .WithUrls(ctx =>
@@ -104,49 +117,13 @@ var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusines
             .Select(uri => $"{uri.Scheme}://{uri.Authority}")
             .FirstOrDefault();
 
-        // Plain HTTP, for pointing local MCP clients (e.g. `claude mcp add --transport http`)
-        // at without hitting the ASP.NET Core dev cert's "unable to verify the first
-        // certificate" trust error most HTTP clients hit against it.
-        var httpBaseUrl = ctx.Urls
-            .Where(u => u.Url?.StartsWith("http://", StringComparison.OrdinalIgnoreCase) == true)
-            .Select(u => new Uri(u.Url!))
-            .Select(uri => $"{uri.Scheme}://{uri.Authority}")
-            .FirstOrDefault();
-
         if (baseUrl != null)
         {
             ctx.Urls.Add(new ResourceUrlAnnotation
             {
-                Url = $"{baseUrl}/admin/service-desk",
-                DisplayText = "Service Desk",
+                Url = $"{baseUrl}/queue",
+                DisplayText = "Support System Queue",
                 DisplayOrder = 1,
-            });
-
-            ctx.Urls.Add(new ResourceUrlAnnotation
-            {
-                Url = $"{baseUrl}/service-blueprint-editor",
-                DisplayText = "Service Blueprint Editor",
-                DisplayOrder = 2,
-            });
-
-            ctx.Urls.Add(new ResourceUrlAnnotation
-            {
-                Url = $"{baseUrl}/prism/service-blueprint-authoring/mcp",
-                DisplayText = "Service Blueprint Authoring MCP",
-                DisplayOrder = 3,
-            });
-        }
-
-        if (httpBaseUrl != null)
-        {
-            // This is the one to give `claude mcp add --transport http` — the HTTPS
-            // link above uses the local ASP.NET Core dev cert, which most MCP HTTP
-            // clients (including Claude Code's) won't trust.
-            ctx.Urls.Add(new ResourceUrlAnnotation
-            {
-                Url = $"{httpBaseUrl}/prism/service-blueprint-authoring/mcp",
-                DisplayText = "Service Blueprint Authoring MCP (HTTP)",
-                DisplayOrder = 4,
             });
         }
     });
@@ -160,29 +137,14 @@ var testsite = builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoP
     .WithEnvironment(ResetTestSiteRuntimeEnvironmentVariable, resetTestSiteRuntime)
     .WaitFor(keycloakProxy)
     .WaitFor(businessApp)
-    .WaitFor(prismClient)
-    .WithUrls(ctx =>
-    {
-        // CMS Service Blueprint's own MCP surface (MapPrismCmsServiceBlueprintAuthoringMcp) — a distinct
-        // endpoint from businessApp's above, gated by real backoffice admin auth (client
-        // credentials) rather than left open, since (unlike MockBusinessApp) TestSite has
-        // an existing manual-auth surface to match. See docs/guides/ai-service-blueprint-authoring.md.
-        var httpBaseUrl = ctx.Urls
-            .Where(u => u.Url?.StartsWith("http://", StringComparison.OrdinalIgnoreCase) == true)
-            .Select(u => new Uri(u.Url!))
-            .Select(uri => $"{uri.Scheme}://{uri.Authority}")
-            .FirstOrDefault();
-
-        if (httpBaseUrl != null)
-        {
-            ctx.Urls.Add(new ResourceUrlAnnotation
-            {
-                Url = $"{httpBaseUrl}/prism/service-blueprint-authoring/mcp",
-                DisplayText = "CMS Service Blueprint Authoring MCP (HTTP, requires backoffice admin auth)",
-                DisplayOrder = 1,
-            });
-        }
-    });
+    .WaitFor(prismClient);
+    // NOTE: this used to advertise a "CMS Service Blueprint Authoring MCP" shortcut at
+    // /prism/service-blueprint-authoring/mcp — that route belonged to Prism's own
+    // CmsServiceBlueprintAuthoringController, removed once Wayfinder.Umbraco's independent
+    // "Blueprints" backoffice section made it redundant (see docs/demos/licence-transfer-mcp-walkthrough.md's
+    // own historical-record note). Wayfinder.Engine.Mcp's MapServiceBlueprintAuthoringMcp() is
+    // still a real, current capability (see docs/guides/ai-service-blueprint-authoring.md in the
+    // core Wayfinder repo) — TestSite just doesn't wire it up today.
 
 // In Codespaces, tell the TestSite its public URL so OIDC generates the correct redirect_uri.
 if (testSitePublicUrl != null)

@@ -1,15 +1,9 @@
 // Executable counterpart of docs/walkthroughs/home-entry.md. See .claude/skills/walkthroughs-as-executable-specs/SKILL.md.
 import { test, expect } from '@playwright/test';
 import { LiveAppHost } from '../support/live-app-host';
-import { assertHealthyPage, step, signIn } from './support/walkthrough';
+import { assertHealthyPage, step, signIn, signInAsCaseworker } from './support/walkthrough';
 
 const appHost = new LiveAppHost();
-const expectedServiceBlueprintDemos = [
-  'Get in Touch',
-  'Apply for Planning Permission',
-  'Payment Demo',
-  'Request Information'
-] as const;
 
 test.describe('Home entry walkthrough', () => {
   test.describe.configure({ mode: 'serial' });
@@ -33,7 +27,7 @@ test.describe('Home entry walkthrough', () => {
     }, 'home-entry');
 
     await expect(page.getByRole('link', { name: 'Sign In' })).toBeVisible();
-    // Dashboard and service blueprint links should not be present for unauthenticated users
+    // Dashboard and service design links should not be present for unauthenticated users
     await expect(page.getByRole('link', { name: 'Go to Dashboard' })).toHaveCount(0);
   });
 
@@ -54,8 +48,24 @@ test.describe('Home entry walkthrough', () => {
     await expect(page.getByRole('link', { name: 'Sign In' })).toHaveCount(0);
   });
 
-  test('authenticated user navigates from homepage to dashboard and service blueprint hub', async ({ page }) => {
+  test('signed-in plain member sees the juggling licence card, not the NJF caseworker content', async ({ page }) => {
+    // demo@prism.local is deliberately a plain Prism member, not an NJF Contributions Team
+    // caseworker — see NjfContributionsTeam's own remarks. The dashboard reflects that: no
+    // "Wayfinder service design demo" section, no caseworker queue link.
     await signIn(page);
+    await page.getByRole('link', { name: 'Go to Dashboard' }).click();
+    await page.waitForURL(/\/dashboard\/?$/, { timeout: 30_000 });
+
+    const jugglingLicenceCard = serviceDesignDemoCard(page, 'Apply for a juggling licence');
+    await expect(jugglingLicenceCard).toBeVisible();
+    await expect(jugglingLicenceCard.getByRole('link', { name: 'Start application' })).toBeVisible();
+
+    await expect(page.getByRole('heading', { name: 'Wayfinder service design demo' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'View queue' })).toHaveCount(0);
+  });
+
+  test('NJF caseworker navigates from homepage to dashboard and the Wayfinder service design demo', async ({ page }) => {
+    await signInAsCaseworker(page);
 
     // Start from home
     await assertHealthyPage(page, {
@@ -76,35 +86,36 @@ test.describe('Home entry walkthrough', () => {
       screenshotSelector: '.dash-section'
     }, 'home-entry');
 
-    await expect(page.getByRole('link', { name: 'View Service Requests' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Service Blueprint Demos' })).toBeVisible();
-    for (const serviceBlueprintTitle of expectedServiceBlueprintDemos) {
-      await expect(serviceBlueprintDemoCard(page, serviceBlueprintTitle)).toBeVisible();
-      await expect(serviceBlueprintDemoCard(page, serviceBlueprintTitle).getByRole('link', { name: 'Start' })).toBeVisible();
-    }
+    await expect(page.getByRole('link', { name: 'View queue' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Wayfinder service design demo' })).toBeVisible();
+    const contributionsCard = serviceDesignDemoCard(page, 'Submit contributions file');
+    await expect(contributionsCard).toBeVisible();
+    await expect(contributionsCard.getByRole('link', { name: 'Start' })).toBeVisible();
 
-    // Navigate to the seeded service blueprint demo entry point first.
-    await serviceBlueprintDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
-    await page.waitForURL(/\/get-in-touch\/?$/, { timeout: 30_000 });
+    // Navigate to the seeded Wayfinder service design demo entry point.
+    await contributionsCard.getByRole('link', { name: 'Start' }).click();
+    await page.waitForURL(/\/submit-contributions-file\/?$/, { timeout: 30_000 });
 
     await step(page, '04-start-service-blueprint.png', {
-      url: /\/get-in-touch\/?$/,
-      heading: 'Your details'
+      url: /\/submit-contributions-file\/?$/,
+      heading: 'Submit contributions file'
     }, 'home-entry');
 
-    // Return to dashboard and navigate to service blueprint hub via View ServiceBlueprints.
-    await page.goto('/dashboard');
-    await expect(page.getByRole('link', { name: 'View Service Requests' })).toBeVisible();
-    await page.getByRole('link', { name: 'View Service Requests' }).click();
-    await page.waitForURL(/\/my-service-requests\/?$/, { timeout: 30_000 });
+    await expect(page.getByLabel('Contributions file')).toBeVisible();
 
-    await step(page, '05-service-blueprint-hub.png', {
-      url: /\/my-service-requests\/?$/,
-      heading: 'My Service Requests'
+    // Return to dashboard and navigate to the caseworker queue via View queue.
+    await page.goto('/dashboard');
+    await expect(page.getByRole('link', { name: 'View queue' })).toBeVisible();
+    await page.getByRole('link', { name: 'View queue' }).click();
+    await page.waitForURL(/\/caseworker-queue\/?$/, { timeout: 30_000 });
+
+    await step(page, '05-caseworker-queue.png', {
+      url: /\/caseworker-queue\/?$/,
+      heading: 'Caseworker queue'
     }, 'home-entry');
   });
 });
 
-function serviceBlueprintDemoCard(page: import('@playwright/test').Page, title: string) {
+function serviceDesignDemoCard(page: import('@playwright/test').Page, title: string) {
   return page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first();
 }

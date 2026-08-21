@@ -1,4 +1,5 @@
-﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Web.Common.PublishedModels.MemberDashboard>
+﻿@using UmbracoPrism.TestSite.Services.ServiceDesign
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage<Umbraco.Cms.Web.Common.PublishedModels.MemberDashboard>
 @{
     Layout = "~/Views/Shared/Master.cshtml";
 
@@ -6,24 +7,15 @@
     var displayName = ViewBag.DisplayName as string ?? "Member";
     var email = ViewBag.Email as string ?? "";
     var userOid = ViewBag.UserOid as string ?? "";
-    var serviceDeskUrl = ViewBag.ServiceDeskUrl as string;
-    var serviceBlueprintEditorUrl = ViewBag.ServiceBlueprintEditorUrl as string;
-    var rootContent = Umbraco.ContentAtRoot().ToList();
-    var serviceRequestHubUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.ServiceRequestHubAlias),
-        TestSiteSeedContract.ServiceRequestHubUrl);
-    var stagePageUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.BlueprintKey),
-        TestSiteSeedContract.ServiceRequestPageUrl);
-    var paymentDemoUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.PaymentDemoBlueprintKey),
-        TestSiteSeedContract.PaymentDemoPageUrl);
-    var planningUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.PlanningBlueprintKey),
-        TestSiteSeedContract.PlanningStagePageUrl);
-    var informationRequestUrl = TestSiteSeedContract.ResolveUrl(
-        TestSiteSeedContract.FindPublishedStagePage(rootContent, TestSiteSeedContract.InformationRequestBlueprintKey),
-        TestSiteSeedContract.InformationRequestPageUrl);
+    var contributionsUrl = TestSiteSeedContract.ContributionsPageUrl;
+    var caseworkerQueueUrl = TestSiteSeedContract.CaseworkerQueuePageUrl;
+    var jugglingLicenceUrl = TestSiteSeedContract.JugglingLicencePageUrl;
+    // Every signed-in Prism member reaches this dashboard the same way, but only the NJF
+    // Contributions Team roster (see NjfContributionsTeam's own remarks) actually has access to
+    // the caseworker queue / contributions upload — most members are demo@prism.local, a plain
+    // citizen persona, not a caseworker. Gate the cards on the real roster rather than showing an
+    // affordance that leads to "Access denied" for most signed-in visitors.
+    var isNjfCaseworker = NjfContributionsTeam.IsMember(email);
 }
 
 <main class="dash-page">
@@ -50,45 +42,47 @@
                 <h3>Support</h3>
                 <p>Get help with your account. Contact our team or browse frequently asked questions.</p>
             </div>
-            <div class="dash-card dash-card--cta">
-                <div class="dash-card__icon dash-card__icon--service-request">📋</div>
-                <h3>My Service Requests</h3>
-                <p>View all your active and completed service request submissions in one place.</p>
-                <a href="@serviceRequestHubUrl" class="btn btn-primary" style="margin-top: 12px;">View Service Requests</a>
-            </div>
+            @if (isNjfCaseworker)
+            {
+                <div class="dash-card dash-card--cta">
+                    <div class="dash-card__icon dash-card__icon--service-request">📋</div>
+                    <h3>Caseworker queue</h3>
+                    <p>The NJF Contributions Team's worklist — pick up and review submitted contributions files.</p>
+                    <a href="@caseworkerQueueUrl" class="btn btn-primary" style="margin-top: 12px;">View queue</a>
+                </div>
+            }
+            else
+            {
+                <div class="dash-card dash-card--cta">
+                    <div class="dash-card__icon dash-card__icon--service-request">🤹</div>
+                    <h3>Apply for a juggling licence</h3>
+                    <p>Signed-in members get their Juggling Society membership discount applied automatically.</p>
+                    <a href="@jugglingLicenceUrl" class="btn btn-primary" style="margin-top: 12px;">Start application</a>
+                </div>
+            }
         </div>
 
-        <!-- Service blueprint demos — all types discoverable from one place -->
-        <div class="dash-section">
-            <h2>Service Blueprint Demos</h2>
-            <p>Start any of the available service blueprint types. Each demo exercises a different Prism capability.</p>
-            <div class="dash-grid" style="margin-top: 16px;">
-                <div class="dash-card dash-card--cta">
-                    <div class="dash-card__icon dash-card__icon--service-request">📝</div>
-                    <h3>Get in Touch</h3>
-                    <p>Multi-step community enquiry with pre-filled member details and question components.</p>
-                    <a href="@stagePageUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
-                </div>
-                <div class="dash-card dash-card--cta">
-                    <div class="dash-card__icon dash-card__icon--service-request">🏗️</div>
-                    <h3>Apply for Planning Permission</h3>
-                    <p>Planning notification service blueprint demonstrating document-upload and review steps.</p>
-                    <a href="@planningUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
-                </div>
-                <div class="dash-card dash-card--cta">
-                    <div class="dash-card__icon dash-card__icon--service-request">💳</div>
-                    <h3>Payment Demo</h3>
-                    <p>Waiting-state service blueprint that simulates an asynchronous payment processing step.</p>
-                    <a href="@paymentDemoUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
-                </div>
-                <div class="dash-card dash-card--cta">
-                    <div class="dash-card__icon dash-card__icon--service-request">ℹ️</div>
-                    <h3>Request Information</h3>
-                    <p>Information request service blueprint with conditional field display and summary review.</p>
-                    <a href="@informationRequestUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
+        <!-- Wayfinder service design demo — service-design capability itself lives entirely in
+             Wayfinder.Umbraco (see docs/guides/support-systems.md in the core Wayfinder repo).
+             Only the NJF Contributions Team roster (njf-caseworker@prism.local) has access to
+             this worked example — see NjfContributionsTeam's own remarks; a plain member
+             (demo@prism.local) doesn't see this section at all, since the link would only lead
+             to "Access denied". -->
+        @if (isNjfCaseworker)
+        {
+            <div class="dash-section">
+                <h2>Wayfinder service design demo</h2>
+                <p>As an NJF Contributions Team member, submit and review a monthly contributions file — Wayfinder's bulk data review capability, backed by a real downstream support system (Mock Business App).</p>
+                <div class="dash-grid" style="margin-top: 16px;">
+                    <div class="dash-card dash-card--cta">
+                        <div class="dash-card__icon dash-card__icon--service-request">📤</div>
+                        <h3>Submit contributions file</h3>
+                        <p>Upload the monthly CSV of member contributions for validation.</p>
+                        <a href="@contributionsUrl" class="btn btn-primary" style="margin-top: 12px;">Start</a>
+                    </div>
                 </div>
             </div>
-        </div>
+        }
 
         <!-- Biometric authentication section -->
         <div class="dash-section">
@@ -397,36 +391,6 @@
             }
         </script>
 
-        @if (!string.IsNullOrWhiteSpace(serviceDeskUrl) ||
-             !string.IsNullOrWhiteSpace(serviceBlueprintEditorUrl))
-        {
-            <!-- Developer tools — showcase shortcuts into the MockBusinessApp service blueprint surfaces -->
-            <div class="dash-section">
-                <h2>Developer Tools</h2>
-                <p>Jump straight into the Prism service blueprint showcase surfaces without hunting through routes.</p>
-                <div class="dash-grid" style="margin-top: 16px;">
-                    @if (!string.IsNullOrWhiteSpace(serviceDeskUrl))
-                    {
-                        <div class="dash-card dash-card--cta">
-                            <div class="dash-card__icon dash-card__icon--service-request">⚙️</div>
-                            <h3>Service Desk</h3>
-                            <p>Inspect and manage service requests from the MockBusinessApp Service Desk screen.</p>
-                            <a href="@serviceDeskUrl" class="btn btn-primary" style="margin-top: 12px;" target="_blank" rel="noopener">Open Admin</a>
-                        </div>
-                    }
-
-                    @if (!string.IsNullOrWhiteSpace(serviceBlueprintEditorUrl))
-                    {
-                        <div class="dash-card dash-card--cta">
-                            <div class="dash-card__icon dash-card__icon--service-request">🧭</div>
-                            <h3>Service Blueprint Editor</h3>
-                            <p>Open the reference shell for Prism service blueprint authoring; it lands on the planning service blueprint by default.</p>
-                            <a href="@serviceBlueprintEditorUrl" class="btn btn-primary" style="margin-top: 12px;" target="_blank" rel="noopener">Open Editor</a>
-                        </div>
-                    }
-                </div>
-            </div>
-        }
 
         <div style="margin-top: 24px;">
             <form method="post" action="/auth/logout">

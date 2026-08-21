@@ -48,9 +48,6 @@ public class PrismComposer : IComposer
         builder.Services.AddScoped<IPrismNotificationService, PrismNotificationService>();
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
-        // 2. Workflow Engine
-        builder.AddPrismProcessManager();
-
         // 3. Middleware Registration
         // ForwardedHeaders must run before any middleware that reads RemoteIpAddress
         // (e.g. biometric rate limiting in BiometricController).
@@ -144,14 +141,12 @@ public class PrismComposer : IComposer
                 policy.AddRequirements(new PrismAdminRequirement());
             });
 
-            // Wayfinder.Umbraco's ServiceRequestPollController references this policy by name
-            // rather than hardcoding an authentication scheme — this is where Prism supplies
-            // its own member cookie scheme as what that policy actually means.
-            options.AddPolicy(Wayfinder.Umbraco.WayfinderUmbracoAuthorizationPolicies.ServiceRequestPolling, policy =>
-            {
-                policy.RequireAuthenticatedUser();
-                policy.AddAuthenticationSchemes("PrismMemberCookie");
-            });
+            // Wayfinder.Umbraco's own ServiceRequestPolling policy is no longer registered
+            // here — Prism.Core carries no Wayfinder dependency at all now (see
+            // UmbracoPrism.MockBusinessApp's own narrowing to a genuine support system). A host
+            // that installs Wayfinder.Umbraco directly (e.g. UmbracoPrism.TestSite) registers
+            // that policy itself, supplying whatever authentication scheme its own member/user
+            // model uses.
         });
 
         builder.Services.Configure<PrismAdminOptions>(builder.Config.GetSection("Prism:AdminGroups"));

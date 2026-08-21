@@ -8,19 +8,13 @@ Each walkthrough shows real pages running in the TestSite, the fluent builder AP
 
 ## End-User Flows
 
-These walkthroughs follow a user through a complete service blueprint from login to confirmation. The reference business app includes exactly four demo service blueprints seeded at runtime: **Community Enquiry**, **Information Request**, **Payment Demo**, and **Planning Application**. Each is available to the editor, the front-end journey, and the runtime engine.
+Service design itself — citizen-facing journeys, caseworker worklists, and downstream support systems — is entirely Wayfinder's job now, composed onto ordinary Prism content via Wayfinder.Umbraco's packaged Block Grid blocks (see `docs/guides/support-systems.md` in the core Wayfinder repo). TestSite hosts two worked examples this way: an anonymous-first "Apply for a juggling licence" citizen journey, and a "Submit contributions file" + caseworker queue demo backed by a real downstream support system (Mock Business App).
 
-### [Community Enquiry](community-enquiry.md)
-Multi-section contact form with conditional radios, checkboxes, and validation. One of the four reference service blueprints.
+### [Home Entry](home-entry.md)
+How a user first encounters the Prism demo and navigates from the homepage hero, through the dashboard, into Wayfinder's Block Grid-composed stage and worklist pages.
 
-### [Payment Demo](payment-demo.md)
-Two-step service blueprint with currency formatting and the check-answers pattern. One of the four reference service blueprints.
-
-### [Planning Application](planning-service-blueprint-complete.md)
-Complete end-to-end planning application service blueprint covering authoring, public entry, member continuation, and back-stage review. Demonstrates the full service blueprint lifecycle from editor through runtime. One of the four reference service blueprints.
-
-### [Information Request](information-request.md)
-Data request form with date picker, textarea, and conditional urgency options. One of the four reference service blueprints.
+### [Bulk Data Review](bulk-data-review.md)
+The NJF Contributions Team submits a monthly contributions file, gets back only the rows that need attention, corrects them in place, and resubmits — backed by a real downstream support system (Mock Business App).
 
 ---
 
@@ -28,19 +22,8 @@ Data request form with date picker, textarea, and conditional urgency options. O
 
 These walkthroughs are aimed at developers and operators building or administering a Prism deployment.
 
-### [Gateway-First Authoring](gateway-first-authoring.md)
-How the gateway-and-route model works. Every move from one stage to another happens through a gateway. Worked example: the Leave Request 5-gateway fan-in pattern.
-
-### [Service Blueprint Administration](service-request-administration.md)
-How to use the development-only service desk panel to inspect, edit, and manage service requests and definitions. Covers accessing the panel from the dashboard, viewing instances and state, editing definitions, manually advancing service blueprints, and resetting instances for testing.
-
-> **Note:** This walkthrough covers the **development harness** used to simulate the reviewer/operator role during testing. The admin panel is where you play the "reviewer" actor. For complete, end-to-end service blueprints showing how users submit and reviewers approve, see [Payment Demo](payment-demo.md), [Community Enquiry](community-enquiry.md), and [Information Request](information-request.md) — each demonstrates the full submission → review → outcome cycle from both user and operator perspectives. The Service Desk panel is the tool you use to complete those cycles in the local demo.
-
 ### [Authoring a Service Blueprint](authoring-a-service-blueprint.md)
 How to wire the Prism Service Blueprint Editor into your Umbraco app — NuGet packages, DI registration, doctypes, route hijacking, Razor templates, and where to host the editor. The integration recipe for integrators starting from scratch.
-
-### [Planning Service Blueprint Editor](planning-service-blueprint-editor.md)
-A tour of the editor itself — the vertical-lanes canvas, stage inspector, validation rail, JSON Definition tab, and how authors save and publish a service blueprint. *(Wave 1 — screenshots pending.)*
 
 ### [Creating a Tenant](creating-a-tenant.md)
 How to add a new tenant in the Umbraco backoffice — host binding, OIDC authority, branding — and how `PrismTenantMiddleware` picks it up without a restart.
@@ -60,12 +43,6 @@ Building a Capacitor iOS/Android app from a Prism service blueprint. Covers the 
 
 ---
 
-**Reference contract:** The reference business app (`src/UmbracoPrism.MockBusinessApp`) seeds exactly four demo service blueprints at runtime from authored sources (`src/UmbracoPrism.MockBusinessApp/service-blueprint-authored/`). These four service blueprints are the authoritative reference implementation:
-- **planning** — Planning Application service blueprint
-- **leave-request** — Leave Request service blueprint (demonstrates 5-gateway fan-in pattern)
-- **community-enquiry** — Get in Touch contact form
-- **information-request** — Information Request form
+**Reference contract:** `src/UmbracoPrism.MockBusinessApp/service-blueprints/` holds five JSON fixtures (`community-enquiry`, `information-request`, `money-modeller`, `payment-demo`, `planning-notification`) — these are **not** runtime-seeded demo blueprints any more (MockBusinessApp hosts no engine of its own; see that project's own README). They're kept purely as test fixtures several `UmbracoPrism.Core.Tests` read directly off disk (authoring/simulation/inference logic, not end-to-end journeys). The live, runtime-seeded service blueprints are `apply-for-a-juggling-licence` and `bulk-contributions`, both in `src/UmbracoPrism.TestSite/service-blueprints/` and hosted entirely by Wayfinder.Umbraco — see the End-User Flows walkthroughs above.
 
-All four are available to the editor, front-end journey, and runtime engine. Downstream applications replace the reference repository with their own authored service blueprint store (filesystem, database, etc.) by implementing `ServiceBlueprintSource`. See [Embedding the Service Blueprint Editor](../guides/embedding-the-service-blueprint-editor.md) for details.
-
-**Authoring:** All service blueprints use the gateway-and-route model. Every move from one stage to another happens through a gateway. See [Gateway-First Authoring](gateway-first-authoring.md) for the structural consequences and the fan-in pattern.
+**Authoring:** All service blueprints use the gateway-and-route model — every move from one stage to another happens through a gateway (see `docs/skills/canvas-editor/` in the core Wayfinder repo for a current, screenshot-backed tour). This repo's own `gateway-first-authoring.md` was deleted — it described a `PROJ###`-coded validator and a "Leave Request" reference blueprint from before the Wayfinder extraction, neither of which exists any more.

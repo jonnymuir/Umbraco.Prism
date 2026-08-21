@@ -1,6 +1,22 @@
 # UmbracoPrism.MockBusinessApp
 
-A minimal downstream business-app simulator used in local development and integration testing.
+A minimal, separate downstream application — not a business-app simulator that Prism/Wayfinder
+hosts or drives. It exists for two narrow, real reasons:
+
+1. **Proves Prism's own Bearer-token identity propagation** — `GET /api/backoffice/me`
+   validates the caller's token, resolves their Prism tenant, and returns their role from this
+   app's own member directory (`PrismBusinessApp:Members` below). TestSite's dashboard "Call
+   Mock Business App API" demo exercises this live.
+2. **A real, separate downstream support system** — `SupportSystemEndpoints` (`POST /submissions`,
+   `GET /submissions/{id}`, `GET /queue`, `POST /queue/{id}/decide`) mirrors the exact shape the
+   core Wayfinder repo's own `SafetyNetUnderwriting` reference implementation uses (see
+   `docs/guides/support-systems.md` there). Wayfinder.Umbraco-hosted service blueprints call out
+   to it via their own `ISupportSystemClient` — see `MockBusinessAppContributionsClient` in
+   `UmbracoPrism.TestSite`.
+
+Service design itself — citizen journeys, caseworker worklists, blueprint authoring — is entirely
+Wayfinder.Umbraco's job now, hosted in-process by `UmbracoPrism.TestSite`. This app owns none of
+that; it has no engine, no blueprint store, and no editor of its own.
 
 ## Configuration
 
@@ -44,21 +60,17 @@ Real values go in a **gitignored local override** (`appsettings.Local.json`).
 
 This mirrors the secrets management pattern used by `UmbracoPrism.TestSite` (see `src/UmbracoPrism.TestSite/README.md`). `appsettings.Local.json` is the canonical mechanism for local dev overrides across this solution.
 
-## Reference workflow editor host
+## Endpoints
 
-The business app exposes a thin reference editor shell at `/workflow-editor`
-(redirects to `/workflow-editor.html?workflow=planning`).
+| Route | Auth | Purpose |
+|---|---|---|
+| `GET /api/backoffice/me` | Bearer token (Prism) | Resolves the caller's tenant + role from `PrismBusinessApp:Members`; proves auth propagation. |
+| `POST /submissions` | none | Accepts a support-system submission (arbitrary JSON fields + an optional `callbackUrl`). |
+| `GET /submissions/{id}` | none | Polls a submission's decision status. |
+| `GET /queue` | none | Plain-HTML staff queue — approve/reject pending submissions by hand. |
+| `POST /queue/{id}/decide` | none | Records a decision; fires the submission's `callbackUrl` webhook if one was given. |
+| `GET /debug/auth` (dev only) | none | Diagnostics for the OIDC/backchannel wiring — see the endpoint's own code for what it reports. |
 
-- It hosts authoring-only concerns: picking a workflow and mounting
-  `<prism-workflow-editor-shell>` wired to an in-process `WorkflowSource`.
-- It does **not** own runtime workflow execution or business case logic —
-  those stay in the business app domain.
-- Use it as the reference integration slice for downstream apps that want to
-  embed the workflow editor with minimal wiring.
-- Workflow CRUD endpoints live under `/mockapp/workflows/*` — `GET` (list),
-  `GET /{key}`, `PUT /{key}` — and back onto an in-process singleton
-  (`ReferenceAuthoredWorkflowStore`) seeded from the bundled reference
-  workflow fixtures. They have **no authentication**: this app is a
-  same-origin reference host. Downstream applications that mount the editor
-  must implement their own `WorkflowSource` against their own persistence
-  and authorization story — the editor has no built-in HTTP client.
+The support-system endpoints are deliberately unauthenticated — a real downstream system's own
+auth model is its business, not something Wayfinder or Prism prescribes (mirrors
+`SafetyNetUnderwriting`'s own reference-app posture in the core Wayfinder repo).

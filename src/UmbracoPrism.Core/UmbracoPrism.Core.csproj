@@ -9,7 +9,7 @@
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>UmbracoPrism</PackageId>
     <Title>Umbraco Prism</Title>
-    <Version>3.0.0</Version>
+    <Version>4.0.0</Version>
     <Authors>Jonny Muir</Authors>
     <Company>Umbraco Prism</Company>
     <Description>Multi-tenancy for Umbraco (v17+) with dynamic branding and stateless identity.</Description>
@@ -38,9 +38,6 @@
     <PackageReference Include="Umbraco.Cms.Core" Version="$(UmbracoVersion)" />
     <PackageReference Include="Umbraco.Cms.Web.Common" Version="$(UmbracoVersion)" />
     <PackageReference Include="Umbraco.Cms.Web.Website" Version="$(UmbracoVersion)" />
-    <PackageReference Include="Wayfinder" Version="0.4.8" />
-    <PackageReference Include="Wayfinder.Engine" Version="0.4.8" />
-    <PackageReference Include="Wayfinder.Umbraco" Version="0.6.5" />
   </ItemGroup>
 
   <ItemGroup>

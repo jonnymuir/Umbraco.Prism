@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
-using UmbracoPrism.TestSite.Services.ServiceDesign;
-using Wayfinder.Models.ServiceDesign;
+using Microsoft.Extensions.Options;
+using Wayfinder.Umbraco.Configuration;
 using Wayfinder.Umbraco.Services;
 
 namespace UmbracoPrism.TestSite.Controllers;
@@ -9,31 +9,27 @@ namespace UmbracoPrism.TestSite.Controllers;
 /// <summary>
 /// Accepts a single <c>file-upload</c> field's file as soon as a visitor chooses it, ahead of
 /// the stage's own whole-page submission — the server half of the accessible progress-bar
-/// upload experience (<c>prism-file-upload.ts</c>). Saves the file immediately via the same
-/// <see cref="IServiceRequestFileStorage"/> <see cref="Wayfinder.Umbraco.Controllers.ServiceRequestPageController{TViewModel}.HandlePost"/>
-/// already uses, and hands back an opaque token bound to this exact instance/field
-/// (<see cref="IUploadTokenService"/>) for the client to carry in a hidden input until the real
-/// submission — see that method's own remarks for how it resolves the token back.
+/// upload experience. Saves the file immediately via the same <see cref="IServiceRequestFileStorage"/>
+/// the stage's whole-page submission already uses, and hands back an opaque token bound to this
+/// exact instance/field (<see cref="IUploadTokenService"/>) for the client to carry in a hidden
+/// input until the real submission.
 /// </summary>
 /// <remarks>
-/// Same anonymous-at-the-framework-level, identity-resolved-and-ownership-checked security model
-/// as <see cref="PublicServiceRequestFileDownloadController"/> — plus the same nonce-bound
-/// authoritative-fields check <c>HandlePost</c> performs for a whole-page submission, so an
-/// upload can't be aimed at a field that isn't actually part of the visitor's current stage.
+/// Same identity-resolved-and-ownership-checked security model as
+/// <see cref="PublicServiceRequestFileDownloadController"/> — plus the same nonce-bound
+/// authoritative-fields check the stage's own whole-page submission performs, so an upload can't
+/// be aimed at a field that isn't actually part of the visitor's current stage.
 /// </remarks>
 [ApiController]
 [Route("service-request/upload")]
 public class PublicServiceRequestFileUploadController(
     UmbracoProcessManagerEngine engine,
-    PublicVisitorIdentityResolver identityResolver,
     IServiceRequestFileStorage fileStorage,
     IStageNonceService nonceService,
     IUploadTokenService uploadTokenService,
+    IOptions<WayfinderServiceDesignOptions> optionsAccessor,
     IAntiforgery antiforgery) : ControllerBase
 {
-    // Kept in sync with PublicServiceRequestPageController.DefaultMaxFileSizeBytes by hand — a plain
-    // literal here (rather than a cross-reference through that generic class) so this
-    // [RequestSizeLimit] attribute argument stays a straightforward compile-time constant.
     private const long DefaultMaxFileSizeBytes = 10 * 1024 * 1024;
 
     [HttpPost("{instanceId}/{fieldKey}")]
@@ -64,8 +60,12 @@ public class PublicServiceRequestFileUploadController(
             return BadRequest("This field is no longer part of the current step.");
         }
 
-        var (tenantId, userId, _) = identityResolver.Resolve();
-        if (!engine.IsOwnedInstance(instanceId, tenantId, userId, PublicVisitorQueue.AccessProfile))
+        var options = optionsAccessor.Value;
+        var tenantId = options.ResolveTenantId!(HttpContext);
+        var userId = options.ResolveUserId(HttpContext);
+        var accessProfile = options.ResolveAccessProfile!(HttpContext);
+
+        if (!engine.IsOwnedInstance(instanceId, tenantId, userId, accessProfile))
         {
             return NotFound();
         }

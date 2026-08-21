@@ -25,6 +25,9 @@
     <!-- GOV.UK Design System CSS (loaded first) -->
     <link rel="stylesheet" href="/css/govuk-frontend.min.css" />
 
+    <!-- Wayfinder.Rendering.GovUk's own component CSS (slider/stat-group/chart/bulk-data-review). -->
+    <link rel="stylesheet" href="/_content/Wayfinder.Rendering.GovUk/css/wayfinder-components.css" />
+
     <!-- Site CSS (ITCSS layer order) -->
     <link rel="stylesheet" href="/css/base.css" />
     <link rel="stylesheet" href="/css/layout.css" />
@@ -78,9 +81,13 @@
 
     <!-- Service request validation script -->
     <script src="/js/prism-service-request-validation.js" defer></script>
-    
+
     <!-- Conditional fields script -->
     <script src="/js/prism-conditional-fields.js" defer></script>
+
+    <!-- Wayfinder.Rendering.GovUk's own bulk-data-review script — the component is entirely
+         client-fetched, so this has no server-side equivalent. -->
+    <script src="/_content/Wayfinder.Rendering.GovUk/js/wayfinder-bulk-data-review.js"></script>
 
 </body>
 </html>

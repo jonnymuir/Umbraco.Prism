@@ -19,7 +19,7 @@ This walkthrough is for integrators starting from a working Umbraco v17 site. By
 - doctypes and templates that drive a service blueprint at runtime
 - a clear picture of **where** the editor itself runs — and where it does not
 
-The walkthrough does not cover the editor's UX. For that, see [Planning Service Blueprint Editor](planning-service-blueprint-editor.md).
+The walkthrough does not cover the editor's UX itself — see Wayfinder.Umbraco's own docs/skills library (`docs/skills/canvas-editor/` in the core Wayfinder repo) for a screenshot-backed tour of each tab.
 
 ---
 
@@ -174,7 +174,7 @@ Once an author signs into your business app and loads the page that mounts `<pri
 - check warnings in the **Validation** tab
 - save and publish through the authoring API
 
-For a tour of the editor itself — what each tab does, how the lanes read, how the keyboard reach works — see [Planning Service Blueprint Editor](planning-service-blueprint-editor.md).
+For a tour of the editor itself — what each tab does, how the lanes read, how the keyboard reach works — see Wayfinder.Umbraco's own docs/skills library (`docs/skills/canvas-editor/` in the core Wayfinder repo).
 
 ---
 

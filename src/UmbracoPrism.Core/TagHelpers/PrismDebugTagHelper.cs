@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -23,7 +24,8 @@ public class PrismDebugTagHelper(
     ITenantService tenantService,
     IConfiguration config,
     IAuthenticationSchemeProvider schemeProvider,
-    IWebHostEnvironment environment) : TagHelper
+    IWebHostEnvironment environment,
+    IAntiforgery antiforgery) : TagHelper
 {
     [HtmlAttributeNotBound]
     [ViewContext]
@@ -102,6 +104,11 @@ public class PrismDebugTagHelper(
             // 2. Identity Section
             if (prismUser.IsAuthenticated)
             {
+                // AccountController.Logout requires POST + a valid antiforgery token (logout-CSRF
+                // protection, SEC-PT2-003) — a plain <a href> GET link silently fails (no matching
+                // route), so this renders the same real form/token pair homePage.cshtml's own
+                // working Sign Out button uses, not a link.
+                var antiforgeryTokens = antiforgery.GetAndStoreTokens(ViewContext.HttpContext);
                 sb.Append($"""
                     <div class="card">
                         <h2>👤 Identity <button class="copy-btn" onclick="copyToPrismClipboard(this, 'prism-user-data')">Copy</button></h2>
@@ -110,7 +117,10 @@ public class PrismDebugTagHelper(
                             <p><strong>Email:</strong> {prismUser.Email}</p>
                             <p><strong>TID:</strong> <code>{prismUser.EntraTenantId}</code></p>
                         </div>
-                        <a href="/auth/logout" class="btn" style="background:#495057; margin-top:10px;">Sign Out</a>
+                        <form method="post" action="/auth/logout" style="margin-top:10px;">
+                            <input type="hidden" name="{antiforgeryTokens.FormFieldName}" value="{antiforgeryTokens.RequestToken}" />
+                            <button type="submit" class="btn" style="background:#495057; border:none; cursor:pointer;">Sign Out</button>
+                        </form>
                     </div>
                     """);
 

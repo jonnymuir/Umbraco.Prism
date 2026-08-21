@@ -1,0 +1,239 @@
+{
+  "definitionKey": "bulk-contributions",
+  "displayName": "Submit a contributions file",
+  "version": 1,
+  "schemaVersion": "1.0",
+  "description": "The NJF Contributions Team's monthly contributions file — Prism + Wayfinder.Umbraco's worked example of Wayfinder's bulk data review capability (see docs/guides/bulk-data-review.md in the core Wayfinder repo), backed by a real downstream support system (Mock Business App).",
+  "initialStage": "upload",
+  "requestPolicy": "single",
+  "calculations": {
+    "fields": {
+      "contributionsErrorCount": { "source": "service" },
+      "contributionsWarningCount": { "source": "service" },
+      "contributionsAcceptedCount": { "source": "service" },
+      "contributionsDirtyCount": { "source": "service" }
+    }
+  },
+  "queues": [
+    {
+      "key": "njf-upload",
+      "displayName": "NJF Contributions Team",
+      "description": "Whoever starts a contributions file submission owns it all the way through review and resubmission — no pickup, no handing it to a teammate.",
+      "actor": "caseworker",
+      "roleGates": ["njf-contributions-review"],
+      "assignmentPolicy": "assign-to-initiator"
+    },
+    {
+      "key": "automation",
+      "displayName": "Mock Business App",
+      "actor": "system"
+    }
+  ],
+  "stages": [
+    {
+      "stageKey": "upload",
+      "displayName": "Submit contributions file",
+      "stageType": "Question",
+      "actor": "caseworker",
+      "queueKey": "njf-upload",
+      "components": [
+        {
+          "type": "body",
+          "content": "Upload this cycle's CSV of member contributions. Mock Business App will validate every row and return the same file with a matched member ID and any errors or warnings attached."
+        },
+        {
+          "type": "file-upload",
+          "fieldKey": "contributionsFile",
+          "label": "Contributions file",
+          "required": true,
+          "acceptedFileTypes": [".csv"]
+        }
+      ],
+      "routes": [
+        { "id": "upload--submit--to-support-system", "target": "to-support-system", "trigger": "submit", "label": "Submit" }
+      ]
+    },
+    {
+      "stageKey": "automation",
+      "displayName": "Processing",
+      "actor": "system",
+      "queueKey": "automation",
+      "components": [
+        { "type": "panel", "heading": "Processing the contributions file" }
+      ],
+      "actions": [
+        {
+          "type": "bulk-dataset-materialize",
+          "timing": "onEnter",
+          "params": {
+            "datasetIdField": "contributionsDatasetId",
+            "targetFileField": "contributionsFile"
+          }
+        },
+        {
+          "type": "support-system-call",
+          "timing": "onEnter",
+          "params": {
+            "supportSystemKey": "mock-business-app-contributions",
+            "capabilityKey": "validate-contributions-file",
+            "inputs": { "file": "contributionsFile" }
+          }
+        }
+      ],
+      "routes": [
+        { "id": "automation--processed--join", "target": "check-complete", "trigger": "processed" }
+      ]
+    },
+    {
+      "stageKey": "review",
+      "displayName": "Review contributions file",
+      "queueKey": "njf-upload",
+      "components": [
+        { "type": "panel", "heading": "Review contributions file" },
+        {
+          "type": "body",
+          "content": "Mock Business App has validated this file. Only the rows below need attention — correct them and resubmit, or download the full file to fix it another way."
+        },
+        {
+          "type": "stat-group",
+          "title": "Summary",
+          "items": [
+            { "label": "Rows with errors", "fieldKey": "contributionsErrorCount" },
+            { "label": "Rows with warnings", "fieldKey": "contributionsWarningCount" },
+            { "label": "Accepted rows", "fieldKey": "contributionsAcceptedCount" },
+            { "label": "Rows changed since last check", "fieldKey": "contributionsDirtyCount" }
+          ]
+        },
+        {
+          "type": "bulk-data-review",
+          "title": "Rows needing attention",
+          "datasetIdField": "contributionsDatasetId",
+          "pageSize": 20,
+          "pendingLabel": "Pending resubmission",
+          "sinceLabel": "since the file was last submitted"
+        }
+      ],
+      "actions": [
+        {
+          "type": "bulk-dataset-ingest",
+          "timing": "onEnter",
+          "params": {
+            "sourceFileField": "contributionsResponseFile",
+            "datasetIdField": "contributionsDatasetId",
+            "errorCountField": "contributionsErrorCount",
+            "warningCountField": "contributionsWarningCount",
+            "acceptedCountField": "contributionsAcceptedCount",
+            "dirtyCountField": "contributionsDirtyCount",
+            "columns": [
+              { "key": "memberRef", "title": "Member reference", "valueKind": "String", "role": "RowKey" },
+              { "key": "memberName", "title": "Name", "valueKind": "String", "role": "Data", "editable": true },
+              { "key": "tier", "title": "Membership tier", "valueKind": "String", "role": "Data", "editable": true },
+              { "key": "fireEndorsement", "title": "Fire endorsement (Y/N)", "valueKind": "String", "role": "Data", "editable": true },
+              { "key": "under18", "title": "Under 18 (Y/N)", "valueKind": "String", "role": "Data", "editable": true },
+              { "key": "dob", "title": "Date of birth", "valueKind": "String", "format": "date", "role": "Data", "editable": true },
+              { "key": "monthlyContribution", "title": "Monthly contribution", "valueKind": "Number", "format": "currency", "role": "Data", "editable": true },
+              { "key": "businessAppMemberId", "title": "Mock Business App member ID", "valueKind": "String", "role": "ResponseMatchedId" },
+              { "key": "errorText", "title": "Errors", "valueKind": "String", "role": "ResponseError" },
+              { "key": "warningText", "title": "Warnings", "valueKind": "String", "role": "ResponseWarning" }
+            ]
+          }
+        }
+      ],
+      "routes": [
+        { "id": "review--resubmit--split", "target": "to-support-system", "trigger": "resubmit", "label": "Resubmit corrected file" },
+        { "id": "review--accept--split", "target": "to-done", "trigger": "accept", "label": "Accept and finish", "showWhen": "contributionsErrorCount = 0 and contributionsWarningCount = 0 and contributionsDirtyCount = 0" },
+        { "id": "review--accept-with-warnings--split", "target": "to-confirm-warnings", "trigger": "accept-with-warnings", "label": "Accept and finish", "showWhen": "contributionsErrorCount = 0 and contributionsWarningCount > 0 and contributionsDirtyCount = 0" }
+      ]
+    },
+    {
+      "stageKey": "confirm-warnings",
+      "displayName": "Confirm before finishing",
+      "queueKey": "njf-upload",
+      "components": [
+        { "type": "panel", "heading": "Confirm before finishing" },
+        {
+          "type": "body",
+          "content": "This file has no errors, but Mock Business App has flagged one or more rows with a warning. Warnings don't block finishing, but check the flagged rows are genuinely correct before you continue."
+        },
+        {
+          "type": "stat-group",
+          "title": "Summary",
+          "items": [
+            { "label": "Rows with warnings", "fieldKey": "contributionsWarningCount" },
+            { "label": "Accepted rows", "fieldKey": "contributionsAcceptedCount" }
+          ]
+        }
+      ],
+      "routes": [
+        { "id": "confirm-warnings--back--split", "target": "to-review-from-warnings", "trigger": "back-to-review", "label": "Back to review", "style": "secondary" },
+        { "id": "confirm-warnings--confirm--split", "target": "to-done", "trigger": "accept", "label": "Yes, accept with warnings", "showWhen": "contributionsDirtyCount = 0" }
+      ]
+    },
+    {
+      "stageKey": "done",
+      "displayName": "Contributions file accepted",
+      "stageType": "Confirmation",
+      "actor": "caseworker",
+      "queueKey": "njf-upload",
+      "components": [
+        { "type": "panel", "heading": "Contributions file accepted" },
+        { "type": "body", "content": "Mock Business App has confirmed every member in this file. No further action is needed for this cycle." }
+      ],
+      "routes": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "to-support-system",
+      "displayName": "Send to Mock Business App",
+      "gatewayType": "Split",
+      "queueKey": "njf-upload",
+      "routes": [
+        { "id": "to-support-system--submit--join", "target": "check-complete", "trigger": "submit" },
+        { "id": "to-support-system--submit--automation", "target": "automation", "trigger": "submit" },
+        { "id": "to-support-system--resubmit--join", "target": "check-complete", "trigger": "resubmit" },
+        { "id": "to-support-system--resubmit--automation", "target": "automation", "trigger": "resubmit" }
+      ]
+    },
+    {
+      "key": "check-complete",
+      "displayName": "Awaiting Mock Business App",
+      "gatewayType": "Join",
+      "queueKey": "njf-upload",
+      "waitingContent": "Mock Business App is processing the contributions file. We'll update this page once it's done.",
+      "waitingExpectedSeconds": 15,
+      "waitingPollIntervalMs": 3000,
+      "routes": [
+        { "id": "check-complete--processed--review", "target": "review", "trigger": "processed" }
+      ],
+      "requiredIncomingQueues": ["njf-upload", "automation"]
+    },
+    {
+      "key": "to-done",
+      "displayName": "Finish",
+      "gatewayType": "Split",
+      "queueKey": "njf-upload",
+      "routes": [
+        { "id": "to-done--accept--done", "target": "done", "trigger": "accept" }
+      ]
+    },
+    {
+      "key": "to-confirm-warnings",
+      "displayName": "Continue to confirm before finishing",
+      "gatewayType": "Split",
+      "queueKey": "njf-upload",
+      "routes": [
+        { "id": "to-confirm-warnings--accept-with-warnings--confirm-warnings", "target": "confirm-warnings", "trigger": "accept-with-warnings" }
+      ]
+    },
+    {
+      "key": "to-review-from-warnings",
+      "displayName": "Back to review",
+      "gatewayType": "Split",
+      "queueKey": "njf-upload",
+      "routes": [
+        { "id": "to-review-from-warnings--back-to-review--review", "target": "review", "trigger": "back-to-review" }
+      ]
+    }
+  ]
+}

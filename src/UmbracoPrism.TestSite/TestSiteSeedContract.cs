@@ -18,80 +18,42 @@ public static class TestSiteSeedContract
     public const string SettingsAlias = "settings";
     public const string SettingsName = "Settings";
 
-    public const string StagePageAlias = "stagePage";
-    public const string StagePageName = "Get in Touch";
-    public const string ServiceRequestPageUrl = "/get-in-touch";
-    public const string BlueprintKey = "community-enquiry";
-
-    public const string PlanningStagePageName = "Apply for Planning Permission";
-    public const string PlanningStagePageUrl = "/apply-for-planning-permission";
-    public const string PlanningBlueprintKey = "planning";
-
-    public const string PaymentDemoPageName = "Payment Demo";
-    public const string PaymentDemoPageUrl = "/payment-demo";
-    public const string PaymentDemoBlueprintKey = "payment-demo";
-
-    public const string InformationRequestPageName = "Request Information";
-    public const string InformationRequestPageUrl = "/request-information";
-    public const string InformationRequestBlueprintKey = "information-request";
-
-    public const string MoneyModellerPageName = "Money Modeller";
-
-    public const string MoneyModellerBlueprintKey = "money-modeller";
-
-    public const string ServiceRequestHubAlias = "serviceRequestHub";
-    public const string ServiceRequestHubName = "My Service Requests";
-    public const string ServiceRequestHubUrl = "/my-service-requests";
-
-    public const string ServiceRequestPageAlias = "publicServiceRequestPage";
     public const string JugglingLicencePageName = "Apply for a juggling licence";
     public const string JugglingLicencePageUrl = "/apply-for-a-juggling-licence";
     public const string JugglingLicenceBlueprintKey = "apply-for-a-juggling-licence";
 
-    // Originally built live via MCP (see tests/demo/licence-transfer-demo.spec.ts) — that
-    // recording is the definition's real origin story and the reason it exists, but the result
-    // is good enough to also be C# seeded as a permanent "here's one we made earlier" reference,
-    // the same way JugglingLicenceBlueprintKey is (see LicenceTransferCmsServiceBlueprintSeeder). The
-    // page name/URL/nav label below match exactly what the recording itself creates live, so a
-    // fresh Aspire boot and the recorded video agree on every visible detail.
-    public const string JugglingLicenceTransferBlueprintKey = "transfer-a-juggling-licence";
-    public const string LicenceTransferPageName = "Transfer your existing juggling licence";
-    public const string LicenceTransferPageUrl = "/transfer-your-existing-juggling-licence";
-    public const string LicenceTransferNavLabel = "Transfer your licence";
+    public const string ContributionsPageName = "Submit contributions file";
+    public const string ContributionsPageUrl = "/submit-contributions-file";
+    public const string ContributionsBlueprintKey = "bulk-contributions";
+
+    public const string CaseworkerQueuePageName = "Caseworker queue";
+    public const string CaseworkerQueuePageUrl = "/caseworker-queue";
 
     public static IContent? FindContentByAlias(IContentService contentService, string alias)
         => EnumerateContentTree(contentService)
             .FirstOrDefault(content => content.ContentType.Alias == alias);
 
-    public static IContent? FindServiceRequestContent(IContentService contentService, string blueprintKey)
+    // More than one wayfinderServicePage instance exists (apply-for-a-juggling-licence,
+    // bulk-contributions, the caseworker queue) — filter by name, not just alias, so a seeder
+    // checking "does my page already exist" doesn't match whichever page happens to be first in
+    // the tree and wrongly skip creating another one.
+    public static IContent? FindWayfinderServicePageByName(IContentService contentService, string name)
         => EnumerateContentTree(contentService)
                .FirstOrDefault(content =>
-                   content.ContentType.Alias == StagePageAlias
-                   && string.Equals(content.GetValue<string>("blueprintKey"), blueprintKey, StringComparison.OrdinalIgnoreCase));
-
-    // publicServiceRequestPage is a distinct doc type from stagePage above (TestSite's own
-    // anonymous-first, Umbraco-only-hosted demo, not the older business-service-blueprint
-    // demos) — and more than one publicServiceRequestPage instance can now exist
-    // (apply-for-a-juggling-licence, transfer-a-juggling-licence), so a seeder checking "does my
-    // page already exist" must filter by blueprintKey, not just by alias (which would match
-    // whichever page happens to be first in the tree and wrongly skip creating the other one).
-    public static IContent? FindServiceRequestPageByKey(IContentService contentService, string blueprintKey)
-        => EnumerateContentTree(contentService)
-               .FirstOrDefault(content =>
-                   content.ContentType.Alias == ServiceRequestPageAlias
-                   && string.Equals(content.GetValue<string>("blueprintKey"), blueprintKey, StringComparison.OrdinalIgnoreCase));
+                   content.ContentType.Alias == WayfinderServicePageContentType.Alias
+                   && string.Equals(content.Name, name, StringComparison.Ordinal));
 
     public static IPublishedContent? FindPublishedByAlias(IEnumerable<IPublishedContent> roots, string alias)
         => roots
             .SelectMany(root => root.DescendantsOrSelf())
             .FirstOrDefault(content => content.ContentType.Alias == alias);
 
-    public static IPublishedContent? FindPublishedStagePage(IEnumerable<IPublishedContent> roots, string blueprintKey)
+    public static IPublishedContent? FindPublishedWayfinderServicePageByName(IEnumerable<IPublishedContent> roots, string name)
         => roots
-               .SelectMany(root => root.DescendantsOrSelf())
-               .FirstOrDefault(content =>
-                    content.ContentType.Alias == StagePageAlias
-                    && string.Equals(content.Value<string>("blueprintKey"), blueprintKey, StringComparison.OrdinalIgnoreCase));
+            .SelectMany(root => root.DescendantsOrSelf())
+            .FirstOrDefault(content =>
+                content.ContentType.Alias == WayfinderServicePageContentType.Alias
+                && string.Equals(content.Name, name, StringComparison.Ordinal));
 
     public static string ResolveUrl(IPublishedContent? content, string fallback)
         => ResolveUrl(content?.Url(), fallback);

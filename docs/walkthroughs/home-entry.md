@@ -1,21 +1,22 @@
 # Home Entry Walkthrough
 
-How an end user first encounters the Prism demo and navigates to their first service blueprint.
+How an end user first encounters the Prism demo and navigates into Wayfinder's Block
+Grid-composed service design pages.
 
 ## Overview
 
-The home entry journey (`home-entry`) documents the authenticated and unauthenticated views of the Prism TestSite homepage and the path from the homepage hero into the dashboard and service request hub. It demonstrates:
+The home entry journey (`home-entry`) documents the authenticated and unauthenticated views of the Prism TestSite homepage and the path from the homepage hero into the dashboard and Wayfinder's own service design demo. It demonstrates:
 
 - **Unauthenticated hero** – The landing page a new visitor sees before signing in
 - **Personalised hero** – The signed-in view with a welcome message and direct dashboard link
-- **Homepage → Dashboard → Service Blueprint demo card** – The primary "jump straight in" route for a signed-in member
-- **Homepage → Dashboard → Service Request Hub** – The route into existing and in-progress service requests
+- **Homepage → Dashboard → Wayfinder service design demo card** – The primary "jump straight in" route for a signed-in NJF Contributions Team member
+- **Homepage → Dashboard → Caseworker queue** – The route into the team's worklist
 
 ## Unauthenticated Homepage
 
 ![Signed-out homepage hero — "Your account, your way" heading with Sign In call-to-action](../images/walkthroughs/home-entry/01-signed-out-hero.png)
 
-Before signing in, the homepage presents the product hero with a **Sign In** call-to-action. No dashboard or service blueprint navigation is shown — protected content is not accessible until the OIDC flow is completed.
+Before signing in, the homepage presents the product hero with a **Sign In** call-to-action. No dashboard or service design navigation is shown — protected content is not accessible until the OIDC flow is completed.
 
 ## Authenticated Homepage
 
@@ -28,26 +29,26 @@ After signing in via Keycloak, the hero updates to show a personalised welcome m
 
 ## Dashboard
 
-![Member dashboard — "View Service Blueprints" and "Start Service Blueprint" links, and the Mock Business App API tester](../images/walkthroughs/home-entry/03-dashboard.png)
+![Member dashboard — "View queue" and "Start" links, and the Mock Business App API tester](../images/walkthroughs/home-entry/03-dashboard.png)
 
-The `/dashboard` route (protected by `[Authorize]`) shows the member dashboard with two primary service blueprint entry points:
+The `/dashboard` route (protected by `[Authorize]`) shows the member dashboard with two primary Wayfinder entry points:
 
-1. **View Service Blueprints** (`/my-service-blueprints`) – lists all active and completed service requests for the signed-in member
-2. **Service Blueprint Demos** – a grid of seeded demo cards, each with its own **Start** button
+1. **Caseworker queue** (`/caseworker-queue`) – the NJF Contributions Team's worklist, rendered by Wayfinder.Umbraco's packaged Block Grid worklist element
+2. **Wayfinder service design demo** – the "Submit contributions file" card, rendered by Wayfinder.Umbraco's packaged Block Grid stage element
 
-The same page also advertises the development-only **Service Desk** card for local operators and testers, but the end-user entry journey keeps its focus on the member-facing routes first.
+Service design itself is entirely Wayfinder's job here — Prism's dashboard only links out to pages an ordinary CMS editor composed from Wayfinder's own Block Grid blocks (see `docs/guides/support-systems.md` in the core Wayfinder repo).
 
-## Service Blueprint Demo Entry Point
+## Wayfinder Service Design Demo Entry Point
 
-![Dashboard service blueprint demo card — direct navigation into the seeded "Get in Touch" service blueprint](../images/walkthroughs/home-entry/04-start-service-blueprint.png)
+![Dashboard service design demo card — direct navigation into the seeded "Submit contributions file" page](../images/walkthroughs/home-entry/04-start-service-blueprint.png)
 
-Clicking **Start** on the **Get in Touch** demo card takes the signed-in member straight to the seeded community enquiry service blueprint at `/get-in-touch`. This is the quickest way to move from the homepage hero into a real product journey without first visiting the service request hub.
+Clicking **Start** on the **Submit contributions file** card takes the signed-in member straight to `/submit-contributions-file` — a `wayfinderServicePage` content node whose `stageArea` carries one `wayfinderServiceRequestStage` Block Grid block. Uploading a file here starts the bulk-contributions service blueprint, which calls a real downstream support system (Mock Business App) before landing in the caseworker queue below.
 
-## Service Request Hub
+## Caseworker Queue
 
-![My Service Blueprints page — service request list](../images/walkthroughs/home-entry/05-service-blueprint-hub.png)
+![Caseworker queue page — the NJF Contributions Team's worklist](../images/walkthroughs/home-entry/05-caseworker-queue.png)
 
-The service request hub at `/my-service-blueprints` shows all service requests owned by the signed-in member. On a freshly seeded environment the list is empty; after starting a service blueprint an **In Progress** entry appears.
+The caseworker queue at `/caseworker-queue` — another `wayfinderServicePage` node, this one carrying a `wayfinderServiceRequestWorklist` Block Grid block in its `worklistArea` — shows every contributions file assigned to the signed-in member's team (see `docs/guides/team-assignment.md`). On a freshly seeded environment the queue is empty until a contributions file has been submitted and validated.
 
 ---
 

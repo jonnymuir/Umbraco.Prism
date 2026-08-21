@@ -14,7 +14,7 @@ namespace UmbracoPrism.TestSite;
 
 /// <summary>
 /// Seeds the TestSite Settings node with the stable auth-flow mobile nav items
-/// (Home, Dashboard, My Service Requests),
+/// (Home, Dashboard, Caseworker queue),
 /// each backed by an SVG icon written to /media/prism-nav-icons/ and registered in the
 /// Umbraco media library under a "Prism Navigation Icons" folder.
 ///
@@ -39,10 +39,9 @@ public class DemoMobileNavSeeder(
     // Web nav uses its own element keys — distinct Block List instances from the mobile items above,
     // even though both point at the same mobileNavItem element type.
     private static readonly Guid WebHomeElementKey = new("c6d7e8f9-a0b1-4345-fabc-567890123456");
-    private static readonly Guid WebGetInTouchElementKey = new("d7e8f9a0-b1c2-4456-abcd-678901234567");
-    private static readonly Guid WebServiceRequestsElementKey = new("e8f9a0b1-c2d3-4567-bcde-789012345678");
+    private static readonly Guid WebContributionsElementKey = new("d7e8f9a0-b1c2-4456-abcd-678901234567");
+    private static readonly Guid WebCaseworkerQueueElementKey = new("e8f9a0b1-c2d3-4567-bcde-789012345678");
     private static readonly Guid WebJugglingLicenceElementKey = new("f9a0b1c2-d3e4-4678-cdef-890123456789");
-    private static readonly Guid WebLicenceTransferElementKey = new("0a1b2c3d-4e5f-4789-def0-901234567890");
 
     // Must match MobileNavSchemaSetup.MobileNavItemTypeKey.
     private static readonly Guid MobileNavItemTypeKey = new("a9f4b2c1-3d5e-6f70-8912-34abc5678def");
@@ -104,11 +103,11 @@ public class DemoMobileNavSeeder(
 
         var needsMobileUpdate = NeedsBlockListSeed(
             settings.GetValue<string>("mobileNavLinks"),
-            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.DashboardUrl, TestSiteSeedContract.ServiceRequestHubUrl);
+            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.DashboardUrl, TestSiteSeedContract.CaseworkerQueuePageUrl);
         var needsWebUpdate = settings.HasProperty("webNavLinks") && NeedsBlockListSeed(
             settings.GetValue<string>("webNavLinks"),
-            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.ServiceRequestPageUrl, TestSiteSeedContract.ServiceRequestHubUrl,
-            TestSiteSeedContract.JugglingLicencePageUrl, TestSiteSeedContract.LicenceTransferPageUrl);
+            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.JugglingLicencePageUrl,
+            TestSiteSeedContract.ContributionsPageUrl, TestSiteSeedContract.CaseworkerQueuePageUrl);
 
         if (!needsMobileUpdate && !needsWebUpdate)
         {
@@ -125,7 +124,7 @@ public class DemoMobileNavSeeder(
 
         if (needsWebUpdate)
         {
-            logger.LogInformation("DEMO SEEDER: Seeding webNavLinks with Home, Get in Touch, My Service Requests, Apply for a juggling licence, and Transfer your licence items.");
+            logger.LogInformation("DEMO SEEDER: Seeding webNavLinks with Home, Apply for a juggling licence, Submit contributions file, and Caseworker queue items.");
             var webBlockListJson = BuildWebNavBlockListJson();
             settings.SetValue("webNavLinks", webBlockListJson);
         }
@@ -325,7 +324,7 @@ public class DemoMobileNavSeeder(
             ["contentData"] = new JsonArray(
                 BuildBlockItem(homeKey,      "Home",         TestSiteSeedContract.HomePageUrl,   homeMediaKey),
                 BuildBlockItem(dashKey,      "Dashboard",    TestSiteSeedContract.DashboardUrl,  dashMediaKey),
-                BuildBlockItem(serviceRequestsKey, "My Service Requests", TestSiteSeedContract.ServiceRequestHubUrl, serviceRequestsMediaKey)
+                BuildBlockItem(serviceRequestsKey, "Caseworker queue", TestSiteSeedContract.CaseworkerQueuePageUrl, serviceRequestsMediaKey)
             ),
             ["settingsData"] = new JsonArray(),
             ["expose"] = new JsonArray(
@@ -340,22 +339,20 @@ public class DemoMobileNavSeeder(
 
     /// <summary>
     /// Builds the desktop nav's Block List JSON — same shape and element type as
-    /// <see cref="BuildBlockListJson"/>, but its own five items (Home, Get in Touch, My
-    /// Service Requests, Apply for a juggling licence, Transfer your licence — genuinely different
-    /// content from the mobile bar's Home/Dashboard/My Service Requests) and no icons, matching how the
-    /// desktop header nav has always rendered as plain text links. The two juggling-licence
-    /// links are the only route into Prism's CMS Service Blueprint demos — unlike the
-    /// MockBusinessApp-hosted GDS demos (reached by direct URL, documented for developers
-    /// testing the toolkit), CMS Service Blueprint's entire point is a native, discoverable public
-    /// journey, so each earns a permanent nav entry the others don't.
+    /// <see cref="BuildBlockListJson"/>, but its own four items (Home, Apply for a juggling
+    /// licence, Submit contributions file, Caseworker queue — genuinely different content from
+    /// the mobile bar's Home/Dashboard/Caseworker queue) and no icons, matching how the desktop
+    /// header nav has always rendered as plain text links. These are the only route into
+    /// Wayfinder.Umbraco's Block Grid-composed pages — unlike the MockBusinessApp-hosted support
+    /// system (reached only via a real downstream call, not browsed directly), each earns a
+    /// permanent nav entry since the whole point is a native, discoverable journey.
     /// </summary>
     private static string BuildWebNavBlockListJson()
     {
         var homeKey = WebHomeElementKey.ToString();
-        var getInTouchKey = WebGetInTouchElementKey.ToString();
-        var serviceRequestsKey = WebServiceRequestsElementKey.ToString();
+        var contributionsKey = WebContributionsElementKey.ToString();
+        var caseworkerQueueKey = WebCaseworkerQueueElementKey.ToString();
         var jugglingLicenceKey = WebJugglingLicenceElementKey.ToString();
-        var licenceTransferKey = WebLicenceTransferElementKey.ToString();
 
         var root = new JsonObject
         {
@@ -363,26 +360,23 @@ public class DemoMobileNavSeeder(
             {
                 ["Umbraco.BlockList"] = new JsonArray(
                     new JsonObject { ["contentKey"] = homeKey },
-                    new JsonObject { ["contentKey"] = getInTouchKey },
-                    new JsonObject { ["contentKey"] = serviceRequestsKey },
                     new JsonObject { ["contentKey"] = jugglingLicenceKey },
-                    new JsonObject { ["contentKey"] = licenceTransferKey }
+                    new JsonObject { ["contentKey"] = contributionsKey },
+                    new JsonObject { ["contentKey"] = caseworkerQueueKey }
                 )
             },
             ["contentData"] = new JsonArray(
                 BuildBlockItem(homeKey, "Home", TestSiteSeedContract.HomePageUrl, mediaKey: null),
-                BuildBlockItem(getInTouchKey, "Get in Touch", TestSiteSeedContract.ServiceRequestPageUrl, mediaKey: null),
-                BuildBlockItem(serviceRequestsKey, "My Service Requests", TestSiteSeedContract.ServiceRequestHubUrl, mediaKey: null),
                 BuildBlockItem(jugglingLicenceKey, TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicencePageUrl, mediaKey: null),
-                BuildBlockItem(licenceTransferKey, TestSiteSeedContract.LicenceTransferNavLabel, TestSiteSeedContract.LicenceTransferPageUrl, mediaKey: null)
+                BuildBlockItem(contributionsKey, TestSiteSeedContract.ContributionsPageName, TestSiteSeedContract.ContributionsPageUrl, mediaKey: null),
+                BuildBlockItem(caseworkerQueueKey, TestSiteSeedContract.CaseworkerQueuePageName, TestSiteSeedContract.CaseworkerQueuePageUrl, mediaKey: null)
             ),
             ["settingsData"] = new JsonArray(),
             ["expose"] = new JsonArray(
                 new JsonObject { ["contentKey"] = homeKey, ["culture"] = null, ["segment"] = null },
-                new JsonObject { ["contentKey"] = getInTouchKey, ["culture"] = null, ["segment"] = null },
-                new JsonObject { ["contentKey"] = serviceRequestsKey, ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = jugglingLicenceKey, ["culture"] = null, ["segment"] = null },
-                new JsonObject { ["contentKey"] = licenceTransferKey, ["culture"] = null, ["segment"] = null }
+                new JsonObject { ["contentKey"] = contributionsKey, ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = caseworkerQueueKey, ["culture"] = null, ["segment"] = null }
             )
         };
 

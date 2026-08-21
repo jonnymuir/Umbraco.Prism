@@ -1,18 +1,19 @@
-import { test, expect, type Locator, type Page, type Response } from '@playwright/test';
+import { test, expect, type Page, type Response } from '@playwright/test';
 
 import { LiveAppHost } from './support/live-app-host';
 
 const appHost = new LiveAppHost();
+// demo@prism.local is a plain Prism member with no NJF Contributions Team access;
+// njf-caseworker@prism.local is the only account on that team's roster — see
+// NjfContributionsTeam's own remarks (both seeded in keycloak/realm-export.json).
 const demoCredentials = {
   username: 'demo@prism.local',
   password: 'password'
 };
-const expectedServiceBlueprintDemos = [
-  { title: 'Get in Touch', path: /\/get-in-touch$/ },
-  { title: 'Apply for Planning Permission', path: /\/apply-for-planning-permission$/ },
-  { title: 'Payment Demo', path: /\/payment-demo$/ },
-  { title: 'Request Information', path: /\/request-information$/ }
-] as const;
+const njfCaseworkerCredentials = {
+  username: 'njf-caseworker@prism.local',
+  password: 'password'
+};
 
 test.describe('Localhost auth/session behavioural contracts', () => {
   test.describe.configure({ mode: 'serial' });
@@ -37,16 +38,24 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await callBusinessAppApi(page);
   });
 
-  test('signed-in member can open My Service Requests', async ({ page }) => {
-    await signIn(page);
-    await page.goto('/my-service-requests');
+  test('NJF caseworker can open the caseworker queue', async ({ page }) => {
+    await signInAsCaseworker(page);
+    await page.goto('/caseworker-queue');
 
-    await expect(page.getByRole('heading', { name: 'My Service Requests' })).toBeVisible();
-    await expectAnyVisible(
-      page.getByText("You don't have any active service requests yet."),
-      page.getByRole('heading', { name: 'In Progress' }),
-      page.getByRole('heading', { name: 'Completed' })
-    );
+    await expect(page.getByRole('heading', { name: 'Caseworker queue' })).toBeVisible();
+    await expect(page.getByText('No service requests match the current filters')).toBeVisible();
+  });
+
+  test('signed-in plain member cannot see any rows on the caseworker queue', async ({ page }) => {
+    // demo@prism.local is not on the NJF Contributions Team roster — the worklist block filters
+    // every row out for them (NjfContributionsTeam.NoAccessProfile), rendering the same
+    // empty-state text a genuinely empty team queue would. Not a security leak (nothing real is
+    // visible or actionable either way) — see that class's own remarks on this UX trade-off.
+    await signIn(page);
+    await page.goto('/caseworker-queue');
+
+    await expect(page.getByRole('heading', { name: 'Caseworker queue' })).toBeVisible();
+    await expect(page.getByText('No service requests match the current filters')).toBeVisible();
   });
 
   test('anonymous public service request instance is claimed and resumable after signing in', async ({ page }) => {
@@ -65,60 +74,56 @@ test.describe('Localhost auth/session behavioural contracts', () => {
     await signIn(page);
 
     // The claim succeeded: the anonymous cookie is gone (nothing left to correlate against —
-    // the instance now belongs to the signed-in member) and it shows up as resumable.
+    // the instance now belongs to the signed-in member).
     const cookiesAfterSignIn = await page.context().cookies();
     expect(cookiesAfterSignIn.some(c => c.name === 'PrismPublicServiceRequestVisitor')).toBe(false);
 
-    await page.goto('/my-service-requests');
-    await expect(page.getByRole('heading', { name: 'In Progress' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Apply for a juggling licence', level: 3 })).toBeVisible();
-    await expect(page.getByText('Your details')).toBeVisible();
-
-    // Resuming lands back on the exact step left off, not a fresh restart.
-    await page.getByRole('link', { name: 'Continue' }).click();
-    await expect(page).toHaveURL(/\/apply-for-a-juggling-licence\/?\?instanceId=/);
+    // Revisiting the same "single"-policy service blueprint resumes the claimed instance at the
+    // exact step left off, not a fresh restart from Eligibility. This page always resolves the
+    // instance-owner-restricted public-visitor profile regardless of sign-in state (see
+    // TestSiteComposer.IsJugglingLicenceContext), so the signed-in member sees their own claimed
+    // instance and nobody else's.
+    await page.goto('/apply-for-a-juggling-licence');
     await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
   });
 
-  test('signed-in member can open the seeded service blueprint start page', async ({ page }) => {
-    await signIn(page);
-    await page.goto('/get-in-touch');
+  test('anonymous visitor can open the seeded juggling licence start page', async ({ page }) => {
+    // The full anonymous-vs-signed-in journey (including the member fee discount) is covered by
+    // apply-for-a-juggling-licence.walkthrough.spec.ts; this is just the smoke check.
+    await page.goto('/apply-for-a-juggling-licence');
 
-    await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Submit' })).toBeVisible();
+    await expect(page.getByText('You can apply for a juggling licence if you are 16 or over')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible();
   });
 
-  test('signed-in member can reach seeded service blueprint pages from the dashboard', async ({ page }) => {
+  test('NJF caseworker can reach the Wayfinder service design demo from the dashboard', async ({ page }) => {
+    await signInAsCaseworker(page);
+    await openDashboard(page);
+
+    await expect(page.getByRole('heading', { name: 'Wayfinder service design demo' })).toBeVisible();
+    await page.getByRole('link', { name: 'Start' }).click();
+    await expect(page).toHaveURL(/\/submit-contributions-file\/?$/);
+    await expect(page.getByLabel('Contributions file')).toBeVisible();
+  });
+
+  test('signed-in plain member sees no Wayfinder service design demo section on the dashboard', async ({ page }) => {
     await signIn(page);
     await openDashboard(page);
 
-    await page.getByRole('link', { name: 'View Service Requests' }).click();
-    await expect(page).toHaveURL(/\/my-service-requests$/);
-
-    await openDashboard(page);
-    for (const serviceBlueprint of expectedServiceBlueprintDemos) {
-      await expect(serviceBlueprintDemoCard(page, serviceBlueprint.title)).toBeVisible();
-      await expect(serviceBlueprintDemoCard(page, serviceBlueprint.title).getByRole('link', { name: 'Start' })).toHaveAttribute(
-        'href',
-        serviceBlueprint.path
-      );
-    }
-
-    await serviceBlueprintDemoCard(page, 'Get in Touch').getByRole('link', { name: 'Start' }).click();
-    await expect(page).toHaveURL(expectedServiceBlueprintDemos[0].path);
-    await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Wayfinder service design demo' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'View queue' })).toHaveCount(0);
   });
 
   test('signed-in member stays signed in across a full restart', async ({ page }) => {
     await signIn(page);
     await appHost.restart();
-    
+
     // After restart, verify member is still authenticated
     await expectSignedInHome(page);
-    
+
     // Verify persistent session allows protected API calls
     await callBusinessAppApi(page);
-    
+
     // Verify clean sign-out still works after restart
     await signOut(page);
     await expectSignedOutHome(page);
@@ -137,21 +142,21 @@ async function expectSignedOutHome(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: /Your account, your way/i })).toBeVisible();
 }
 
-async function expectSignedInHome(page: Page): Promise<void> {
+async function expectSignedInHome(page: Page, displayName = 'Demo User'): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Go to Dashboard' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign Out' }).first()).toBeVisible();
-  await expect(page.getByText('Welcome back, Demo User')).toBeVisible();
+  await expect(page.getByText(`Welcome back, ${displayName}`)).toBeVisible();
 }
 
-async function signIn(page: Page): Promise<void> {
+async function signIn(page: Page, credentials: { username: string; password: string } = demoCredentials): Promise<void> {
   await expectSignedOutHome(page);
 
   await page.getByRole('link', { name: 'Sign In' }).click();
 
   await expect(page.locator('#username')).toBeVisible({ timeout: 120_000 });
-  await page.locator('#username').fill(demoCredentials.username);
-  await page.locator('#password').fill(demoCredentials.password);
+  await page.locator('#username').fill(credentials.username);
+  await page.locator('#password').fill(credentials.password);
 
   const capture = captureResponses(page, /localhost:44345\/(signin-oidc|dashboard\/?$|$)/);
   try {
@@ -168,7 +173,12 @@ async function signIn(page: Page): Promise<void> {
     capture.dispose();
   }
 
-  await expectSignedInHome(page);
+  const displayName = credentials.username === njfCaseworkerCredentials.username ? 'NJF Caseworker' : 'Demo User';
+  await expectSignedInHome(page, displayName);
+}
+
+async function signInAsCaseworker(page: Page): Promise<void> {
+  await signIn(page, njfCaseworkerCredentials);
 }
 
 async function signOut(page: Page): Promise<void> {
@@ -219,7 +229,7 @@ async function callBusinessAppApi(page: Page): Promise<void> {
 
   // Contract: Browser-facing API responses must not expose internal backchannel URLs
   const displayedUrl = await apiUrl.textContent();
-  expect(displayedUrl).not.toContain(':5163', 
+  expect(displayedUrl).not.toContain(':5163',
     'displayed URL must not expose the internal backchannel port 5163');
   expect(displayedUrl).toContain('https://localhost:7245',
     'displayed URL must show the public-facing HTTPS endpoint');
@@ -240,23 +250,10 @@ async function openDashboard(page: Page): Promise<void> {
     capture.dispose();
   }
 
-  await expect(page.getByRole('link', { name: 'View Service Requests' })).toBeVisible();
+  // "View queue" / "Wayfinder service design demo" only render for the NJF Contributions Team
+  // roster (see NjfContributionsTeam) — this helper is used by both personas, so assert only
+  // what every signed-in member sees.
   await expect(page.getByRole('button', { name: 'Call Mock Business App API' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Service Blueprint Demos' })).toBeVisible();
-}
-
-function serviceBlueprintDemoCard(page: Page, title: string): Locator {
-  return page.locator('.dash-card').filter({ has: page.getByRole('heading', { name: title }) }).first();
-}
-
-async function expectAnyVisible(...locators: Locator[]): Promise<void> {
-  for (const locator of locators) {
-    if (await locator.isVisible().catch(() => false)) {
-      return;
-    }
-  }
-
-  throw new Error('Expected at least one service blueprint state indicator to be visible.');
 }
 
 type ResponseCapture = {
