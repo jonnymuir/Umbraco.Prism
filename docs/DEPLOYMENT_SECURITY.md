@@ -6,7 +6,7 @@ This guide covers deployment boundaries, environment configuration, and pre-flig
 
 ## Service Deployment Boundaries
 
-### ✅ UmbracoPrism.TestSite — Production-Safe
+### ✅ UmbracoPrism.TestSite: Production-Safe
 
 The TestSite is designed and tested for production use:
 - **Authentication:** Stateless OIDC identity per request
@@ -14,7 +14,7 @@ The TestSite is designed and tested for production use:
 - **Dev-Only Code Paths:** None; no conditional logic that enables dangerous features in Development
 - **Safe to Deploy:** Yes, with proper environment configuration (see checklist below)
 
-### ❌ UmbracoPrism.MockBusinessApp — DO NOT DEPLOY TO PRODUCTION
+### ❌ UmbracoPrism.MockBusinessApp: DO NOT DEPLOY TO PRODUCTION
 
 This is a demo and development-only application. It **must never** be deployed to production.
 
@@ -28,9 +28,9 @@ This is a demo and development-only application. It **must never** be deployed t
   - Reset a single service request (`POST /admin/service-desk/{instanceId}/reset`)
   - Delete all service requests (`POST /admin/service-desk/reset-all`)
 
-**Mitigation:** All unauthenticated admin endpoints return `404 Not Found` in non-Development mode. However, **do not rely on this for safety**—simply do not deploy MockBusinessApp.
+**Mitigation:** All unauthenticated admin endpoints return `404 Not Found` in non-Development mode. However, **do not rely on this for safety**: simply do not deploy MockBusinessApp.
 
-### ✅ Wayfinder — Production-Safe
+### ✅ Wayfinder: Production-Safe
 
 Shared libraries are production-safe. The backchannel URL feature (described below) only activates if explicitly configured via environment variable.
 
@@ -119,7 +119,7 @@ This is the **correct security model**:
 - ✅ No bypass of HTTPS enforcement (except for backchannel fetch)
 
 ### For Developers
-You do not need to set `KEYCLOAK_BACKCHANNEL_URL` manually. The AppHost automatically injects it when `CODESPACE_NAME` is detected. Just work as normal—Codespaces development is fully supported.
+You do not need to set `KEYCLOAK_BACKCHANNEL_URL` manually. The AppHost automatically injects it when `CODESPACE_NAME` is detected. Just work as normal, Codespaces development is fully supported.
 
 ---
 

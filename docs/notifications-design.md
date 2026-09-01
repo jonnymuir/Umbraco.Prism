@@ -1,10 +1,10 @@
-# Push Notifications — Design Document
+# Push Notifications: Design Document
 
 > **Note:** This is an **internal design document** for contributors and maintainers. For user-facing setup instructions, see [PUSH_SETUP.md](PUSH_SETUP.md).
 
 **Author:** Tom Nook (Lead) / Kicks (Mobile Native Specialist)  
 **Requested by:** Jonny Muir  
-**Status:** Draft — Awaiting Jonny's review before implementation begins  
+**Status:** Draft, Awaiting Jonny's review before implementation begins  
 **Date:** 2026-07-14
 
 ---
@@ -58,8 +58,8 @@ Push notification logic is split between the NuGet package and the consuming sit
 }
 ```
 
-- `FcmServiceAccountSecretName` — the Key Vault secret name holding the Firebase service account JSON (same pattern as `SecretKeyName` for OIDC)
-- `Enabled` — opt-in flag; when `false`, the push subsystem is a no-op. Defaults `false`.
+- `FcmServiceAccountSecretName`, the Key Vault secret name holding the Firebase service account JSON (same pattern as `SecretKeyName` for OIDC)
+- `Enabled`, opt-in flag; when `false`, the push subsystem is a no-op. Defaults `false`.
 
 ### What Prism handles automatically when enabled
 
@@ -77,7 +77,7 @@ Push notification logic is split between the NuGet package and the consuming sit
 
 ### Why FCM
 
-- FCM works for both iOS (via APNs) and Android in one integration — no separate APNs HTTP/2 provider needed in .NET
+- FCM works for both iOS (via APNs) and Android in one integration, no separate APNs HTTP/2 provider needed in .NET
 - `@capacitor/push-notifications` has first-class FCM support (it's the primary transport on Android; it wraps APNs via FCM on iOS)
 - `FirebaseAdmin` NuGet package is mature, actively maintained, and supports HTTP v1 API
 - Token-based service account auth (not deprecated legacy server key)
@@ -86,17 +86,17 @@ Push notification logic is split between the NuGet package and the consuming sit
 
 | Concern | Mitigation |
 |---|---|
-| **Android: requires Google Play Services** | Acceptable — AOSP/non-GMS devices are out of scope for a standard consumer app |
+| **Android: requires Google Play Services** | Acceptable, AOSP/non-GMS devices are out of scope for a standard consumer app |
 | **iOS: APNs via FCM adds a hop** | For standard use (not ultra-low-latency), the latency is negligible. Direct APNs integration is the only alternative, which means maintaining two dispatch paths. Not worth it. |
 | **Firebase project dependency** | Consumer must create a Firebase project. This is a one-time setup. Documented clearly. |
 | **JSON service account in Key Vault** | The service account JSON is ~2KB. Fits in a Key Vault secret value. |
 
 ### Rejected Alternatives
 
-- **OneSignal** — third-party SaaS; adds a data processor dependency; overkill for a NuGet package
-- **Azure Notification Hubs** — good at scale, but adds Azure-specific coupling and complexity for what should be a general Umbraco package
-- **Direct APNs + FCM split** — two dispatch paths, higher maintenance, no benefit for this stack
-- **Web push (VAPID only)** — doesn't work from a Capacitor native shell; deferred to a future enhancement
+- **OneSignal**: third-party SaaS; adds a data processor dependency; overkill for a NuGet package
+- **Azure Notification Hubs**: good at scale, but adds Azure-specific coupling and complexity for what should be a general Umbraco package
+- **Direct APNs + FCM split**: two dispatch paths, higher maintenance, no benefit for this stack
+- **Web push (VAPID only)**: doesn't work from a Capacitor native shell; deferred to a future enhancement
 
 ---
 
@@ -126,11 +126,11 @@ sequenceDiagram
 
 See [Section 9](#9-database-schema) for the full schema. Key design decisions:
 
-- **Keyed by `DeviceId`** (client-generated UUID, same pattern as `prismDeviceCredentials`) — allows upsert on refresh without creating duplicates
-- **Linked to `MemberKey`** (Umbraco member GUID, not Entra OID) — push notifications are member-scoped, not tenant-auth-scoped
-- **`Platform` column** (`ios`/`android`) — allows platform-specific FCM payload formatting if needed
-- **`LastSeenAt`** — updated on every registration call; tokens not updated in 90 days are treated as stale and skipped on dispatch (not deleted immediately — a separate cleanup task prunes them)
-- **`IsActive` bool** — set to `false` on logout and on FCM `registration-token-not-registered` errors during dispatch
+- **Keyed by `DeviceId`** (client-generated UUID, same pattern as `prismDeviceCredentials`), allows upsert on refresh without creating duplicates
+- **Linked to `MemberKey`** (Umbraco member GUID, not Entra OID), push notifications are member-scoped, not tenant-auth-scoped
+- **`Platform` column** (`ios`/`android`), allows platform-specific FCM payload formatting if needed
+- **`LastSeenAt`**, updated on every registration call; tokens not updated in 90 days are treated as stale and skipped on dispatch (not deleted immediately, a separate cleanup task prunes them)
+- **`IsActive` bool**, set to `false` on logout and on FCM `registration-token-not-registered` errors during dispatch
 
 ### Multiple devices per member
 
@@ -164,8 +164,8 @@ For the initial implementation and demo, **content type alias** subscriptions ar
 
 See [Section 9](#9-database-schema). Key decisions:
 
-- Unique constraint on `(MemberKey, ContentNodeKey, ContentTypeAlias, Category)` — prevents duplicate subscriptions
-- Nullable columns allow `NULL` to mean "any" — a row with only `ContentTypeAlias = 'announcement'` matches any published Announcement
+- Unique constraint on `(MemberKey, ContentNodeKey, ContentTypeAlias, Category)`, prevents duplicate subscriptions
+- Nullable columns allow `NULL` to mean "any", a row with only `ContentTypeAlias = 'announcement'` matches any published Announcement
 
 ### Umbraco hook: `ContentPublishedNotification`
 
@@ -242,7 +242,7 @@ On submit: `POST /umbraco/api/prism/push/broadcast` (Umbraco admin auth required
 public async Task<IActionResult> Broadcast([FromBody] PrismBroadcastRequest request)
 ```
 
-The handler queries all active `prismPushTokens` and dispatches in batches of 500 (FCM multicast limit). For large member bases this runs asynchronously — the endpoint returns `202 Accepted` with a dispatch job ID, and the result can be polled.
+The handler queries all active `prismPushTokens` and dispatches in batches of 500 (FCM multicast limit). For large member bases this runs asynchronously, the endpoint returns `202 Accepted` with a dispatch job ID, and the result can be polled.
 
 ### Auto-broadcast on publish events
 
@@ -304,9 +304,9 @@ A `PrismPushQueueRunner` runs every 60 seconds. It:
 
 The `ScheduleForMemberAsync` API just inserts into this table.
 
-### Use Case 2A: Scheduled events — Demo scenario
+### Use Case 2A: Scheduled events: Demo scenario
 
-**"Content Expiry Warning"** — Editors are notified 7 days before content they own expires.
+**"Content Expiry Warning"**: Editors are notified 7 days before content they own expires.
 
 Implementation:
 - An additional `IRecurringBackgroundTask` (`PrismContentExpiryNotifier`) runs once daily at 08:00
@@ -316,9 +316,9 @@ Implementation:
 
 This is a real Umbraco pain point. Content expiry is commonly forgotten. Any agency or publisher site benefits.
 
-### Use Case 2B: API flow triggers — Demo scenario
+### Use Case 2B: API flow triggers: Demo scenario
 
-**"Member Welcome Notification"** — 1 minute after a member registers, they receive a personalised welcome push on their device.
+**"Member Welcome Notification"**: 1 minute after a member registers, they receive a personalised welcome push on their device.
 
 Implementation in the TestSite `TestSiteComposer`:
 
@@ -354,23 +354,23 @@ Add `@capacitor/push-notifications` to `src/UmbracoPrism.Client/package.json`:
 
 ### Mobile shell changes required (iOS)
 
-**`ios/App/App/AppDelegate.swift`** — no changes needed if using Capacitor's push plugin; it handles `didRegisterForRemoteNotificationsWithDeviceToken` automatically.
+**`ios/App/App/AppDelegate.swift`**, no changes needed if using Capacitor's push plugin; it handles `didRegisterForRemoteNotificationsWithDeviceToken` automatically.
 
-**`ios/App/App/App.entitlements`** — add:
+**`ios/App/App/App.entitlements`**, add:
 ```xml
 <key>aps-environment</key>
 <string>development</string>  <!-- change to 'production' for App Store builds -->
 ```
 
-**`ios/App/Podfile`** — Capacitor push plugin auto-links; run `pod install` after `npm install`.
+**`ios/App/Podfile`**, Capacitor push plugin auto-links; run `pod install` after `npm install`.
 
-**Apple Developer Portal** — Push Notifications capability must be enabled for the App ID. APNs key (p8) must be uploaded to the Firebase console.
+**Apple Developer Portal**: Push Notifications capability must be enabled for the App ID. APNs key (p8) must be uploaded to the Firebase console.
 
 ### Mobile shell changes required (Android)
 
-**`android/app/google-services.json`** — download from Firebase console and place here.
+**`android/app/google-services.json`**, download from Firebase console and place here.
 
-**`android/app/src/main/AndroidManifest.xml`** — Android 13+ requires:
+**`android/app/src/main/AndroidManifest.xml`**, Android 13+ requires:
 ```xml
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 ```
@@ -439,7 +439,7 @@ PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
 });
 ```
 
-Deep link `url` values are relative paths (`/announcements/my-announcement`). The Capacitor WebView navigates to the Umbraco frontend route — no custom URL scheme needed unless native deep links to specific app screens are required (deferred to a later phase).
+Deep link `url` values are relative paths (`/announcements/my-announcement`). The Capacitor WebView navigates to the Umbraco frontend route, no custom URL scheme needed unless native deep links to specific app screens are required (deferred to a later phase).
 
 ### Background vs killed-state notifications
 
@@ -465,8 +465,8 @@ Ensure listeners are registered before any async operations in `initializeApp()`
 | Announcements Page | `announcementsPage` | Title (text), children: Announcement |
 
 **Frontend pages (Razor/route-based):**
-- `/announcements` — list of all Announcements with a prominent `<prism-push-subscribe content-type-alias="announcement">` component at the top
-- `/announcements/{slug}` — detail view of a single announcement with a per-node subscribe option
+- `/announcements`, list of all Announcements with a prominent `<prism-push-subscribe content-type-alias="announcement">` component at the top
+- `/announcements/{slug}`, detail view of a single announcement with a per-node subscribe option
 
 **Demo flow:**
 1. Developer installs TestSite, seeds content → three sample Announcements published
@@ -482,18 +482,18 @@ Ensure listeners are registered before any async operations in `initializeApp()`
 
 ### Demo B: "Welcome Notification + Content Expiry Warning" (Use Cases 2A + 2B)
 
-**Scenario A — Welcome notification (2B):**
+**Scenario A, Welcome notification (2B):**
 
 1. New member registers on the TestSite
 2. Welcome notification queued for T+1 minute
-3. After 1 minute, member's device shows: "Welcome to Prism Demo Site 👋 — Tap to explore member features"
+3. After 1 minute, member's device shows: "Welcome to Prism Demo Site 👋, Tap to explore member features"
 4. Tap → opens `/members/dashboard`
 
 No additional content types needed. Just a `MemberCreatedNotification` handler in `TestSiteComposer` that calls `IPrismPushNotificationService.ScheduleForMemberAsync`.
 
-**Scenario B — Content expiry warning (2A):**
+**Scenario B, Content expiry warning (2A):**
 
-In the TestSite, create one Announcement with `expireDate` set to 7 days from now. The `PrismContentExpiryNotifier` (daily task) picks this up and sends a notification to the Umbraco admin user's registered device: "⚠️ '[Announcement Title]' expires in 7 days — review it in the backoffice."
+In the TestSite, create one Announcement with `expireDate` set to 7 days from now. The `PrismContentExpiryNotifier` (daily task) picks this up and sends a notification to the Umbraco admin user's registered device: "⚠️ '[Announcement Title]' expires in 7 days, review it in the backoffice."
 
 This requires the Umbraco admin user to also have a device token registered (i.e., the backoffice user also uses the Prism mobile app shell). For the demo, any registered editor/admin device receives this alert.
 
@@ -569,14 +569,14 @@ The following are handed to **Copper** for threat modelling before Phase 1 imple
 ### FCM service account credentials
 
 - The Firebase service account JSON is stored as a Key Vault secret (same pattern as OIDC client secrets)
-- `SecretVaultService` caches the raw JSON for 1 hour — this is fine, but the `FirebaseApp` instance should be initialised once at startup (singleton), not per-request
+- `SecretVaultService` caches the raw JSON for 1 hour, this is fine, but the `FirebaseApp` instance should be initialised once at startup (singleton), not per-request
 - **Risk:** If Key Vault is unavailable at startup, `FirebaseApp` cannot initialise. The `Enabled` flag should degrade gracefully: push dispatch becomes a no-op with a warning log, not an exception that crashes the app
 
 ### Push token storage
 
 - FCM tokens are not secrets in the classical sense (no private key), but they enable targeted message delivery to a specific device and reveal membership between user and device
-- `prismPushTokens` should be treated with the same sensitivity as PII — tenant-scoped access, not globally queryable by default
-- **Token enumeration risk:** The broadcast API must be `[Authorize(Policy = PrismPolicies.PrismAdmin)]` — not just authenticated member
+- `prismPushTokens` should be treated with the same sensitivity as PII, tenant-scoped access, not globally queryable by default
+- **Token enumeration risk:** The broadcast API must be `[Authorize(Policy = PrismPolicies.PrismAdmin)]`, not just authenticated member
 
 ### Subscribe endpoint
 
@@ -585,13 +585,13 @@ The following are handed to **Copper** for threat modelling before Phase 1 imple
 
 ### Content expiry notifications
 
-- The content expiry task runs as a background service with no user context — it queries Umbraco content directly. Ensure it cannot be triggered externally.
-- Notifications to editors (backoffice users) should route via editor device tokens, which are separate from member device tokens — **needs clarification from Jonny** (see Open Questions)
+- The content expiry task runs as a background service with no user context, it queries Umbraco content directly. Ensure it cannot be triggered externally.
+- Notifications to editors (backoffice users) should route via editor device tokens, which are separate from member device tokens, **needs clarification from Jonny** (see Open Questions)
 
 ### FCM payload
 
 - Do not include sensitive member data in FCM notification payloads (they may be logged by FCM or visible in notification centre)
-- The `data` field in `PrismPushPayload` should carry only routing info (URLs, content keys) — not PII or auth tokens
+- The `data` field in `PrismPushPayload` should carry only routing info (URLs, content keys), not PII or auth tokens
 
 ---
 
@@ -607,7 +607,7 @@ The Prism package currently authenticates users via Entra (Azure AD), not Umbrac
 - The design above uses `MemberKey` (Umbraco member GUID). Is that correct, or should it use the Entra OID from the JWT claims?
 - Impact: if users don't have corresponding Umbraco member records, the subscription system needs to key off something else
 
-### Q2: Editors on mobile — backoffice push recipients
+### Q2: Editors on mobile: backoffice push recipients
 
 For the content expiry demo, notifications are sent to "editors". Does the mobile app shell support the Umbraco backoffice, or is it purely member-facing? If editors don't use the mobile app, expiry warnings should go via email or a different channel.
 
@@ -623,11 +623,11 @@ Is web push (PWA notifications in browser, for non-mobile users) in scope? FCM s
 
 In the current Prism multi-tenant model, each tenant has its own hostname and Entra configuration. Should push tokens be tenant-scoped (a member on Tenant A's device cannot receive notifications from Tenant B)?
 
-**Recommendation:** Yes — add a `TenantId` column to `prismPushTokens` (same pattern as `prismDeviceCredentials`). The dispatch service filters by tenant. Needs Jonny to confirm the multi-tenancy requirement for push before we add the column.
+**Recommendation:** Yes, add a `TenantId` column to `prismPushTokens` (same pattern as `prismDeviceCredentials`). The dispatch service filters by tenant. Needs Jonny to confirm the multi-tenancy requirement for push before we add the column.
 
-### Q5: Firebase project — one per Prism installation or shared?
+### Q5: Firebase project: one per Prism installation or shared?
 
-Each consuming Umbraco site needs its own Firebase project (for its own APNs certificate binding). This is correct and expected — Prism doesn't provide a shared FCM relay. Confirm this is acceptable for the NuGet package consumer experience.
+Each consuming Umbraco site needs its own Firebase project (for its own APNs certificate binding). This is correct and expected, Prism doesn't provide a shared FCM relay. Confirm this is acceptable for the NuGet package consumer experience.
 
 ### Q6: Notification volume / FCM rate limits
 
@@ -638,16 +638,16 @@ FCM HTTP v1 API has a rate limit of 600,000 messages/minute per project. For the
 | Risk | Severity | Mitigation |
 |---|---|---|
 | iOS push permission rejection rate is high (~40-60%) without good UX framing | Medium | Request permission at the right moment (post-login), provide clear value proposition in the prompt |
-| FCM token churn — tokens can become invalid silently | Medium | Handle `registration-token-not-registered` errors in dispatch; deactivate tokens promptly |
+| FCM token churn, tokens can become invalid silently | Medium | Handle `registration-token-not-registered` errors in dispatch; deactivate tokens promptly |
 | `IRecurringBackgroundTask` precision is ±60s | Low | Acceptable for welcome notification (T+1min) and daily expiry checks |
-| Service account JSON rotation | Medium | Key Vault secret rotation will require `FirebaseApp` re-initialisation — either restart app, or implement hot-reload of Firebase credentials (complex). Recommend documenting manual restart as v1 process. |
+| Service account JSON rotation | Medium | Key Vault secret rotation will require `FirebaseApp` re-initialisation, either restart app, or implement hot-reload of Firebase credentials (complex). Recommend documenting manual restart as v1 process. |
 | `PrismPushQueue` row accumulation if background task stops | Low | Add `prismPushQueue` cleanup pass (delete rows older than 30 days regardless of status) |
 
 ---
 
 ## 12. Proposed Implementation Phases
 
-### Phase 1: Core plumbing — Device registration + FCM dispatch (no UI)
+### Phase 1: Core plumbing: Device registration + FCM dispatch (no UI)
 
 **Owner:** Blathers (backend) + Kicks (Capacitor)
 

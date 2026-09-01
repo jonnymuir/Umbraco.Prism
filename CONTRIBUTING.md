@@ -5,12 +5,12 @@ Umbraco.Prism is a professional, versioned package distributed via the Umbraco M
 ## Before You Start
 
 - **Prism is actively maintained** by Jonny Muir 
-- **Biometric and security-sensitive code** requires additional scrutiny — expect thorough review.
+- **Biometric and security-sensitive code** requires additional scrutiny, expect thorough review.
 - **Marketplace impact:** Changes affect CMS instances. Backward compatibility matters.
 
 ## Reporting Bugs
 
-1. **Use GitHub Issues.** Check existing issues first — search by keywords.
+1. **Use GitHub Issues.** Check existing issues first, search by keywords.
 2. **Include reproduction steps** and your environment:
    - Umbraco version
    - .NET version

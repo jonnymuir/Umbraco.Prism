@@ -44,7 +44,7 @@ The resolver still normalizes a few legacy names (`collect`, `review`, `completi
 - `details`
 - `notification-banner`
 
-The views for these live under `Views/Partials/_WayfinderComponents/` (built-in) in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) — a host overrides one at `Views/Partials/Components/` in its own app.
+The views for these live under `Views/Partials/_WayfinderComponents/` (built-in) in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco), a host overrides one at `Views/Partials/Components/` in its own app.
 
 ## Field payload rules worth knowing
 

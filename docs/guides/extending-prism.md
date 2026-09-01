@@ -17,11 +17,11 @@ Prism Core provides a **thin, reusable platform**. Your application adds the **b
 
 ### Your Application Adds
 
-- **Domain models** — Data structures specific to your business
-- **Notification handlers** — Controllers and endpoints triggered by events
-- **Service Blueprint endpoints** — State machines and business logic
-- **Custom API routes** — Domain-specific REST/GraphQL endpoints
-- **Umbraco content types** — Document types for your data
+- **Domain models**: Data structures specific to your business
+- **Notification handlers**: Controllers and endpoints triggered by events
+- **Service Blueprint endpoints**: State machines and business logic
+- **Custom API routes**: Domain-specific REST/GraphQL endpoints
+- **Umbraco content types**: Document types for your data
 
 ---
 
@@ -43,7 +43,7 @@ public class PrismVinylBackInStockRequest
 }
 ```
 
-This model is specific to your domain. Prism doesn't know about vinyl records—it just sends notifications.
+This model is specific to your domain. Prism doesn't know about vinyl records, it just sends notifications.
 
 ### 2. Create a Domain-Specific Notification Controller
 
@@ -211,16 +211,16 @@ catch (Exception ex)
 
 Service Blueprints are defined in your Business App (the backend API), not in Prism Core. Your service blueprint defines:
 
-- **Stages, routes, and gateways** (the journey structure — see the [Reference Service Blueprint Contract](./reference-service-blueprint-contract.md))
+- **Stages, routes, and gateways** (the journey structure, see the [Reference Service Blueprint Contract](./reference-service-blueprint-contract.md))
 - **Components** (what data to collect, and what's shown)
 - **Validation rules** (business logic to enforce)
 
 Prism Core handles rendering, client-side validation, and form submission. Your Business App handles all the business logic.
 
 **Service request endpoints your app must implement:**
-- `POST /api/service-request/{blueprintKey}/current` — Return the current stage
-- `POST /api/service-request/{blueprintKey}/advance` — Process the action and return the next stage
-- `GET /api/service-request/instances` — Power the service request hub
+- `POST /api/service-request/{blueprintKey}/current`, Return the current stage
+- `POST /api/service-request/{blueprintKey}/advance`, Process the action and return the next stage
+- `GET /api/service-request/instances`, Power the service request hub
 
 See [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md) for complete examples.
 
@@ -273,7 +273,7 @@ public async Task<IActionResult> NotifyPurchaseComplete([FromBody] PurchaseNotif
 
 ### 3. Rate Limiting Across Multiple Tenants
 
-Prism's rate limiting is built-in and tenant-aware. No additional configuration needed—it just works.
+Prism's rate limiting is built-in and tenant-aware. No additional configuration needed, it just works.
 
 ---
 
@@ -305,7 +305,7 @@ public class VinylNotificationControllerTests
     {
         var request = new PrismVinylBackInStockRequest 
         { 
-            VinylTitle = "Pink Floyd - The Wall", 
+            VinylTitle = "Pink Floyd - The Wall",
             Genre = "Rock" 
         };
         
@@ -338,16 +338,16 @@ Use the TestSite as a reference:
 
 When deploying your extended Prism application:
 
-1. **Database migrations** — If you add new content types or subscription models, create and run migrations
-2. **Secrets** — Domain-specific API keys or credentials should go in Azure Key Vault alongside Prism secrets
-3. **Health checks** — Include your custom notification endpoint in health checks
-4. **Monitoring** — Log failures and track notification delivery rates per tenant
+1. **Database migrations**: If you add new content types or subscription models, create and run migrations
+2. **Secrets**: Domain-specific API keys or credentials should go in Azure Key Vault alongside Prism secrets
+3. **Health checks**: Include your custom notification endpoint in health checks
+4. **Monitoring**: Log failures and track notification delivery rates per tenant
 
 ---
 
 ## Further Reading
 
-- [Notification Architecture](../design/notifications-architecture.md) — Deep dive into Prism's notification system
-- [Notification API Reference](../notifications-design.md) — Complete API documentation
-- [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md) — Service Blueprint and endpoints
-- [TestSite Reference](../../src/UmbracoPrism.TestSite/README.md) — Complete working example
+- [Notification Architecture](../design/notifications-architecture.md), Deep dive into Prism's notification system
+- [Notification API Reference](../notifications-design.md), Complete API documentation
+- [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md), Service Blueprint and endpoints
+- [TestSite Reference](../../src/UmbracoPrism.TestSite/README.md), Complete working example

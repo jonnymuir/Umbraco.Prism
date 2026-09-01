@@ -1,6 +1,6 @@
-# Walkthrough — Building a Mobile App from a Service Blueprint
+# Walkthrough: Building a Mobile App from a Service Blueprint
 
-A guide to taking a Prism service blueprint and shipping it as a native iOS or Android app using Capacitor — covering the shell structure, biometric authentication, deep link handling, and the build pipeline.
+A guide to taking a Prism service blueprint and shipping it as a native iOS or Android app using Capacitor, covering the shell structure, biometric authentication, deep link handling, and the build pipeline.
 
 > **Prerequisites:** The Prism stack runs locally (or in Codespaces). You have completed at least one service blueprint walkthrough (e.g., [Planning Notification](planning-notification.md)) and are familiar with how service blueprints render in the browser. For iOS builds, Xcode 15+ is required. For Android, Android Studio.
 
@@ -64,7 +64,7 @@ const config: CapacitorConfig = {
 export default config;
 ```
 
-💡 **What's happening:** In a production build, `webDir: 'dist'` tells Capacitor to bundle the compiled Vite output into the native app. In development, `server.url` overrides this with a live server URL — so the native shell makes network requests to the Prism TestSite directly, which means you can iterate on the web UI without rebuilding the native project each time.
+💡 **What's happening:** In a production build, `webDir: 'dist'` tells Capacitor to bundle the compiled Vite output into the native app. In development, `server.url` overrides this with a live server URL, so the native shell makes network requests to the Prism TestSite directly, which means you can iterate on the web UI without rebuilding the native project each time.
 
 ---
 
@@ -111,10 +111,10 @@ Subsequent launches:
 ```
 
 The biometric system requires two cryptographic keys configured under `Prism:Biometric`:
-- **SigningKey** — HMAC-SHA256, signs biometric JWTs
-- **EncryptionKey** — AES-256, encrypts refresh tokens at rest
+- **SigningKey**: HMAC-SHA256, signs biometric JWTs
+- **EncryptionKey**: AES-256, encrypts refresh tokens at rest
 
-For key generation steps and configuration (local dev via user secrets, production via Key Vault), see **[docs/biometric-setup.md](../biometric-setup.md)** — that document is the authoritative configuration guide.
+For key generation steps and configuration (local dev via user secrets, production via Key Vault), see **[docs/biometric-setup.md](../biometric-setup.md)**: that document is the authoritative configuration guide.
 
 <!-- manual capture: Biometric enrollment prompt requires physical device or simulator native UI interaction -->
 
@@ -227,7 +227,7 @@ Xcode opens with the generated project. Before building:
 
 <!-- manual capture: iOS app screenshot requires physical iOS device or Xcode simulator -->
 
-💡 **What's happening:** The native Xcode project (`ios/App/`) embeds your compiled web assets in a `WKWebView`. Capacitor bridges JavaScript calls from the web layer to native Swift/Obj-C plugin implementations — this is how `@aparajita/capacitor-biometric-auth` calls Face ID/Touch ID, and how `@capacitor/push-notifications` registers with APNs.
+💡 **What's happening:** The native Xcode project (`ios/App/`) embeds your compiled web assets in a `WKWebView`. Capacitor bridges JavaScript calls from the web layer to native Swift/Obj-C plugin implementations, this is how `@aparajita/capacitor-biometric-auth` calls Face ID/Touch ID, and how `@capacitor/push-notifications` registers with APNs.
 
 For App Store distribution builds, change the `aps-environment` entitlement from `development` to `production` (see [PUSH_SETUP.md](../PUSH_SETUP.md#ios-setup-apns)).
 
@@ -271,7 +271,7 @@ For detailed Android-specific guidance, refer to the [Capacitor Android document
 
 ### Iterating Without Rebuilding Native Apps
 
-Point `server.url` in `capacitor.config.ts` at your running Prism stack, then in Xcode/Android Studio simply re-run the app. The WebView loads fresh from the live server on every launch — no Capacitor sync needed.
+Point `server.url` in `capacitor.config.ts` at your running Prism stack, then in Xcode/Android Studio simply re-run the app. The WebView loads fresh from the live server on every launch, no Capacitor sync needed.
 
 ```typescript
 server: {
@@ -280,11 +280,11 @@ server: {
 },
 ```
 
-> ⚠️ Remove `server.url` before App Store or Play Store submission — production builds should use the bundled assets in `webDir`.
+> ⚠️ Remove `server.url` before App Store or Play Store submission, production builds should use the bundled assets in `webDir`.
 
 ### Testing Push Notifications
 
-- **iOS:** Push notifications require a physical device — they do not work on the iOS Simulator.
+- **iOS:** Push notifications require a physical device, they do not work on the iOS Simulator.
 - **Android:** Emulators with Google Play Services installed support push notifications.
 - For troubleshooting token registration failures and delivery issues, see [Push Notifications walkthrough](push-notifications.md#troubleshooting).
 

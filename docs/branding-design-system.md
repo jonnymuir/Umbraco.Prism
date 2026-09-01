@@ -2,17 +2,17 @@
 
 ## Overview
 
-Prism transforms multi-tenant branding from hardcoded colors to a **living design system**. Every CSS variable you annotate becomes an editable form field in the tenant editor—no code changes, no deploys. The editor displays colors as color pickers, fonts as dropdowns, lengths as sliders, all grouped into meaningful sections. This is design-system management at scale.
+Prism transforms multi-tenant branding from hardcoded colors to a **living design system**. Every CSS variable you annotate becomes an editable form field in the tenant editor, no code changes, no deploys. The editor displays colors as color pickers, fonts as dropdowns, lengths as sliders, all grouped into meaningful sections. This is design-system management at scale.
 
 The system uses a hybrid approach:
-- **CSS Custom Properties (`@property`)** — Native CSS type declarations that ensure browser validation and enable type inference
-- **`@prism` Comments** — Structured annotations that drive the tenant editor UI (labels, descriptions, grouping)
+- **CSS Custom Properties (`@property`)**, Native CSS type declarations that ensure browser validation and enable type inference
+- **`@prism` Comments**, Structured annotations that drive the tenant editor UI (labels, descriptions, grouping)
 
 Together, they create a seamless bridge between CSS design and the backoffice branding editor.
 
 <div align="center">
 <img src="images/branding-editor-overview.png" alt="Prism Branding Editor showing design-system-style sections and fields">
-<p><em>The Prism tenant editor — CSS variables become typed, labelled form fields organised into design system sections</em></p>
+<p><em>The Prism tenant editor, CSS variables become typed, labelled form fields organised into design system sections</em></p>
 </div>
 
 ---
@@ -25,11 +25,11 @@ Traditional multi-tenant branding requires:
 - Manual form field creation for each variable
 
 Prism's branding design system provides:
-- **Live editing** — Changes propagate to the tenant site without deploy
-- **Type safety** — Color pickers for colors, font selectors for fonts, validated inputs
-- **Organized UI** — Automatic grouping into sections (Brand Colours, Typography, Components)
-- **Discoverable** — Labels and descriptions make the editor self-documenting
-- **Zero overhead** — One source of truth (CSS files), no sync needed
+- **Live editing**: Changes propagate to the tenant site without deploy
+- **Type safety**: Color pickers for colors, font selectors for fonts, validated inputs
+- **Organized UI**: Automatic grouping into sections (Brand Colours, Typography, Components)
+- **Discoverable**: Labels and descriptions make the editor self-documenting
+- **Zero overhead**: One source of truth (CSS files), no sync needed
 
 ---
 
@@ -214,11 +214,11 @@ The `PrismBrandingMetadataService` parses all CSS files and builds metadata for 
 
 ### Parsing Pipeline
 
-1. **Scan** — Read all CSS files in `wwwroot/branding/` (except `prism-branding.css`)
-2. **Extract** — Find all `/* @prism ... */` comments and variable declarations
-3. **Infer** — Extract `@property` syntax to infer types
-4. **Group** — Organize by section name from `@prism section:`
-5. **Cache** — Store in memory (1-hour sliding expiration)
+1. **Scan**: Read all CSS files in `wwwroot/branding/` (except `prism-branding.css`)
+2. **Extract**: Find all `/* @prism ... */` comments and variable declarations
+3. **Infer**: Extract `@property` syntax to infer types
+4. **Group**: Organize by section name from `@prism section:`
+5. **Cache**: Store in memory (1-hour sliding expiration)
 
 ### API Response: `GET /umbraco/api/prism/branding/metadata`
 
@@ -269,19 +269,19 @@ The backoffice editor uses the metadata to render a design-system-style form.
 
 ### Form Structure
 
-- **Sections** — Each `section:` value becomes a collapsible tab (Brand Colours, Typography, Layout, etc.)
-- **Fields** — Each variable becomes a labeled form field
-- **Types** — The `type` determines the widget (color picker, text input, slider)
-- **Descriptions** — Help text below each field
+- **Sections**: Each `section:` value becomes a collapsible tab (Brand Colours, Typography, Layout, etc.)
+- **Fields**: Each variable becomes a labeled form field
+- **Types**: The `type` determines the widget (color picker, text input, slider)
+- **Descriptions**: Help text below each field
 
 <div align="center">
 <img src="images/branding-editor-sections.png" alt="Branding editor showing section tabs: Brand Colours, Typography, Imagery, Components, Layout">
-<p><em>Sections derived from the <code>section:</code> annotation — each tab groups related variables</em></p>
+<p><em>Sections derived from the <code>section:</code> annotation, each tab groups related variables</em></p>
 </div>
 
 <div align="center">
 <img src="images/branding-editor-color-picker.png" alt="Branding editor with a colour picker open for Primary Brand Colour">
-<p><em>Color variables render as native color pickers — no manual hex entry needed</em></p>
+<p><em>Color variables render as native color pickers, no manual hex entry needed</em></p>
 </div>
 
 ### Example: Editing Primary Brand Colour
@@ -308,7 +308,7 @@ The design team wants to let each tenant customize the card corner radius indepe
 
 ### Step 1: Choose the File
 
-`prism-components.css` — this is component-specific styling.
+`prism-components.css`, this is component-specific styling.
 
 ### Step 2: Add the `@property` Declaration
 
@@ -371,11 +371,11 @@ Tenant updates the value → CSS variable updates → styles rerender instantly.
 
 ### Grouping
 
-- **Brand Colours** — Primary palette, contrast, status (success, danger, warning)
-- **Typography** — Fonts, sizes, weights
-- **Imagery** — Gradients, overlays, border radiuses for images
-- **Components** — Button styles, chip colors, nav heights
-- **Layout** — Page widths, gutters, gaps, card shadows
+- **Brand Colours**: Primary palette, contrast, status (success, danger, warning)
+- **Typography**: Fonts, sizes, weights
+- **Imagery**: Gradients, overlays, border radiuses for images
+- **Components**: Button styles, chip colors, nav heights
+- **Layout**: Page widths, gutters, gaps, card shadows
 
 If a variable doesn't fit, consider creating a new section name.
 
@@ -423,7 +423,7 @@ The service caches metadata for 1 hour. After a branding CSS file changes:
 1. Cache expires automatically (sliding 1 hour)
 2. Or restart the application to clear immediately
 
-This is safe for production — CSS file changes are rare and typically go through code review.
+This is safe for production, CSS file changes are rare and typically go through code review.
 
 ---
 
@@ -515,8 +515,8 @@ If the editor shows `type: text` when you expected `color`:
 ### CSS Variables Not Updating on Tenant Site
 
 1. Open browser DevTools → Inspect
-2. Check `:root` CSS — are the new values present?
-3. If not, check the backoffice — was the change saved?
+2. Check `:root` CSS, are the new values present?
+3. If not, check the backoffice, was the change saved?
 4. If yes, reload the page (no deploy needed)
 5. If still not working, restart the app to clear cache
 

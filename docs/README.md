@@ -30,7 +30,7 @@ Comprehensive guide to the CSS variable annotation system. Learn the `@property`
 Handle backend downtime at the edge. Custom error pages or Workers for branded maintenance pages. Separate responses for browser vs mobile app users.
 
 ### [Reference Service Blueprint Contract](guides/reference-service-blueprint-contract.md)
-The `ServiceBlueprint` JSON contract: states, routes, gateways, queues, components, and response states — the shape every service blueprint is authored in, by a human or an AI agent.
+The `ServiceBlueprint` JSON contract: states, routes, gateways, queues, components, and response states, the shape every service blueprint is authored in, by a human or an AI agent.
 
 ### [The Wayfinder Calculation Language](guides/calculation-language.md)
 Grammar, functions, tables/series, and `showWhen` for the declarative expression language behind service blueprint calculations.
@@ -67,6 +67,6 @@ These documents cover architecture and implementation details. Some are contribu
 
 ## Need Help?
 
-- [Main README](../README.md) — Quick start and feature overview
-- [CHANGELOG](../CHANGELOG.md) — Version history and release notes
-- [CONTRIBUTING](../CONTRIBUTING.md) — Contribution guidelines and development service blueprint
+- [Main README](../README.md), Quick start and feature overview
+- [CHANGELOG](../CHANGELOG.md), Version history and release notes
+- [CONTRIBUTING](../CONTRIBUTING.md), Contribution guidelines and development service blueprint

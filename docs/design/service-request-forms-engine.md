@@ -41,7 +41,7 @@ The rest of this doc set expands each step in order.
 | --- | --- |
 | Service Blueprint | A `ServiceBlueprint` with a key, queues, stages, gateways, and a request policy |
 | Stage | A `StageDefinition` keyed by `stageKey`, owning its own `routes` and authored `Component` values |
-| Gateway | A `ServiceBlueprintGatewayDefinition` — a first-class Split/Join routing node; a stage's routes must always target a gateway, never another stage directly |
+| Gateway | A `ServiceBlueprintGatewayDefinition`, a first-class Split/Join routing node; a stage's routes must always target a gateway, never another stage directly |
 | Component | A polymorphic `Component` such as `fieldset`, `summary-list`, `waiting`, `body`, or `radio` |
 | Step type | The shell Prism renders: `question`, `check-answers`, `confirmation`, `status-timeline`, or `task-list` |
 | Response state | What the client should do next: usually `render`, `defer`, `complete`, or `error` |
@@ -70,7 +70,7 @@ For waiting journeys, the envelope step type is still inferred from the waiting 
 | `render` | Render the returned step immediately | Question and check-answers states |
 | `defer` | Stay on a waiting/status step and poll again after `PollAfterMs` | `WaitingComponent` |
 | `complete` | Show the completion shell | Confirmation states |
-| `error` | Fatal problem — definition missing, access denied, etc. | Client or engine error paths |
+| `error` | Fatal problem, definition missing, access denied, etc. | Client or engine error paths |
 
 The demo business app currently adds two useful extensions:
 

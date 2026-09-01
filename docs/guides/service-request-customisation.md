@@ -13,15 +13,15 @@ A guide to customising the appearance and behavior of service blueprint forms in
 
 Prism provides sensible defaults for service blueprint rendering: GDS (GOV.UK Design System) styling, accessibility built-in, responsive layout. You can customise at three levels:
 
-1. **CSS variables** — Change colors, spacing, fonts without touching code
-2. **Razor partial overrides** — Replace shell or component templates to customize HTML/markup
-3. **Custom CSS** — Add your own styles on top of GDS
+1. **CSS variables**: Change colors, spacing, fonts without touching code
+2. **Razor partial overrides**: Replace shell or component templates to customize HTML/markup
+3. **Custom CSS**: Add your own styles on top of GDS
 
 ---
 
 ## CSS Variables & Theme Customization
 
-The easiest way to customize Prism: override CSS variables. All Prism styling uses custom properties (`--prism-*`). The reference implementation's own variables live in `src/UmbracoPrism.TestSite/wwwroot/branding/*.css` (colors, typography, layout, forms) — a real host defines its own equivalent stylesheet setting the same variable names.
+The easiest way to customize Prism: override CSS variables. All Prism styling uses custom properties (`--prism-*`). The reference implementation's own variables live in `src/UmbracoPrism.TestSite/wwwroot/branding/*.css` (colors, typography, layout, forms), a real host defines its own equivalent stylesheet setting the same variable names.
 
 ### Supported CSS Variables (the reference implementation's actual set)
 
@@ -43,7 +43,7 @@ The easiest way to customize Prism: override CSS variables. All Prism styling us
 --prism-danger: #d4351c;
 ```
 
-#### Forms (`prism-forms.css` — mostly derived from the color variables above)
+#### Forms (`prism-forms.css`: mostly derived from the color variables above)
 
 ```css
 --prism-form-group-spacing: 20px;
@@ -131,7 +131,7 @@ Create a custom CSS file in your Umbraco project and reference it in your layout
 
 ## Overriding Razor Partials
 
-For deeper customization — changing HTML structure, adding custom elements, reorganizing sections — override the shell or component partials. They ship compiled inside the [`Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) package (a real Razor Class Library, `AddRazorSupportForMvc`), but **not** at the path a naive "RCL override" assumption would suggest: ASP.NET Core resolves a precompiled view at an exact virtual path immediately and never checks whether your app also defines a runtime-compiled view at that identical path, so if the package's own defaults lived at the same path you'd place an override, your override would be silently ignored. Wayfinder.Umbraco avoids that by keeping its own built-in catalog at a package-internal path (`~/Views/Partials/_WayfinderComponents/`, `~/Views/Partials/_WayfinderFields/`) and having `Wayfinder.Umbraco.Services.ComponentPartialResolver` check your app's own `~/Views/Partials/Components/`/`~/Views/Partials/Fields/` path *first*, explicitly, falling back to the package's own default only if nothing's there — a genuine host-wins override, just implemented rather than inherited from the framework for free. A new override file is picked up on your app's next restart (the resolver caches its decision per component/field type for the process lifetime, so a render is never slowed down by a filesystem check).
+For deeper customization, changing HTML structure, adding custom elements, reorganizing sections, override the shell or component partials. They ship compiled inside the [`Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) package (a real Razor Class Library, `AddRazorSupportForMvc`), but **not** at the path a naive "RCL override" assumption would suggest: ASP.NET Core resolves a precompiled view at an exact virtual path immediately and never checks whether your app also defines a runtime-compiled view at that identical path, so if the package's own defaults lived at the same path you'd place an override, your override would be silently ignored. Wayfinder.Umbraco avoids that by keeping its own built-in catalog at a package-internal path (`~/Views/Partials/_WayfinderComponents/`, `~/Views/Partials/_WayfinderFields/`) and having `Wayfinder.Umbraco.Services.ComponentPartialResolver` check your app's own `~/Views/Partials/Components/`/`~/Views/Partials/Fields/` path *first*, explicitly, falling back to the package's own default only if nothing's there, a genuine host-wins override, just implemented rather than inherited from the framework for free. A new override file is picked up on your app's next restart (the resolver caches its decision per component/field type for the process lifetime, so a render is never slowed down by a filesystem check).
 
 ### Shell Partials
 
@@ -146,7 +146,7 @@ The shell rendered for a stage is inferred from its authored components (see [Cl
 | `task-list` | `Views/Partials/_Stage-TaskList.cshtml` |
 | `waiting` | `Views/Partials/_Stage-Waiting.cshtml` |
 
-**Model:** `ServiceRequestPageViewModel` (`Wayfinder.Umbraco.Models`) — real properties, not a `FieldGroups`-based model:
+**Model:** `ServiceRequestPageViewModel` (`Wayfinder.Umbraco.Models`), real properties, not a `FieldGroups`-based model:
 
 ```csharp
 public class ServiceRequestPageViewModel
@@ -168,7 +168,7 @@ public class ServiceRequestPageViewModel
 }
 ```
 
-**The real `_Stage-Question.cshtml`** (from `Wayfinder.Umbraco`) — the pattern any override should follow: the `<wayfinder-stage-form>`/`<wayfinder-component>` tag helpers do the real work, so a shell override is mostly about structure, not re-implementing field rendering:
+**The real `_Stage-Question.cshtml`** (from `Wayfinder.Umbraco`), the pattern any override should follow: the `<wayfinder-stage-form>`/`<wayfinder-component>` tag helpers do the real work, so a shell override is mostly about structure, not re-implementing field rendering:
 
 ```cshtml
 @model Wayfinder.Umbraco.Models.ServiceRequestPageViewModel
@@ -211,17 +211,17 @@ public class ServiceRequestPageViewModel
 </wayfinder-stage-form>
 ```
 
-`<wayfinder-stage-form>` (`StageFormTagHelper`) writes the antiforgery token and the hidden `InstanceId`/`StateVersion`/`BlueprintKey`/`ReturnUrl`/`Nonce` fields for you — a shell override doesn't need to rebuild that plumbing.
+`<wayfinder-stage-form>` (`StageFormTagHelper`) writes the antiforgery token and the hidden `InstanceId`/`StateVersion`/`BlueprintKey`/`ReturnUrl`/`Nonce` fields for you, a shell override doesn't need to rebuild that plumbing.
 
 ---
 
 ## Overriding Component and Field Partials
 
-Each authored component `type` dispatches to its own partial by naming convention (kebab-case → PascalCase) — see [Customising rendering](./service-blueprint-setup.md#customising-rendering) for the full mechanism.
+Each authored component `type` dispatches to its own partial by naming convention (kebab-case → PascalCase), see [Customising rendering](./service-blueprint-setup.md#customising-rendering) for the full mechanism.
 
 ### Field Partial Locations
 
-`Views/Partials/Fields/` in your own app (one per input field type — `text`, `number`, `decimal`, `select`, `radio`, `checkboxlist`, `date`, `email`, `textarea`, `boolean`, `slider`, `file-upload`, `guidance-checklist`). Wayfinder.Umbraco's own built-in versions of these live at `Views/Partials/_WayfinderFields/` inside the package — see the note above on why the two paths are deliberately different:
+`Views/Partials/Fields/` in your own app (one per input field type, `text`, `number`, `decimal`, `select`, `radio`, `checkboxlist`, `date`, `email`, `textarea`, `boolean`, `slider`, `file-upload`, `guidance-checklist`). Wayfinder.Umbraco's own built-in versions of these live at `Views/Partials/_WayfinderFields/` inside the package, see the note above on why the two paths are deliberately different:
 
 - `_Component-Text.cshtml`
 - `_Component-Email.cshtml`
@@ -242,7 +242,7 @@ Each authored component `type` dispatches to its own partial by naming conventio
 
 **File:** `Views/Partials/Fields/_Component-Text.cshtml`
 
-Every field partial receives `Wayfinder.Umbraco.Models.FieldContext` — pre-built ARIA attributes, CSS classes, and the resolved display value, so partials stay declarative. This is the real built-in partial:
+Every field partial receives `Wayfinder.Umbraco.Models.FieldContext`, pre-built ARIA attributes, CSS classes, and the resolved display value, so partials stay declarative. This is the real built-in partial:
 
 ```cshtml
 @model Wayfinder.Umbraco.Models.FieldContext
@@ -267,7 +267,7 @@ Every field partial receives `Wayfinder.Umbraco.Models.FieldContext` — pre-bui
 
 ## Adding Custom JavaScript
 
-If you need custom behavior (e.g., analytics tracking, custom validation, dynamic field updates), add JavaScript in your layout or partial. GOV.UK Frontend v5 ships as an ES module — load it as one, not a classic script:
+If you need custom behavior (e.g., analytics tracking, custom validation, dynamic field updates), add JavaScript in your layout or partial. GOV.UK Frontend v5 ships as an ES module, load it as one, not a classic script:
 
 **File:** `Views/Shared/Master.cshtml`
 
@@ -305,12 +305,12 @@ document.addEventListener('submit', (e) => {
 
 When customizing, keep these accessibility principles in mind:
 
-1. **Color contrast** — Ensure text meets WCAG AA standards (4.5:1 for normal text)
-2. **Focus indicators** — Never remove focus rings; use `--prism-focus` to style them
-3. **Error messages** — Link errors to fields using `aria-describedby` (already pre-built on `FieldContext.DescribedBy`)
-4. **Semantic HTML** — Use `<fieldset>` and `<legend>` for grouping, `<label>` for every input
-5. **Skip links** — Add a "skip to main content" link (see GDS documentation)
-6. **ARIA labels** — For complex components, add `aria-label`, `aria-live`, etc.
+1. **Color contrast**: Ensure text meets WCAG AA standards (4.5:1 for normal text)
+2. **Focus indicators**: Never remove focus rings; use `--prism-focus` to style them
+3. **Error messages**: Link errors to fields using `aria-describedby` (already pre-built on `FieldContext.DescribedBy`)
+4. **Semantic HTML**: Use `<fieldset>` and `<legend>` for grouping, `<label>` for every input
+5. **Skip links**: Add a "skip to main content" link (see GDS documentation)
+6. **ARIA labels**: For complex components, add `aria-label`, `aria-live`, etc.
 
 ---
 
@@ -328,5 +328,5 @@ When customizing, keep these accessibility principles in mind:
 ---
 
 **Next steps:**
-- [Form Validation](./service-request-forms-validation.md) — understand validation layers
-- [GDS Components](./service-blueprint-gds-components.md) — available form elements and design patterns
+- [Form Validation](./service-request-forms-validation.md), understand validation layers
+- [GDS Components](./service-blueprint-gds-components.md), available form elements and design patterns

@@ -1,6 +1,6 @@
-> **Archived, frozen terminology**: this is a historical snapshot from before the [Service Design vocabulary rename](../../CLAUDE.md) — it uses the original "Workflow" terminology throughout, left as-written rather than updated to match current vocabulary.
+> **Archived, frozen terminology**: this is a historical snapshot from before the [Service Design vocabulary rename](../../CLAUDE.md), it uses the original "Workflow" terminology throughout, left as-written rather than updated to match current vocabulary.
 
-# Prism Workflow Forms Engine — Redesign: Element Types as Step Definitions
+# Prism Workflow Forms Engine: Redesign: Element Types as Step Definitions
 
 **Author:** Tom Nook (Lead)  
 **Requested by:** Jonny Muir  
@@ -23,7 +23,7 @@ Instead of reinventing field definitions, we leverage what Umbraco already does 
 - Umbraco's **property validation** (mandatory, regex) works out of the box
 - Labels, descriptions, and hints come from Umbraco's property metadata
 
-This makes workflow step authoring a **native Umbraco experience** — no custom schema designer, no bespoke JSON format, no duplication of validation logic.
+This makes workflow step authoring a **native Umbraco experience**: no custom schema designer, no bespoke JSON format, no duplication of validation logic.
 
 ---
 
@@ -67,7 +67,7 @@ This makes workflow step authoring a **native Umbraco experience** — no custom
 
 ### 3.1 Element Types as Step Definitions
 
-In Umbraco, an **Element Type** is a content type that cannot exist independently — it's designed to be embedded (e.g., in Block List items). This maps perfectly to workflow steps: a step's form fields are defined once in the Umbraco backoffice, then referenced by alias in workflow definitions.
+In Umbraco, an **Element Type** is a content type that cannot exist independently, it's designed to be embedded (e.g., in Block List items). This maps perfectly to workflow steps: a step's form fields are defined once in the Umbraco backoffice, then referenced by alias in workflow definitions.
 
 ```mermaid
 graph TD
@@ -95,12 +95,12 @@ graph TD
 
 ### 3.2 Why This is Better
 
-1. **Native Umbraco experience** — Content editors define steps using familiar Document Type UI
-2. **Property editors for free** — TextString, DateTime, DropDown, TrueFalse, MediaPicker, etc.
-3. **Validation for free** — Mandatory, regex patterns from Umbraco's standard validation
-4. **Labels and descriptions for free** — Property name, description, and placeholder come from Umbraco
-5. **No schema migration headaches** — Element Types are versioned by Umbraco
-6. **Consistent with Block List/Grid** — Same pattern used by Umbraco's own block editors
+1. **Native Umbraco experience**: Content editors define steps using familiar Document Type UI
+2. **Property editors for free**: TextString, DateTime, DropDown, TrueFalse, MediaPicker, etc.
+3. **Validation for free**: Mandatory, regex patterns from Umbraco's standard validation
+4. **Labels and descriptions for free**: Property name, description, and placeholder come from Umbraco
+5. **No schema migration headaches**: Element Types are versioned by Umbraco
+6. **Consistent with Block List/Grid**: Same pattern used by Umbraco's own block editors
 
 ---
 
@@ -493,7 +493,7 @@ The bespoke Lit components (`prism-workflow-collect.ts`, etc.) are replaced by a
 3. Renders appropriate inputs based on `type`
 4. Collects values and submits via orchestrator
 
-The orchestrator (`workflow-orchestrator.ts`) and API client (`workflow-api-client.ts`) remain unchanged — they're already payload-agnostic.
+The orchestrator (`workflow-orchestrator.ts`) and API client (`workflow-api-client.ts`) remain unchanged, they're already payload-agnostic.
 
 ### 7.2 Simplified Entry Point
 
@@ -682,7 +682,7 @@ The render payload includes everything a mobile app needs to generate native inp
 - `config.options` provides picker/dropdown data
 - `description` provides accessibility hints
 
-No mobile-specific components are needed in this repository — native mobile apps consume the JSON payload directly.
+No mobile-specific components are needed in this repository, native mobile apps consume the JSON payload directly.
 
 ---
 
@@ -690,7 +690,7 @@ No mobile-specific components are needed in this repository — native mobile ap
 
 ### 8.1 Purpose
 
-MockBackOffice is a **pretend downstream application** — it simulates what a real downstream system (retirement quote engine, permit processor, claims handler) would do:
+MockBackOffice is a **pretend downstream application**: it simulates what a real downstream system (retirement quote engine, permit processor, claims handler) would do:
 
 1. Receive authenticated requests via Prism JWT
 2. Process workflow outcomes
@@ -724,7 +724,7 @@ builder.Services.AddControllers()
 
 - Does NOT scan Umbraco controllers
 - Does NOT have access to `IContentTypeService` (Element Types are Umbraco-only)
-- Does NOT render workflow forms — it processes completed workflows
+- Does NOT render workflow forms, it processes completed workflows
 
 ---
 
@@ -801,15 +801,15 @@ For each field group being replaced, create an Umbraco Element Type:
 
 ## 10. Open Questions for Review
 
-1. **Element Type naming convention** — Should we prefix with `workflow` (e.g., `workflowPersonalDetails`) or use a folder convention?
+1. **Element Type naming convention**: Should we prefix with `workflow` (e.g., `workflowPersonalDetails`) or use a folder convention?
 
-2. **Property editor support scope** — Which property editors do we support in v1? Proposal: Core text/number/date/boolean/select types only; defer MediaPicker, BlockList, etc.
+2. **Property editor support scope**: Which property editors do we support in v1? Proposal: Core text/number/date/boolean/select types only; defer MediaPicker, BlockList, etc.
 
-3. **Multi-language** — Should we support Umbraco's culture-variant properties for multi-language workflow forms?
+3. **Multi-language**: Should we support Umbraco's culture-variant properties for multi-language workflow forms?
 
-4. **Review archetype** — How does Review render? Does it re-introspect all previous steps' Element Types, or do we store submitted values in a flat structure?
+4. **Review archetype**: How does Review render? Does it re-introspect all previous steps' Element Types, or do we store submitted values in a flat structure?
 
-5. **TestSite seeding** — How do we seed Element Types for the demo? Package migration, or expect manual creation?
+5. **TestSite seeding**: How do we seed Element Types for the demo? Package migration, or expect manual creation?
 
 ---
 
@@ -817,11 +817,11 @@ For each field group being replaced, create an Umbraco Element Type:
 
 This redesign:
 
-✅ **Simplifies** — No custom field schema; use Umbraco Element Types  
-✅ **Leverages Umbraco** — Property editors, validation, labels all native  
-✅ **Reduces code** — Delete 6+ client components, 1 schema table  
-✅ **Keeps core intact** — State machine, response envelope, orchestrator unchanged  
-✅ **Fixes MockBackOffice** — Standalone downstream app with assembly isolation  
+✅ **Simplifies**: No custom field schema; use Umbraco Element Types  
+✅ **Leverages Umbraco**: Property editors, validation, labels all native  
+✅ **Reduces code**: Delete 6+ client components, 1 schema table  
+✅ **Keeps core intact**: State machine, response envelope, orchestrator unchanged  
+✅ **Fixes MockBackOffice**: Standalone downstream app with assembly isolation  
 
 The implementation effort is significant but bounded: primarily server-side render payload generation and client-side dynamic form rendering. The payoff is a much more "Umbraco-native" workflow experience.
 

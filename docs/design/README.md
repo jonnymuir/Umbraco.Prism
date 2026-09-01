@@ -2,22 +2,22 @@
 
 These documents explain how to build, integrate, and operate Prism service blueprints from a package consumer's point of view. They are grounded in the current implementation:
 
-- `Models/ServiceDesign/*`, `Builders/ServiceBlueprintBuilder.cs` — in [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder)
-- `Controllers/ServiceRequestPageController.cs`, `Views/*` — in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)
-- `src/UmbracoPrism.MockBusinessApp/*` — in this repo
+- `Models/ServiceDesign/*`, `Builders/ServiceBlueprintBuilder.cs`, in [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder)
+- `Controllers/ServiceRequestPageController.cs`, `Views/*`, in [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)
+- `src/UmbracoPrism.MockBusinessApp/*`, in this repo
 
-Wayfinder and Wayfinder.Umbraco moved out of this repo into their own repos, consumed here as published packages (see `NuGet.config` and `CLAUDE.md`) — the paths above are no longer under `src/` in this repo.
+Wayfinder and Wayfinder.Umbraco moved out of this repo into their own repos, consumed here as published packages (see `NuGet.config` and `CLAUDE.md`), the paths above are no longer under `src/` in this repo.
 
 ## Start here
 
-1. [Service Blueprint forms engine overview](./service-request-forms-engine.md) — package capabilities, vocabulary, and reading order.
-2. [Multi-lane service blueprint engine design](./service-blueprint-multi-lane-engine.md) — the canonical behaviour for the move from linear flow to lane-owned split/join service blueprint execution.
-3. [Building a service blueprint](./service-request-forms-engine-demo.md) — the end-to-end implementation story.
-4. [Backend authoring and contracts](./service-request-forms-engine-backend.md) — definitions, transitions, components, instance policies, and API payloads.
-5. [Umbraco integration](./service-request-forms-engine-umbraco.md) — service registration, page setup, controllers, and the service request hub.
-6. [Client rendering](./service-request-forms-engine-client.md) — shells, render payloads, and how the Razor layer turns envelopes into GOV.UK UI.
-7. [Validation](./service-blueprint-validation.md) and [security](./service-request-forms-engine-security.md) — the guard rails that make the package safe to use.
-8. [Service Request Hub and conditional fields](./service-request-hub-and-conditional-fields.md) — advanced authoring patterns.
+1. [Service Blueprint forms engine overview](./service-request-forms-engine.md), package capabilities, vocabulary, and reading order.
+2. [Multi-lane service blueprint engine design](./service-blueprint-multi-lane-engine.md), the canonical behaviour for the move from linear flow to lane-owned split/join service blueprint execution.
+3. [Building a service blueprint](./service-request-forms-engine-demo.md), the end-to-end implementation story.
+4. [Backend authoring and contracts](./service-request-forms-engine-backend.md), definitions, transitions, components, instance policies, and API payloads.
+5. [Umbraco integration](./service-request-forms-engine-umbraco.md), service registration, page setup, controllers, and the service request hub.
+6. [Client rendering](./service-request-forms-engine-client.md), shells, render payloads, and how the Razor layer turns envelopes into GOV.UK UI.
+7. [Validation](./service-blueprint-validation.md) and [security](./service-request-forms-engine-security.md), the guard rails that make the package safe to use.
+8. [Service Request Hub and conditional fields](./service-request-hub-and-conditional-fields.md), advanced authoring patterns.
 
 ## Document map
 

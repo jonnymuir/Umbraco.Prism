@@ -12,8 +12,8 @@ You tell the editor where service blueprints come from.
 
 Wayfinder ships two Lit elements:
 
-- **`<wayfinder-service-blueprint-editor>`** — the visual editor (canvas, inspector, validation, history, simulation).
-- **`<wayfinder-service-blueprint-editor-shell>`** — a wrapper that adds service blueprint selection and displays.
+- **`<wayfinder-service-blueprint-editor>`**, the visual editor (canvas, inspector, validation, history, simulation).
+- **`<wayfinder-service-blueprint-editor-shell>`**, a wrapper that adds service blueprint selection and displays.
 
 You drop them in your page. They render the editor.
 
@@ -45,15 +45,15 @@ export interface ServiceBlueprintSource {
 
 The interface has three required methods, plus one optional one:
 
-- **`list()`** — return a list of service blueprints. Each entry has a `blueprintKey`, `definitionKey`, and `displayName`.
-- **`load(key)`** — load one service blueprint by key. Return an `AuthoredServiceBlueprint` object.
-- **`save(key, service-blueprint)`** — save the service blueprint. Your implementation enforces permissions. Reject the promise if the user cannot save. If your host also exposes this service blueprint to AI agents (see the
-  [AI-Ready Service Blueprint Authoring guide](./ai-service-blueprint-authoring.md)), a human and an agent can edit the same service blueprint at once — `save` should reject with a `ServiceBlueprintSaveError` whose `isConflict: true` when `service-blueprint.version` no longer matches what's persisted, so the editor can show its built-in "changed elsewhere, reload" affordance instead of silently overwriting the other side's change.
-- **`checkVersion(key)`** *(optional)* — return the currently-persisted version. If you implement it, the editor polls every 15s while a service blueprint is open and toasts a heads-up (with its own Reload action) before the author even tries to save. Skip it and you just don't get proactive detection — `save`'s conflict handling still works either way.
+- **`list()`**, return a list of service blueprints. Each entry has a `blueprintKey`, `definitionKey`, and `displayName`.
+- **`load(key)`**, load one service blueprint by key. Return an `AuthoredServiceBlueprint` object.
+- **`save(key, service-blueprint)`**, save the service blueprint. Your implementation enforces permissions. Reject the promise if the user cannot save. If your host also exposes this service blueprint to AI agents (see the
+  [AI-Ready Service Blueprint Authoring guide](./ai-service-blueprint-authoring.md)), a human and an agent can edit the same service blueprint at once, `save` should reject with a `ServiceBlueprintSaveError` whose `isConflict: true` when `service-blueprint.version` no longer matches what's persisted, so the editor can show its built-in "changed elsewhere, reload" affordance instead of silently overwriting the other side's change.
+- **`checkVersion(key)`** *(optional)*: return the currently-persisted version. If you implement it, the editor polls every 15s while a service blueprint is open and toasts a heads-up (with its own Reload action) before the author even tries to save. Skip it and you just don't get proactive detection, `save`'s conflict handling still works either way.
 
 Your implementation can talk to memory, a file system, a database, a blob store, or any HTTP API you want. The editor does not care.
 
-### Example — Map-Backed Source (20 Lines)
+### Example: Map-Backed Source (20 Lines)
 
 Here is a source that keeps service blueprints in a JavaScript `Map`:
 
@@ -102,7 +102,7 @@ For real persistence, replace the `Map` with a fetch call to your own backend.
 
 Create an instance of your source. Assign it to the editor element:
 
-There's no npm package for the editor — it's delivered as the `Wayfinder.Editor` NuGet
+There's no npm package for the editor, it's delivered as the `Wayfinder.Editor` NuGet
 package's static web assets (`_content/Wayfinder.Editor/dist/wayfinder-elements.js` by
 default, once your app references the package; a non-.NET host can just self-host the same
 compiled bundle instead).
@@ -160,16 +160,16 @@ The source code lives here:
 
 The `MockBusinessAppServiceBlueprintSource` class is an HTTP-backed implementation of `ServiceBlueprintSource`. It calls three endpoints:
 
-- `GET /mockapp/service-blueprints` — list
-- `GET /mockapp/service-blueprints/{key}` — load
-- `PUT /mockapp/service-blueprints/{key}` — save
+- `GET /mockapp/service-blueprints`, list
+- `GET /mockapp/service-blueprints/{key}`, load
+- `PUT /mockapp/service-blueprints/{key}`, save
 
 The MockBusinessApp server stores service blueprints in memory. It seeds four reference service blueprints at startup:
 
-1. **planning** — Planning application service blueprint
-2. **leave-request** — Leave request with 5 gateways (demonstrates fan-in pattern)
-3. **community-enquiry** — Community enquiry form
-4. **information-request** — Information request form
+1. **planning**: Planning application service blueprint
+2. **leave-request**: Leave request with 5 gateways (demonstrates fan-in pattern)
+3. **community-enquiry**: Community enquiry form
+4. **information-request**: Information request form
 
 Those service blueprints persist in memory until the server restarts. This is a reference implementation. Your app owns the analogous code. You decide whether to use a database, blob storage, or something else.
 
@@ -191,12 +191,12 @@ export interface ServiceBlueprintActionCatalog {
 
 Each `ActionCatalogEntry` has:
 
-- `type` — stable key (e.g., `"my-app.send-sms"`)
-- `label` — display name for the editor
-- `summary` — what the action does
-- `appliesTo` — where the action is valid (`stage.onEntry`, `stage.onExit`, `transition`)
-- `paramsSchema` — JSON Schema for parameters
-- `defaultParams` — starter values
+- `type`, stable key (e.g., `"my-app.send-sms"`)
+- `label`, display name for the editor
+- `summary`, what the action does
+- `appliesTo`, where the action is valid (`stage.onEntry`, `stage.onExit`, `transition`)
+- `paramsSchema`, JSON Schema for parameters
+- `defaultParams`, starter values
 
 Example:
 
@@ -302,7 +302,7 @@ This is what Wayfinder **is**:
 - The simulator (dry-run a service blueprint path)
 
 All of this lives in the [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder) repo
-(`Wayfinder.Editor.Client`, `Wayfinder.Engine`) — nothing in this repo (`UmbracoPrism.Client`/
+(`Wayfinder.Editor.Client`, `Wayfinder.Engine`), nothing in this repo (`UmbracoPrism.Client`/
 `UmbracoPrism.Core`) implements any of it anymore. It is domain-agnostic. It does not know
 about your business rules.
 
@@ -323,9 +323,9 @@ Your app ships its own backend code. Your app ships its own frontend code. Your 
 
 The interfaces are the boundary:
 
-- **`ServiceBlueprintSource`** — the editor reads and writes service blueprints through this.
-- **`ServiceBlueprintActionCatalog`** — the editor shows available actions through this.
-- **`ServiceBlueprintAuthorContext`** — the editor reads save permissions through this.
+- **`ServiceBlueprintSource`**, the editor reads and writes service blueprints through this.
+- **`ServiceBlueprintActionCatalog`**, the editor shows available actions through this.
+- **`ServiceBlueprintAuthorContext`**, the editor reads save permissions through this.
 
 Those three interfaces keep the domains separate. Wayfinder never crosses into your business logic. Your business logic never crosses into Wayfinder's service-design concerns.
 
@@ -343,8 +343,8 @@ Those three interfaces keep the domains separate. Wayfinder never crosses into y
 
 ## Related Documentation
 
-- [Service Blueprint Editor Composition](./service-blueprint-editor-composition.md) — advanced patterns for custom hosts
-- [Authoring a Service Blueprint](../walkthroughs/authoring-a-service-blueprint.md) — how to author service blueprints in the editor
+- [Service Blueprint Editor Composition](./service-blueprint-editor-composition.md), advanced patterns for custom hosts
+- [Authoring a Service Blueprint](../walkthroughs/authoring-a-service-blueprint.md), how to author service blueprints in the editor
 
 ---
 

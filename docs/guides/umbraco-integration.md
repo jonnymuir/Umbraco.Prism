@@ -10,19 +10,19 @@ This guide shows how the reference implementation (TestSite + MockBusinessApp) i
 
 Prism service blueprints run on two surfaces:
 
-1. **Member Surface (Umbraco)** — authenticated users fill in forms and see their service blueprint progress. This is where the end-user journey happens.
-2. **Business App (separate host)** — where you author service blueprints and where reviewers process submissions. MockBusinessApp is the reference.
+1. **Member Surface (Umbraco)**: authenticated users fill in forms and see their service blueprint progress. This is where the end-user journey happens.
+2. **Business App (separate host)**: where you author service blueprints and where reviewers process submissions. MockBusinessApp is the reference.
 
 The member surface lives in your Umbraco site. The business app is a separate ASP.NET host.
 
 ---
 
-## Member Surface — What You Get
+## Member Surface: What You Get
 
 Prism ships two document types for the member surface:
 
-- **`stagePage`** — a single service blueprint entry point. Each service blueprint gets one `stagePage` node in your content tree.
-- **`serviceRequestHub`** — a dashboard showing all service blueprints the user has started. One hub node per site.
+- **`stagePage`**, a single service blueprint entry point. Each service blueprint gets one `stagePage` node in your content tree.
+- **`serviceRequestHub`**, a dashboard showing all service blueprints the user has started. One hub node per site.
 
 These document types are seeded automatically by `PrismContentTypeSeeder`. You do not create them manually.
 
@@ -40,8 +40,8 @@ Prism uses **route hijacking** to intercept requests to `stagePage` and `service
 
 The controllers:
 
-- **`StagePageController`** (in your site) — extends `ServiceRequestPageController<TViewModel>` from Wayfinder.Umbraco.
-- **`ServiceRequestHubController`** (in Wayfinder.Umbraco) — already implemented.
+- **`StagePageController`** (in your site), extends `ServiceRequestPageController<TViewModel>` from Wayfinder.Umbraco.
+- **`ServiceRequestHubController`** (in Wayfinder.Umbraco), already implemented.
 
 Both extend `RenderController`. Both require authentication via `[Authorize(AuthenticationSchemes = "PrismMemberCookie")]`.
 
@@ -49,7 +49,7 @@ Your site can override `PrePopulateFields()` in `StagePageController` to inject 
 
 ---
 
-## Business App — Where Service Blueprints Are Authored
+## Business App: Where Service Blueprints Are Authored
 
 The service blueprint editor lives in a **separate business app**, not in the Umbraco backoffice.
 
@@ -68,8 +68,8 @@ Your business app follows the same pattern. You implement `ServiceBlueprintSourc
 
 The member surface and the business app communicate via:
 
-1. **Service Blueprints** — your business app projects an `AuthoredServiceBlueprint` into a `ServiceBlueprint` (via `IServiceBlueprintProjector`). The member surface loads this runtime definition and renders it.
-2. **Service Requests** — the member surface persists instance state (which stage the user is on, which fields they have filled in). The business app reads this state when reviewers process submissions.
+1. **Service Blueprints**: your business app projects an `AuthoredServiceBlueprint` into a `ServiceBlueprint` (via `IServiceBlueprintProjector`). The member surface loads this runtime definition and renders it.
+2. **Service Requests**: the member surface persists instance state (which stage the user is on, which fields they have filled in). The business app reads this state when reviewers process submissions.
 
 The boundary is clean. The member surface never talks to the editor. The editor never talks to the member surface.
 

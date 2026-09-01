@@ -25,18 +25,18 @@ sequenceDiagram
 
 ## 1. Start with a real definition
 
-A service blueprint is `queues` (who's involved), `stages` (each owning its own `routes`), and `gateways` (first-class Split/Join routing nodes — a stage's routes must always target a gateway, never another stage directly). See the
+A service blueprint is `queues` (who's involved), `stages` (each owning its own `routes`), and `gateways` (first-class Split/Join routing nodes, a stage's routes must always target a gateway, never another stage directly). See the
 [Reference Service Blueprint Contract](../guides/reference-service-blueprint-contract.md) for the full authoring schema; this guide doesn't repeat it.
 
 Good example seeds live in `src/UmbracoPrism.MockBusinessApp/service-blueprints/`:
 
-- `community-enquiry.json` — two-queue applicant/reviewer flow with an approval loop
-- `information-request.json` — two-queue, SLA-driven review flow
-- `payment-demo.json` — two-queue, Split **and** Join gateways, a payment flow
-- `planning-notification.json` — a planning variant
-- `money-modeller.json` — the fullest example: declarative calculations, live components
+- `community-enquiry.json`, two-queue applicant/reviewer flow with an approval loop
+- `information-request.json`, two-queue, SLA-driven review flow
+- `payment-demo.json`, two-queue, Split **and** Join gateways, a payment flow
+- `planning-notification.json`, a planning variant
+- `money-modeller.json`, the fullest example: declarative calculations, live components
 
-If you prefer authoring through a toolkit rather than hand-writing JSON, see [AI-Ready Service Blueprint Authoring](../guides/ai-service-blueprint-authoring.md) — the same MCP/REST toolkit a human editor or an AI agent both use.
+If you prefer authoring through a toolkit rather than hand-writing JSON, see [AI-Ready Service Blueprint Authoring](../guides/ai-service-blueprint-authoring.md), the same MCP/REST toolkit a human editor or an AI agent both use.
 
 ## 2. Decide what belongs in Prism and what belongs in your business app
 
@@ -64,7 +64,7 @@ The contract is deliberately small:
 - **Advance** validates action + state version and returns the next envelope.
 - **Instances** powers the service request hub and prompt-mode resume experience.
 
-If you're hosting `Wayfinder.Engine` yourself (as `MockBusinessApp` does), you get this contract for free — implement it directly only if you're integrating an existing system without adopting the engine.
+If you're hosting `Wayfinder.Engine` yourself (as `MockBusinessApp` does), you get this contract for free, implement it directly only if you're integrating an existing system without adopting the engine.
 
 ## 4. Register Prism in Umbraco
 
@@ -115,9 +115,9 @@ After that, your business app can apply domain-specific rules. The mock business
 
 This matters most when you use:
 
-- `requestPolicy = "multiple"` — users can have several live requests.
-- `requestPolicy = "prompt"` — Prism shows an instance picker before starting a new request.
-- waiting Join gateways / review stages — users need somewhere obvious to come back to later.
+- `requestPolicy = "multiple"`, users can have several live requests.
+- `requestPolicy = "prompt"`, Prism shows an instance picker before starting a new request.
+- waiting Join gateways / review stages, users need somewhere obvious to come back to later.
 
 ## Recommended reading after this
 

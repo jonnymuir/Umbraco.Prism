@@ -1,4 +1,4 @@
-# Prism Notification Service — Backend Design
+# Prism Notification Service: Backend Design
 
 > **Internal Design Document:** This document is for contributors and maintainers. For setup instructions, see [../PUSH_SETUP.md](../PUSH_SETUP.md).
 
@@ -31,8 +31,8 @@ public interface IPrismNotificationService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing success status, delivered count, and any failures.</returns>
     Task<NotificationResult> SendToUserAsync(
-        string userOid, 
-        PrismNotificationPayload notification, 
+        string userOid,
+        PrismNotificationPayload notification,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -44,8 +44,8 @@ public interface IPrismNotificationService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing success status, delivered count, and any failures.</returns>
     Task<NotificationResult> SendToUsersAsync(
-        IEnumerable<string> userOids, 
-        PrismNotificationPayload notification, 
+        IEnumerable<string> userOids,
+        PrismNotificationPayload notification,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -57,8 +57,8 @@ public interface IPrismNotificationService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing success status, delivered count, and any failures.</returns>
     Task<NotificationResult> SendToSubscribersAsync(
-        Guid contentKey, 
-        PrismNotificationPayload notification, 
+        Guid contentKey,
+        PrismNotificationPayload notification,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -69,7 +69,7 @@ public interface IPrismNotificationService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Result containing success status, delivered count, and any failures.</returns>
     Task<NotificationResult> BroadcastAsync(
-        PrismNotificationPayload notification, 
+        PrismNotificationPayload notification,
         CancellationToken cancellationToken = default);
 }
 
@@ -122,7 +122,7 @@ public class NotificationResult
 ```
 
 **Rationale:**
-- **Tenant-scoped:** All operations implicitly use `IPrismContext.CurrentTenant` — no cross-tenant notification leakage.
+- **Tenant-scoped:** All operations implicitly use `IPrismContext.CurrentTenant`, no cross-tenant notification leakage.
 - **User-centric:** Developers think in terms of users (Entra OIDs), not device tokens.
 - **Subscription-aware:** First-class support for content-node subscriptions.
 - **Result transparency:** Returns stale tokens for cleanup, delivered/failed counts for monitoring.
@@ -136,7 +136,7 @@ public class NotificationResult
 **Choice:** `FirebaseAdmin` NuGet package (Google official, v3.x or later)
 
 **Why:**
-- Official Google SDK for .NET — best-supported, maintained.
+- Official Google SDK for .NET, best-supported, maintained.
 - Supports server-side FCM v1 API (legacy HTTP v1 is deprecated).
 - Integrates cleanly with ASP.NET Core DI.
 
@@ -310,12 +310,12 @@ public class PrismNotificationKeyVaultConfigureOptions : IConfigureOptions<Prism
 **Why extend `prismDeviceCredentials` instead?**
 - ✅ One unified row per device per user per tenant (whether it has biometric, push, or both).
 - ✅ Reuses the existing table's tenant isolation, user binding, and lifecycle management.
-- ✅ Reduces schema complexity — developers work with a single device credential model.
-- ✅ No separate migration or schema management needed — just one new column.
+- ✅ Reduces schema complexity, developers work with a single device credential model.
+- ✅ No separate migration or schema management needed, just one new column.
 
 ### Storage: Extend `prismDeviceCredentials`
 
-Rather than creating a separate `prismDeviceTokens` table, add a `PushToken` column to the existing `prismDeviceCredentials` table. The device credential already has `DeviceId`, `TenantId`, `UserId`, and `Platform` — exactly the fields we need.
+Rather than creating a separate `prismDeviceTokens` table, add a `PushToken` column to the existing `prismDeviceCredentials` table. The device credential already has `DeviceId`, `TenantId`, `UserId`, and `Platform`, exactly the fields we need.
 
 **New migration: `AddPushTokenColumn`**
 
@@ -356,7 +356,7 @@ public string? PushToken { get; set; }
 ```
 
 **Edge cases:**
-- If a user has biometric auth disabled but notifications enabled, the device credential row still exists (just with `TokenHash` empty or `RevokedAt` set) — the `PushToken` field is independent.
+- If a user has biometric auth disabled but notifications enabled, the device credential row still exists (just with `TokenHash` empty or `RevokedAt` set), the `PushToken` field is independent.
 - Edge case: a device may have a push token but no biometric registration. In that case, we create a minimal `prismDeviceCredentials` row with only `DeviceId`, `TenantId`, `UserId`, `Platform`, and `PushToken` populated. The biometric fields remain null/empty.
 
 **Updates `PrismMigrationPlan`:**
@@ -502,9 +502,9 @@ var allTokens = db.Fetch<PrismDeviceTokenSchema>(
 Umbraco v13+ uses `INotificationHandler<T>` for content lifecycle events.
 
 **Relevant Events:**
-- `ContentPublishedNotification` — Content item published (most common trigger).
-- `ContentUnpublishedNotification` — Content unpublished (optional cleanup).
-- `ContentDeletedNotification` — Content deleted (cleanup subscriptions).
+- `ContentPublishedNotification`, Content item published (most common trigger).
+- `ContentUnpublishedNotification`, Content unpublished (optional cleanup).
+- `ContentDeletedNotification`, Content deleted (cleanup subscriptions).
 
 **Example Handler:**
 
@@ -575,8 +575,8 @@ public class PrismContentPublishedNotificationHandler : INotificationAsyncHandle
             {
                 // Send to all users subscribed to this content node
                 var result = await _notificationService.SendToSubscribersAsync(
-                    entity.Key, 
-                    payload, 
+                    entity.Key,
+                    payload,
                     cancellationToken);
 
                 _logger.LogInformation(
@@ -586,8 +586,8 @@ public class PrismContentPublishedNotificationHandler : INotificationAsyncHandle
             catch (Exception ex)
             {
                 // Log but don't block content publishing if notifications fail
-                _logger.LogError(ex, 
-                    "Failed to send push notification for published content {ContentKey}", 
+                _logger.LogError(ex,
+                    "Failed to send push notification for published content {ContentKey}",
                     entity.Key);
             }
         }
@@ -682,8 +682,8 @@ public class PrismDailyDigestTask : IRecurringBackgroundTask
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, 
-                    "Failed to send daily digest for tenant {TenantId}", 
+                _logger.LogError(ex,
+                    "Failed to send daily digest for tenant {TenantId}",
                     tenant.Id);
             }
         }
@@ -715,8 +715,8 @@ Background tasks don't have `IPrismContext` (no HTTP request). Two solutions:
 ```csharp
 // Overload on IPrismNotificationService
 Task<NotificationResult> BroadcastAsync(
-    int tenantId, 
-    PrismNotificationPayload notification, 
+    int tenantId,
+    PrismNotificationPayload notification,
     CancellationToken cancellationToken = default);
 ```
 
@@ -1084,7 +1084,7 @@ public double CircuitBreakerBreakMinutes { get; set; } = 1.0;
 
 ```csharp
 private async Task<NotificationResult> SendBatchAsync(
-    List<string> deviceTokens, 
+    List<string> deviceTokens,
     PrismNotificationPayload notification,
     CancellationToken cancellationToken)
 {
@@ -1243,8 +1243,8 @@ public PrismNotificationService(
 }
 
 public async Task<NotificationResult> SendToUserAsync(
-    string userOid, 
-    PrismNotificationPayload notification, 
+    string userOid,
+    PrismNotificationPayload notification,
     CancellationToken cancellationToken = default)
 {
     if (_fcmClient == null)

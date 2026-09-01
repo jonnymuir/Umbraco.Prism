@@ -1,4 +1,4 @@
-# Proof-of-Possession Hardware Binding — Feasibility Analysis for Umbraco.Prism
+# Proof-of-Possession Hardware Binding: Feasibility Analysis for Umbraco.Prism
 
 **Author:** Kicks (Mobile Native Specialist)  
 **Date:** 2026-03-28  
@@ -18,12 +18,12 @@ Think of the current biometric flow like a hotel key card. When you register bio
 4. Your phone pulls the JWT from the safe and shows it to the server
 5. The server checks if the JWT is valid and logs you in
 
-**Problem:** If malware copies the JWT from your phone's memory (after biometric unlock), it can be used on ANY device. The JWT is like a photocopied hotel key card — anyone who has a copy can use it.
+**Problem:** If malware copies the JWT from your phone's memory (after biometric unlock), it can be used on ANY device. The JWT is like a photocopied hotel key card, anyone who has a copy can use it.
 
 **Proof-of-Possession approach:**
 Instead of a copyable JWT, think of a physical hotel room door that requires BOTH your key card AND your fingerprint reader on the door itself. With PoP:
 1. When you register, the phone generates a cryptographic key pair (public/private) INSIDE the Secure Enclave (iOS) or StrongBox (Android)
-2. The private key NEVER leaves the hardware chip — it physically cannot be copied
+2. The private key NEVER leaves the hardware chip, it physically cannot be copied
 3. The phone sends the public key to the server
 4. When you sign in, the server sends a challenge (random string)
 5. The phone uses Face ID/fingerprint to unlock the private key IN THE HARDWARE
@@ -31,7 +31,7 @@ Instead of a copyable JWT, think of a physical hotel room door that requires BOT
 7. The phone sends the signed challenge to the server
 8. The server verifies the signature using the public key
 
-**Key difference:** With PoP, even if malware compromises your phone's memory, it cannot steal the private key because it never exists in software — only in the tamper-resistant hardware chip.
+**Key difference:** With PoP, even if malware compromises your phone's memory, it cannot steal the private key because it never exists in software, only in the tamper-resistant hardware chip.
 
 ---
 
@@ -301,7 +301,7 @@ interface DeviceAttestationPlugin {
 - ❌ Breaks the "stay-in-WebView" mobile shell design (Auth must happen in system browser)
 - ❌ More complex UX (user sees browser-level UI, not native biometric prompt)
 
-**Feasibility for Prism:** **Low** — breaks the WebView shell model and excludes pre-iOS 16 devices.
+**Feasibility for Prism:** **Low**: breaks the WebView shell model and excludes pre-iOS 16 devices.
 
 #### Option 3: Third-Party SDK (e.g., FIDO UAF)
 
@@ -318,7 +318,7 @@ interface DeviceAttestationPlugin {
 - ❌ Vendor lock-in
 - ❌ Integration complexity (native SDKs + server-side SDK)
 
-**Feasibility for Prism:** **Medium** — viable for enterprise deployments, but adds cost/complexity.
+**Feasibility for Prism:** **Medium**: viable for enterprise deployments, but adds cost/complexity.
 
 ---
 

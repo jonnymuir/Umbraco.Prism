@@ -53,19 +53,19 @@ The management API is intentionally non-secret-bearing. The tenant management en
 ### Responses
 
 Tenant responses expose:
-- `OidcClientSecretProvider` — the provider name (e.g., `"azure-key-vault"`)
-- `HasOidcClientSecret` — boolean indicating whether a secret is configured
+- `OidcClientSecretProvider`, the provider name (e.g., `"azure-key-vault"`)
+- `HasOidcClientSecret`, boolean indicating whether a secret is configured
 
 Tenant responses do **not** expose:
 - raw OIDC client secret values
-- `OidcClientSecretReference` — the actual vault secret name
+- `OidcClientSecretReference`, the actual vault secret name
 
 ### Requests
 
 POST /api/prism/tenants (create) and PUT /api/prism/tenants/{id} (update) accept:
-- `OidcClientSecretProvider` — the provider name (string)
-- `OidcClientSecretReference` — the vault secret name (string)
-- `ResetOidcClientSecret` — flag to clear secret configuration (boolean)
+- `OidcClientSecretProvider`, the provider name (string)
+- `OidcClientSecretReference`, the vault secret name (string)
+- `ResetOidcClientSecret`, flag to clear secret configuration (boolean)
 
 Updates preserve the existing secret configuration if `OidcClientSecretReference` is not supplied and `ResetOidcClientSecret` is false.
 
@@ -75,7 +75,7 @@ Updates preserve the existing secret configuration if `OidcClientSecretReference
 
 The backoffice tenant editor integrates with the management API contract:
 
-- **On edit load:** The `OidcClientSecretReference` field displays empty. This is intentional—the UI never reveals what the secret reference is.
+- **On edit load:** The `OidcClientSecretReference` field displays empty. This is intentional, the UI never reveals what the secret reference is.
 - **Existing secret indicator:** The UI shows a label or badge indicating a secret exists (via `HasOidcClientSecret`) without echoing the reference name.
 - **Clear or replace:** Sending `ResetOidcClientSecret = true` clears the configuration. Updating the reference field with a new value replaces it.
 - **Preserve on blank update:** If you omit the reference field during an update, the existing configuration is preserved.
