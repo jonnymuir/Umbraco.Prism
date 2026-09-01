@@ -22,7 +22,7 @@ The Prism tag helpers emit HTML5 validation attributes directly from your field 
 - **Numeric bounds:** `min` and `max` attributes for number fields
 - **Type validation:** `type="email"`, `type="number"`, `type="date"` enforce format validation
 
-Browsers handle these natively—no JavaScript needed. Tap a required field and leave it blank: the browser shows the error immediately.
+Browsers handle these natively, no JavaScript needed. Tap a required field and leave it blank: the browser shows the error immediately.
 
 ### 2. Tamper-Proofing Nonce (🔵 Prism Platform)
 
@@ -43,14 +43,14 @@ The nonce is invisible to users and requires no configuration.
 
 After the form is submitted, Prism runs structural validation before your Business App is called. This layer:
 
-- **Validates the nonce** — rejects if expired or invalid; redirects to GET
-- **Whitelist field keys** — rejects any fields not in the authoritative definition
-- **Checks required fields** — rejects if required fields are missing
-- **Validates types** — coerces values (e.g., "123" → 123 for number fields)
-- **Validates options whitelist** — for radio, select, and checkbox lists; rejects out-of-list values
-- **Validates constraints** — applies minLength, maxLength, pattern, min, and max rules
+- **Validates the nonce**: rejects if expired or invalid; redirects to GET
+- **Whitelist field keys**: rejects any fields not in the authoritative definition
+- **Checks required fields**: rejects if required fields are missing
+- **Validates types**: coerces values (e.g., "123" → 123 for number fields)
+- **Validates options whitelist**: for radio, select, and checkbox lists; rejects out-of-list values
+- **Validates constraints**: applies minLength, maxLength, pattern, min, and max rules
 
-This happens in `IServiceRequestFieldValidator`, which is called before your Business App receives the request. If validation fails, the form redisplays with error messages—your Business App never sees bad data.
+This happens in `IServiceRequestFieldValidator`, which is called before your Business App receives the request. If validation fails, the form redisplays with error messages, your Business App never sees bad data.
 
 ### 4. Business App Validation (🟠 Your Business App)
 
@@ -67,10 +67,10 @@ Your Business App returns validation errors in the response, and Prism displays 
 
 Prism renders errors using GDS (GOV.UK Design System) patterns, which are accessible and user-friendly:
 
-- **Error summary** — top of the form lists all errors as clickable links
-- **Field-level errors** — each field with an error gets a red border and error text
-- **Accessibility** — error text is linked to the input via `aria-describedby`; focus is moved to the error summary
-- **User guidance** — errors explain what went wrong and how to fix it
+- **Error summary**: top of the form lists all errors as clickable links
+- **Field-level errors**: each field with an error gets a red border and error text
+- **Accessibility**: error text is linked to the input via `aria-describedby`; focus is moved to the error summary
+- **User guidance**: errors explain what went wrong and how to fix it
 
 ---
 
@@ -494,5 +494,5 @@ Each layer is independent. All must pass for the service blueprint to advance.
 ---
 
 **Next steps:**
-- [Customising Service Blueprint UI](./service-request-customisation.md) — override partials, adjust CSS
-- [GDS Components](./service-blueprint-gds-components.md) — available form elements and design patterns
+- [Customising Service Blueprint UI](./service-request-customisation.md), override partials, adjust CSS
+- [GDS Components](./service-blueprint-gds-components.md), available form elements and design patterns

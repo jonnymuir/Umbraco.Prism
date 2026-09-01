@@ -1,4 +1,4 @@
-# Prism Mobile — Push Notifications (Architecture Design)
+# Prism Mobile: Push Notifications (Architecture Design)
 
 > **Internal Design Document:** This document is for contributors and maintainers. For setup instructions, see [../PUSH_SETUP.md](../PUSH_SETUP.md).
 
@@ -6,8 +6,8 @@
 
 Enable Umbraco sites using Prism to send push notifications to members via the Capacitor mobile app. Two primary use cases:
 
-1. **Content-driven notifications** — triggered when content is published or changed in the Umbraco backoffice, targeting members who have subscribed to specific content nodes or categories, or broadcast globally.
-2. **Backend-triggered notifications** — fired programmatically from developer code, background tasks, or business logic events.
+1. **Content-driven notifications**: triggered when content is published or changed in the Umbraco backoffice, targeting members who have subscribed to specific content nodes or categories, or broadcast globally.
+2. **Backend-triggered notifications**: fired programmatically from developer code, background tasks, or business logic events.
 
 The feature must feel native to Umbraco, be easy for package consumers to extend, and work within the existing Prism architecture (tenant-scoped, Entra-authenticated, mobile-first).
 
@@ -16,11 +16,11 @@ The feature must feel native to Umbraco, be easy for package consumers to extend
 ## Constraints and Assumptions
 
 - Push notifications are **mobile-only** (Capacitor app). Web push is out of scope for v1 but the architecture should not preclude it.
-- Device token registration reuses the existing `PrismMemberCookie` auth flow — no new auth scheme required.
+- Device token registration reuses the existing `PrismMemberCookie` auth flow, no new auth scheme required.
 - Notifications are **tenant-scoped**. A notification sent by Tenant A never reaches Tenant B's devices.
 - The Umbraco site operator (package consumer) owns the push provider credentials (FCM project, APNs keys). Prism does not operate a shared push infrastructure.
-- Prism does not use Umbraco Members for identity — users are Entra OIDs. Subscriptions and device tokens are keyed by Entra OID + tenant.
-- The existing `prismDeviceCredentials` table already stores `DeviceId`, `TenantId`, `UserId`, and `Platform` — the notification system extends this rather than duplicating it.
+- Prism does not use Umbraco Members for identity, users are Entra OIDs. Subscriptions and device tokens are keyed by Entra OID + tenant.
+- The existing `prismDeviceCredentials` table already stores `DeviceId`, `TenantId`, `UserId`, and `Platform`, the notification system extends this rather than duplicating it.
 
 ---
 
@@ -85,7 +85,7 @@ graph TD
 | Provider | Pros | Cons | Verdict |
 |----------|------|------|---------|
 | **FCM (HTTP v1)** | Cross-platform (iOS + Android); free; massive ecosystem; Capacitor plugin exists (`@capacitor/push-notifications`); topic-based messaging built-in; reliable delivery | Requires Google Services account; iOS delivery goes through APNs anyway (FCM wraps it); vendor lock-in to Google | **✅ Recommended** |
-| **APNs Direct** | No intermediary for iOS; Apple-native | iOS only — need separate Android solution; certificate management is painful; no topic routing | ❌ Half a solution |
+| **APNs Direct** | No intermediary for iOS; Apple-native | iOS only, need separate Android solution; certificate management is painful; no topic routing | ❌ Half a solution |
 | **Azure Notification Hubs** | Fits Azure-heavy stacks; cross-platform; SLA-backed | Paid (per-push pricing); heavier setup; adds Azure dependency beyond Key Vault; Capacitor plugin maturity is poor | ⚠️ Consider for enterprise tier |
 | **OneSignal** | Easy setup; good dashboard; free tier | Third-party SaaS dependency; data leaves your infrastructure; doesn't align with Prism's self-hosted ethos | ❌ Wrong fit for a NuGet package |
 
@@ -94,7 +94,7 @@ graph TD
 1. **Zero cost to consumers.** FCM is free. A NuGet package that requires a paid push service adds friction.
 2. **Capacitor-native.** `@capacitor/push-notifications` uses FCM on Android and APNs-via-FCM on iOS. One token type, one API.
 3. **HTTP v1 API is modern.** OAuth2 service account auth (fits Prism's existing Azure credential patterns). No legacy server keys.
-4. **Topic messaging.** FCM supports server-side topic subscriptions — but we'll manage subscriptions ourselves for tenant isolation and flexibility.
+4. **Topic messaging.** FCM supports server-side topic subscriptions, but we'll manage subscriptions ourselves for tenant isolation and flexibility.
 
 ### Configuration Shape
 
@@ -118,7 +118,7 @@ graph TD
 }
 ```
 
-> **Alternative:** Store the FCM service account key in Azure Key Vault (Prism already integrates with Key Vault). The `ServiceAccountKeyPath` could accept a Key Vault secret name prefixed with `keyvault:` — e.g., `"ServiceAccountKeyPath": "keyvault:fcm-service-account"`.
+> **Alternative:** Store the FCM service account key in Azure Key Vault (Prism already integrates with Key Vault). The `ServiceAccountKeyPath` could accept a Key Vault secret name prefixed with `keyvault:`, e.g., `"ServiceAccountKeyPath": "keyvault:fcm-service-account"`.
 
 ---
 
@@ -145,7 +145,7 @@ sequenceDiagram
 
 ### Storage: Extend `prismDeviceCredentials`
 
-Rather than creating a separate push token table, add a `PushToken` column to the existing `prismDeviceCredentials` table. The device credential already has `DeviceId`, `TenantId`, `UserId`, and `Platform` — exactly the fields we need.
+Rather than creating a separate push token table, add a `PushToken` column to the existing `prismDeviceCredentials` table. The device credential already has `DeviceId`, `TenantId`, `UserId`, and `Platform`, exactly the fields we need.
 
 **New migration: `AddPushTokenColumn`**
 
@@ -171,12 +171,12 @@ public class AddPushTokenColumn(IMigrationContext context) : AsyncMigrationBase(
 
 - A device that can receive push notifications is the same device that has biometric credentials. One row per device per tenant.
 - Avoids join overhead when resolving "which devices should receive this notification."
-- If a user has biometric auth disabled but notifications enabled, the device credential row still exists (just with `TokenHash` empty or `RevokedAt` set) — the `PushToken` field is independent.
+- If a user has biometric auth disabled but notifications enabled, the device credential row still exists (just with `TokenHash` empty or `RevokedAt` set), the `PushToken` field is independent.
 - Edge case: a device may have a push token but no biometric registration. In that case, we create a minimal `prismDeviceCredentials` row with only `DeviceId`, `TenantId`, `UserId`, `Platform`, and `PushToken` populated. The biometric fields remain null/empty.
 
 ### Token Refresh Handling
 
-Push tokens rotate. The app should re-register on every launch. The backend upserts by `(TenantId, DeviceId, UserId)` — if the token changed, it's updated. If a push fails with `NotRegistered` or `InvalidRegistration`, the delivery service nulls out the `PushToken` on that row (stale token cleanup).
+Push tokens rotate. The app should re-register on every launch. The backend upserts by `(TenantId, DeviceId, UserId)`, if the token changed, it's updated. If a push fails with `NotRegistered` or `InvalidRegistration`, the delivery service nulls out the `PushToken` on that row (stale token cleanup).
 
 ### Endpoint Design
 
@@ -234,7 +234,7 @@ prismNotificationSubscriptions
 └── UNIQUE(TenantId, UserId, Topic)
 ```
 
-**Index:** `IX_prismNotificationSubscriptions_TenantId_Topic` — for "find all subscribers to topic X in tenant Y."
+**Index:** `IX_prismNotificationSubscriptions_TenantId_Topic`, for "find all subscribers to topic X in tenant Y."
 
 ### Why per-user, not per-device?
 
@@ -295,7 +295,7 @@ else
 
 ### Auto-Subscribe on Content View (Optional)
 
-For content-driven notifications, the mobile app could auto-subscribe a user when they view a content page (with an opt-out toggle). This is a UX decision, not an architectural one — the subscription API supports it either way.
+For content-driven notifications, the mobile app could auto-subscribe a user when they view a content page (with an opt-out toggle). This is a UX decision, not an architectural one, the subscription API supports it either way.
 
 ---
 
@@ -366,9 +366,9 @@ if (notificationOptions.Enabled)
 
 In a multi-tenant setup, we need to know which tenant a content node belongs to. Options:
 
-1. **Domain binding** (recommended) — Umbraco assigns domains to content nodes. Look up which `prismTenants.hostname` matches the content's assigned domain.
-2. **Explicit mapping** — A config section maps content root IDs to tenant IDs. Simpler but manual.
-3. **Single-tenant mode** — If only one tenant exists, all content belongs to it. This is the common case for most Marketplace consumers.
+1. **Domain binding** (recommended), Umbraco assigns domains to content nodes. Look up which `prismTenants.hostname` matches the content's assigned domain.
+2. **Explicit mapping**: A config section maps content root IDs to tenant IDs. Simpler but manual.
+3. **Single-tenant mode**: If only one tenant exists, all content belongs to it. This is the common case for most Marketplace consumers.
 
 **Recommendation:** Default to single-tenant mode (use the first/only tenant). Add domain-based resolution as an opt-in for multi-tenant deployments.
 
@@ -507,9 +507,9 @@ Response: {
 
 **Why this resonates with Umbraco developers:**
 
-1. **Real problem.** Content expiry is a built-in Umbraco feature that many sites use but nobody monitors proactively. Content silently disappears when it expires — authors often don't realize until a user reports a broken page.
-2. **Shows backend-triggered + scheduled.** Demonstrates `IRecurringBackgroundTask` (Umbraco's built-in scheduler) firing `IPrismNotificationService` — the exact pattern a developer would use.
-3. **Tangible value.** It's not a "hello world" — it's a feature a real editorial team would want on day one.
+1. **Real problem.** Content expiry is a built-in Umbraco feature that many sites use but nobody monitors proactively. Content silently disappears when it expires, authors often don't realize until a user reports a broken page.
+2. **Shows backend-triggered + scheduled.** Demonstrates `IRecurringBackgroundTask` (Umbraco's built-in scheduler) firing `IPrismNotificationService`, the exact pattern a developer would use.
+3. **Tangible value.** It's not a "hello world", it's a feature a real editorial team would want on day one.
 4. **Small scope.** The demo is ~50 lines of code, fitting in a single file.
 
 **Demo Implementation Sketch:**
@@ -552,7 +552,7 @@ public class ContentExpiryWatchdog : IRecurringBackgroundTask
 
 ### Alternative Demo Considered: "Welcome Notification on First Login"
 
-Send a personalized push notification 5 minutes after a member's first biometric registration ("Welcome to {TenantName}! Your biometric login is now active."). Simpler but less compelling — it doesn't demonstrate a recurring backend pattern.
+Send a personalized push notification 5 minutes after a member's first biometric registration ("Welcome to {TenantName}! Your biometric login is now active."). Simpler but less compelling, it doesn't demonstrate a recurring backend pattern.
 
 ---
 
@@ -575,9 +575,9 @@ Send a personalized push notification 5 minutes after a member's first biometric
 - The interface exists from v1, but only `FcmPushGateway` ships. Consumers who need Azure Notification Hubs or APNs direct can implement `IPrismPushGateway` and register it in DI.
 - Don't build multiple provider implementations until there's demand. YAGNI.
 
-**Status: Recommended — low risk.**
+**Status: Recommended, low risk.**
 
-### Decision 3: Subscription storage — Prism-managed vs. FCM topics
+### Decision 3: Subscription storage: Prism-managed vs. FCM topics
 
 **Recommendation: Prism-managed subscriptions (database).**
 
@@ -587,25 +587,25 @@ Send a personalized push notification 5 minutes after a member's first biometric
 
 **Status: Strongly recommended.**
 
-### Decision 4: Notification delivery — synchronous vs. queued
+### Decision 4: Notification delivery: synchronous vs. queued
 
 **Recommendation: Synchronous with async batching for v1; queue-based for v2.**
 
 - v1: `IPrismNotificationService.SendToTopicAsync()` resolves tokens, batches them (500 per FCM request), and sends in-process. Simple, no infrastructure dependency.
 - v2: Add an optional `IBackgroundTaskQueue` (Umbraco's built-in) to decouple send from caller. Important for high-volume sites but overkill for v1.
-- The `IPrismNotificationService` interface stays the same either way — the queueing is an internal implementation detail.
+- The `IPrismNotificationService` interface stays the same either way, the queueing is an internal implementation detail.
 
 **Status: Recommended for v1 simplicity.**
 
-### Decision 5: Mobile app changes — who generates the push scaffolding?
+### Decision 5: Mobile app changes: who generates the push scaffolding?
 
 **Recommendation: `MobileBundleService` generates push notification bootstrap code, gated behind a config flag.**
 
 - Same pattern as biometric auth: `MobileBundleService` already conditionally includes `biometric-bridge.ts`. Add a `notifications-bridge.ts` when `NotificationsEnabled` is true in the tenant's `MobileAppConfig`.
 - The bridge handles: permission request → token registration → notification received event → deep-link navigation.
-- Consumer doesn't need to write any Capacitor push code — it's generated.
+- Consumer doesn't need to write any Capacitor push code, it's generated.
 
-**Status: Recommended — follows established pattern.**
+**Status: Recommended, follows established pattern.**
 
 ---
 
@@ -615,7 +615,7 @@ Send a personalized push notification 5 minutes after a member's first biometric
 
 | Component | Description |
 |-----------|-------------|
-| `IPrismNotificationService` | Public API — the main developer stage |
+| `IPrismNotificationService` | Public API, the main developer stage |
 | `IPrismPushGateway` + `FcmPushGateway` | Push delivery abstraction + FCM default |
 | `NotificationController` | Token registration, subscribe/unsubscribe endpoints |
 | `PrismContentNotificationHandler` | Umbraco event → push notification bridge |
@@ -634,17 +634,17 @@ Send a personalized push notification 5 minutes after a member's first biometric
 | Custom notification triggers | Their own code calling `IPrismNotificationService` |
 | Custom `IPrismPushGateway` (optional) | Only if they don't want FCM |
 | Content expiry watchdog (optional) | Shipped as a demo/example, not auto-registered |
-| Notification UI in mobile app (optional) | In-app notification center, read/unread state — consumer territory for v1 |
+| Notification UI in mobile app (optional) | In-app notification center, read/unread state, consumer territory for v1 |
 
 ### What is explicitly out of scope for v1
 
 | Item | Reason |
 |------|--------|
 | Web push (browser) | Different token model, different UX, adds complexity |
-| In-app notification inbox | Requires local storage / sync — consumer responsibility |
-| Notification analytics | Opens/clicks/delivery rates — FCM console covers basics |
-| Rich notification actions | iOS notification actions (buttons) — v2 |
-| Scheduled notifications | "Send at 9am tomorrow" — use Umbraco's background tasks instead |
+| In-app notification inbox | Requires local storage / sync, consumer responsibility |
+| Notification analytics | Opens/clicks/delivery rates, FCM console covers basics |
+| Rich notification actions | iOS notification actions (buttons), v2 |
+| Scheduled notifications | "Send at 9am tomorrow", use Umbraco's background tasks instead |
 | Multi-language notification body | Consumer can localize before calling `SendToUserAsync` |
 
 ---

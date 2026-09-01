@@ -1,14 +1,14 @@
-# Walkthrough — Wiring the Prism Service Blueprint Editor into Your Umbraco App
+# Walkthrough: Wiring the Prism Service Blueprint Editor into Your Umbraco App
 
 > **This walkthrough predates the Wayfinder extraction and describes an architecture that no
-> longer exists** — fictional APIs (`AddPrismWorkflowEditor`, `ServiceBlueprintAuthoringPolicies`),
+> longer exists**, fictional APIs (`AddPrismWorkflowEditor`, `ServiceBlueprintAuthoringPolicies`),
 > a project layout from before the service blueprint engine moved into its own `Wayfinder`/
 > `Wayfinder.Umbraco` repos, and a dead link to the now-deleted `src/UmbracoPrism.Client/src/service-blueprint-editor/`.
 > For accurate, current guidance use
 > [AI-Ready Service Blueprint Authoring](../guides/ai-service-blueprint-authoring.md) (REST/MCP
 > authoring toolkit wiring), [Setting Up a Prism Service Blueprint](../guides/service-blueprint-setup.md)
 > (member-facing rendering), and [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)'s
-> own README (the backoffice editor — install the package, done, no wiring). Left in place
+> own README (the backoffice editor, install the package, done, no wiring). Left in place
 > as historical context rather than rewritten from unverified guesses; flag for a full rewrite
 > or removal as a follow-up.
 
@@ -17,9 +17,9 @@ This walkthrough is for integrators starting from a working Umbraco v17 site. By
 - the Prism packages installed
 - the authoring API and editor services registered in DI
 - doctypes and templates that drive a service blueprint at runtime
-- a clear picture of **where** the editor itself runs — and where it does not
+- a clear picture of **where** the editor itself runs, and where it does not
 
-The walkthrough does not cover the editor's UX itself — see Wayfinder.Umbraco's own docs/skills library (`docs/skills/canvas-editor/` in the core Wayfinder repo) for a screenshot-backed tour of each tab.
+The walkthrough does not cover the editor's UX itself, see Wayfinder.Umbraco's own docs/skills library (`docs/skills/canvas-editor/` in the core Wayfinder repo) for a screenshot-backed tour of each tab.
 
 ---
 
@@ -37,19 +37,19 @@ Prism splits cleanly into three projects:
 
 ---
 
-## Step 1 — Install the packages
+## Step 1: Install the packages
 
 Add the Prism packages to your Umbraco project:
 
-- `UmbracoPrism` — published to NuGet today; covers the Core integration.
-- `Wayfinder.Editor` — the authoring API and web-component bundle. Reference the project in-repo, or the package when published.
-- `Wayfinder.Engine` — the engine. Reference the project in-repo, or the package when published.
+- `UmbracoPrism`, published to NuGet today; covers the Core integration.
+- `Wayfinder.Editor`, the authoring API and web-component bundle. Reference the project in-repo, or the package when published.
+- `Wayfinder.Engine`, the engine. Reference the project in-repo, or the package when published.
 
-If you only need the **read-only viewer** for a published service blueprint on a public page, you can stop at `UmbracoPrism`. The viewer is a single web component (`<prism-service-blueprint-graph read-only>`) — see [Composing the Service Blueprint Editor](../guides/service-blueprint-editor-composition.md#read-only-public-viewer).
+If you only need the **read-only viewer** for a published service blueprint on a public page, you can stop at `UmbracoPrism`. The viewer is a single web component (`<prism-service-blueprint-graph read-only>`), see [Composing the Service Blueprint Editor](../guides/service-blueprint-editor-composition.md#read-only-public-viewer).
 
 ---
 
-## Step 2 — Register Prism services and the ServiceBlueprintAuthor policy
+## Step 2: Register Prism services and the ServiceBlueprintAuthor policy
 
 In `Program.cs`, register Prism alongside Umbraco. The editor's authoring API is locked behind an authorization policy you own.
 
@@ -84,14 +84,14 @@ app.MapPrismWorkflowEditor();
 
 Two things to know:
 
-1. The `ServiceBlueprintAuthor` policy is required. If you skip it, every authoring request returns a 500 at startup. That is by design — the editor never trusts an unauthenticated caller.
+1. The `ServiceBlueprintAuthor` policy is required. If you skip it, every authoring request returns a 500 at startup. That is by design, the editor never trusts an unauthenticated caller.
 2. The approver on every change is taken from the authenticated principal. The request body cannot set or spoof the approver. (Blathers' Slice 3c.)
 
 ---
 
-## Step 3 — Define your doctypes
+## Step 3: Define your doctypes
 
-Service Blueprint runtime pages need three things from Umbraco: a doctype, a Razor template, and a member-aware identity. The reference doctypes in `MockBusinessApp` show one working shape — copy what fits, replace what does not.
+Service Blueprint runtime pages need three things from Umbraco: a doctype, a Razor template, and a member-aware identity. The reference doctypes in `MockBusinessApp` show one working shape, copy what fits, replace what does not.
 
 Two starting points:
 
@@ -102,7 +102,7 @@ You do not need to mirror the reference doctype names. The contract is the contr
 
 ---
 
-## Step 4 — Route-hijack the service blueprint page
+## Step 4: Route-hijack the service blueprint page
 
 Subclass `ServiceRequestPageController<T>` for your service blueprint page doctype. The base class handles GET, POST, antiforgery, nonce binding, field collection, validation, and the post-redirect-get flow.
 
@@ -132,15 +132,15 @@ TestSite's `StagePageController` is the reference. It pre-populates a few fields
 
 ---
 
-## Step 5 — Add the Razor templates
+## Step 5: Add the Razor templates
 
-Each service blueprint page doctype needs a template that renders the current stage. TestSite has working examples — `serviceBlueprintDemoPage.cshtml` and `serviceRequestHub.cshtml` — that you can crib from. They use Prism's view helpers to render the stage shell, the field group, and the action buttons.
+Each service blueprint page doctype needs a template that renders the current stage. TestSite has working examples, `serviceBlueprintDemoPage.cshtml` and `serviceRequestHub.cshtml`, that you can crib from. They use Prism's view helpers to render the stage shell, the field group, and the action buttons.
 
 Keep templates thin. The base controller has already done the work; the template just renders the view model.
 
 ---
 
-## Step 6 — Decide where to host the editor
+## Step 6: Decide where to host the editor
 
 The Prism service blueprint editor is shipped as web components. **Mount them in your business app, not in the Umbraco backoffice.**
 
@@ -149,7 +149,7 @@ In this repo:
 - **MockBusinessApp** is the reference authoring host. It mounts `<prism-service-blueprint-editor>` (or `<prism-service-blueprint-editor-shell>`) on a normal page and points it at the authoring API.
 - **TestSite** is the reference Umbraco runtime. It does not host the editor.
 
-This split is the load-bearing boundary. The Umbraco backoffice stays for content; the editor stays in the place where your developers and operators already work. If you need to embed a *published* service blueprint as a read-only diagram on a public Umbraco page, use `<prism-service-blueprint-graph read-only>` — see [Composing the Service Blueprint Editor](../guides/service-blueprint-editor-composition.md#read-only-public-viewer).
+This split is the load-bearing boundary. The Umbraco backoffice stays for content; the editor stays in the place where your developers and operators already work. If you need to embed a *published* service blueprint as a read-only diagram on a public Umbraco page, use `<prism-service-blueprint-graph read-only>`, see [Composing the Service Blueprint Editor](../guides/service-blueprint-editor-composition.md#read-only-public-viewer).
 
 A minimal mount in your business app:
 
@@ -160,11 +160,11 @@ A minimal mount in your business app:
 </prism-service-blueprint-editor>
 ```
 
-The element is keyboard-reachable and announces edits to a polite live region. Accessibility is on by default — you do not need to add screen-reader scaffolding.
+The element is keyboard-reachable and announces edits to a polite live region. Accessibility is on by default, you do not need to add screen-reader scaffolding.
 
 ---
 
-## Step 7 — Open the editor and use it
+## Step 7: Open the editor and use it
 
 Once an author signs into your business app and loads the page that mounts `<prism-service-blueprint-editor>`, they can:
 
@@ -174,7 +174,7 @@ Once an author signs into your business app and loads the page that mounts `<pri
 - check warnings in the **Validation** tab
 - save and publish through the authoring API
 
-For a tour of the editor itself — what each tab does, how the lanes read, how the keyboard reach works — see Wayfinder.Umbraco's own docs/skills library (`docs/skills/canvas-editor/` in the core Wayfinder repo).
+For a tour of the editor itself, what each tab does, how the lanes read, how the keyboard reach works, see Wayfinder.Umbraco's own docs/skills library (`docs/skills/canvas-editor/` in the core Wayfinder repo).
 
 ---
 

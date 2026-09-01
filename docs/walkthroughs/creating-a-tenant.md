@@ -1,4 +1,4 @@
-# Walkthrough — Creating a New Tenant
+# Walkthrough: Creating a New Tenant
 
 A step-by-step guide to adding a new tenant in the Umbraco backoffice, binding it to a hostname, configuring its OIDC authority, and verifying that the Prism middleware routes requests to it correctly.
 
@@ -8,7 +8,7 @@ A step-by-step guide to adding a new tenant in the Umbraco backoffice, binding i
 
 ## Overview
 
-Umbraco.Prism is a **multi-tenant** system. Each tenant is an isolated context — its own hostname, OIDC authority, branding, and user base — but all tenants share a single Umbraco installation and a single code deployment. Tenants are managed entirely through the Umbraco backoffice; no code changes or restarts are needed to add one.
+Umbraco.Prism is a **multi-tenant** system. Each tenant is an isolated context, its own hostname, OIDC authority, branding, and user base, but all tenants share a single Umbraco installation and a single code deployment. Tenants are managed entirely through the Umbraco backoffice; no code changes or restarts are needed to add one.
 
 This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the existing `localhost` demo tenant.
 
@@ -31,7 +31,7 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 
    You land on the Umbraco backoffice dashboard.
 
-4. 💡 **What's happening:** Umbraco's own authentication (separate from the Prism OIDC flow used by end users) verifies your credentials against the Umbraco member database. This is the standard Umbraco backoffice login — Prism does not modify it.
+4. 💡 **What's happening:** Umbraco's own authentication (separate from the Prism OIDC flow used by end users) verifies your credentials against the Umbraco member database. This is the standard Umbraco backoffice login, Prism does not modify it.
 
 ---
 
@@ -62,10 +62,10 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 <!-- manual capture: Prism Dashboard modal requires manual Umbraco backoffice interaction -->
 
 2. ✅ **What you're about to fill in:**
-   - **Tenant name** — a human-readable label (internal only, not shown to end users).
-   - **Host binding** — the hostname Prism will match against incoming requests.
-   - **OIDC authority** — the Keycloak (or Entra) issuer URL for this tenant's identity provider.
-   - **Branding** — colours, fonts, and imagery (can be configured after creation).
+   - **Tenant name**: a human-readable label (internal only, not shown to end users).
+   - **Host binding**: the hostname Prism will match against incoming requests.
+   - **OIDC authority**: the Keycloak (or Entra) issuer URL for this tenant's identity provider.
+   - **Branding**: colours, fonts, and imagery (can be configured after creation).
 
 ### Step 4: Fill In the Host Binding
 
@@ -73,7 +73,7 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 
 2. In the **Host** field, type `tenant2.localhost`.
 
-   💡 **What's happening:** This value is stored in the `prismTenants` Umbraco database table. When a request arrives at the TestSite, `PrismTenantMiddleware` calls `ITenantService.GetByDomainAsync(host)` — which does a case-insensitive match against all registered hosts. If a match is found, the tenant is set in `IPrismContext.CurrentTenant` for the duration of that request.
+   💡 **What's happening:** This value is stored in the `prismTenants` Umbraco database table. When a request arrives at the TestSite, `PrismTenantMiddleware` calls `ITenantService.GetByDomainAsync(host)`, which does a case-insensitive match against all registered hosts. If a match is found, the tenant is set in `IPrismContext.CurrentTenant` for the duration of that request.
 
    The middleware uses the `Host` header (not the request path), so subdomain-per-tenant and domain-per-tenant topologies both work without any routing configuration.
 
@@ -81,7 +81,7 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
    - Use a subdomain: `mycouncil.prism.gov.uk`
    - Use a custom domain: `portal.acmecorp.com`
    - Use a port (local dev): `localhost:5001`
-   - Wildcards are **not** supported — each binding is an exact-match string.
+   - Wildcards are **not** supported, each binding is an exact-match string.
 
 ### Step 5: Configure the OIDC Authority
 
@@ -115,7 +115,7 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 
 <!-- manual capture: Branding tab requires manual Umbraco backoffice interaction with modal form -->
 
-4. 💡 **What's happening:** The branding editor reads CSS variable metadata from `GET /umbraco/api/prism/branding/metadata` — the same endpoint described in [Branding Design System](../branding-design-system.md). Each variable annotated with `/* @prism section: ... | label: ... */` appears as a typed form field. Changes are saved per-tenant and served as a tenant-specific CSS override on the frontend.
+4. 💡 **What's happening:** The branding editor reads CSS variable metadata from `GET /umbraco/api/prism/branding/metadata`, the same endpoint described in [Branding Design System](../branding-design-system.md). Each variable annotated with `/* @prism section: ... | label: ... */` appears as a typed form field. Changes are saved per-tenant and served as a tenant-specific CSS override on the frontend.
 
 5. ✅ **For a deep dive on branding:** See the [Design System walkthrough](design-system.md) for how tokens flow from the backoffice through to CSS variables consumed by web components.
 
@@ -123,7 +123,7 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 
 ## Part 4: How the Middleware Picks Up the New Tenant
 
-After saving, the new tenant is immediately active — no restart required. Here is what happens on the next request to `https://tenant2.localhost:44345`:
+After saving, the new tenant is immediately active, no restart required. Here is what happens on the next request to `https://tenant2.localhost:44345`:
 
 ```
 Browser → TestSite
@@ -168,8 +168,8 @@ If no tenant matches the host, `CurrentTenant` is `null` and a `LogWarning` is e
    |---|---|
    | Tenant resolved correctly | Open browser DevTools → Network → reload → find any API call; its response headers should include `X-Prism-Tenant: Tenant 2` (if you added this debug header in your implementation) |
    | Branding applied | Check that the page colours match what you configured |
-   | OIDC login works | Click **Sign In** — you should be redirected to the correct Keycloak realm |
-   | Service Blueprint isolation | Start a service blueprint as `demo@prism.local` on `tenant2.localhost` — the service request should be isolated from the same user's instance on `localhost` (they share a user ID but have different tenant IDs, so the engine keys instances as `{tenantId}:{userId}:{blueprintKey}`) |
+   | OIDC login works | Click **Sign In**: you should be redirected to the correct Keycloak realm |
+   | Service Blueprint isolation | Start a service blueprint as `demo@prism.local` on `tenant2.localhost`, the service request should be isolated from the same user's instance on `localhost` (they share a user ID but have different tenant IDs, so the engine keys instances as `{tenantId}:{userId}:{blueprintKey}`) |
 
 5. 💡 **Tenant isolation in practice:**
    - **Content:** Umbraco serves the same content tree to all tenants. Tenant-specific content can be achieved by creating tenant-specific Umbraco content nodes (not covered in this walkthrough).
@@ -195,9 +195,9 @@ Once a tenant exists, an Umbraco editor can update it at any time from **Setting
 
 ## Related Resources
 
-- [Umbraco Setup Guide](../umbraco-setup.md) — full installation walkthrough
-- [Design System](design-system.md) — deep dive on branding tokens
-- [Branding Design System](../branding-design-system.md) — annotating CSS variables for the tenant editor
+- [Umbraco Setup Guide](../umbraco-setup.md), full installation walkthrough
+- [Design System](design-system.md), deep dive on branding tokens
+- [Branding Design System](../branding-design-system.md), annotating CSS variables for the tenant editor
 
 ---
 

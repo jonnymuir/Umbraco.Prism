@@ -8,8 +8,8 @@ Biometric authentication in Umbraco Prism allows users to bypass OIDC authentica
 
 The system uses two cryptographic keys configured under `Prism:Biometric`:
 
-- **SigningKey** — HMAC-SHA256 key that signs biometric tokens (JWTs). Used to verify token integrity and prevent tampering.
-- **EncryptionKey** — AES-256 key that encrypts Entra refresh tokens at rest on the device. Refresh tokens are only encrypted, never signed locally.
+- **SigningKey**: HMAC-SHA256 key that signs biometric tokens (JWTs). Used to verify token integrity and prevent tampering.
+- **EncryptionKey**: AES-256 key that encrypts Entra refresh tokens at rest on the device. Refresh tokens are only encrypted, never signed locally.
 
 Both keys are required. Without them, the app throws `InvalidOperationException` at startup.
 
@@ -338,7 +338,7 @@ In production:
 
 ## See Also
 
-- [Biometric Authentication in README](../README.md#9-biometric-authentication-mobile) — Overview and usage.
-- [Umbraco Setup](./umbraco-setup.md) — Installing and configuring Prism in Umbraco.
-- [Azure Key Vault Documentation](https://learn.microsoft.com/en-us/azure/key-vault/) — Vault management and best practices.
-- [DefaultAzureCredential](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential) — Managed identity authentication patterns.
+- [Biometric Authentication in README](../README.md#9-biometric-authentication-mobile), Overview and usage.
+- [Umbraco Setup](./umbraco-setup.md), Installing and configuring Prism in Umbraco.
+- [Azure Key Vault Documentation](https://learn.microsoft.com/en-us/azure/key-vault/), Vault management and best practices.
+- [DefaultAzureCredential](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential), Managed identity authentication patterns.

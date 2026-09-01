@@ -1,6 +1,6 @@
-# Walkthrough — The Prism Design System
+# Walkthrough: The Prism Design System
 
-An exploration of how Prism's design system works end-to-end: from GDS-aligned Lit web components in Storybook, through the branding annotation system, to CSS variables that update live on the tenant's frontend — all without a rebuild.
+An exploration of how Prism's design system works end-to-end: from GDS-aligned Lit web components in Storybook, through the branding annotation system, to CSS variables that update live on the tenant's frontend, all without a rebuild.
 
 > **Prerequisites:** Stack running. See [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup).
 
@@ -18,7 +18,7 @@ Prism's design system has three layers:
 
 This walkthrough covers all three layers and shows you how to extend the system with a custom component.
 
-For the full branding annotation reference — annotation syntax, type inference rules, file structure, and API — see **[docs/branding-design-system.md](../branding-design-system.md)**. This walkthrough links to that document rather than duplicating it.
+For the full branding annotation reference, annotation syntax, type inference rules, file structure, and API, see **[docs/branding-design-system.md](../branding-design-system.md)**. This walkthrough links to that document rather than duplicating it.
 
 ---
 
@@ -40,8 +40,8 @@ Storybook starts at `http://localhost:6006`.
 
 In the left sidebar, browse the component stories. You'll find components organized by category:
 
-- **Backoffice** — Dashboard, tenant modal, branding editor, biometric settings
-- **Mobile** — Mobile navigation, branding inheritance previews
+- **Backoffice**: Dashboard, tenant modal, branding editor, biometric settings
+- **Mobile**: Mobile navigation, branding inheritance previews
 
 <!-- TODO: capture 02-storybook-sidebar.png via Storybook sidebar navigation -->
 <!-- pending capture -->
@@ -85,7 +85,7 @@ src/
 
 Each `.ts` file is a `@customElement`-decorated `LitElement`. The accompanying `.stories.ts` file defines Storybook stories.
 
-💡 **What's happening:** Components are standard Web Components (Custom Elements v1). Because they are framework-agnostic, they work in Umbraco's Angular-based backoffice, in Razor views in the TestSite, and in Ionic/Capacitor mobile shells — no wrappers or adapters needed.
+💡 **What's happening:** Components are standard Web Components (Custom Elements v1). Because they are framework-agnostic, they work in Umbraco's Angular-based backoffice, in Razor views in the TestSite, and in Ionic/Capacitor mobile shells, no wrappers or adapters needed.
 
 ---
 
@@ -129,7 +129,7 @@ CSS variables cascade to every element, including web components that use var(--
 
    You see sections: **Brand Colours**, **Typography**, **Imagery**, **Components**, **Layout**.
 
-5. 💡 **What's happening:** The branding editor fetches `GET /umbraco/api/prism/branding/metadata`, which returns the parsed metadata from all annotated CSS files in `wwwroot/branding/`. Each annotated variable becomes a typed form field — color pickers for `<color>` syntax, number inputs for `<length>`, etc.
+5. 💡 **What's happening:** The branding editor fetches `GET /umbraco/api/prism/branding/metadata`, which returns the parsed metadata from all annotated CSS files in `wwwroot/branding/`. Each annotated variable becomes a typed form field, color pickers for `<color>` syntax, number inputs for `<length>`, etc.
 
    See [Branding Design System](../branding-design-system.md#the-annotation-format) for the full `@property` + `@prism` annotation syntax.
 
@@ -139,7 +139,7 @@ CSS variables cascade to every element, including web components that use var(--
 
 2. Find **Primary Brand Colour** (the `--prism-primary` variable).
 
-3. Click the color picker and select a new colour — for example, `#e63946` (a vivid red).
+3. Click the color picker and select a new colour, for example, `#e63946` (a vivid red).
 
 4. Click **Save**.
 
@@ -172,13 +172,13 @@ static styles = css`
 `;
 ```
 
-The second argument to `var()` is a fallback — used when the variable is not defined (e.g., when the component is rendered outside a Prism tenant context, such as in Storybook).
+The second argument to `var()` is a fallback, used when the variable is not defined (e.g., when the component is rendered outside a Prism tenant context, such as in Storybook).
 
 ✅ **What you can do:** Because each variable has an `initial-value` declared in its `@property` block, browsers always have a typed fallback. This means components are correctly styled even if a tenant has not customised a specific variable.
 
 ---
 
-## Part 4: Extending the System — Adding a Custom Component
+## Part 4: Extending the System: Adding a Custom Component
 
 This section walks through adding a new web component and wiring it into the design system.
 
@@ -268,7 +268,7 @@ cd src/UmbracoPrism.Client
 npm run storybook
 ```
 
-Navigate to **Backoffice → Prism Status Badge** — you'll see your component rendered with the default branding. Change `--prism-badge-bg` in the branding editor and reload Storybook to see it update.
+Navigate to **Backoffice → Prism Status Badge**: you'll see your component rendered with the default branding. Change `--prism-badge-bg` in the branding editor and reload Storybook to see it update.
 
 ### Step 5: Type-Check
 

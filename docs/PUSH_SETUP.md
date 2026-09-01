@@ -1,4 +1,4 @@
-# Prism Mobile — Push Notifications Setup
+# Prism Mobile: Push Notifications Setup
 
 This document provides step-by-step instructions for configuring native push notification support in iOS and Android Capacitor projects.
 
@@ -50,7 +50,7 @@ Open `ios/App/App/App.entitlements` and add the APNs environment key:
 
 Your Prism backend must be configured to send push notifications via APNs. Two options:
 
-#### Option A: APNs Authentication Key (p8) — Recommended
+#### Option A: APNs Authentication Key (p8): Recommended
 
 1. Go to **Apple Developer Account** → **Certificates, Identifiers & Profiles** → **Keys**.
 2. Create a new key with **Apple Push Notifications service (APNs)** capability.
@@ -62,7 +62,7 @@ Your Prism backend must be configured to send push notifications via APNs. Two o
 - One key works for all apps
 - Simpler to manage
 
-#### Option B: APNs Certificate (p12) — Legacy
+#### Option B: APNs Certificate (p12): Legacy
 
 1. Create an App ID with Push Notifications capability.
 2. Generate an APNs Certificate (Sandbox or Production) in the Apple Developer portal.
@@ -73,7 +73,7 @@ Your Prism backend must be configured to send push notifications via APNs. Two o
 
 ### 4. Test on Device
 
-Push notifications **do not work on iOS Simulator** — you must test on a physical device.
+Push notifications **do not work on iOS Simulator**: you must test on a physical device.
 
 1. Connect your iPhone/iPad.
 2. Select your device in Xcode's target dropdown.
@@ -226,9 +226,9 @@ adb shell pm clear <package-name>
 
 Once native configuration is complete:
 
-1. **Test token registration** — Check that device tokens appear in your Prism backend database after login.
-2. **Test notification delivery** — Use the Prism Notification Service API to send a test notification.
-3. **Subscribe to genres** — Use `PrismPushNotifications.subscribeToGenre()` to opt users into content categories.
-4. **Handle notification taps** — Add listeners via `PrismPushNotifications.addNotificationActionListener()` to navigate to relevant content when users tap notifications.
+1. **Test token registration**: Check that device tokens appear in your Prism backend database after login.
+2. **Test notification delivery**: Use the Prism Notification Service API to send a test notification.
+3. **Subscribe to genres**: Use `PrismPushNotifications.subscribeToGenre()` to opt users into content categories.
+4. **Handle notification taps**: Add listeners via `PrismPushNotifications.addNotificationActionListener()` to navigate to relevant content when users tap notifications.
 
 For API usage examples, see `src/backoffice/push-notifications.ts` in the Prism Client codebase.

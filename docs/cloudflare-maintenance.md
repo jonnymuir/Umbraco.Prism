@@ -8,7 +8,7 @@ Umbraco Prism serves multi-tenant portals through a single backend instance. Bot
 
 - Raw 502/504 responses create bad UX
 - Mobile apps can't parse HTML errors as structured data
-- No changes needed to app or backend code — Cloudflare handles it all
+- No changes needed to app or backend code, Cloudflare handles it all
 
 ---
 
@@ -276,7 +276,7 @@ curl -H "Accept: application/json" https://yourdomain.com
 1. **Set up the Worker/page in advance** (see above)
 2. **Customize the message:** `"We'll be back at 2 PM EST"` or `"Estimated 30 minutes"`
 3. **Optional:** Use Worker + KV to store maintenance end time and display it dynamically
-4. **No app changes needed** — user sees the page automatically
+4. **No app changes needed**: user sees the page automatically
 
 ### Unexpected Downtime
 
@@ -323,7 +323,7 @@ useData(data);
 **Custom error page not showing:**
 - Wait 1–2 minutes for Cloudflare to deploy
 - Hard refresh the browser (Cmd+Shift+R / Ctrl+Shift+R)
-- Check Custom Pages section — ensure page is assigned to 502/503/504
+- Check Custom Pages section, ensure page is assigned to 502/503/504
 
 ---
 

@@ -128,7 +128,7 @@ If this succeeds but the UI demo button times out, check DownstreamDemoControlle
 
 ---
 
-## Step 4: Bearer Token Validation — Check Keycloak Backchannel
+## Step 4: Bearer Token Validation: Check Keycloak Backchannel
 
 If `curl` tests return **401 Unauthorized**, the token is either:
 1. Expired

@@ -1,17 +1,17 @@
-# Service Blueprint Editor — First Iteration Design (V1)
+# Service Blueprint Editor: First Iteration Design (V1)
 
 > **Status: Partly historical (2026-05-30 scope reset).** The agentic/AI surfaces (04-agentic-surfaces.md) and Umbraco backoffice mount (03-umbraco-integration.md) were retired. The editor now ships as web components consumed by a separate business app; it is **not** mounted in the Umbraco backoffice. See `docs/walkthroughs/authoring-a-service-blueprint.md` for the current integration recipe. These design docs are kept for reference.
 
 - **Status:** Partly historical (see banner above)
 - **Date:** 2026-05-16
 - **Authors (Squad):**
-  - Tom Nook — Lead (architecture, scope, handoffs)
-  - Isabelle — UX (authoring experience)
-  - Blathers — Runtime (projection, compatibility)
-  - Brewster — Umbraco integration (content and backoffice topology) — *historical*
-  - Tangy — Agentic surfaces (proposal-first AI loop) — *historical*
+  - Tom Nook, Lead (architecture, scope, handoffs)
+  - Isabelle, UX (authoring experience)
+  - Blathers, Runtime (projection, compatibility)
+  - Brewster, Umbraco integration (content and backoffice topology), *historical*
+  - Tangy, Agentic surfaces (proposal-first AI loop), *historical*
 
-Keep it simple: this design has three main parts — a **service blueprint editor**, a **service blueprint engine**, and a **forms engine**. V1 focuses on getting the service blueprint editor right. The service blueprint engine and forms engine matter because the editor must publish something they can use, but they are supporting context for this iteration rather than the headline story.
+Keep it simple: this design has three main parts, a **service blueprint editor**, a **service blueprint engine**, and a **forms engine**. V1 focuses on getting the service blueprint editor right. The service blueprint engine and forms engine matter because the editor must publish something they can use, but they are supporting context for this iteration rather than the headline story.
 
 Projection, Umbraco hosting, validation, and future Copilot or MCP service blueprints still matter. In this design set they are treated as supporting seams behind the editor, not as extra top-level products.
 
@@ -65,10 +65,10 @@ V1 is successful if the service blueprint editor can fully describe a service bl
 
 That means the editor must make the following clear and testable:
 
-1. **What the service blueprint is** — stages, actors, transitions, and actions.
-2. **What each step captures or shows** — using the forms engine's components.
-3. **What happens when a service blueprint runs** — enough structure for the service blueprint engine to execute it safely.
-4. **What changed** — validation, preview, diff, and publish confidence.
+1. **What the service blueprint is**: stages, actors, transitions, and actions.
+2. **What each step captures or shows**: using the forms engine's components.
+3. **What happens when a service blueprint runs**: enough structure for the service blueprint engine to execute it safely.
+4. **What changed**: validation, preview, diff, and publish confidence.
 
 ### V1 is
 
@@ -131,8 +131,8 @@ The published runtime definition is still important, but it is a generated artif
 
 Actions need one simple split:
 
-- **Design-time action catalog** — what actions exist, what parameters they need, how they are described in the editor, and whether the current host can run them.
-- **Runtime action handlers** — named implementations resolved by the service blueprint engine at execution time.
+- **Design-time action catalog**: what actions exist, what parameters they need, how they are described in the editor, and whether the current host can run them.
+- **Runtime action handlers**: named implementations resolved by the service blueprint engine at execution time.
 
 In the reference business app, prefer a DI-registered handler registry over ad-hoc lambda wiring so authored actions stay testable, inspectable, and portable.
 
@@ -254,4 +254,4 @@ This gives the editor, service blueprint engine, and forms engine a single share
 
 ---
 
-*This V1 design is editor-first by choice: nail the service blueprint editor, keep the service blueprint engine stable, and reuse the forms engine rather than redesigning it.* — Tom Nook
+*This V1 design is editor-first by choice: nail the service blueprint editor, keep the service blueprint engine stable, and reuse the forms engine rather than redesigning it.*: Tom Nook

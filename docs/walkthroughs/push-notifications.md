@@ -1,8 +1,8 @@
-# Walkthrough — End-to-End Push Notifications
+# Walkthrough: End-to-End Push Notifications
 
 A complete guide to the Prism push notification system: from VAPID key generation and browser subscription through to sending a notification from the Umbraco backoffice and receiving it on a device.
 
-> **Note:** This walkthrough consolidates guidance from [`docs/PUSH_SETUP.md`](../PUSH_SETUP.md), [`docs/notifications-design.md`](../notifications-design.md), and the architecture docs in `docs/design/notifications-*.md`. Architecture decisions and technology rationale are explained in those documents — this walkthrough focuses on the operational steps. Where relevant, links point back to the source material rather than repeating it.
+> **Note:** This walkthrough consolidates guidance from [`docs/PUSH_SETUP.md`](../PUSH_SETUP.md), [`docs/notifications-design.md`](../notifications-design.md), and the architecture docs in `docs/design/notifications-*.md`. Architecture decisions and technology rationale are explained in those documents, this walkthrough focuses on the operational steps. Where relevant, links point back to the source material rather than repeating it.
 
 > **Prerequisites:** Stack running. See [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup). For native mobile push, also complete the native setup steps in [`docs/PUSH_SETUP.md`](../PUSH_SETUP.md).
 
@@ -17,7 +17,7 @@ Prism supports two push notification transports:
 | **Web push (VAPID)** | Desktop and mobile browsers | W3C Push API + service worker |
 | **Native push (FCM → APNs/FCM)** | Capacitor iOS/Android apps | Firebase Cloud Messaging via `@capacitor/push-notifications` |
 
-This walkthrough covers the **web push** path end-to-end, then explains where native push diverges. The technology decision to use FCM (rather than VAPID alone or OneSignal) is documented in [`docs/notifications-design.md#2-technology-decision-fcm`](../notifications-design.md#2-technology-decision-fcm) — the short answer is that FCM covers both iOS and Android in one integration.
+This walkthrough covers the **web push** path end-to-end, then explains where native push diverges. The technology decision to use FCM (rather than VAPID alone or OneSignal) is documented in [`docs/notifications-design.md#2-technology-decision-fcm`](../notifications-design.md#2-technology-decision-fcm), the short answer is that FCM covers both iOS and Android in one integration.
 
 ---
 
@@ -41,7 +41,7 @@ FCM → APNs (iOS) / FCM direct (Android) / Web Push (browser)
 Device receives notification
 ```
 
-Push logic is split between the package and the consuming site — see the full split of responsibility table in [`docs/notifications-design.md#1-architecture-overview`](../notifications-design.md#1-architecture-overview).
+Push logic is split between the package and the consuming site, see the full split of responsibility table in [`docs/notifications-design.md#1-architecture-overview`](../notifications-design.md#1-architecture-overview).
 
 ---
 
@@ -62,8 +62,8 @@ Add the following to `appsettings.json` (or user secrets for local dev):
 }
 ```
 
-- **`FcmServiceAccountSecretName`** — the Azure Key Vault secret name holding your Firebase service account JSON. For local dev without Key Vault, you can provide the raw JSON directly via user secrets (see below).
-- **`Enabled`** — when `false`, the push subsystem is a no-op. Defaults to `false`.
+- **`FcmServiceAccountSecretName`**, the Azure Key Vault secret name holding your Firebase service account JSON. For local dev without Key Vault, you can provide the raw JSON directly via user secrets (see below).
+- **`Enabled`**, when `false`, the push subsystem is a no-op. Defaults to `false`.
 
 💡 **What's happening:** On startup, `PrismComposer` reads this configuration. If `Enabled: true`, it initialises a `FirebaseApp` using the service account JSON resolved from Key Vault (or user secrets). It also runs the migration plan that creates `prismPushTokens` and `prismPushSubscriptions` tables in the Umbraco database.
 
@@ -142,7 +142,7 @@ Add these to your configuration:
 
 5. Click **Allow**.
 
-<!-- TODO: capture 02-browser-permission.png via browser permission prompt (manual only — browser UI cannot be automated) -->
+<!-- TODO: capture 02-browser-permission.png via browser permission prompt (manual only, browser UI cannot be automated) -->
 <!-- pending capture -->
 
 6. ✅ **What you can do:** If you dismiss or deny the prompt, the toggle shows as "Blocked". To re-trigger it during development, clear the notification permission in browser settings (DevTools → Application → Permissions, or site settings).
@@ -164,7 +164,7 @@ The Prism notification system supports topic-based subscriptions (e.g., "Plannin
 2. Check or uncheck individual topics.
 3. Changes are saved immediately via `POST /umbraco/api/prism/push/subscriptions`.
 
-💡 **What's happening:** Topic subscriptions are stored in `prismPushSubscriptions` with a `genre` column. When a notification is sent for a genre, only subscribers to that genre receive it — the backend queries `prismPushTokens JOIN prismPushSubscriptions WHERE genre = :genre AND tenantId = :tenantId`.
+💡 **What's happening:** Topic subscriptions are stored in `prismPushSubscriptions` with a `genre` column. When a notification is sent for a genre, only subscribers to that genre receive it, the backend queries `prismPushTokens JOIN prismPushSubscriptions WHERE genre = :genre AND tenantId = :tenantId`.
 
 ---
 
@@ -255,9 +255,9 @@ The high-level difference:
 | Receive notification | Service worker `push` event | `PushNotifications.addListener('pushNotificationReceived', ...)` |
 | Notification tap | `notificationclick` in SW | `PushNotifications.addListener('pushNotificationActionPerformed', ...)` |
 
-The Prism client module `src/UmbracoPrism.Client/src/backoffice/push-notifications.ts` wraps `@capacitor/push-notifications` with graceful web degradation — `Capacitor.isNativePlatform()` gates all native API calls so the same code works in both environments.
+The Prism client module `src/UmbracoPrism.Client/src/backoffice/push-notifications.ts` wraps `@capacitor/push-notifications` with graceful web degradation, `Capacitor.isNativePlatform()` gates all native API calls so the same code works in both environments.
 
-For native platform setup steps (APNs entitlements, `google-services.json`, Gradle configuration), see **[docs/PUSH_SETUP.md](../PUSH_SETUP.md)** — that document is the authoritative native setup guide.
+For native platform setup steps (APNs entitlements, `google-services.json`, Gradle configuration), see **[docs/PUSH_SETUP.md](../PUSH_SETUP.md)**: that document is the authoritative native setup guide.
 
 For the Capacitor app structure and how to build for iOS/Android, see the **[Building a Mobile App walkthrough](building-a-mobile-app.md)**.
 
@@ -267,7 +267,7 @@ For the Capacitor app structure and how to build for iOS/Android, see the **[Bui
 
 | Problem | First check |
 |---|---|
-| Browser permission prompt doesn't appear | Check `Notification.permission` in the browser console — if `"denied"`, the user previously blocked it. Reset via browser site settings. |
+| Browser permission prompt doesn't appear | Check `Notification.permission` in the browser console, if `"denied"`, the user previously blocked it. Reset via browser site settings. |
 | Subscription POST returns 401 | Bearer token is missing or expired. Sign in again. |
 | Notification dispatched but not received | Check FCM dashboard for delivery status. Verify the device token hasn't expired (tokens rotate; Prism re-registers on each login). |
 | iOS notifications not arriving | Must test on a physical device (simulator doesn't support APNs). Verify `aps-environment` entitlement is set. See [PUSH_SETUP.md](../PUSH_SETUP.md#ios-setup-apns). |
@@ -275,9 +275,9 @@ For the Capacitor app structure and how to build for iOS/Android, see the **[Bui
 
 ---
 
-## Decision Points — Where to Read More
+## Decision Points: Where to Read More
 
-The following decisions are already documented in the design docs — don't re-derive them, follow the links:
+The following decisions are already documented in the design docs, don't re-derive them, follow the links:
 
 | Question | Where answered |
 |---|---|

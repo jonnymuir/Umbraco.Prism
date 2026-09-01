@@ -49,7 +49,7 @@ Each discovered variable:
 ### Tabs Mapping
 - One backoffice tab per CSS source file that contains variable definitions.
 - Variables not found in any file but present in stored overrides show under a special tab:
-  - **Branding — Other**
+  - **Branding, Other**
 
 ---
 
@@ -101,7 +101,7 @@ Example injection:
   - Default value (read-only)
   - Override value (editable)
 
-### Branding — Other Tab
+### Branding: Other Tab
 - A tab that lists overrides that do not match any discovered variable.
 - Allows editing/removing those overrides.
 - Optional: add new variable by name (future enhancement).

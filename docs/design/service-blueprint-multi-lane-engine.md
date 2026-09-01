@@ -4,7 +4,7 @@ status: outdated
 ---
 
 > **Outdated.** Written before the service blueprint engine was extracted to the standalone
-> `Wayfinder`/`Wayfinder.Engine`/`Wayfinder.Umbraco` repos — the "What must stay green" test
+> `Wayfinder`/`Wayfinder.Engine`/`Wayfinder.Umbraco` repos, the "What must stay green" test
 > list below points at C# and Playwright files that no longer exist in this repo (some don't
 > exist anywhere anymore, others moved to `Wayfinder.Umbraco`/`Wayfinder`'s own test suites).
 > Multi-lane/parallel-path engine behaviour, if still wanted, is now a `Wayfinder.Engine`
@@ -41,10 +41,10 @@ The service blueprint is made of **stages** and **diamond transition gateways**.
 
 The model is simple:
 
-- **Stage** — a unit of work. This is where forms, review screens, confirmations, and other actions live.
-- **Transition gateway** — a structural routing point with a name and description. A gateway can be a **split gateway** or a **join gateway**.
-  - **Split gateway** — starts work in more than one lane.
-  - **Join gateway** — waits for the required lanes, then releases the next step.
+- **Stage**: a unit of work. This is where forms, review screens, confirmations, and other actions live.
+- **Transition gateway**: a structural routing point with a name and description. A gateway can be a **split gateway** or a **join gateway**.
+  - **Split gateway**: starts work in more than one lane.
+  - **Join gateway**: waits for the required lanes, then releases the next step.
 
 Authors should understand routing as happening **through gateways**, not through bare stage-to-stage arrows. Links still exist in the graph, but the nodes authors reason about are stages and gateways.
 
@@ -185,8 +185,8 @@ The runtime may need that data internally, but authors and consumers should not 
 
 Parallel service blueprints make history confusing unless we separate two different things:
 
-- **who acted** — person/system, action, time, lane
-- **what state changed** — cursor moved, join token recorded, join released, service blueprint status changed
+- **who acted**: person/system, action, time, lane
+- **what state changed**: cursor moved, join token recorded, join released, service blueprint status changed
 
 Those should be related, but not collapsed into one ambiguous line.
 
@@ -227,11 +227,11 @@ Support and debugging should be able to answer:
 
 This design now maps to a condensed execution sequence:
 
-1. **#81** — clean up duplicate surface logic so assignment is the source of truth
-2. **#82** — let stages and gateways belong to named lanes
-3. **#83** — merged gateway/runtime track for readable gateways, lane-owned joins, and safe parallel execution
-4. **#86** — separate actor history from state-change history for parallel work
-5. **#87** — evolve showcase service blueprints and behavioural proof slice by slice
+1. **#81**: clean up duplicate surface logic so assignment is the source of truth
+2. **#82**: let stages and gateways belong to named lanes
+3. **#83**: merged gateway/runtime track for readable gateways, lane-owned joins, and safe parallel execution
+4. **#86**: separate actor history from state-change history for parallel work
+5. **#87**: evolve showcase service blueprints and behavioural proof slice by slice
 
 Scope decision: **#84** and **#85** are now absorbed into **#83**. They should not be treated as independent execution items.
 
@@ -255,18 +255,18 @@ By the end of this slice, authors and runtime consumers should both see the same
 
 ### Internal sequence inside #83
 
-1. **Isabelle first** — lock the editor visual language and authoring rules:
+1. **Isabelle first**: lock the editor visual language and authoring rules:
    - render split and join gateways as unmistakable diamond/diagonal nodes rather than rounded stage-like cards
    - make lane ownership obvious on canvas and in inspector
    - make gateways the only visible routing object between stages in graph, list, and inspector flows
    - support stage → gateway, gateway → stage, and gateway → gateway links
    - prevent direct stage → stage authoring and any other invalid links that would make the flow ambiguous or unsafe
-2. **Blathers second** — move the waiting story and projection contract onto join gateways:
+2. **Blathers second**: move the waiting story and projection contract onto join gateways:
    - replace waiting-stage modelling and waiting-stage types with lane-owned join gateway metadata
    - keep published/runtime projection clean and assignment-driven
    - preserve the user-facing waiting story without exposing engine bookkeeping
    - align authored/runtime contracts so gateways, not bare transitions, carry the routing story
-3. **Blathers + Tangy third** — make the runtime honour the same gateway model:
+3. **Blathers + Tangy third**: make the runtime honour the same gateway model:
    - run more than one active lane safely at the same time
    - record arrivals per lane/cursor at joins
    - release deterministically with race-order coverage

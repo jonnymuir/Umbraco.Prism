@@ -1,13 +1,13 @@
-# Umbraco Prism — Aspire Dev Environment
+# Umbraco Prism: Aspire Dev Environment
 
 Press-play local development with Keycloak OIDC authentication.
 
 ## Prerequisites (One-Time Setup)
 
-- **.NET 10 SDK** — install the current .NET 10 SDK ([Download](https://dotnet.microsoft.com/download/dotnet/10.0))
-- **Trust the .NET dev certificate** — run `dotnet dev-certs https --trust` (one-time setup)
-- **Docker Desktop** — must be running ([Download](https://www.docker.com/products/docker-desktop/))
-- **Node.js 20+** — for frontend assets ([Download](https://nodejs.org/))
+- **.NET 10 SDK**: install the current .NET 10 SDK ([Download](https://dotnet.microsoft.com/download/dotnet/10.0))
+- **Trust the .NET dev certificate**: run `dotnet dev-certs https --trust` (one-time setup)
+- **Docker Desktop**: must be running ([Download](https://www.docker.com/products/docker-desktop/))
+- **Node.js 20+**: for frontend assets ([Download](https://nodejs.org/))
 - **Frontend dependencies:** `cd src/UmbracoPrism.Client && npm install`
 
 ## Quick Start
@@ -82,15 +82,15 @@ The TestSite views resolve those links from published content instead of assumin
 
 To avoid the cold-start flake where seeded child routes briefly collapse back to `/`, keep the localhost auth suite layered:
 
-- **Layer 1 — infrastructure readiness (before any browser interaction):** wait for machine-readable contracts only. In this repo that means the home-page ready marker, `/api/prism/downstream-demo/seed-contract-ready` returning `ready: true`, the protected workflow hub challenging to `/auth/login?ReturnUrl=%2Fmy-workflows`, Keycloak discovery, and MockBusinessApp's expected unauthenticated `401`.
-- **Layer 2 — page readiness (before each click):** assert the authored `href` first, then click, then wait for page-specific affordances. Examples: `Go to Dashboard` must resolve to `/dashboard`; dashboard readiness is `View Workflows` + `Call Mock Business App API`; workflow readiness is the page heading and form fields. Do not treat shared text such as `Welcome back, Demo User` or a bare `200 OK` from `/` as proof that child routes are ready.
-- **Layer 3 — behaviour under test:** only after layers 1 and 2 pass should the spec make assertions about sign-in, restart persistence, workflow navigation, or downstream API calls. If a scenario needs a direct deep link (`/get-in-touch`, `/my-workflows`), make that an explicit route contract assertion after readiness has converged, not the generic setup for unrelated tests.
+- **Layer 1, infrastructure readiness (before any browser interaction):** wait for machine-readable contracts only. In this repo that means the home-page ready marker, `/api/prism/downstream-demo/seed-contract-ready` returning `ready: true`, the protected workflow hub challenging to `/auth/login?ReturnUrl=%2Fmy-workflows`, Keycloak discovery, and MockBusinessApp's expected unauthenticated `401`.
+- **Layer 2, page readiness (before each click):** assert the authored `href` first, then click, then wait for page-specific affordances. Examples: `Go to Dashboard` must resolve to `/dashboard`; dashboard readiness is `View Workflows` + `Call Mock Business App API`; workflow readiness is the page heading and form fields. Do not treat shared text such as `Welcome back, Demo User` or a bare `200 OK` from `/` as proof that child routes are ready.
+- **Layer 3, behaviour under test:** only after layers 1 and 2 pass should the spec make assertions about sign-in, restart persistence, workflow navigation, or downstream API calls. If a scenario needs a direct deep link (`/get-in-touch`, `/my-workflows`), make that an explicit route contract assertion after readiness has converged, not the generic setup for unrelated tests.
 
 This split keeps cold-start infrastructure drift separate from product-behaviour failures: if the suite fails before interaction, it is a startup/readiness problem; if it fails after stable route and CTA assertions, it is a real auth or navigation regression.
 
 ## Localhost Tenant (Auto-Seeded)
 
-When TestSite starts in Development mode, a `DemoTenantSeeder` automatically creates or repairs the localhost tenant pointing at Keycloak — no manual database setup required. On every start it reconciles the seeded `localhost` row back to the expected OIDC values so a fresh isolated database and later app restarts converge on the same demo tenant shape.
+When TestSite starts in Development mode, a `DemoTenantSeeder` automatically creates or repairs the localhost tenant pointing at Keycloak, no manual database setup required. On every start it reconciles the seeded `localhost` row back to the expected OIDC values so a fresh isolated database and later app restarts converge on the same demo tenant shape.
 
 The seeded tenant is the only supported inline-secret exception:
 - `Hostname = "localhost"`
@@ -103,7 +103,7 @@ At runtime, Prism allows inline generic OIDC secrets only for that repo-owned lo
 
 ## Entra Tenants (Existing Behavior)
 
-Tenants with `EntraTenantId` set continue to use Entra ID authentication via Azure Key Vault. The generic OIDC columns are optional — if `OidcAuthority` is null, the system falls back to constructing the Entra authority from `EntraTenantId`.
+Tenants with `EntraTenantId` set continue to use Entra ID authentication via Azure Key Vault. The generic OIDC columns are optional, if `OidcAuthority` is null, the system falls back to constructing the Entra authority from `EntraTenantId`.
 
 ## Architecture
 
@@ -141,8 +141,8 @@ else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
 
 ## Projects
 
-- **`UmbracoPrism.AppHost`** — Aspire orchestrator (dev-only, not for production)
-- **`UmbracoPrism.ServiceDefaults`** — Shared Aspire extensions (OpenTelemetry, health checks, service discovery)
+- **`UmbracoPrism.AppHost`**, Aspire orchestrator (dev-only, not for production)
+- **`UmbracoPrism.ServiceDefaults`**, Shared Aspire extensions (OpenTelemetry, health checks, service discovery)
 
 ## Migration
 

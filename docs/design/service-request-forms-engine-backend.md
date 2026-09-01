@@ -3,7 +3,7 @@
 This document is the package-facing backend reference: what Prism expects back from your business app, and which extension points matter when you replace the demo business app with a real service.
 
 For the authored JSON schema itself (`queues`/`stages`/`gateways`/`routes`/components), see the
-[Reference Service Blueprint Contract](../guides/reference-service-blueprint-contract.md) — this
+[Reference Service Blueprint Contract](../guides/reference-service-blueprint-contract.md), this
 doc doesn't repeat it. JSON seed files (`src/UmbracoPrism.MockBusinessApp/service-blueprints/*.json`)
 or the [MCP/REST authoring toolkit](../guides/ai-service-blueprint-authoring.md) are both valid
 ways to produce it.
@@ -17,7 +17,7 @@ A route (on a stage or a gateway) is `{ id, target, trigger, requiresRole? }`. I
 - `change:{stageKey}` is handled specially for check-answers links,
 - optimistic concurrency is enforced by comparing submitted `StateVersion`.
 
-A stage's routes must always target a gateway, never another stage directly — see
+A stage's routes must always target a gateway, never another stage directly, see
 [The gateway routing rule](../guides/reference-service-blueprint-contract.md#the-gateway-routing-rule).
 
 Source: `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppProcessManager.cs`.
@@ -38,16 +38,16 @@ Source: `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppProcessManager.cs`
 | Property | Meaning |
 | --- | --- |
 | `InstanceId` | Running instance identifier |
-| `ResponseState` | `render`, `defer`, `complete`, `error` — plus `instance_picker` for `requestPolicy: "prompt"` |
+| `ResponseState` | `render`, `defer`, `complete`, `error`, plus `instance_picker` for `requestPolicy: "prompt"` |
 | `StateVersion` | Concurrency token echoed back on POST |
 | `CorrelationId` | Tracking identifier |
 | `ServerTimeUtc` | Server timestamp |
 | `PollAfterMs` | Used for `defer` responses (waiting Join gateways) |
-| `Render` | The `StepContent` payload to render — only present when `ResponseState` is `render` |
+| `Render` | The `StepContent` payload to render, only present when `ResponseState` is `render` |
 | `RequestPolicy` | Echoes the blueprint's `requestPolicy` |
 | `Problems` | Validation or fatal problems (`ServiceRequestProblem[]`) |
 
-`StepContent` contains `StepType`, `StateDisplayName`, `Components` (`ComponentRenderPayload[]`), `AvailableActions`, and an optional `Data` (host-supplied structured display data resolved into "interactive" components — display data only, never instructions).
+`StepContent` contains `StepType`, `StateDisplayName`, `Components` (`ComponentRenderPayload[]`), `AvailableActions`, and an optional `Data` (host-supplied structured display data resolved into "interactive" components, display data only, never instructions).
 
 ### Render payload details that matter
 

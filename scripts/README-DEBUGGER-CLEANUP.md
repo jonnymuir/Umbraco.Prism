@@ -50,10 +50,10 @@ If validation shows stale processes after debugger stop:
 
 ## Files
 
-- **`.vscode/launch.json`** — Aspire launch config with `postDebugTask: "Aspire: cleanup after debug"`
-- **`.vscode/tasks.json`** — Task definition for cleanup script
-- **`scripts/cleanup-aspire-processes.sh`** — Cleanup script (AppHost/DCP PIDs + Docker containers)
-- **`scripts/validate-debugger-cleanup.sh`** — Validation script (check for stale processes/containers)
+- **`.vscode/launch.json`**, Aspire launch config with `postDebugTask: "Aspire: cleanup after debug"`
+- **`.vscode/tasks.json`**, Task definition for cleanup script
+- **`scripts/cleanup-aspire-processes.sh`**, Cleanup script (AppHost/DCP PIDs + Docker containers)
+- **`scripts/validate-debugger-cleanup.sh`**, Validation script (check for stale processes/containers)
 
 ## Related
 

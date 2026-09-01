@@ -14,13 +14,13 @@ The home entry journey (`home-entry`) documents the authenticated and unauthenti
 
 ## Unauthenticated Homepage
 
-![Signed-out homepage hero — "Your account, your way" heading with Sign In call-to-action](../images/walkthroughs/home-entry/01-signed-out-hero.png)
+![Signed-out homepage hero, "Your account, your way" heading with Sign In call-to-action](../images/walkthroughs/home-entry/01-signed-out-hero.png)
 
-Before signing in, the homepage presents the product hero with a **Sign In** call-to-action. No dashboard or service design navigation is shown — protected content is not accessible until the OIDC flow is completed.
+Before signing in, the homepage presents the product hero with a **Sign In** call-to-action. No dashboard or service design navigation is shown, protected content is not accessible until the OIDC flow is completed.
 
 ## Authenticated Homepage
 
-![Signed-in homepage hero — personalised welcome and "Go to Dashboard" link visible](../images/walkthroughs/home-entry/02-signed-in-hero.png)
+![Signed-in homepage hero, personalised welcome and "Go to Dashboard" link visible](../images/walkthroughs/home-entry/02-signed-in-hero.png)
 
 After signing in via Keycloak, the hero updates to show a personalised welcome message ("Welcome back, Demo User") and replaces the Sign In link with:
 
@@ -29,26 +29,26 @@ After signing in via Keycloak, the hero updates to show a personalised welcome m
 
 ## Dashboard
 
-![Member dashboard — "View queue" and "Start" links, and the Mock Business App API tester](../images/walkthroughs/home-entry/03-dashboard.png)
+![Member dashboard, "View queue" and "Start" links, and the Mock Business App API tester](../images/walkthroughs/home-entry/03-dashboard.png)
 
 The `/dashboard` route (protected by `[Authorize]`) shows the member dashboard with two primary Wayfinder entry points:
 
 1. **Caseworker queue** (`/caseworker-queue`) – the NJF Contributions Team's worklist, rendered by Wayfinder.Umbraco's packaged Block Grid worklist element
 2. **Wayfinder service design demo** – the "Submit contributions file" card, rendered by Wayfinder.Umbraco's packaged Block Grid stage element
 
-Service design itself is entirely Wayfinder's job here — Prism's dashboard only links out to pages an ordinary CMS editor composed from Wayfinder's own Block Grid blocks (see `docs/guides/support-systems.md` in the core Wayfinder repo).
+Service design itself is entirely Wayfinder's job here, Prism's dashboard only links out to pages an ordinary CMS editor composed from Wayfinder's own Block Grid blocks (see `docs/guides/support-systems.md` in the core Wayfinder repo).
 
 ## Wayfinder Service Design Demo Entry Point
 
-![Dashboard service design demo card — direct navigation into the seeded "Submit contributions file" page](../images/walkthroughs/home-entry/04-start-service-blueprint.png)
+![Dashboard service design demo card, direct navigation into the seeded "Submit contributions file" page](../images/walkthroughs/home-entry/04-start-service-blueprint.png)
 
-Clicking **Start** on the **Submit contributions file** card takes the signed-in member straight to `/submit-contributions-file` — a `wayfinderServicePage` content node whose `stageArea` carries one `wayfinderServiceRequestStage` Block Grid block. Uploading a file here starts the bulk-contributions service blueprint, which calls a real downstream support system (Mock Business App) before landing in the caseworker queue below.
+Clicking **Start** on the **Submit contributions file** card takes the signed-in member straight to `/submit-contributions-file`, a `wayfinderServicePage` content node whose `stageArea` carries one `wayfinderServiceRequestStage` Block Grid block. Uploading a file here starts the bulk-contributions service blueprint, which calls a real downstream support system (Mock Business App) before landing in the caseworker queue below.
 
 ## Caseworker Queue
 
-![Caseworker queue page — the NJF Contributions Team's worklist](../images/walkthroughs/home-entry/05-caseworker-queue.png)
+![Caseworker queue page, the NJF Contributions Team's worklist](../images/walkthroughs/home-entry/05-caseworker-queue.png)
 
-The caseworker queue at `/caseworker-queue` — another `wayfinderServicePage` node, this one carrying a `wayfinderServiceRequestWorklist` Block Grid block in its `worklistArea` — shows every contributions file assigned to the signed-in member's team (see `docs/guides/team-assignment.md`). On a freshly seeded environment the queue is empty until a contributions file has been submitted and validated.
+The caseworker queue at `/caseworker-queue`, another `wayfinderServicePage` node, this one carrying a `wayfinderServiceRequestWorklist` Block Grid block in its `worklistArea`, shows every contributions file assigned to the signed-in member's team (see `docs/guides/team-assignment.md`). On a freshly seeded environment the queue is empty until a contributions file has been submitted and validated.
 
 ---
 

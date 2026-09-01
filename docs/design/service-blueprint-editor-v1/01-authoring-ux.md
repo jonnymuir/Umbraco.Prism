@@ -1,6 +1,6 @@
 # Service Blueprint Editor design (V1)
 
-> **Status note (2026-05-30 scope reset):** Most of this doc still describes today's editor (vertical lanes, slot matrix, JSON Definition tab, keyboard-first authoring). The "AI help / proposal diff" framing in §15 and §16 was retired — there is no chat drafter, conversation pane, or proposal diff in the shipped editor. Kept for reference.
+> **Status note (2026-05-30 scope reset):** Most of this doc still describes today's editor (vertical lanes, slot matrix, JSON Definition tab, keyboard-first authoring). The "AI help / proposal diff" framing in §15 and §16 was retired, there is no chat drafter, conversation pane, or proposal diff in the shipped editor. Kept for reference.
 
 **Author:** Isabelle (Frontend Dev and Accessibility Lead)  
 **Date:** 2026-05-17T22:05:30.472+01:00  
@@ -136,11 +136,11 @@ The inspector is the only persistent right-side detail surface. AI conversation 
 
 The bottom confidence strip keeps the review tools in one predictable place. It provides tabs for:
 
-- **Canvas** — returns focus to the main authoring workspace
-- **Validation** — errors, warnings, affected items, proposal activity, and save status
-- **Preview** — read-only runtime projection for the current stage
-- **Simulation** — path-walking through the authored flow
-- **Help** — shortcut and editing guidance
+- **Canvas**: returns focus to the main authoring workspace
+- **Validation**: errors, warnings, affected items, proposal activity, and save status
+- **Preview**: read-only runtime projection for the current stage
+- **Simulation**: path-walking through the authored flow
+- **Help**: shortcut and editing guidance
 
 Messages are written in service blueprint language, for example:
 
@@ -211,8 +211,8 @@ When a stage is selected, the inspector should make common changes easy:
 
 The editor must clearly distinguish work based on who is assigned:
 
-- **Front stage** — public or member-facing work (actors like applicant, resident, citizen, member)
-- **Back stage** — reviewer, caseworker, or system work (actors like reviewer, officer, caseworker, or stages with role gates)
+- **Front stage**: public or member-facing work (actors like applicant, resident, citizen, member)
+- **Back stage**: reviewer, caseworker, or system work (actors like reviewer, officer, caseworker, or stages with role gates)
 
 Lane placement (front vs back stage) is **derived from the stage's actor and role-gate assignment**, not a separate editable or stored field. Authors set the actor and role gates, and the editor displays stages in the appropriate lane visually. Graph view shows these as role-first lanes with visual distinction through lane labels and styling. List view shows the same distinction as a filter.
 

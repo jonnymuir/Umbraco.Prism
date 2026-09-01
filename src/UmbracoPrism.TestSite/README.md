@@ -18,7 +18,7 @@ Create `src/UmbracoPrism.TestSite/appsettings.Local.json` (this file is gitignor
 }
 ```
 
-Replace `<your-vault>` with your Azure Key Vault instance name. If you don't need Key Vault locally, omit the file entirely — the app will start without it.
+Replace `<your-vault>` with your Azure Key Vault instance name. If you don't need Key Vault locally, omit the file entirely, the app will start without it.
 
 ### Umbraco HMAC imaging key
 

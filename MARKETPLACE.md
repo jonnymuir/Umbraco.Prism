@@ -15,24 +15,24 @@ Multi-tenant website branding and identity at runtime. Add a mobile app with one
 
 ---
 
-## Try it Now — No Install Required
+## Try it Now: No Install Required
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/jonnymuir/Umbraco.Prism)
 
-Click the button to spin up the full Umbraco Prism stack in a browser — no local setup, no Docker, no .NET install. GitHub handles everything. The Codespace is completely throwaway when you're done.
+Click the button to spin up the full Umbraco Prism stack in a browser, no local setup, no Docker, no .NET install. GitHub handles everything. The Codespace is completely throwaway when you're done.
 
-**The stack starts automatically** — watch the terminal at the bottom of your screen. It polls until Keycloak, the Aspire Dashboard, and the TestSite are all ready (first boot: ~3 minutes), then prints the URLs and credentials. When the Aspire Dashboard port is detected VS Code opens it in your browser automatically.
+**The stack starts automatically**: watch the terminal at the bottom of your screen. It polls until Keycloak, the Aspire Dashboard, and the TestSite are all ready (first boot: ~3 minutes), then prints the URLs and credentials. When the Aspire Dashboard port is detected VS Code opens it in your browser automatically.
 
 1. Wait for the terminal to print **🎉 Umbraco Prism is ready!**
 2. Click the TestSite URL → log in via Keycloak SSO (either demo persona below)
-3. `demo@prism.local` can apply for a juggling licence; `njf-caseworker@prism.local` can submit a contributions file and work the caseworker queue — see [docs/walkthroughs/bulk-data-review.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/bulk-data-review.md)
+3. `demo@prism.local` can apply for a juggling licence; `njf-caseworker@prism.local` can submit a contributions file and work the caseworker queue, see [docs/walkthroughs/bulk-data-review.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/bulk-data-review.md)
 
 **Credentials at a glance:**
 
 | What | Username | Password |
 |------|----------|----------|
-| TestSite — plain member (Keycloak SSO) | `demo@prism.local` | `password` |
-| TestSite — NJF caseworker (Keycloak SSO) | `njf-caseworker@prism.local` | `password` |
+| TestSite, plain member (Keycloak SSO) | `demo@prism.local` | `password` |
+| TestSite, NJF caseworker (Keycloak SSO) | `njf-caseworker@prism.local` | `password` |
 | Umbraco backoffice (`/umbraco`) | `admin@prism.local` | `PrismLocal!12345` |
 | Keycloak admin console | `admin` | `admin` |
 
@@ -40,29 +40,29 @@ Click the button to spin up the full Umbraco Prism stack in a browser — no loc
 
 ---
 
-## 🚀 Interactive Walkthrough — "Bulk Data Review"
+## 🚀 Interactive Walkthrough: "Bulk Data Review"
 
-Once your stack is running, follow the step-by-step guide to see a real service design journey in action — composed from Wayfinder.Umbraco's own Block Grid blocks, with explanations of what's happening at each stage.
+Once your stack is running, follow the step-by-step guide to see a real service design journey in action, composed from Wayfinder.Umbraco's own Block Grid blocks, with explanations of what's happening at each stage.
 
 → **[Full walkthrough: docs/walkthroughs/bulk-data-review.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/bulk-data-review.md)**
 
 The walkthrough covers:
 - Logging in as the NJF Contributions Team caseworker and submitting a contributions file
-- **Waiting states** — the page pauses and persists while a real, separate downstream application (Mock Business App) validates every row
-- **Only the rows that need attention** — a paginated review screen, not a full-file re-upload
+- **Waiting states**: the page pauses and persists while a real, separate downstream application (Mock Business App) validates every row
+- **Only the rows that need attention**: a paginated review screen, not a full-file re-upload
 - Correcting a flagged row in place (autosaving) and resubmitting the corrected file for real revalidation
 - A warning still needs an explicit confirmation before finishing, even once every error is resolved
-- Behind the scenes: none of it is hand-coded — the same declarative gateway/route/action model every Wayfinder blueprint uses, authored in the visual editor
+- Behind the scenes: none of it is hand-coded, the same declarative gateway/route/action model every Wayfinder blueprint uses, authored in the visual editor
 
 ---
 
-## Try the Demo — Local Setup
+## Try the Demo: Local Setup
 
 Get from clone to running in five minutes. No Azure account needed.
 
 **One-time setup:**
 - `.NET 10 SDK` ([Download](https://dotnet.microsoft.com/download/dotnet/10.0))
-- **Trust the .NET dev certificate** — run `dotnet dev-certs https --trust`
+- **Trust the .NET dev certificate**: run `dotnet dev-certs https --trust`
 - Docker Desktop running ([Download](https://www.docker.com/products/docker-desktop/))
 - `Node.js 20+` ([Download](https://nodejs.org/))
 - Frontend dependencies: `cd src/UmbracoPrism.Client && npm install`
@@ -77,18 +77,18 @@ dotnet run --project src/UmbracoPrism.AppHost
 Then:
 1. Open the Aspire dashboard at `https://localhost:17214`
 2. Click the TestSite URL → try either demo persona:
-   - `demo@prism.local` / `password` — a plain Prism member; apply for a juggling licence (anonymous-first, but a member gets their loyalty discount too)
-   - `njf-caseworker@prism.local` / `password` — the NJF Contributions Team's only roster member; submit a contributions file and work the caseworker queue (see [docs/walkthroughs/bulk-data-review.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/bulk-data-review.md))
-3. Service design itself — both journeys above — is composed entirely from Wayfinder.Umbraco's packaged Block Grid blocks, not a Prism-owned route; see `docs/guides/support-systems.md` in the core Wayfinder repo.
-4. MockBusinessApp runs alongside at `https://localhost:7245` — a real, separate downstream application: it proves Prism's own Bearer-token identity propagation (`GET /api/backoffice/me`, exercised from the TestSite dashboard) and hosts the contributions file's real validation logic as a downstream support system.
+   - `demo@prism.local` / `password`, a plain Prism member; apply for a juggling licence (anonymous-first, but a member gets their loyalty discount too)
+   - `njf-caseworker@prism.local` / `password`, the NJF Contributions Team's only roster member; submit a contributions file and work the caseworker queue (see [docs/walkthroughs/bulk-data-review.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/bulk-data-review.md))
+3. Service design itself (both journeys above) is composed entirely from Wayfinder.Umbraco's packaged Block Grid blocks, not a Prism-owned route; see `docs/guides/support-systems.md` in the core Wayfinder repo.
+4. MockBusinessApp runs alongside at `https://localhost:7245`, a real, separate downstream application: it proves Prism's own Bearer-token identity propagation (`GET /api/backoffice/me`, exercised from the TestSite dashboard) and hosts the contributions file's real validation logic as a downstream support system.
 
 **Optional:** Explore Keycloak admin at `https://localhost:8443/admin` (`admin` / `admin`).
 
 **Why this matters for local dev:**
-- The local Keycloak uses standard OIDC code-flow scopes — no offline tokens needed for a fresh clone.
+- The local Keycloak uses standard OIDC code-flow scopes, no offline tokens needed for a fresh clone.
 - Prism preserves the `id_token` in the session, enabling logout callbacks to Keycloak with the required `id_token_hint`.
 - MockBusinessApp trusts the browser-facing Keycloak authority (`https://localhost:8443`), so the `/api/backoffice/me` demo validates bearer tokens against the public issuer, not the internal container URL (`http://localhost:8080`).
-- Aspire runtime state lives under `artifacts/aspire/testsite-runtime/` — the demo and Playwright suite never mutate the standalone TestSite database at `src/UmbracoPrism.TestSite/umbraco/Data/`.
+- Aspire runtime state lives under `artifacts/aspire/testsite-runtime/`, the demo and Playwright suite never mutate the standalone TestSite database at `src/UmbracoPrism.TestSite/umbraco/Data/`.
 
 > For detailed setup, troubleshooting, and architecture: See [ASPIRE_DEV.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/ASPIRE_DEV.md).
 
@@ -98,7 +98,7 @@ Then:
 
 Prism is a **NuGet package** providing enterprise-ready multi-tenancy and extensibility for Umbraco. Below is what the **Core library** provides. The **TestSite** is a reference implementation showing how to extend Prism for a business domain (vinyl records).
 
-### Multi-Tenant Web — One Instance, Hundreds of Brands (🔵 Core)
+### Multi-Tenant Web: One Instance, Hundreds of Brands (🔵 Core)
 
 Serve distinct branded portals from one Umbraco instance. Runtime branding, domain resolution, tenant isolation.
 
@@ -106,9 +106,9 @@ Serve distinct branded portals from one Umbraco instance. Runtime branding, doma
 ![Backoffice branding editor](https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/screenshots/backoffice2.png)
 
 **Web features:**
-- Domain-based tenant resolution — each client gets their own hostname
-- Live branding editor — CSS variables update without deploy
-- **Branding as a Design System** — annotated CSS variables become labeled form fields, grouped into sections (Colors, Typography, Components), with type-aware editors (color pickers, sliders, text inputs)
+- Domain-based tenant resolution, each client gets their own hostname
+- Live branding editor, CSS variables update without deploy
+- **Branding as a Design System**: annotated CSS variables become labeled form fields, grouped into sections (Colors, Typography, Components), with type-aware editors (color pickers, sliders, text inputs)
   
   ```css
   @property --prism-primary {
@@ -125,21 +125,21 @@ Serve distinct branded portals from one Umbraco instance. Runtime branding, doma
   
   → [Branding Design System →](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/branding-design-system.md)
 
-- Per-tenant OIDC — any OIDC-compliant provider (Entra ID, Keycloak, etc.), zero local Members
-- Downstream auth — propagate tenant identity to internal APIs
-- Tenant isolation — authorization policies enforce data boundaries
+- Per-tenant OIDC, any OIDC-compliant provider (Entra ID, Keycloak, etc.), zero local Members
+- Downstream auth, propagate tenant identity to internal APIs
+- Tenant isolation, authorization policies enforce data boundaries
 
 → [Umbraco Setup Guide](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/umbraco-setup.md)
 
-### Produce Mobile — Generate Apps from Backoffice (🔵 Core)
+### Produce Mobile: Generate Apps from Backoffice (🔵 Core)
 
 Turn tenant settings into iOS/Android apps. No complex native coding, just click **Produce Mobile**.
 
 ![iOS app with tenant branding](https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/screenshots/example-IOS.png)
 
 **Mobile features:**
-- Biometric login (Face ID, fingerprint) — skip OIDC on return
-- Push notifications (FCM/APNs) — content or API triggered
+- Biometric login (Face ID, fingerprint), skip OIDC on return
+- Push notifications (FCM/APNs), content or API triggered
 - Offline-ready layouts with safe-area handling
 - Tenant branding at runtime (colors, logo, splash)
 
@@ -151,13 +151,13 @@ npm run bootstrap:ios
 
 → [Mobile Setup](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/PUSH_SETUP.md) | [Biometric Auth](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/biometric-setup.md)
 
-### Notification Infrastructure — Extend for Your Business Logic (🔵 Core)
+### Notification Infrastructure: Extend for Your Business Logic (🔵 Core)
 
 Prism provides a foundation for sending notifications. The Core library includes:
-- **Generic notification service** (`IPrismNotificationService`) — Send to members, genre subscribers, or broadcast
-- **Config-driven event handling** — `PrismContentPublishedHandler` automatically triggers notifications when content is published
-- **Subscription persistence** — Built-in database schema and queries for tracking member notification preferences
-- **Rate limiting** — Prevent notification spam with automatic throttling
+- **Generic notification service** (`IPrismNotificationService`), Send to members, genre subscribers, or broadcast
+- **Config-driven event handling**: `PrismContentPublishedHandler` automatically triggers notifications when content is published
+- **Subscription persistence**: Built-in database schema and queries for tracking member notification preferences
+- **Rate limiting**: Prevent notification spam with automatic throttling
 
 Your app extends this with **business-specific handlers** and **domain models**. For example, the TestSite demo includes a `PrismVinylNotificationController` that triggers "back-in-stock" alerts when a vinyl record is republished.
 
@@ -175,7 +175,7 @@ Your app extends this with **business-specific handlers** and **domain models**.
 dotnet add package UmbracoPrism
 ```
 
-Prism registers automatically via `PrismComposer` — no manual service registration needed.
+Prism registers automatically via `PrismComposer`, no manual service registration needed.
 
 ### 2. Configure
 
@@ -205,7 +205,7 @@ In backoffice:
 1. **Settings → Prism Dashboard**
 2. Add tenant (hostname, identity settings, branding)
    - **OIDC tenants (Entra ID, Keycloak, etc.):** enter OIDC authority and client ID, then provide the Key Vault secret name as the `OidcClientSecretReference` with provider `azure-key-vault`; the localhost Keycloak demo is the only inline-secret exception
-3. Visit the hostname — see branded portal
+3. Visit the hostname, see branded portal
 
 → [Full Setup Guide](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/umbraco-setup.md)
 
@@ -253,10 +253,10 @@ In backoffice:
 |---|---|
 | **Service Blueprint Editor** | |
 | [Embedding the Service Blueprint Editor](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/guides/embedding-the-service-blueprint-editor.md) | **Primary integrator recipe.** Build a business app on top of Prism. Implement `ServiceBlueprintSource`, wire the editor, extend the action catalog. |
-| [AI-Ready Service Blueprint Authoring](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/guides/ai-service-blueprint-authoring.md) | ⚠️ Being reworked — describes an MCP authoring surface that's being re-homed to `Wayfinder.Umbraco`/`Wayfinder.Umbraco.ReferenceApp`; not currently wired up anywhere in this repo. |
+| [AI-Ready Service Blueprint Authoring](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/guides/ai-service-blueprint-authoring.md) | ⚠️ Being reworked, describes an MCP authoring surface that's being re-homed to `Wayfinder.Umbraco`/`Wayfinder.Umbraco.ReferenceApp`; not currently wired up anywhere in this repo. |
 | **Walkthroughs** | |
 | [Home Entry Walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/home-entry.md) | The homepage hero → dashboard → Wayfinder's Block Grid-composed stage/worklist pages, for both demo personas |
-| [Bulk Data Review Walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/bulk-data-review.md) | Step-by-step demo of a caseworker worklist backed by a real downstream support system — shows the "submit now, finish later" pattern with waiting states, only-the-rows-that-need-attention review, and in-place correction |
+| [Bulk Data Review Walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/bulk-data-review.md) | Step-by-step demo of a caseworker worklist backed by a real downstream support system, shows the "submit now, finish later" pattern with waiting states, only-the-rows-that-need-attention review, and in-place correction |
 | **Setup & Configuration** | |
 | [Secret Management](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/secret-management.md) | Configure OIDC client secrets for production tenants, understand local dev demo |
 | [Umbraco Setup](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/umbraco-setup.md) | Install Prism, configure tenants, seed content |
@@ -278,20 +278,20 @@ In backoffice:
 **Prism Core provides:**
 
 **Runtime layer:**
-* `PrismTenantMiddleware` — resolves hostname to tenant
-* `IPrismContext` — scoped service with tenant/theme data
+* `PrismTenantMiddleware`, resolves hostname to tenant
+* `IPrismContext`, scoped service with tenant/theme data
 
 **Identity layer:**
-* Dynamic OIDC — swaps `ClientId`, `Authority`, `Issuer` per tenant
-* `IPrismUserContext` — current user claims and tenant
-* `SecretVaultService` — Azure Key Vault (Managed Identity in prod, Azure CLI local)
-* Downstream flow — propagate tenant identity to APIs
+* Dynamic OIDC, swaps `ClientId`, `Authority`, `Issuer` per tenant
+* `IPrismUserContext`, current user claims and tenant
+* `SecretVaultService`, Azure Key Vault (Managed Identity in prod, Azure CLI local)
+* Downstream flow, propagate tenant identity to APIs
 
 **Notification layer:**
-* `IPrismNotificationService` — Generic notifications API (send to members, subscribers, or broadcast)
-* `PrismContentPublishedHandler` — Config-driven event handler for Umbraco publish events
-* Subscription persistence — Database schema for managing notification preferences
-* Rate limiting — Automatic throttling to prevent spam
+* `IPrismNotificationService`, Generic notifications API (send to members, subscribers, or broadcast)
+* `PrismContentPublishedHandler`, Config-driven event handler for Umbraco publish events
+* Subscription persistence, Database schema for managing notification preferences
+* Rate limiting, Automatic throttling to prevent spam
 
 **Secret Management:**
 * **Entra ID tenants (production):** Secrets stored in Azure Key Vault, referenced by `SecretKeyName`
@@ -314,9 +314,9 @@ In backoffice:
 
 - **.NET 10.0** ([Download](https://dotnet.microsoft.com/download))
 - **Node.js 20+** ([Download](https://nodejs.org/))
-- **Docker Desktop** — for local demo with Aspire ([Download](https://www.docker.com/products/docker-desktop/))
+- **Docker Desktop**: for local demo with Aspire ([Download](https://www.docker.com/products/docker-desktop/))
 - **Azure Key Vault** (production) or local dev without vault (see setup guide)
-- **OIDC Provider** — any OIDC-compliant system (Keycloak included for local dev; Entra ID or others for production)
+- **OIDC Provider**: any OIDC-compliant system (Keycloak included for local dev; Entra ID or others for production)
 
 > **Client dependencies:** Run before first build:
 > ```bash
@@ -403,7 +403,7 @@ npm run test:playwright:localhost-auth
 
 The suite uses the seeded demo identity from `keycloak/realm-export.json`: `demo@prism.local` / `password`.
 
-**Stable seeded content contract:** on a clean TestSite database, Development startup deterministically repairs the Umbraco nodes the localhost auth/service request flows use — `Home` (`/`), `Dashboard` (`/dashboard`), and the two `wayfinderServicePage` nodes carrying Wayfinder.Umbraco's own Block Grid stage/worklist blocks: `Apply for a juggling licence` (`/apply-for-a-juggling-licence`), `Submit contributions file` (`/submit-contributions-file`), and `Caseworker queue` (`/caseworker-queue`) — plus the `Settings` node's mobile nav entries for all of these. The Razor views resolve those destinations from published content, so route lookup does not depend on root-node ordering.
+**Stable seeded content contract:** on a clean TestSite database, Development startup deterministically repairs the Umbraco nodes the localhost auth/service request flows use, `Home` (`/`), `Dashboard` (`/dashboard`), and the two `wayfinderServicePage` nodes carrying Wayfinder.Umbraco's own Block Grid stage/worklist blocks: `Apply for a juggling licence` (`/apply-for-a-juggling-licence`), `Submit contributions file` (`/submit-contributions-file`), and `Caseworker queue` (`/caseworker-queue`), plus the `Settings` node's mobile nav entries for all of these. The Razor views resolve those destinations from published content, so route lookup does not depend on root-node ordering.
 
 ### Core Tests (UmbracoPrism.Core)
 
@@ -562,15 +562,15 @@ public async Task<string> GetMemberDataAsync()
 
 ### Sample Projects
 
-**`UmbracoPrism.TestSite`** — Reference Umbraco v17 application. Shows a complete example of extending Prism for a business domain (vinyl record store). Includes:
+**`UmbracoPrism.TestSite`**, Reference Umbraco v17 application. Shows a complete example of extending Prism for a business domain (vinyl record store). Includes:
 - OIDC setup and tenant branding
 - Custom notification handler for "back-in-stock" alerts
-- Wayfinder.Umbraco's Block Grid-composed service design blocks, in use on real content (a citizen journey and a caseworker worklist — see [docs/walkthroughs/bulk-data-review.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/bulk-data-review.md))
+- Wayfinder.Umbraco's Block Grid-composed service design blocks, in use on real content (a citizen journey and a caseworker worklist, see [docs/walkthroughs/bulk-data-review.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/bulk-data-review.md))
 - Pre-configured tenant definitions for local development
 
 Use this as a template for building your own application on top of Prism Core.
 
-**`UmbracoPrism.MockBusinessApp`** — A real, separate downstream application, not a business-app simulator Prism hosts or drives. Two narrow jobs: proving Prism's own Bearer-token identity propagation (`GET /api/backoffice/me`), and hosting a generic downstream support-system reference implementation the contributions-file demo calls out to for real per-row validation. Demonstrates `AddPrismAuthentication` and multi-tenant data isolation for backend services. See that project's own README for the full endpoint list.
+**`UmbracoPrism.MockBusinessApp`**, A real, separate downstream application, not a business-app simulator Prism hosts or drives. Two narrow jobs: proving Prism's own Bearer-token identity propagation (`GET /api/backoffice/me`), and hosting a generic downstream support-system reference implementation the contributions-file demo calls out to for real per-row validation. Demonstrates `AddPrismAuthentication` and multi-tenant data isolation for backend services. See that project's own README for the full endpoint list.
 
 → See [Local Authentication Walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/README.md#local-authentication-walkthrough)
 

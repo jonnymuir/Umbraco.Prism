@@ -1,26 +1,26 @@
-# Prism Mobile Nav Bar — Design Research & Recommendations
+# Prism Mobile Nav Bar: Design Research & Recommendations
 
 **Author:** Kicks (Mobile Native Specialist)  
 **Date:** 2026-07-14  
-**Status:** Design Guidance — for Isabelle to implement  
+**Status:** Design Guidance, for Isabelle to implement  
 **Context:** Current nav is text-only anchors in a fixed bottom bar with glass morphism dark background (`rgba(15, 23, 42, 0.94)`). This document defines what it should become.
 
 ---
 
 ## 1. Design Patterns Analysis
 
-### 1.1 iOS Tab Bar HIG — Key Principles
+### 1.1 iOS Tab Bar HIG: Key Principles
 
 Apple's Human Interface Guidelines define the tab bar as the canonical bottom navigation pattern for iOS apps. These principles are non-negotiable for any Capacitor app that wants to feel native:
 
 **Structure & Position**
 - Tab bar sits at the bottom of the screen, above the home indicator safe area.
-- It is always visible — never scrolls or disappears on scroll. This is a hard rule in HIG; hiding the tab bar is a navigation anti-pattern on iOS.
+- It is always visible, never scrolls or disappears on scroll. This is a hard rule in HIG; hiding the tab bar is a navigation anti-pattern on iOS.
 - Each tab represents a distinct mode or feature of the app, not a sub-page within a flow.
 
 **Item Count**
 - 2–5 items. 5 is the practical maximum before usability degrades.
-- If you have more than 5 destinations, the rightmost item becomes "More" (`···`) — a convention users understand.
+- If you have more than 5 destinations, the rightmost item becomes "More" (`···`), a convention users understand.
 - Never put more than 5 items in the visible bar on iOS.
 
 **Label + Icon Together**
@@ -34,12 +34,12 @@ Apple's Human Interface Guidelines define the tab bar as the canonical bottom na
 
 **Tint Color**
 - One tint color for the active state. All other items use a secondary (dimmed) colour.
-- The tint should never be more than one accent colour — don't tint each tab differently.
+- The tint should never be more than one accent colour, don't tint each tab differently.
 
 **Background**
 - iOS native: blurred translucent material (UIBlurEffect `.systemThinMaterial`). In a web component, this is `backdrop-filter: blur(20px) saturate(180%)`.
 - Light mode apps: white/translucent. Dark mode: dark/translucent.
-- Prism's existing `rgba(15, 23, 42, 0.94)` is a solid dark — acceptable, but adding `backdrop-filter` would lift it toward native feel.
+- Prism's existing `rgba(15, 23, 42, 0.94)` is a solid dark, acceptable, but adding `backdrop-filter` would lift it toward native feel.
 
 ---
 
@@ -49,7 +49,7 @@ Banking apps have converged on a clear, unambiguous bottom nav pattern. Here's w
 
 **Monzo**
 - 5-item tab bar: Home, Payments, Card, Pots/Savings, Account
-- Filled coloured pill behind active icon (coral/red accent) — not just a colour change, but a background shape
+- Filled coloured pill behind active icon (coral/red accent), not just a colour change, but a background shape
 - Icon + label, 11px Inter/Monzo typeface
 - Very slightly rounded pill behind active icon (pill is ~52×32px, extends 4px on each side of icon)
 - Inactive: grey icon + grey label at ~60% opacity
@@ -58,9 +58,9 @@ Banking apps have converged on a clear, unambiguous bottom nav pattern. Here's w
 
 **Starling**
 - 4-item tab bar: Home, Payments, Spaces, Account
-- Teal accent color for active icon — no pill background
+- Teal accent color for active icon, no pill background
 - Label always visible for active; label hidden for inactive items (icon-only inactive)
-- This is unusual and creates inconsistency — avoid for enterprise
+- This is unusual and creates inconsistency, avoid for enterprise
 - Their nav is cleaner but slightly harder to scan
 
 **Revolut**
@@ -74,17 +74,17 @@ Banking apps have converged on a clear, unambiguous bottom nav pattern. Here's w
 - 5 items: Home, Accounts, Pay & Transfer, Wealth, More
 - Icon + label always visible
 - Active: filled dark navy icon + bolder label
-- No pill or blob — purely colour + weight treatment
-- Very conservative, maximum trust signal — feels like a "proper" bank
+- No pill or blob, purely colour + weight treatment
+- Very conservative, maximum trust signal, feels like a "proper" bank
 
 **Barclays**
 - 5 items: Home, Payments, Cards, Support, Menu
 - Blue accent (#00AEEF) for active icon
 - Icon + label always visible
-- Simple underline or filled icon approach — no pill
+- Simple underline or filled icon approach, no pill
 - Clean, slightly corporate
 
-**Key Observation:** Consumer apps (Monzo, Revolut) use pill/blob highlights for energy and brand. Enterprise/trust-first apps (Chase, Barclays) use purely icon fill + label weight — no decorative background shapes.
+**Key Observation:** Consumer apps (Monzo, Revolut) use pill/blob highlights for energy and brand. Enterprise/trust-first apps (Chase, Barclays) use purely icon fill + label weight, no decorative background shapes.
 
 ---
 
@@ -97,7 +97,7 @@ L&G Pensions, Nest, Aviva Workplace, Mercer PlanSponsor, and similar apps share 
 - Accessibility is front-of-mind: WCAG AA minimum throughout, many target AAA.
 - Colour palettes are muted: navy, teal, slate, white. Not vibrant.
 - 4 items is the sweet spot (Dashboard, Pension, Documents, Profile/Settings).
-- Active state: filled icon + label in brand primary. Background change is subtle — often just opacity.
+- Active state: filled icon + label in brand primary. Background change is subtle, often just opacity.
 - No animation beyond a simple crossfade. Motion can confuse or distract in this context.
 - Font size for labels: 11–12px minimum. 10px is too small for pension/HR.
 
@@ -106,7 +106,7 @@ L&G Pensions, Nest, Aviva Workplace, Mercer PlanSponsor, and similar apps share 
 - 4 tab items: Overview, Pension, Documents, Settings
 - Icon + label always; active gets green accent icon + green label
 - Generous touch targets (48×48px minimum, often more)
-- No pill, no animation, no decoration — pure utility
+- No pill, no animation, no decoration, pure utility
 
 ---
 
@@ -120,7 +120,7 @@ L&G Pensions, Nest, Aviva Workplace, Mercer PlanSponsor, and similar apps share 
 | Label | Sometimes hidden inactive | Always visible |
 | Font weight | Medium → SemiBold on active | Regular → Medium on active |
 | Colour palette | Vivid brand accent | Muted, professional accent |
-| Haptics | Yes, on each tap | Optional — depends on context |
+| Haptics | Yes, on each tap | Optional, depends on context |
 | Background | Blur/frosted glass | Solid or subtle blur |
 | Touch target | 44pt (meeting minimum) | 48pt+ (exceeding minimum) |
 | Icon size | 24–26px | 24px (consistent, no scale) |
@@ -140,11 +140,11 @@ L&G Pensions, Nest, Aviva Workplace, Mercer PlanSponsor, and similar apps share 
 **Icon-only**
 - Used by: Some consumer apps with universally understood icons (Instagram, Spotify)
 - Fails accessibility for non-obvious icons
-- Not appropriate for Prism — tenant nav items will have custom, non-obvious labels
+- Not appropriate for Prism, tenant nav items will have custom, non-obvious labels
 - Only acceptable if icons are supplemented with `aria-label`
 
 **Label-only (current Prism state)**
-- Fails on small screens — labels can truncate
+- Fails on small screens, labels can truncate
 - Lacks the visual scanning speed of icons
 - Appropriate only as a temporary/fallback rendering
 - Not suitable as the target design
@@ -197,7 +197,7 @@ Each icon is provided as a pair: `filled` (active) and `outline` (inactive).
 
 > Note: For pension specifically, use a piggy bank or chart icon. Below is a cleaner chart-growth icon more appropriate for pensions:
 
-**Filled (active) — growth/chart:**
+**Filled (active), growth/chart:**
 ```svg
 <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
   <path d="M3.5 18.5l4-4 4 4 9-9-1.41-1.41L11.5 16.09l-4-4-5.5 5.5L3.5 18.5z"/>
@@ -418,8 +418,8 @@ const iconPath = isActive ? ICONS[item.icon].filled : ICONS[item.icon].outline;
 
 **Recommendation: Single accent colour, fill for active, opacity reduction for inactive**
 
-- Active icon: `color: var(--prism-nav-active-color)` — this drives both `fill` (filled icons) and `stroke` (outline icons) via `currentColor`
-- Inactive icon: `color: var(--prism-nav-inactive-color)` — defaults to `rgba(255,255,255,0.5)` on dark backgrounds
+- Active icon: `color: var(--prism-nav-active-color)`, this drives both `fill` (filled icons) and `stroke` (outline icons) via `currentColor`
+- Inactive icon: `color: var(--prism-nav-inactive-color)`, defaults to `rgba(255,255,255,0.5)` on dark backgrounds
 - Do NOT apply per-icon accent colors. One tint across all active items = trust.
 
 ### 3.2 Background Pill/Blob
@@ -427,7 +427,7 @@ const iconPath = isActive ? ICONS[item.icon].filled : ICONS[item.icon].outline;
 **Recommendation: Optional, off by default. Available via CSS custom property.**
 
 The pill/blob (a rounded rectangle behind the active icon) is the Monzo/consumer approach. For enterprise fintech:
-- Default: no pill — pure colour/weight change
+- Default: no pill, pure colour/weight change
 - Opt-in via `--prism-nav-active-pill: 1` (custom property toggle)
 - If pill is shown: `border-radius: 16px`, `padding: 4px 14px`, `background: var(--prism-nav-active-pill-bg)` defaulting to `rgba(255,255,255,0.12)`
 - Pill should contain both the icon and label together (not just the icon)
@@ -436,7 +436,7 @@ The pill/blob (a rounded rectangle behind the active icon) is the Monzo/consumer
 
 - Inactive: `font-weight: 400` (Regular)
 - Active: `font-weight: 600` (SemiBold)
-- This is subtle but important — weight change communicates "selected" without colour alone (vital for WCAG)
+- This is subtle but important, weight change communicates "selected" without colour alone (vital for WCAG)
 
 ### 3.4 Animation / Transition
 
@@ -450,11 +450,11 @@ The pill/blob (a rounded rectangle behind the active icon) is the Monzo/consumer
 
 - 150ms is fast enough to feel instant on mobile, but perceptible as intentional
 - `ease-out` feels decisive, not playful
-- Do NOT use `transform: scale()` on tab selection — this is a consumer pattern and adds visual noise
-- Do NOT use spring/bounce animations — these feel wrong in regulated/trust contexts
+- Do NOT use `transform: scale()` on tab selection, this is a consumer pattern and adds visual noise
+- Do NOT use spring/bounce animations, these feel wrong in regulated/trust contexts
 - Optional: add `transition: opacity 100ms ease-out` to the icon SVG on icon swap (filled ↔ outline)
 
-**Haptic feedback (native):** Consider adding `Haptics.impact({ style: ImpactStyle.Light })` from `@capacitor/haptics` on tab tap — this is standard iOS tab bar behavior and adds significant native feel. Light impact style only — not medium/heavy.
+**Haptic feedback (native):** Consider adding `Haptics.impact({ style: ImpactStyle.Light })` from `@capacitor/haptics` on tab tap, this is standard iOS tab bar behavior and adds significant native feel. Light impact style only, not medium/heavy.
 
 ---
 
@@ -462,9 +462,9 @@ The pill/blob (a rounded rectangle behind the active icon) is the Monzo/consumer
 
 ### 4.1 Maximum Items Before "More" Menu
 
-- **4 items:** Ideal — comfortable spacing, no cognitive load
-- **5 items:** Maximum — still acceptable, items start to feel tight below 375px width
-- **6+ items:** MUST use "More" pattern — 4 visible items + "More" as the 5th
+- **4 items:** Ideal, comfortable spacing, no cognitive load
+- **5 items:** Maximum, still acceptable, items start to feel tight below 375px width
+- **6+ items:** MUST use "More" pattern, 4 visible items + "More" as the 5th
 - The "More" drawer should be a slide-up sheet (native feel), not a full-page navigation
 
 ### 4.2 Icon Size
@@ -472,22 +472,22 @@ The pill/blob (a rounded rectangle behind the active icon) is the Monzo/consumer
 **Recommendation: 24px (CSS px) rendered at 1.5x native = 36pt on high-density displays**
 
 - 24px is the Material Design standard and aligns with iOS SF Symbols size-2 (medium)
-- Do NOT go to 28px — it makes the nav bar feel heavy and leaves less room for the label
-- Do NOT go below 22px — too small for confident tapping and perception
+- Do NOT go to 28px, it makes the nav bar feel heavy and leaves less room for the label
+- Do NOT go below 22px, too small for confident tapping and perception
 - SVG icons should be `width="24" height="24"` with `viewBox="0 0 24 24"`
 
 ### 4.3 Label Font Size
 
-**Recommendation: 11px — the sweet spot for enterprise mobile**
+**Recommendation: 11px, the sweet spot for enterprise mobile**
 
 | Size | Assessment |
 |------|-----------|
-| 10px | Too small — fails WCAG SC 1.4.4 at lower zoom levels; problematic for older users |
+| 10px | Too small, fails WCAG SC 1.4.4 at lower zoom levels; problematic for older users |
 | 11px | ✅ iOS native tab bar default; matches Apple's own HIG guidance |
-| 12px | Acceptable — slightly large for tight nav; fine if items are few |
-| 13px+ | Too large — labels start to wrap or truncate |
+| 12px | Acceptable, slightly large for tight nav; fine if items are few |
+| 13px+ | Too large, labels start to wrap or truncate |
 
-Use `font-size: 11px` with `line-height: 1.2`. Never `font-size: 0.6875rem` — use px units for nav labels to ensure consistent sizing regardless of tenant root font size changes.
+Use `font-size: 11px` with `line-height: 1.2`. Never `font-size: 0.6875rem`, use px units for nav labels to ensure consistent sizing regardless of tenant root font size changes.
 
 ### 4.4 Vertical Spacing Between Icon and Label
 
@@ -574,18 +574,18 @@ All properties should be on the `:host` element of the Lit component (`:host` = 
 ```
 
 **Reasoning for each:**
-1. `--prism-nav-bg` — Tenants using light themes (white app backgrounds) need to flip to `rgba(255,255,255,0.94)`
-2. `--prism-nav-blur` — Performance-sensitive tenants or older devices can disable glass blur
-3. `--prism-nav-border-top` — Some brands prefer a hard separator; others prefer none
-4. `--prism-nav-active-color` — Primary brand colour for the active state (most common override)
-5. `--prism-nav-inactive-color` — Contrast-checked default; tenants may need to adjust for light themes
-6. `--prism-nav-active-label-weight` / `--prism-nav-inactive-label-weight` — Weight shift communicates state without colour alone
-7. `--prism-nav-active-pill-bg` — Opt-in for consumer/more playful brand tenants
-8. `--prism-nav-active-pill-radius` — Allows rectangular vs rounded pill styles
-9. `--prism-nav-icon-size` — Accessibility override for larger touch targets
-10. `--prism-nav-label-size` — Large-print accessibility tenants
-11. `--prism-nav-label-gap` — Compact vs spacious layout control
-12. `--prism-nav-item-padding-x` — Fine-tune item spacing
+1. `--prism-nav-bg`, Tenants using light themes (white app backgrounds) need to flip to `rgba(255,255,255,0.94)`
+2. `--prism-nav-blur`, Performance-sensitive tenants or older devices can disable glass blur
+3. `--prism-nav-border-top`, Some brands prefer a hard separator; others prefer none
+4. `--prism-nav-active-color`, Primary brand colour for the active state (most common override)
+5. `--prism-nav-inactive-color`, Contrast-checked default; tenants may need to adjust for light themes
+6. `--prism-nav-active-label-weight` / `--prism-nav-inactive-label-weight`, Weight shift communicates state without colour alone
+7. `--prism-nav-active-pill-bg`, Opt-in for consumer/more playful brand tenants
+8. `--prism-nav-active-pill-radius`, Allows rectangular vs rounded pill styles
+9. `--prism-nav-icon-size`, Accessibility override for larger touch targets
+10. `--prism-nav-label-size`, Large-print accessibility tenants
+11. `--prism-nav-label-gap`, Compact vs spacious layout control
+12. `--prism-nav-item-padding-x`, Fine-tune item spacing
 
 **Light theme override example (for L&G-style tenant):**
 ```css
@@ -607,13 +607,13 @@ prism-mobile-nav {
 | Standard | Minimum | Recommendation |
 |----------|---------|----------------|
 | Apple HIG | 44×44pt | 48×44pt |
-| WCAG 2.1 SC 2.5.5 (AAA) | 44×44px | — |
-| WCAG 2.2 SC 2.5.8 (AA) | 24×24px | — |
-| Material Design | 48×48dp | — |
+| WCAG 2.1 SC 2.5.5 (AAA) | 44×44px |  |
+| WCAG 2.2 SC 2.5.8 (AA) | 24×24px |  |
+| Material Design | 48×48dp |  |
 
 **Recommendation: 48×44px minimum touch target per item, with 44×44px as the absolute floor.**
 
-The icon itself is 24px — the tap target must be padded to meet minimums via `min-height: 44px` and `min-width: 44px` on the nav item button/anchor. The visual indicator can be smaller; the tap area must not be.
+The icon itself is 24px, the tap target must be padded to meet minimums via `min-height: 44px` and `min-width: 44px` on the nav item button/anchor. The visual indicator can be smaller; the tap area must not be.
 
 ```css
 .prism-nav-item {
@@ -635,12 +635,12 @@ The icon itself is 24px — the tap target must be padded to meet minimums via `
 | Inactive label/icon on nav bg | 4.5:1 (text), 3:1 (icon) | 4.5:1 |
 
 For the dark default (`rgba(15, 23, 42, 0.94)` on dark page bg ≈ `#0f172a`):
-- White (`#ffffff`) on `#0f172a` = **21:1** — exceeds all standards ✅
-- `rgba(255,255,255,0.45)` on `#0f172a` ≈ `#8896ad` = **~5.2:1** — meets AA ✅
+- White (`#ffffff`) on `#0f172a` = **21:1**: exceeds all standards ✅
+- `rgba(255,255,255,0.45)` on `#0f172a` ≈ `#8896ad` = **~5.2:1**: meets AA ✅
 
-For light theme tenants: inactive grey must be tested. `#6b7280` on white = **4.6:1** — marginal AA pass. Use `#4b5563` for safety on white.
+For light theme tenants: inactive grey must be tested. `#6b7280` on white = **4.6:1**: marginal AA pass. Use `#4b5563` for safety on white.
 
-**Use a contrast checking step in Isabelle's Storybook story** — add a note to test both dark and light theme variants.
+**Use a contrast checking step in Isabelle's Storybook story**: add a note to test both dark and light theme variants.
 
 ### 6.3 Screen Reader Requirements
 
@@ -658,12 +658,12 @@ For light theme tenants: inactive grey must be tested. `#6b7280` on white = **4.
 ```
 
 **Rules:**
-1. **`role="navigation"` or `<nav>`** — The container must be a landmark. Use `<nav>` element, not a `<div>`.
-2. **`aria-label="Main navigation"`** — Distinguish from any other nav landmarks on the page (breadcrumbs, pagination).
-3. **`aria-current="page"`** — Applied to the active item only. Changes to `"page"` when the current tab is active. Never use `aria-selected` (that's for tabs with tabpanel). `aria-current="page"` is the correct attribute for navigation links.
-4. **`aria-hidden="true"` on SVG** — The icon is decorative when a visible label is present. Set `focusable="false"` too (required for IE11/older Edge SVG focus behaviour, still good practice).
-5. **Visible label always present** — Screen readers will read the label text. `aria-label` on the `<a>` is only needed if no visible label exists (which should never be our case).
-6. **Focus ring** — The default browser focus ring must be visible (or replaced with a prominent custom one). Never `outline: none` without a replacement.
+1. **`role="navigation"` or `<nav>`**, The container must be a landmark. Use `<nav>` element, not a `<div>`.
+2. **`aria-label="Main navigation"`**, Distinguish from any other nav landmarks on the page (breadcrumbs, pagination).
+3. **`aria-current="page"`**, Applied to the active item only. Changes to `"page"` when the current tab is active. Never use `aria-selected` (that's for tabs with tabpanel). `aria-current="page"` is the correct attribute for navigation links.
+4. **`aria-hidden="true"` on SVG**, The icon is decorative when a visible label is present. Set `focusable="false"` too (required for IE11/older Edge SVG focus behaviour, still good practice).
+5. **Visible label always present**: Screen readers will read the label text. `aria-label` on the `<a>` is only needed if no visible label exists (which should never be our case).
+6. **Focus ring**: The default browser focus ring must be visible (or replaced with a prominent custom one). Never `outline: none` without a replacement.
 
 **Focus ring recommendation:**
 ```css

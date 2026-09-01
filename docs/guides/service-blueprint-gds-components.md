@@ -42,10 +42,10 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Primary, secondary, and warning action buttons.
 
 **CSS classes:**
-- `govuk-button` — primary button (green, high emphasis)
-- `govuk-button govuk-button--secondary` — secondary button (grey, medium emphasis)
-- `govuk-button govuk-button--warning` — warning button (red, destructive actions)
-- `govuk-button--start` — start button (with arrow icon)
+- `govuk-button`, primary button (green, high emphasis)
+- `govuk-button govuk-button--secondary`, secondary button (grey, medium emphasis)
+- `govuk-button govuk-button--warning`, warning button (red, destructive actions)
+- `govuk-button--start`, start button (with arrow icon)
 
 **Requires JS:** Yes, add `data-module="govuk-button"` for proper focus and keyboard handling.
 
@@ -91,9 +91,9 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Single-line text entry (name, email, short answers).
 
 **CSS classes:**
-- `govuk-input` — base input class
-- `govuk-input--width-{n}` — fixed width variants (2, 3, 4, 5, 10, 20, 30 characters)
-- `govuk-input--error` — error state (red border)
+- `govuk-input`, base input class
+- `govuk-input--width-{n}`, fixed width variants (2, 3, 4, 5, 10, 20, 30 characters)
+- `govuk-input--error`, error state (red border)
 
 **Requires JS:** No
 
@@ -147,8 +147,8 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Multi-line text entry (descriptions, comments, long answers).
 
 **CSS classes:**
-- `govuk-textarea` — base textarea class
-- `govuk-textarea--error` — error state
+- `govuk-textarea`, base textarea class
+- `govuk-textarea--error`, error state
 
 **Requires JS:** No (unless using character count, see below)
 
@@ -179,9 +179,9 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Textarea with live character/word count display.
 
 **CSS classes:**
-- `govuk-character-count` — wrapper
-- `govuk-textarea govuk-js-character-count` — textarea inside
-- `govuk-character-count__message` — counter display
+- `govuk-character-count`, wrapper
+- `govuk-textarea govuk-js-character-count`, textarea inside
+- `govuk-character-count__message`, counter display
 
 **Requires JS:** Yes, add `data-module="govuk-character-count"` and `data-maxlength="500"` (or `data-maxwords="150"`).
 
@@ -217,11 +217,11 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Single choice from a list of options.
 
 **CSS classes:**
-- `govuk-radios` — wrapper
-- `govuk-radios__item` — each radio option
-- `govuk-radios__input` — radio input
-- `govuk-radios__label` — radio label
-- `govuk-radios--inline` — display radios side-by-side (for short lists)
+- `govuk-radios`, wrapper
+- `govuk-radios__item`, each radio option
+- `govuk-radios__input`, radio input
+- `govuk-radios__label`, radio label
+- `govuk-radios--inline`, display radios side-by-side (for short lists)
 
 **Requires JS:** No (unless using conditional reveal, then add `data-module="govuk-radios"`)
 
@@ -268,11 +268,11 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Multiple choices from a list of options.
 
 **CSS classes:**
-- `govuk-checkboxes` — wrapper
-- `govuk-checkboxes__item` — each checkbox option
-- `govuk-checkboxes__input` — checkbox input
-- `govuk-checkboxes__label` — checkbox label
-- `govuk-checkboxes--small` — smaller checkboxes (for long lists)
+- `govuk-checkboxes`, wrapper
+- `govuk-checkboxes__item`, each checkbox option
+- `govuk-checkboxes__input`, checkbox input
+- `govuk-checkboxes__label`, checkbox label
+- `govuk-checkboxes--small`, smaller checkboxes (for long lists)
 
 **Requires JS:** No (unless using conditional reveal, then add `data-module="govuk-checkboxes"`)
 
@@ -319,10 +319,10 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Date entry (day, month, year as separate fields).
 
 **CSS classes:**
-- `govuk-date-input` — wrapper
-- `govuk-date-input__item` — each field (day, month, year)
-- `govuk-date-input__label` — field label
-- `govuk-date-input__input` — field input
+- `govuk-date-input`, wrapper
+- `govuk-date-input__item`, each field (day, month, year)
+- `govuk-date-input__label`, field label
+- `govuk-date-input__input`, field input
 
 **Requires JS:** No
 
@@ -390,8 +390,8 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Single choice from a long list of options (prefer radios for short lists).
 
 **CSS classes:**
-- `govuk-select` — base select class
-- `govuk-select--error` — error state
+- `govuk-select`, base select class
+- `govuk-select--error`, error state
 
 **Requires JS:** No
 
@@ -420,8 +420,8 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** File selection (single or multiple files).
 
 **CSS classes:**
-- `govuk-file-upload` — base file input class
-- `govuk-file-upload--error` — error state
+- `govuk-file-upload`, base file input class
+- `govuk-file-upload--error`, error state
 
 **Requires JS:** No
 
@@ -462,9 +462,9 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Password entry with show/hide toggle.
 
 **CSS classes:**
-- `govuk-password-input` — wrapper
-- `govuk-input govuk-password-input__input govuk-js-password-input-input` — password field
-- `govuk-password-input__toggle` — show/hide button
+- `govuk-password-input`, wrapper
+- `govuk-input govuk-password-input__input govuk-js-password-input-input`, password field
+- `govuk-password-input__toggle`, show/hide button
 
 **Requires JS:** Yes, add `data-module="govuk-password-input"` to wrapper.
 
@@ -503,12 +503,12 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Display key-value pairs (review pages, check-your-answers pattern).
 
 **CSS classes:**
-- `govuk-summary-list` — wrapper
-- `govuk-summary-list__row` — each key-value row
-- `govuk-summary-list__key` — left column (label)
-- `govuk-summary-list__value` — middle column (value)
-- `govuk-summary-list__actions` — right column (change link)
-- `govuk-summary-list--no-border` — remove row borders
+- `govuk-summary-list`, wrapper
+- `govuk-summary-list__row`, each key-value row
+- `govuk-summary-list__key`, left column (label)
+- `govuk-summary-list__value`, middle column (value)
+- `govuk-summary-list__actions`, right column (change link)
+- `govuk-summary-list--no-border`, remove row borders
 
 **Requires JS:** No
 
@@ -567,10 +567,10 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Confirmation/success messages (typically used on completion pages).
 
 **CSS classes:**
-- `govuk-panel` — base panel
-- `govuk-panel--confirmation` — green confirmation variant
-- `govuk-panel__title` — panel heading
-- `govuk-panel__body` — panel content
+- `govuk-panel`, base panel
+- `govuk-panel--confirmation`, green confirmation variant
+- `govuk-panel__title`, panel heading
+- `govuk-panel__body`, panel content
 
 **Requires JS:** No
 
@@ -599,7 +599,7 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Highlight important information (callouts, warnings, tips).
 
 **CSS classes:**
-- `govuk-inset-text` — base class
+- `govuk-inset-text`, base class
 
 **Requires JS:** No
 
@@ -620,9 +620,9 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Critical warnings that users must read before proceeding.
 
 **CSS classes:**
-- `govuk-warning-text` — wrapper
-- `govuk-warning-text__icon` — warning icon
-- `govuk-warning-text__text` — warning content
+- `govuk-warning-text`, wrapper
+- `govuk-warning-text__icon`, warning icon
+- `govuk-warning-text__text`, warning content
 
 **Requires JS:** No
 
@@ -647,11 +647,11 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Important messages at the top of pages (success, info, warnings).
 
 **CSS classes:**
-- `govuk-notification-banner` — wrapper
-- `govuk-notification-banner--success` — green success variant
-- `govuk-notification-banner__header` — banner header
-- `govuk-notification-banner__title` — banner title
-- `govuk-notification-banner__content` — banner body
+- `govuk-notification-banner`, wrapper
+- `govuk-notification-banner--success`, green success variant
+- `govuk-notification-banner__header`, banner header
+- `govuk-notification-banner__title`, banner title
+- `govuk-notification-banner__content`, banner body
 
 **Requires JS:** No
 
@@ -699,15 +699,15 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Status indicators, labels, badges.
 
 **CSS classes:**
-- `govuk-tag` — base class
-- `govuk-tag--grey` — grey (inactive)
-- `govuk-tag--green` — green (completed)
-- `govuk-tag--blue` — blue (new)
-- `govuk-tag--purple` — purple (sent)
-- `govuk-tag--pink` — pink (declined)
-- `govuk-tag--red` — red (rejected)
-- `govuk-tag--orange` — orange (pending)
-- `govuk-tag--yellow` — yellow (delayed)
+- `govuk-tag`, base class
+- `govuk-tag--grey`, grey (inactive)
+- `govuk-tag--green`, green (completed)
+- `govuk-tag--blue`, blue (new)
+- `govuk-tag--purple`, purple (sent)
+- `govuk-tag--pink`, pink (declined)
+- `govuk-tag--red`, red (rejected)
+- `govuk-tag--orange`, orange (pending)
+- `govuk-tag--yellow`, yellow (delayed)
 
 **Requires JS:** No
 
@@ -727,12 +727,12 @@ This section provides usage examples for the most useful GDS components in servi
 
 ### Details (Expandable Section)
 
-**Purpose:** Progressive disclosure—hide extra information until the user requests it.
+**Purpose:** Progressive disclosure, hide extra information until the user requests it.
 
 **CSS classes:**
-- `govuk-details` — wrapper
-- `govuk-details__summary` — clickable summary text
-- `govuk-details__text` — hidden content
+- `govuk-details`, wrapper
+- `govuk-details__summary`, clickable summary text
+- `govuk-details__text`, hidden content
 
 **Requires JS:** No (uses native HTML `<details>` element)
 
@@ -760,12 +760,12 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Collapse/expand multiple sections of content.
 
 **CSS classes:**
-- `govuk-accordion` — wrapper
-- `govuk-accordion__section` — each collapsible section
-- `govuk-accordion__section-header` — section header
-- `govuk-accordion__section-heading` — heading wrapper
-- `govuk-accordion__section-button` — clickable button
-- `govuk-accordion__section-content` — hidden content
+- `govuk-accordion`, wrapper
+- `govuk-accordion__section`, each collapsible section
+- `govuk-accordion__section-header`, section header
+- `govuk-accordion__section-heading`, heading wrapper
+- `govuk-accordion__section-button`, clickable button
+- `govuk-accordion__section-content`, hidden content
 
 **Requires JS:** Yes, add `data-module="govuk-accordion"` to wrapper.
 
@@ -819,12 +819,12 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Organize related content into separate views (only one visible at a time).
 
 **CSS classes:**
-- `govuk-tabs` — wrapper
-- `govuk-tabs__list` — tab navigation list
-- `govuk-tabs__list-item` — each tab
-- `govuk-tabs__tab` — tab link
-- `govuk-tabs__panel` — tab content panel
-- `govuk-tabs__panel--hidden` — hidden panel
+- `govuk-tabs`, wrapper
+- `govuk-tabs__list`, tab navigation list
+- `govuk-tabs__list-item`, each tab
+- `govuk-tabs__tab`, tab link
+- `govuk-tabs__panel`, tab content panel
+- `govuk-tabs__panel--hidden`, hidden panel
 
 **Requires JS:** Yes, add `data-module="govuk-tabs"` to wrapper.
 
@@ -880,13 +880,13 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Display tabular data.
 
 **CSS classes:**
-- `govuk-table` — base table
-- `govuk-table__head` — table head
-- `govuk-table__header` — column header
-- `govuk-table__body` — table body
-- `govuk-table__row` — table row
-- `govuk-table__cell` — table cell
-- `govuk-table__cell--numeric` — right-aligned numeric cell
+- `govuk-table`, base table
+- `govuk-table__head`, table head
+- `govuk-table__header`, column header
+- `govuk-table__body`, table body
+- `govuk-table__row`, table row
+- `govuk-table__cell`, table cell
+- `govuk-table__cell--numeric`, right-aligned numeric cell
 
 **Requires JS:** No
 
@@ -929,12 +929,12 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** List all validation errors at the top of a page (shown after form submission).
 
 **CSS classes:**
-- `govuk-error-summary` — wrapper
-- `govuk-error-summary__title` — error summary heading
-- `govuk-error-summary__list` — list of errors
-- `govuk-error-summary__list-item` — each error
+- `govuk-error-summary`, wrapper
+- `govuk-error-summary__title`, error summary heading
+- `govuk-error-summary__list`, list of errors
+- `govuk-error-summary__list-item`, each error
 
-**Requires JS:** No (but focus management improves UX—focus the summary on page load)
+**Requires JS:** No (but focus management improves UX, focus the summary on page load)
 
 **Example:**
 
@@ -967,9 +967,9 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Inline error message next to a specific field.
 
 **CSS classes:**
-- `govuk-error-message` — error message text
-- `govuk-form-group--error` — apply to form group wrapper
-- `govuk-input--error` — apply to input field
+- `govuk-error-message`, error message text
+- `govuk-form-group--error`, apply to form group wrapper
+- `govuk-input--error`, apply to input field
 
 **Requires JS:** No
 
@@ -1002,7 +1002,7 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Navigate back to the previous page.
 
 **CSS classes:**
-- `govuk-back-link` — styled back link with arrow
+- `govuk-back-link`, styled back link with arrow
 
 **Requires JS:** No (unless implementing SPA-style navigation)
 
@@ -1021,10 +1021,10 @@ This section provides usage examples for the most useful GDS components in servi
 **Purpose:** Show the user's location in a multi-level hierarchy.
 
 **CSS classes:**
-- `govuk-breadcrumbs` — wrapper
-- `govuk-breadcrumbs__list` — breadcrumb list
-- `govuk-breadcrumbs__list-item` — each breadcrumb
-- `govuk-breadcrumbs__link` — breadcrumb link
+- `govuk-breadcrumbs`, wrapper
+- `govuk-breadcrumbs__list`, breadcrumb list
+- `govuk-breadcrumbs__list-item`, each breadcrumb
+- `govuk-breadcrumbs__link`, breadcrumb link
 
 **Requires JS:** No
 

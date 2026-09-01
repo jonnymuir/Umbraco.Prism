@@ -1,10 +1,10 @@
-# Service Blueprint Editor Composition — Advanced Patterns
+# Service Blueprint Editor Composition: Advanced Patterns
 
 > **Outdated.** Written before the editor's TS source (`src/service-blueprint-editor/`) moved
 > out of this repo entirely to the `Wayfinder` repo's own `Wayfinder.Editor.Client`, compiled
 > into the `Wayfinder.Editor` NuGet package. The composition patterns and component-API links
 > below point at files that no longer exist here. For the current architecture see
-> `Wayfinder.Umbraco`'s own README (the backoffice editor — install the package, no host
+> `Wayfinder.Umbraco`'s own README (the backoffice editor, install the package, no host
 > wiring) and [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder) if you need to
 > change the editor itself. Kept for the composition-pattern thinking, not as current guidance.
 
@@ -15,7 +15,7 @@ This guide shows advanced patterns for composing the service blueprint editor in
 **For context:**
 - **Setting up service blueprints in Umbraco?** See [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md)
 
-> The editor lives in your **business app** — never inside the Umbraco backoffice, and not in TestSite (TestSite is the reference runtime). MockBusinessApp is the reference authoring host; your own host follows the same pattern. The Storybook harness is fine for development and tests. If you only need to display a published service blueprint on a public Umbraco page, use the read-only viewer (`<prism-service-blueprint-graph read-only>`) — see [Read-only public viewer](#read-only-public-viewer).
+> The editor lives in your **business app**: never inside the Umbraco backoffice, and not in TestSite (TestSite is the reference runtime). MockBusinessApp is the reference authoring host; your own host follows the same pattern. The Storybook harness is fine for development and tests. If you only need to display a published service blueprint on a public Umbraco page, use the read-only viewer (`<prism-service-blueprint-graph read-only>`), see [Read-only public viewer](#read-only-public-viewer).
 
 > Only three elements are public API: `<prism-service-blueprint-editor>`, `<prism-service-blueprint-editor-shell>`, and `<prism-service-blueprint-graph>` (the last also supports a `read-only` viewer mode for embedding a published service blueprint on read-only pages). Everything else under `src/service-blueprint-editor/` is composition detail marked `@internal`.
 
@@ -25,8 +25,8 @@ This guide shows advanced patterns for composing the service blueprint editor in
 
 The service blueprint editor ships two elements:
 
-- **`<prism-service-blueprint-editor>`** — the visual editor (canvas, inspector, validation, history, simulation).
-- **`<prism-service-blueprint-editor-shell>`** — a wrapper that adds service blueprint selection and displays.
+- **`<prism-service-blueprint-editor>`**, the visual editor (canvas, inspector, validation, history, simulation).
+- **`<prism-service-blueprint-editor-shell>`**, a wrapper that adds service blueprint selection and displays.
 
 Both require a `ServiceBlueprintSource` to be wired via JavaScript. See [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md) for the basic integration pattern.
 
@@ -77,10 +77,10 @@ Key points:
 
 Keep authoring configuration in your API and docs, not in the editor shell itself.
 
-- **Action catalog** — what actions exist and what parameters they need.
-- **Validation rules** — what makes a service blueprint valid in your system.
-- **Stage types** — which stage kinds your host supports.
-- **Assignment model** — how authored `actor`, `roleGates`, and queue metadata map to your lane labels.
+- **Action catalog**: what actions exist and what parameters they need.
+- **Validation rules**: what makes a service blueprint valid in your system.
+- **Stage types**: which stage kinds your host supports.
+- **Assignment model**: how authored `actor`, `roleGates`, and queue metadata map to your lane labels.
 
 Keep runtime policies, secrets, analytics, and feature flags out of the editor UI. Preview and publish calls should receive the authored service blueprint contract only.
 
@@ -187,12 +187,12 @@ Your host should be **boring and minimal**. The editor is the interesting part.
 
 ## Read-only public viewer
 
-The `<prism-service-blueprint-graph>` element doubles as a read-only viewer. Use it to drop a published service blueprint onto a public page — for example, a "how this process works" explainer — without loading the full authoring shell.
+The `<prism-service-blueprint-graph>` element doubles as a read-only viewer. Use it to drop a published service blueprint onto a public page (for example, a "how this process works" explainer) without loading the full authoring shell.
 
 Two attributes do all the work:
 
-- `read-only` — hides the Add stage / Add gateway buttons, suppresses all dialogs and the context menu, and stops `service-blueprint-updated` from firing. Selection and zoom still work, and the canvas advertises itself as a viewer to assistive tech (`aria-roledescription="viewer"`).
-- `service-blueprint-json` — a string containing the published `AuthoredServiceBlueprint` JSON. The element parses it on attach and renders the lanes, stages, gateways, and transitions exactly as the editor would.
+- `read-only`, hides the Add stage / Add gateway buttons, suppresses all dialogs and the context menu, and stops `service-blueprint-updated` from firing. Selection and zoom still work, and the canvas advertises itself as a viewer to assistive tech (`aria-roledescription="viewer"`).
+- `service-blueprint-json`, a string containing the published `AuthoredServiceBlueprint` JSON. The element parses it on attach and renders the lanes, stages, gateways, and transitions exactly as the editor would.
 
 A one-line Razor embed for a published service blueprint:
 
@@ -202,15 +202,15 @@ A one-line Razor embed for a published service blueprint:
 
 `serviceBlueprintJson` is the canonical JSON of the service blueprint you want to show. Render the service blueprint-editor bundle on the same page so the element is defined.
 
-**Boundary reminder.** This Razor pattern is **only** for the read-only viewer. Do **not** mount `<prism-service-blueprint-editor>` or `<prism-service-blueprint-editor-shell>` from Razor or the Umbraco backoffice — the authoring editor belongs in your business app (MockBusinessApp is the reference), not in the Umbraco runtime.
+**Boundary reminder.** This Razor pattern is **only** for the read-only viewer. Do **not** mount `<prism-service-blueprint-editor>` or `<prism-service-blueprint-editor-shell>` from Razor or the Umbraco backoffice, the authoring editor belongs in your business app (MockBusinessApp is the reference), not in the Umbraco runtime.
 
 ---
 
 ## Definition tab (JSON view)
 
-Inside `<prism-service-blueprint-editor>` the **Definition** tab shows an editable JSON view of the current service blueprint. It stays in sync with the visual canvas in both directions — visual edits re-serialise the JSON, and valid JSON edits flow back into the canvas through the normal commit path (so undo and redo still work). Invalid JSON keeps the canvas on the last good state and explains the problem in a banner.
+Inside `<prism-service-blueprint-editor>` the **Definition** tab shows an editable JSON view of the current service blueprint. It stays in sync with the visual canvas in both directions, visual edits re-serialise the JSON, and valid JSON edits flow back into the canvas through the normal commit path (so undo and redo still work). Invalid JSON keeps the canvas on the last good state and explains the problem in a banner.
 
-This is a power-user feature for copy-paste, quick edits, and diffing — there is nothing for the host to configure.
+This is a power-user feature for copy-paste, quick edits, and diffing, there is nothing for the host to configure.
 
 ---
 

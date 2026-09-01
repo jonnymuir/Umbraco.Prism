@@ -1,4 +1,4 @@
-# Prism Mobile — Biometric Login (Design)
+# Prism Mobile: Biometric Login (Design)
 
 ## Product Goal
 
@@ -208,9 +208,9 @@ When a tenant admin revokes a user's access (via Prism backoffice or Entra), or 
 - The `PrismBiometricRecord` should be soft-deleted or marked revoked in the same action that removes the user's Prism access.
 - On the user's next biometric exchange attempt, the server returns `401 biometric_token_invalid`.
 - The app clears the Keychain credential and forces full OIDC re-auth.
-- Since the Entra account itself is blocked, full OIDC will also fail — the user is effectively locked out, as intended.
+- Since the Entra account itself is blocked, full OIDC will also fail, the user is effectively locked out, as intended.
 
-There is no push notification or real-time revocation in v1. The device will hold a stale Keychain credential until the next login attempt. This is acceptable for v1 — the server is the gatekeeper and will reject the exchange.
+There is no push notification or real-time revocation in v1. The device will hold a stale Keychain credential until the next login attempt. This is acceptable for v1, the server is the gatekeeper and will reject the exchange.
 
 ### Biometric enrollment change on device (new fingerprint added, Face ID reset)
 
@@ -245,8 +245,8 @@ The alternative (passing a token via the Capacitor JS bridge and having the WebV
 The generated app bundle needs a thin native bridge module that:
 
 1. Wraps `@aparajita/capacitor-biometric-auth` (or equivalent) for biometric prompt and availability check.
-2. Wraps platform Keychain/Keystore access (via `capacitor-secure-storage-plugin` or equivalent; **not** `@capacitor/preferences` — that is not hardware-backed).
-3. Makes the `/exchange` HTTP call from native (not from WebView JS) to receive the `Set-Cookie` header directly in the native HTTP client — necessary because `Set-Cookie` headers on cross-origin responses are not accessible to WebView JS.
+2. Wraps platform Keychain/Keystore access (via `capacitor-secure-storage-plugin` or equivalent; **not** `@capacitor/preferences`, that is not hardware-backed).
+3. Makes the `/exchange` HTTP call from native (not from WebView JS) to receive the `Set-Cookie` header directly in the native HTTP client, necessary because `Set-Cookie` headers on cross-origin responses are not accessible to WebView JS.
 4. Injects the resulting cookie into the WebView store.
 
 This bridge module is generated as part of the Capacitor starter bundle by `MobileBundleService`.
@@ -260,7 +260,7 @@ After successful biometric exchange and cookie injection, the native layer fires
 Capacitor.triggerEvent('prismBiometricLoginComplete', {});
 ```
 
-The WebView JS (injected by `PrismBrandingMiddleware` or inline in the generated `www/index.html`) listens for this event and initiates navigation to the authenticated start URL. No token is passed in this event — the cookie is already in the store.
+The WebView JS (injected by `PrismBrandingMiddleware` or inline in the generated `www/index.html`) listens for this event and initiates navigation to the authenticated start URL. No token is passed in this event, the cookie is already in the store.
 
 ---
 
@@ -324,10 +324,10 @@ Add an optional `BiometricAuthEnabled` flag to `PrismMobileBundleRequest`. When 
 
 - Add `@aparajita/capacitor-biometric-auth` and `capacitor-secure-storage-plugin` to `package.json` devDependencies.
 - Add a generated `src/biometric-bridge.ts` file containing:
-  - `checkBiometricAvailability()` — wraps plugin availability check
-  - `promptBiometricAndExchange(tenantUrl)` — biometric prompt → POST `/exchange` → inject cookie → return bool
-  - `registerBiometric(tenantUrl, biometricToken)` — store to secure storage
-  - `unenrolBiometric(tenantUrl)` — clear from secure storage + call DELETE `/unenrol`
+  - `checkBiometricAvailability()`, wraps plugin availability check
+  - `promptBiometricAndExchange(tenantUrl)`, biometric prompt → POST `/exchange` → inject cookie → return bool
+  - `registerBiometric(tenantUrl, biometricToken)`, store to secure storage
+  - `unenrolBiometric(tenantUrl)`, clear from secure storage + call DELETE `/unenrol`
   - Event emit on `prismBiometricLoginComplete`
 - Add a `biometric.enabled` field to `capacitor.config.ts` (app-level flag read by the native layer at boot).
 - Update `AGENT_PROMPT.md` to include biometric setup instructions.
@@ -348,7 +348,7 @@ Add an optional `BiometricAuthEnabled` flag to `PrismMobileBundleRequest`. When 
 - `MobileBundleService` changes (opt-in flag, generated `biometric-bridge.ts`)
 - Fallback to full OIDC on all biometric failure paths
 - Device biometric enrollment change detection and credential wipe
-- Minimum exchange audit logging (attempt, outcome, token ID, IP) — ~5 lines of code
+- Minimum exchange audit logging (attempt, outcome, token ID, IP), ~5 lines of code
 - Server-side token expiry (30 days default, configurable per tenant, range: 7–90 days)
 
 ### Out of scope for v1
@@ -359,7 +359,7 @@ Add an optional `BiometricAuthEnabled` flag to `PrismMobileBundleRequest`. When 
 | Tenant admin UI to view/revoke biometric enrollments | Backoffice work; not blocking core flow |
 | Push notification on server-side revocation | Requires FCM/APNs integration; deferred |
 | Biometric for Android API < 28 | API 28+ covers ~95% of active Android devices |
-| Token rotation on exchange (rolling refresh) | Should land in v1 — see note below |
+| Token rotation on exchange (rolling refresh) | Should land in v1, see note below |
 
 > **Note on rolling refresh token rotation:** Rolling rotation (replace stored refresh_token on each successful exchange) is a security best practice and should be treated as a v1 hard requirement, not a deferral. If this slips, the threat model must be documented explicitly.
 
@@ -367,16 +367,16 @@ Add an optional `BiometricAuthEnabled` flag to `PrismMobileBundleRequest`. When 
 
 | Phase | What ships |
 |---|---|
-| **v1 — Core** | Registration, login, unenrol, fallback, DB schema, `MobileBundleService` opt-in |
-| **v1.1 — Hardening** | Rolling refresh token rotation, biometric enrollment change detection |
-| **v2 — Admin** | Backoffice UI: view enrolled devices, admin revoke, audit log |
+| **v1, Core** | Registration, login, unenrol, fallback, DB schema, `MobileBundleService` opt-in |
+| **v1.1, Hardening** | Rolling refresh token rotation, biometric enrollment change detection |
+| **v2, Admin** | Backoffice UI: view enrolled devices, admin revoke, audit log |
 
 ---
 
 ## Open Questions (record before implementation starts)
 
 1. **Refresh token encryption key:** Single global key in Key Vault, or one per tenant? Per-tenant is safer (blast radius on key compromise is contained) but adds operational complexity. Recommend global key with per-record IV for v1, with a path to per-tenant in v2.
-2. **Token expiry duration:** Standardised at 30 days default, configurable per tenant (range: 7–90 days). Note: Entra's own refresh token window may be shorter than 90 days for some tenant CA policies — tenants with shorter Entra windows should configure the Prism token lifetime to match.
+2. **Token expiry duration:** Standardised at 30 days default, configurable per tenant (range: 7–90 days). Note: Entra's own refresh token window may be shorter than 90 days for some tenant CA policies, tenants with shorter Entra windows should configure the Prism token lifetime to match.
 3. **In-WebView vs. compliance mode interaction:** If a tenant uses compliance mode (system browser OIDC per mobile.md D4), the post-OIDC callback lands in a different context. The registration prompt trigger point may need to differ. Needs validation against both auth modes.
 4. **`/exchange` rate limiting:** Rate limiting policy: 3 failed exchange attempts within 10 minutes for a given token → token locked; requires re-registration. IP-based rate limiting as secondary layer.
 
@@ -457,7 +457,7 @@ DeviceCredentials table:
 
 ### Multi-Tenant Isolation Requirements
 
-- Keystore key naming pattern: `prism_device_cred_{tenantId}_{userId}` — prevents cross-tenant confusion
+- Keystore key naming pattern: `prism_device_cred_{tenantId}_{userId}`, prevents cross-tenant confusion
 - Device credential JWT **MUST** contain `tenant_id` claim
 - Exchange endpoint **MUST** validate request tenant matches credential tenant
 - Registry queries **MUST** include tenant boundary filter
@@ -476,7 +476,7 @@ DeviceCredentials table:
 2. **Single-Tenant Binding:** Device credentials MUST be scoped to one tenant; no cross-tenant reuse
 3. **Server-Side Registry:** All device credential lifecycle (issuance, validation, revocation) MUST be centrally controlled
 4. **Bounded Lifetime:** Maximum 30-day credential age; no automatic renewal without full OIDC re-auth
-5. **Biometric Failure Handling:** Failed biometric MUST trigger full Entra OIDC flow — no fallback to stored credential
+5. **Biometric Failure Handling:** Failed biometric MUST trigger full Entra OIDC flow, no fallback to stored credential
 6. **Revocation Check:** Every device credential exchange MUST check revocation status in real-time
 
 ### Root/Jailbreak Mitigation
@@ -506,7 +506,7 @@ Rationale: Active maintenance with Capacitor 7 support, comprehensive iOS (FaceI
 
 **Secure Storage: `@aparajita/capacitor-secure-storage@7.x`**
 
-Rationale: Native mapping to iOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) and Android EncryptedSharedPreferences (Keystore-backed AES256-GCM). Same author as the biometric plugin — consistent API surface. Superior to `@capacitor/preferences` (no encryption) and `capacitor-secure-storage-plugin` (unmaintained).
+Rationale: Native mapping to iOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) and Android EncryptedSharedPreferences (Keystore-backed AES256-GCM). Same author as the biometric plugin, consistent API surface. Superior to `@capacitor/preferences` (no encryption) and `capacitor-secure-storage-plugin` (unmaintained).
 
 **Version Dependencies:**
 ```json
@@ -543,7 +543,7 @@ Minimum SDK: API 23 for Keystore. BiometricPrompt API requires API 28+; plugin u
 | Usage description | Required for FaceID (`NSFaceIDUsageDescription`) | Not required |
 | Permission | None (capability check only) | `USE_BIOMETRIC` in manifest |
 | Lockout | 5 failures → `biometryLockout` | BiometricPrompt error codes (mapped by plugin) |
-| Simulator/Emulator | `isAvailable: false` — no biometrics | Mock fingerprint via `adb emu finger touch 1` |
+| Simulator/Emulator | `isAvailable: false`, no biometrics | Mock fingerprint via `adb emu finger touch 1` |
 
 ### Capability Detection
 

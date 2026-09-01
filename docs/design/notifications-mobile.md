@@ -1,4 +1,4 @@
-# Prism Mobile — Push Notifications Design
+# Prism Mobile: Push Notifications Design
 
 > **Internal Design Document:** This document is for contributors and maintainers. For setup instructions, see [../PUSH_SETUP.md](../PUSH_SETUP.md).
 
@@ -15,11 +15,11 @@ This document defines the mobile-side architecture for push notifications in Pri
 
 **Top 3 Recommendations:**
 
-1. **Use `@capacitor/push-notifications` (official Capacitor plugin)** — lighter, APNs-native for iOS, sufficient for standard notification needs. Reserve `@capacitor-firebase/messaging` only if consumers need Firebase Analytics or data-only messages.
+1. **Use `@capacitor/push-notifications` (official Capacitor plugin)**, lighter, APNs-native for iOS, sufficient for standard notification needs. Reserve `@capacitor-firebase/messaging` only if consumers need Firebase Analytics or data-only messages.
 
-2. **Request permission AFTER first biometric login** — not on app launch. This aligns with Apple's HIG (provide context before requesting), reduces cold-start permission prompts, and ensures notifications are tied to an authenticated user.
+2. **Request permission AFTER first biometric login**: not on app launch. This aligns with Apple's HIG (provide context before requesting), reduces cold-start permission prompts, and ensures notifications are tied to an authenticated user.
 
-3. **Make push notifications a consumer opt-in, not a Prism default** — add a `PushNotificationsEnabled` boolean to `PrismMobileBundleRequest`. Generate push scaffolding in the bundle only if enabled. This keeps the base bundle lean and allows tenants to ship without push if they don't need it.
+3. **Make push notifications a consumer opt-in, not a Prism default**: add a `PushNotificationsEnabled` boolean to `PrismMobileBundleRequest`. Generate push scaffolding in the bundle only if enabled. This keeps the base bundle lean and allows tenants to ship without push if they don't need it.
 
 ---
 
@@ -48,10 +48,10 @@ This document defines the mobile-side architecture for push notifications in Pri
 
 **Rationale:**
 
-1. **Smaller footprint** — Prism Mobile is already bundling biometric plugins. Adding 20-50MB for Firebase SDK is excessive if the backend only needs basic notification delivery.
-2. **APNs-native on iOS** — Direct APNs integration is simpler for iOS apps; no Firebase proxy layer.
-3. **Standard notification needs** — Most Prism tenants want "send a notification when X happens" — not advanced Firebase Analytics or topic-based A/B testing.
-4. **Capacitor-first** — Official Ionic plugin with stronger long-term maintenance guarantees.
+1. **Smaller footprint**: Prism Mobile is already bundling biometric plugins. Adding 20-50MB for Firebase SDK is excessive if the backend only needs basic notification delivery.
+2. **APNs-native on iOS**: Direct APNs integration is simpler for iOS apps; no Firebase proxy layer.
+3. **Standard notification needs**: Most Prism tenants want "send a notification when X happens", not advanced Firebase Analytics or topic-based A/B testing.
+4. **Capacitor-first**: Official Ionic plugin with stronger long-term maintenance guarantees.
 
 **When to use `@capacitor-firebase/messaging` instead:**
 
@@ -74,7 +74,7 @@ This document defines the mobile-side architecture for push notifications in Pri
 
 1. Apple Developer Account → Certificates, Identifiers & Profiles → Keys
 2. Create new key with **Apple Push Notifications service (APNs)** capability
-3. Download `.p8` file (save securely — cannot re-download)
+3. Download `.p8` file (save securely, cannot re-download)
 4. Note **Key ID** and **Team ID**
 5. Backend uses p8 key + Key ID + Team ID to sign push requests
 
@@ -259,10 +259,10 @@ App Launch
 
 **Why post-login?**
 
-1. **Contextual permission** — Apple HIG strongly discourages permission prompts on cold app launch. Requesting after successful login provides clear context: "Get notified about your account activity."
-2. **User is authenticated** — Push token can immediately be associated with a `PrismMemberCookie` session; no orphaned tokens.
-3. **Reduces friction** — New users see one permission at a time (biometric first, then push), not a wall of prompts.
-4. **Consistent with biometric flow** — Biometric enrollment already happens post-OIDC. Push follows the same timing.
+1. **Contextual permission**: Apple HIG strongly discourages permission prompts on cold app launch. Requesting after successful login provides clear context: "Get notified about your account activity."
+2. **User is authenticated**: Push token can immediately be associated with a `PrismMemberCookie` session; no orphaned tokens.
+3. **Reduces friction**: New users see one permission at a time (biometric first, then push), not a wall of prompts.
+4. **Consistent with biometric flow**: Biometric enrollment already happens post-OIDC. Push follows the same timing.
 
 **Storage of permission state:**
 
@@ -725,26 +725,26 @@ Silent notifications are **advanced** functionality. Do not include in v1 Prism 
 
 **Rationale:**
 
-1. **Minimal abstraction** — Push notifications are relatively simple. The official `@capacitor/push-notifications` plugin already handles 90% of the work. Wrapping it in a Prism plugin adds little value.
+1. **Minimal abstraction**: Push notifications are relatively simple. The official `@capacitor/push-notifications` plugin already handles 90% of the work. Wrapping it in a Prism plugin adds little value.
 
-2. **Consumer ownership** — Many consumers will want to customize notification handling (custom banners, analytics integration, deep linking logic). Giving them the scaffolding code directly makes customization trivial.
+2. **Consumer ownership**: Many consumers will want to customize notification handling (custom banners, analytics integration, deep linking logic). Giving them the scaffolding code directly makes customization trivial.
 
-3. **No version lock-in** — If Capacitor updates the push-notifications API, consumers can update their `package.json` independently without waiting for a Prism plugin release.
+3. **No version lock-in**: If Capacitor updates the push-notifications API, consumers can update their `package.json` independently without waiting for a Prism plugin release.
 
-4. **Prism backend integration is backend-side** — The Prism-specific logic (token registration, revocation endpoints) lives in the backend (`BiometricController` or new `PushNotificationController`). The client just calls standard REST endpoints.
+4. **Prism backend integration is backend-side**: The Prism-specific logic (token registration, revocation endpoints) lives in the backend (`BiometricController` or new `PushNotificationController`). The client just calls standard REST endpoints.
 
 **What Prism provides in the bundle:**
 
 When `PushNotificationsEnabled` is true in `PrismMobileBundleRequest`:
 
-1. **`package.json`** — includes `@capacitor/push-notifications: ^8.0.0`
-2. **`www/index.html`** — includes push token registration logic (similar to biometric enrollment flow)
-3. **`README.md`** — step-by-step setup guide (APNs key, FCM setup, entitlements)
-4. **`AGENT_PROMPT.md`** — AI-friendly setup instructions
-5. **`resources/ios-entitlements-push.xml`** — template entitlements file
-6. **`resources/android-firebase-setup.md`** — Firebase Console walkthrough
-7. **`scripts/bootstrap-ios.sh`** — auto-inject entitlements (if missing)
-8. **`scripts/bootstrap-android.sh`** — auto-inject `POST_NOTIFICATIONS` permission
+1. **`package.json`**, includes `@capacitor/push-notifications: ^8.0.0`
+2. **`www/index.html`**, includes push token registration logic (similar to biometric enrollment flow)
+3. **`README.md`**, step-by-step setup guide (APNs key, FCM setup, entitlements)
+4. **`AGENT_PROMPT.md`**, AI-friendly setup instructions
+5. **`resources/ios-entitlements-push.xml`**, template entitlements file
+6. **`resources/android-firebase-setup.md`**, Firebase Console walkthrough
+7. **`scripts/bootstrap-ios.sh`**, auto-inject entitlements (if missing)
+8. **`scripts/bootstrap-android.sh`**, auto-inject `POST_NOTIFICATIONS` permission
 
 **What the consumer must do:**
 
@@ -765,9 +765,9 @@ When `PushNotificationsEnabled` is true in `PrismMobileBundleRequest`:
 
 **Best Practice Timing:**
 
-1. **Do NOT request on first app launch** — Apple HIG discourages "permission walls" before the user understands the app's value.
-2. **Do request after user action** — e.g., after successful login, or when user taps "Enable Notifications" in settings.
-3. **Provide context** — Show a **pre-permission explainer** before calling `requestPermissions()`.
+1. **Do NOT request on first app launch**: Apple HIG discourages "permission walls" before the user understands the app's value.
+2. **Do request after user action**: e.g., after successful login, or when user taps "Enable Notifications" in settings.
+3. **Provide context**: Show a **pre-permission explainer** before calling `requestPermissions()`.
 
 **Pre-Permission Explainer Pattern:**
 
@@ -882,9 +882,9 @@ This permission is **not auto-granted**. The app must call `requestPermissions()
 
 **Handling:**
 
-1. **Do NOT block app functionality** — Prism Mobile must remain fully functional without push notifications.
-2. **Store denial state** — Avoid re-prompting immediately.
-3. **Provide settings deep link** — Show UI with "Open Settings" button if user changes their mind.
+1. **Do NOT block app functionality**: Prism Mobile must remain fully functional without push notifications.
+2. **Store denial state**: Avoid re-prompting immediately.
+3. **Provide settings deep link**: Show UI with "Open Settings" button if user changes their mind.
 
 ```typescript
 async function handlePermissionDenied() {
@@ -944,7 +944,7 @@ Apps that repeatedly nag users for permissions risk rejection. Always provide cl
 4. Name: "Prism Push Notifications"
 5. Check **Apple Push Notifications service (APNs)**
 6. Click **Continue** → **Register**
-7. Download `.p8` file (save securely — cannot re-download)
+7. Download `.p8` file (save securely, cannot re-download)
 8. **Note the Key ID and Team ID** (needed for backend)
 
 **Store these securely:**
@@ -1269,9 +1269,9 @@ public class PrismMobileBundleRequest
 
 ### Files Generated When `PushNotificationsEnabled = true`
 
-1. **`package.json`** — add `@capacitor/push-notifications: ^8.0.0`
+1. **`package.json`**, add `@capacitor/push-notifications: ^8.0.0`
 
-2. **`www/index.html`** — add push permission request logic (inline):
+2. **`www/index.html`**, add push permission request logic (inline):
    ```javascript
    // After biometric enrollment flow
    async function requestPushPermission() {
@@ -1288,17 +1288,17 @@ public class PrismMobileBundleRequest
    }
    ```
 
-3. **`README.md`** — add "Push Notifications Setup" section with 10-step guide
+3. **`README.md`**, add "Push Notifications Setup" section with 10-step guide
 
-4. **`AGENT_PROMPT.md`** — add "Configuring Push Notifications" section
+4. **`AGENT_PROMPT.md`**, add "Configuring Push Notifications" section
 
-5. **`resources/ios-entitlements-push.xml`** — template entitlements file
+5. **`resources/ios-entitlements-push.xml`**, template entitlements file
 
-6. **`resources/android-firebase-setup.md`** — Firebase Console walkthrough
+6. **`resources/android-firebase-setup.md`**, Firebase Console walkthrough
 
-7. **`scripts/bootstrap-ios.sh`** — auto-inject entitlements check
+7. **`scripts/bootstrap-ios.sh`**, auto-inject entitlements check
 
-8. **`scripts/bootstrap-android.sh`** — auto-inject `POST_NOTIFICATIONS` permission
+8. **`scripts/bootstrap-android.sh`**, auto-inject `POST_NOTIFICATIONS` permission
 
 ---
 

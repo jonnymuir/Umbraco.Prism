@@ -1,4 +1,4 @@
-# 02 — Runtime Model and Service Blueprint Actions
+# 02: Runtime Model and Service Blueprint Actions
 
 **Date:** 2026-05-16  
 **Author:** Blathers (Backend Dev)  
@@ -32,11 +32,11 @@ This is the service-design model. It lives in `UmbracoPrism.Core` (C#) and `Umbr
 
 Key fields:
 
-- `definitionKey` — stable identifier for the service blueprint
-- `displayName` — human-readable name
-- `initialStageKey` — where the service blueprint starts
-- `stages[]` — the steps in the journey (each has `key`, `label`, `kind`, `actor`, `view`, `actions`)
-- `gateways[]` — routing points (each has `key`, `title`, `kind` [Split/Join], `source?`, `routes[]`)
+- `definitionKey`, stable identifier for the service blueprint
+- `displayName`, human-readable name
+- `initialStageKey`, where the service blueprint starts
+- `stages[]`, the steps in the journey (each has `key`, `label`, `kind`, `actor`, `view`, `actions`)
+- `gateways[]`, routing points (each has `key`, `title`, `kind` [Split/Join], `source?`, `routes[]`)
 
 ### Runtime Model (`ServiceBlueprint`)
 
@@ -44,11 +44,11 @@ This is the execution model. It lives in `UmbracoPrism.Core`. The runtime engine
 
 Key fields:
 
-- `key` — stable identifier
-- `initialState` — where the service blueprint starts
-- `states[]` — the runtime states (projected from stages)
-- `transitions[]` — the runtime transitions (projected from gateway routes)
-- `components[]` — the UI components for each state
+- `key`, stable identifier
+- `initialState`, where the service blueprint starts
+- `states[]`, the runtime states (projected from stages)
+- `transitions[]`, the runtime transitions (projected from gateway routes)
+- `components[]`, the UI components for each state
 
 The runtime model is **flatter** and **simpler** than the authored model. It is optimized for execution, not authoring.
 
@@ -90,7 +90,7 @@ The projector:
 | `AuthoredRoute.requiresRole` | `ServiceBlueprintRouteDefinition.requiresRole` |
 | `AuthoredRoute.actions` | `ServiceBlueprintRouteDefinition.actions` (typed actions for handlers) |
 
-**Key point:** Gateways do not appear in the runtime model as first-class entities. They are expanded into a flat list of transitions. The runtime engine does not need to understand gateway semantics — it just walks transitions.
+**Key point:** Gateways do not appear in the runtime model as first-class entities. They are expanded into a flat list of transitions. The runtime engine does not need to understand gateway semantics, it just walks transitions.
 
 ---
 
@@ -98,8 +98,8 @@ The projector:
 
 A typed action is a declarative instruction for the runtime to execute some business work. Each action has:
 
-- `type` — stable key (e.g., `forms.submit`, `notifications.send-email`, `case.assign`)
-- `params` — serializable JSON object (validated against the action's `paramsSchema` at design time)
+- `type`, stable key (e.g., `forms.submit`, `notifications.send-email`, `case.assign`)
+- `params`, serializable JSON object (validated against the action's `paramsSchema` at design time)
 
 Example:
 
@@ -130,15 +130,15 @@ export interface ServiceBlueprintActionCatalog {
 
 Each `ActionCatalogEntry` includes:
 
-- `type` — stable key
-- `label` — display name for the editor
-- `summary` — what the action does
-- `appliesTo` — where the action is valid (`stage.onEntry`, `stage.onExit`, `transition`)
-- `paramsSchema` — JSON Schema for parameters
-- `defaultParams` — starter values
-- `examples` — example configurations
-- `status` — `available`, `planned`, or `internal`
-- `implementation` — whether the reference business app has a handler
+- `type`, stable key
+- `label`, display name for the editor
+- `summary`, what the action does
+- `appliesTo`, where the action is valid (`stage.onEntry`, `stage.onExit`, `transition`)
+- `paramsSchema`, JSON Schema for parameters
+- `defaultParams`, starter values
+- `examples`, example configurations
+- `status`, `available`, `planned`, or `internal`
+- `implementation`, whether the reference business app has a handler
 
 Prism ships `BuiltInServiceBlueprintActionCatalog` with generic actions (Send Email, Assign Case, etc.). Hosts extend it to add domain-specific actions.
 
@@ -190,7 +190,7 @@ This pattern keeps action execution **out of the engine**. The engine stays gene
 
 ---
 
-## 7. Publishing — A Host Concern, Not an Editor Concern
+## 7. Publishing: A Host Concern, Not an Editor Concern
 
 **Publishing** is the act of snapshotting an authored service blueprint into a runtime store so that the runtime engine can load it and execute instances.
 
@@ -223,10 +223,10 @@ The editor has no opinion about steps 3-5. Those are host concerns.
 
 Different hosts have different publishing needs:
 
-- **Approval service blueprint:** Some hosts require a reviewer to approve a service blueprint before it goes live. The editor does not enforce this — the host does.
-- **Multi-tenancy:** Some hosts partition service blueprints by tenant. The editor does not know about tenants — the host does.
-- **Versioning:** Some hosts keep every version of a service blueprint. Some overwrite. The editor does not care — the host decides.
-- **Rollback:** Some hosts can roll back to a previous version. The editor does not implement rollback — the host does.
+- **Approval service blueprint:** Some hosts require a reviewer to approve a service blueprint before it goes live. The editor does not enforce this, the host does.
+- **Multi-tenancy:** Some hosts partition service blueprints by tenant. The editor does not know about tenants, the host does.
+- **Versioning:** Some hosts keep every version of a service blueprint. Some overwrite. The editor does not care, the host decides.
+- **Rollback:** Some hosts can roll back to a previous version. The editor does not implement rollback, the host does.
 
 Keeping publishing out of the editor keeps the editor simple and flexible.
 
@@ -236,8 +236,8 @@ Keeping publishing out of the editor keeps the editor simple and flexible.
 
 The service blueprint editor and runtime are separated by two boundaries:
 
-1. **Authored ↔ Runtime** — `IServiceBlueprintProjector` converts the rich authored model into the flat runtime model.
-2. **Editor ↔ Host** — `ServiceBlueprintSource` gives the editor access to authored service blueprints without coupling to the host's storage, identity, or publishing logic.
+1. **Authored ↔ Runtime**: `IServiceBlueprintProjector` converts the rich authored model into the flat runtime model.
+2. **Editor ↔ Host**: `ServiceBlueprintSource` gives the editor access to authored service blueprints without coupling to the host's storage, identity, or publishing logic.
 
 The editor describes service blueprints in business terms: stages, gateways, routes, typed actions.
 
@@ -362,15 +362,15 @@ The editor needs an action catalog. This is the source of truth for what authors
 
 Each action catalog entry should include:
 
-- `type` — stable key such as `forms.submit` or `notifications.send-email`
-- `label` — short display name for the editor
-- `summary` — simple explanation of what the action does
-- `appliesTo` — where the action is valid, for example `stage.onEntry`, `stage.onExit`, or `transition`
-- `paramsSchema` — typed parameter schema the editor can validate
-- `defaultParams` — starter values
-- `examples` — example configurations for authors
-- `status` — for example `available`, `planned`, or `internal`
-- `implementation` — whether the reference business app currently has a handler for it
+- `type`, stable key such as `forms.submit` or `notifications.send-email`
+- `label`, short display name for the editor
+- `summary`, simple explanation of what the action does
+- `appliesTo`, where the action is valid, for example `stage.onEntry`, `stage.onExit`, or `transition`
+- `paramsSchema`, typed parameter schema the editor can validate
+- `defaultParams`, starter values
+- `examples`, example configurations for authors
+- `status`, for example `available`, `planned`, or `internal`
+- `implementation`, whether the reference business app currently has a handler for it
 
 A simple catalog entry might look like this:
 

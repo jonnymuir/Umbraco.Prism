@@ -94,8 +94,8 @@ var app = builder.Build();
 When your Umbraco site starts, Prism's `PrismContentTypeSeeder` runs automatically:
 
 - **Creates two document types** (if they don't exist):
-  - `homePage` — the root/landing page type
-  - `memberDashboard` — the authenticated member portal page type
+  - `homePage`, the root/landing page type
+  - `memberDashboard`, the authenticated member portal page type
 - **Non-destructive:** If either type already exists, Prism skips creation and uses what's there.
 - **No breaking changes:** Existing content, members, and navigation remain untouched.
 
@@ -163,7 +163,7 @@ For local development without Azure Key Vault, you can test Prism without authen
 
 ## 6. The MockBackOffice Demo (Optional)
 
-Prism ships with a `MockBackOffice` example that demonstrates downstream credential flow — showing how Prism tenant credentials can be securely passed to a business API or microservice.
+Prism ships with a `MockBackOffice` example that demonstrates downstream credential flow, showing how Prism tenant credentials can be securely passed to a business API or microservice.
 
 ### Running the Demo
 

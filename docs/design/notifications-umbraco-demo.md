@@ -5,7 +5,7 @@
 **Author:** Brewster (Umbraco Platform Specialist)  
 **Date:** 2026-04-03  
 **Updated:** 2026-04-03 (Vinyl Vault Demo Redesign)  
-**Status:** Design Document — No Implementation
+**Status:** Design Document, No Implementation
 
 ---
 
@@ -14,7 +14,7 @@
 This document provides a comprehensive design for integrating push notifications into Umbraco.Prism with two key focuses:
 
 1. **Platform Integration:** How Umbraco content notifications, member groups, and backoffice extensions interact with the push notification system
-2. **Demo Site — "Vinyl Vault":** A vinyl record shop theme that demonstrates content subscription notifications, API-triggered notifications, and scheduled notification scenarios in a fun, relatable context
+2. **Demo Site, "Vinyl Vault":** A vinyl record shop theme that demonstrates content subscription notifications, API-triggered notifications, and scheduled notification scenarios in a fun, relatable context
 
 ---
 
@@ -34,11 +34,11 @@ This document provides a comprehensive design for integrating push notifications
 public interface IPrismContentNotificationHandler
 {
     Task OnContentPublishedAsync(
-        IContent content, 
+        IContent content,
         CancellationToken cancellationToken);
         
     Task OnContentSavedAsync(
-        IContent content, 
+        IContent content,
         CancellationToken cancellationToken);
 }
 
@@ -50,7 +50,7 @@ public class NotificationComposer : IComposer
         builder.Services.AddSingleton<IPrismContentNotificationHandler, MyContentNotifier>();
         
         // Prism registers its own notification handler that delegates to consumers
-        builder.AddNotificationAsyncHandler<ContentPublishedNotification, 
+        builder.AddNotificationAsyncHandler<ContentPublishedNotification,
             PrismContentPublishedHandler>();
     }
 }
@@ -93,7 +93,7 @@ public class PrismContentPublishedHandler
     private readonly IPrismNotificationService _notificationService;
     
     public async Task HandleAsync(
-        ContentPublishedNotification notification, 
+        ContentPublishedNotification notification,
         CancellationToken cancellationToken)
     {
         foreach (var entity in notification.PublishedEntities)
@@ -127,9 +127,9 @@ public class PrismContentPublishedHandler
 
 **Decision Rationale:**
 - **Published-only by default:** Most notifications should go to end users only when content is "live"
-- **Draft notifications optional:** Some scenarios (e.g., "Your requested document is under review") might want saved-but-unpublished triggers — make this opt-in via a separate `notifyOnSave` checkbox
+- **Draft notifications optional:** Some scenarios (e.g., "Your requested document is under review") might want saved-but-unpublished triggers, make this opt-in via a separate `notifyOnSave` checkbox
 - **Composition over inheritance:** Allows adding notification capability to ANY document type without schema rebuild
-- **Consumer hook for advanced scenarios:** Enterprise users may want custom notification logic (e.g., "only notify if price increased by >10%") — the `IPrismContentNotificationHandler` escape hatch enables this
+- **Consumer hook for advanced scenarios:** Enterprise users may want custom notification logic (e.g., "only notify if price increased by >10%"), the `IPrismContentNotificationHandler` escape hatch enables this
 
 ---
 
@@ -214,21 +214,21 @@ public interface IPrismNotificationService
 {
     // Send to all members in specified groups
     Task SendToMemberGroupsAsync(
-        string title, 
-        string body, 
+        string title,
+        string body,
         IEnumerable<string> groupNames,
         CancellationToken cancellationToken);
         
     // Send to individual member (for direct notifications)
     Task SendToMemberAsync(
-        string title, 
-        string body, 
+        string title,
+        string body,
         int memberId,
         CancellationToken cancellationToken);
         
     // Send to all members in tenant (broadcast)
     Task SendToAllMembersAsync(
-        string title, 
+        string title,
         string body,
         CancellationToken cancellationToken);
 }
@@ -240,7 +240,7 @@ public class PrismNotificationService : IPrismNotificationService
     private readonly IPrismDeviceCredentialRepository _deviceRepo;
     
     public async Task SendToMemberGroupsAsync(
-        string title, string body, IEnumerable<string> groupNames, 
+        string title, string body, IEnumerable<string> groupNames,
         CancellationToken ct)
     {
         var memberIds = new HashSet<int>();
@@ -287,7 +287,7 @@ public class PrismNotificationService : IPrismNotificationService
 - Needs permission checks (not all editors should spam members)
 - Requires robust rate limiting to prevent accidental mass notifications
 
-**Recommended v1 Scope:** No backoffice UI — notifications triggered automatically via content publish hooks or API endpoints
+**Recommended v1 Scope:** No backoffice UI, notifications triggered automatically via content publish hooks or API endpoints
 
 **Recommended v2 Design:**
 
@@ -372,9 +372,9 @@ export class PrismNotificationCenter extends LitElement {
 
 Umbraco v13+ removed `IRecurringBackgroundTask` (pre-v13 pattern). Current options:
 
-1. **`IHostedService`** — ASP.NET Core standard pattern (runs in background)
-2. **Umbraco Runtime Levels** — Ensure task only runs when Umbraco is ready (not during install/upgrade)
-3. **Hangfire/Quartz** — Third-party schedulers (overkill for simple tasks)
+1. **`IHostedService`**, ASP.NET Core standard pattern (runs in background)
+2. **Umbraco Runtime Levels**: Ensure task only runs when Umbraco is ready (not during install/upgrade)
+3. **Hangfire/Quartz**: Third-party schedulers (overkill for simple tasks)
 
 **Recommended Pattern:**
 
@@ -413,9 +413,9 @@ public class MembershipExpiryNotificationTask : IHostedService, IDisposable
         var delay = nextRun - now;
         
         _timer = new Timer(
-            DoWork, 
-            null, 
-            delay, 
+            DoWork,
+            null,
+            delay,
             TimeSpan.FromDays(1));
             
         return Task.CompletedTask;
@@ -471,7 +471,7 @@ public class NotificationTaskComposer : IComposer
 // Step 1: Add member property for expiry tracking
 public class MemberSchemaSetup : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
-    public async Task HandleAsync(UmbracoApplicationStartedNotification notification, 
+    public async Task HandleAsync(UmbracoApplicationStartedNotification notification,
         CancellationToken cancellationToken)
     {
         var memberType = _memberTypeService.Get("Member");
@@ -506,11 +506,11 @@ public class MyComposer : IComposer
 - **Scoped service access:** Correctly uses `IServiceProvider.CreateScope()` for scoped dependencies like `IMemberService`
 - **Testable:** Can inject mock `IRuntimeState` and `IServiceProvider` for unit tests
 
-**Alternative:** Hangfire for more complex scheduling (cron expressions, retries, backoff) — but adds dependency weight. Recommend `IHostedService` for simple daily/hourly tasks.
+**Alternative:** Hangfire for more complex scheduling (cron expressions, retries, backoff), but adds dependency weight. Recommend `IHostedService` for simple daily/hourly tasks.
 
 ---
 
-## Part 2: Demo Site Design — "Vinyl Vault"
+## Part 2: Demo Site Design: "Vinyl Vault"
 
 ### 2.1 Demo Concept
 
@@ -565,7 +565,7 @@ Vinyl Vault is a vintage record shop built into the UmbracoPrism.TestSite. It de
 
 **Technical flow:**
 1. Editor marks `VinylRecord` node as `inStock: true` (or clicks "Notify Waitlist" button in backoffice)
-2. Backoffice dashboard extension (or property editor event) calls:  
+2. Backoffice dashboard extension (or property editor event) calls:
    `POST /umbraco/api/vinylvault/notify-back-in-stock/{contentId}`
 3. Controller:
    - Fetches vinyl record content
@@ -584,8 +584,8 @@ Vinyl Vault is a vintage record shop built into the UmbracoPrism.TestSite. It de
 
 **Setup:**
 - A vinyl record has two additional properties:
-  - `limitedEdition` (boolean) — marks this as a limited drop
-  - `limitedDropTime` (DateTime) — when the limited edition becomes available
+  - `limitedEdition` (boolean), marks this as a limited drop
+  - `limitedDropTime` (DateTime), when the limited edition becomes available
 - A **recurring background task** (Umbraco `IRecurringBackgroundTask` or `IHostedService`) runs every 5 minutes
 - It checks for limited edition drops happening in the next 30 minutes
 - If a drop is upcoming, it sends a notification to all "VIP Members" or "New Stock Subscribers"
@@ -597,7 +597,7 @@ Vinyl Vault is a vintage record shop built into the UmbracoPrism.TestSite. It de
 2. Background task runs at 5:30pm, detects drop at 6:00pm (30 minutes away)
 3. Task sends push notification:
    - **Title:** "⏰ Limited Edition Drop in 30 minutes!"
-   - **Body:** "Daft Punk 'Random Access Memories' drops at 6:00 PM at Vinyl Vault — don't miss out!"
+   - **Body:** "Daft Punk 'Random Access Memories' drops at 6:00 PM at Vinyl Vault, don't miss out!"
    - **Image:** Album cover art
 4. Members receive advance warning
 5. At 6:00pm, the vinyl's `inStock` property is auto-toggled to `true` (or editor manually publishes it)
@@ -622,7 +622,7 @@ Vinyl Vault is a vintage record shop built into the UmbracoPrism.TestSite. It de
 |---------------------|------------------------|----------------------------|------------|--------------------------------------------------|
 | `artist`            | Artist                 | Textstring                 | Content    | Artist or band name                              |
 | `albumTitle`        | Album Title            | Textstring                 | Content    | Full album title (distinct from node name)       |
-| `genre`             | Genre                  | Multi-Node Tree Picker     | Content    | Link to Genre node(s) — XPath: `$site//genre`    |
+| `genre`             | Genre                  | Multi-Node Tree Picker     | Content    | Link to Genre node(s), XPath: `$site//genre`    |
 | `coverArt`          | Cover Art              | Media Picker (Single)      | Content    | Album cover image                                |
 | `releaseYear`       | Release Year           | Numeric (year)             | Content    | Original release year                            |
 | `description`       | Description            | Rich Text Editor           | Content    | Album description, track listing, history        |
@@ -633,8 +633,8 @@ Vinyl Vault is a vintage record shop built into the UmbracoPrism.TestSite. It de
 | `catalogNumber`     | Catalog Number         | Textstring                 | Metadata   | Vinyl catalog/SKU reference                      |
 
 **Compositions:**
-- `notifiableContent` — Adds `notifyOnPublish`, `notificationTitle`, `notificationBody`, `notificationGroups`
-- `seoBase` (if exists) — SEO fields
+- `notifiableContent`, Adds `notifyOnPublish`, `notificationTitle`, `notificationBody`, `notificationGroups`
+- `seoBase` (if exists), SEO fields
 
 **Route:**
 - `/vinyl-vault/{genre}/{vinyl-name}`
@@ -878,7 +878,7 @@ graph TD
 3. **Check mobile device (as VIP or All New Stock subscriber):**
    - **Expected:** Push notification appears 30 minutes before drop:
      - Title: "⏰ Limited Edition Drop in 30 minutes!"
-     - Body: "Daft Punk 'Random Access Memories' drops soon at Vinyl Vault — don't miss out!"
+     - Body: "Daft Punk 'Random Access Memories' drops soon at Vinyl Vault, don't miss out!"
      - Image: Album cover art
    - Tap notification → opens vinyl detail page with countdown timer
 
@@ -1130,9 +1130,9 @@ If evaluator has limited time:
 
 **Vinyl Vault** replaces the previous demo design with a fun, relatable vinyl record shop theme that showcases all three notification use cases:
 
-1. **Content subscription notifications** — Genre-based subscriptions + publish trigger
-2. **API-triggered notifications** — Back-in-stock waitlist alerts
-3. **Scheduled notifications** — Limited edition drop advance warnings
+1. **Content subscription notifications**: Genre-based subscriptions + publish trigger
+2. **API-triggered notifications**: Back-in-stock waitlist alerts
+3. **Scheduled notifications**: Limited edition drop advance warnings
 
 The demo provides:
 - Realistic, content-driven scenarios
