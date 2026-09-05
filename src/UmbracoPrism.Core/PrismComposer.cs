@@ -86,11 +86,12 @@ public class PrismComposer : IComposer
         });
 
         // 4. Authorization Handler
-        // PrismTenantHandler is Scoped, not Singleton: it now constructor-injects the Scoped
-        // IPrismContext directly (resolved once per request by ASP.NET Core's authorization
-        // system, not captured at construction), rather than reaching through
-        // IHttpContextAccessor as the old Entra-only implementation did.
-        builder.Services.AddScoped<IAuthorizationHandler, PrismTenantHandler>();
+        // PrismTenantHandler stays Singleton, like every other IAuthorizationHandler here —
+        // it resolves the Scoped IPrismContext per-call via IHttpContextAccessor rather than
+        // constructor-injecting it (see that class's own remarks: a Scoped IAuthorizationHandler
+        // trips .NET's ValidateOnBuild graph validator over unrelated Umbraco-framework
+        // singletons that directly constructor-inject the Scoped IAuthorizationService).
+        builder.Services.AddSingleton<IAuthorizationHandler, PrismTenantHandler>();
         builder.Services.AddSingleton<IAuthorizationHandler, PrismAdminHandler>();
 
         // 5. Dynamic OIDC Config & Credential Provider

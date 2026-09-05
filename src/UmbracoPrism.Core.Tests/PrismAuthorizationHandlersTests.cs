@@ -88,7 +88,7 @@ public class PrismAuthorizationHandlersTests
         var prismContext = BuildPrismContext(new PrismTenant { EntraTenantId = "tenant-a" });
         var principal = CreateAuthenticatedPrincipal(new Claim("tid", "tenant-a"));
 
-        var handler = new PrismTenantHandler(prismContext.Object, new PrismTenantBindingValidator());
+        var handler = new PrismTenantHandler(BuildAccessor(prismContext.Object), new PrismTenantBindingValidator());
         var context = CreateTenantContext(principal);
 
         await handler.HandleAsync(context);
@@ -102,7 +102,7 @@ public class PrismAuthorizationHandlersTests
         var prismContext = BuildPrismContext(new PrismTenant { EntraTenantId = "tenant-b" });
         var principal = CreateAuthenticatedPrincipal(new Claim("tid", "tenant-a"));
 
-        var handler = new PrismTenantHandler(prismContext.Object, new PrismTenantBindingValidator());
+        var handler = new PrismTenantHandler(BuildAccessor(prismContext.Object), new PrismTenantBindingValidator());
         var context = CreateTenantContext(principal);
 
         await handler.HandleAsync(context);
@@ -125,7 +125,7 @@ public class PrismAuthorizationHandlersTests
             new Claim("iss", "https://keycloak.example/realms/acme-a"),
             new Claim("aud", "acme-a-client"));
 
-        var handler = new PrismTenantHandler(prismContext.Object, new PrismTenantBindingValidator());
+        var handler = new PrismTenantHandler(BuildAccessor(prismContext.Object), new PrismTenantBindingValidator());
         var context = CreateTenantContext(principal);
 
         await handler.HandleAsync(context);
@@ -147,7 +147,7 @@ public class PrismAuthorizationHandlersTests
             new Claim("iss", "https://keycloak.example/realms/acme-b"),
             new Claim("aud", "acme-b-client"));
 
-        var handler = new PrismTenantHandler(prismContext.Object, new PrismTenantBindingValidator());
+        var handler = new PrismTenantHandler(BuildAccessor(prismContext.Object), new PrismTenantBindingValidator());
         var context = CreateTenantContext(principal);
 
         await handler.HandleAsync(context);
@@ -161,7 +161,7 @@ public class PrismAuthorizationHandlersTests
         var prismContext = BuildPrismContext(new PrismTenant { EntraTenantId = "tenant-a" });
         var principal = CreateUnauthenticatedPrincipal(new Claim("tid", "tenant-a"));
 
-        var handler = new PrismTenantHandler(prismContext.Object, new PrismTenantBindingValidator());
+        var handler = new PrismTenantHandler(BuildAccessor(prismContext.Object), new PrismTenantBindingValidator());
         var context = CreateTenantContext(principal);
 
         await handler.HandleAsync(context);
@@ -175,7 +175,7 @@ public class PrismAuthorizationHandlersTests
         var prismContext = BuildPrismContext(currentTenant: null);
         var principal = CreateAuthenticatedPrincipal(new Claim("tid", "tenant-a"));
 
-        var handler = new PrismTenantHandler(prismContext.Object, new PrismTenantBindingValidator());
+        var handler = new PrismTenantHandler(BuildAccessor(prismContext.Object), new PrismTenantBindingValidator());
         var context = CreateTenantContext(principal);
 
         await handler.HandleAsync(context);
@@ -189,7 +189,7 @@ public class PrismAuthorizationHandlersTests
         var prismContext = BuildPrismContext(new PrismTenant { EntraTenantId = "tenant-a" });
         var principal = CreateAuthenticatedPrincipal();
 
-        var handler = new PrismTenantHandler(prismContext.Object, new PrismTenantBindingValidator());
+        var handler = new PrismTenantHandler(BuildAccessor(prismContext.Object), new PrismTenantBindingValidator());
         var context = CreateTenantContext(principal);
 
         await handler.HandleAsync(context);
@@ -216,6 +216,18 @@ public class PrismAuthorizationHandlersTests
         var prismContext = new Mock<IPrismContext>();
         prismContext.SetupGet(x => x.CurrentTenant).Returns(currentTenant);
         return prismContext;
+    }
+
+    private static IHttpContextAccessor BuildAccessor(IPrismContext prismContext)
+    {
+        var services = new ServiceCollection()
+            .AddSingleton(prismContext)
+            .BuildServiceProvider();
+
+        return new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext { RequestServices = services }
+        };
     }
 
     private static Mock<IBackOfficeSecurityAccessor> BuildSecurityAccessorWithUserGroups(params string[] aliases)
