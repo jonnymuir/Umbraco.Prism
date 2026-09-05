@@ -240,5 +240,6 @@ When a commit introduces a breaking change, add a `BREAKING CHANGE: <description
 | What | Username | Password |
 |---|---|---|
 | TestSite (Keycloak SSO) | `demo@prism.local` | `password` |
+| Vinyl Vault broadcast admin (`vinyl-admin` realm role) | `vinyl-admin@prism.local` | `password` |
 | Umbraco backoffice | `admin@prism.local` | `PrismLocal!12345` |
 | Keycloak admin | `admin` | `admin` |

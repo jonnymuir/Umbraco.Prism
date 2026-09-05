@@ -75,6 +75,12 @@ public class TenantManagementController(
             return BadRequest(new { error = createError });
         }
 
+        var newSecretKeyName = string.IsNullOrWhiteSpace(tenant.OidcAuthority) ? NormalizeOptionalString(tenant.SecretKeyName) : null;
+        if (!TryValidateSecretKeyUniqueness(db, excludeTenantId: null, newSecretKeyName, genericSecret.Provider, genericSecret.Reference, out var uniquenessError))
+        {
+            return BadRequest(new { error = uniquenessError });
+        }
+
         var schema = new PrismTenantSchema
         {
             Id = 0,
@@ -82,7 +88,7 @@ public class TenantManagementController(
             Hostname = tenant.Hostname,
             EntraTenantId = tenant.EntraTenantId,
             EntraClientId = tenant.EntraClientId,
-            SecretKeyName = string.IsNullOrWhiteSpace(tenant.OidcAuthority) ? NormalizeOptionalString(tenant.SecretKeyName) : null,
+            SecretKeyName = newSecretKeyName,
             OidcAuthority = NormalizeOptionalString(tenant.OidcAuthority),
             OidcClientId = NormalizeOptionalString(tenant.OidcClientId),
             OidcClientSecret = genericSecret.LegacyInlineSecret,
@@ -140,11 +146,17 @@ public class TenantManagementController(
             return BadRequest(new { error = updateError });
         }
 
+        var updatedSecretKeyName = string.IsNullOrWhiteSpace(updatedTenant.OidcAuthority) ? NormalizeOptionalString(updatedTenant.SecretKeyName) : null;
+        if (!TryValidateSecretKeyUniqueness(db, excludeTenantId: id, updatedSecretKeyName, genericSecret.Provider, genericSecret.Reference, out var uniquenessError))
+        {
+            return BadRequest(new { error = uniquenessError });
+        }
+
         existing.Name = updatedTenant.Name;
         existing.Hostname = updatedTenant.Hostname;
         existing.EntraTenantId = updatedTenant.EntraTenantId;
         existing.EntraClientId = updatedTenant.EntraClientId;
-        existing.SecretKeyName = string.IsNullOrWhiteSpace(updatedTenant.OidcAuthority) ? NormalizeOptionalString(updatedTenant.SecretKeyName) : null;
+        existing.SecretKeyName = updatedSecretKeyName;
         existing.OidcAuthority = NormalizeOptionalString(updatedTenant.OidcAuthority);
         existing.OidcClientId = NormalizeOptionalString(updatedTenant.OidcClientId);
         existing.OidcClientSecret = genericSecret.LegacyInlineSecret;
@@ -486,6 +498,68 @@ public class TenantManagementController(
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Ensures the vault secret name this tenant is about to be saved with isn't already in use
+    /// by a different tenant. <see cref="SecretVaultService"/> caches (and fetches) Key Vault
+    /// secrets under a key built purely from the secret name (<c>Prism_Secret_{secretName}</c>),
+    /// with no tenant discriminator — two tenants configured with the same name, whether via
+    /// the Entra <c>SecretKeyName</c> field or a generic-OIDC Key Vault
+    /// <c>OidcClientSecretReference</c>, would silently share one cache entry and one vault
+    /// secret. Only Azure Key Vault-backed names carry this risk: an Inline generic-OIDC
+    /// secret's "reference" is the literal secret value, not a vault name, so it's excluded here.
+    /// </summary>
+    private static bool TryValidateSecretKeyUniqueness(
+        IUmbracoDatabase db,
+        int? excludeTenantId,
+        string? newEntraSecretKeyName,
+        string? newGenericOidcSecretProvider,
+        string? newGenericOidcSecretReference,
+        out string? error)
+    {
+        error = null;
+
+        var newVaultSecretName = ResolveVaultSecretName(newEntraSecretKeyName, newGenericOidcSecretProvider, newGenericOidcSecretReference);
+        if (newVaultSecretName == null)
+        {
+            return true;
+        }
+
+        var collision = (db.Fetch<PrismTenantSchema>() ?? [])
+            .Where(other => excludeTenantId == null || other.Id != excludeTenantId.Value)
+            .Any(other => string.Equals(
+                ResolveVaultSecretName(
+                    string.IsNullOrWhiteSpace(other.OidcAuthority) ? other.SecretKeyName : null,
+                    NormalizeSecretProvider(other),
+                    NormalizeSecretReference(other)),
+                newVaultSecretName,
+                StringComparison.Ordinal));
+
+        if (collision)
+        {
+            error = $"Vault secret name '{newVaultSecretName}' is already in use by another tenant. " +
+                    "Each tenant must use its own Key Vault secret name.";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string? ResolveVaultSecretName(string? entraSecretKeyName, string? genericOidcSecretProvider, string? genericOidcSecretReference)
+    {
+        if (!string.IsNullOrWhiteSpace(entraSecretKeyName))
+        {
+            return entraSecretKeyName;
+        }
+
+        if (string.Equals(genericOidcSecretProvider, PrismSecretProviderNames.AzureKeyVault, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(genericOidcSecretReference))
+        {
+            return genericOidcSecretReference;
+        }
+
+        return null;
     }
 
     private static string? NormalizeSecretProvider(PrismTenantSchema tenant)

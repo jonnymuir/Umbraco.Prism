@@ -28,7 +28,13 @@ public class PrismNotificationController(
     /// <summary>
     /// Registers or updates the FCM push token for the authenticated user's current device.
     /// </summary>
+    /// <remarks>
+    /// Explicit <c>PrismStrictIsolation</c>: a JSON API registering device state under a tenant,
+    /// so a mismatched-tenant principal should get a hard 403 rather than fall through. See
+    /// <see cref="BiometricController.Register"/> for the same reasoning.
+    /// </remarks>
     [HttpPost("register")]
+    [Authorize(Policy = "PrismStrictIsolation")]
     public async Task<IActionResult> RegisterToken([FromBody] PrismPushRegisterRequest request)
     {
         if (!ModelState.IsValid)
@@ -77,7 +83,11 @@ public class PrismNotificationController(
     /// <summary>
     /// Subscribes the authenticated user to a notification genre within the current tenant.
     /// </summary>
+    /// <remarks>
+    /// Explicit <c>PrismStrictIsolation</c>: see <see cref="RegisterToken"/>.
+    /// </remarks>
     [HttpPost("subscribe")]
+    [Authorize(Policy = "PrismStrictIsolation")]
     public async Task<IActionResult> Subscribe([FromBody] PrismSubscribeRequest request)
     {
         if (!ModelState.IsValid)

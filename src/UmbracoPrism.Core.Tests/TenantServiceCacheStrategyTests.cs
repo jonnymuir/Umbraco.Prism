@@ -152,6 +152,41 @@ public class TenantServiceCacheStrategyTests
     }
 
     [Fact]
+    public async Task GetByDomainAsync_DropsBrandingOverride_ContainingStyleTagBreakout()
+    {
+        // SECURITY: BrandingCssDeclarations is rendered unescaped inside a <style> tag on
+        // every page this tenant serves (PrismBrandingMiddleware.InjectBranding). A value
+        // containing "</style>" would terminate that element early and let the remainder
+        // render as live HTML — a stored, tenant-wide script injection from a single
+        // compromised/malicious backoffice admin account. This must never reach the
+        // rendered declaration string.
+        var db = new Mock<IUmbracoDatabase>();
+        db.Setup(x => x.FirstOrDefault<PrismTenantSchema>(It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns(new PrismTenantSchema
+            {
+                Id = 8,
+                Name = "Tenant C",
+                Hostname = "tenant-c.example.com",
+                EntraTenantId = "entra-c",
+                EntraClientId = "client-c",
+                SecretKeyName = "secret-c",
+                BrandingOverrides = "{\"--prism-primary\":\"red}</style><script>alert(1)</script>\",\"--prism-radius\":\"8px\"}"
+            });
+
+        var dbFactory = new Mock<IUmbracoDatabaseFactory>();
+        dbFactory.Setup(x => x.CreateDatabase()).Returns(db.Object);
+
+        var service = CreateTenantService(dbFactory.Object);
+
+        var tenant = await service.GetByDomainAsync("tenant-c.example.com");
+
+        tenant.Should().NotBeNull();
+        tenant!.BrandingCssDeclarations.Should().NotContain("</style>").And.NotContain("<script>");
+        tenant.BrandingCssDeclarations.Should().Be("--prism-radius:8px;",
+            "because the malicious pair must be dropped entirely, not merely truncated or encoded");
+    }
+
+    [Fact]
     public async Task InvalidateDomains_AllowsConcurrentTenantRenameRefresh_WithoutServingStaleHostname()
     {
         var schemasByHost = new ConcurrentDictionary<string, PrismTenantSchema>(StringComparer.OrdinalIgnoreCase);

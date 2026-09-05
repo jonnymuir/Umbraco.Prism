@@ -5,6 +5,7 @@ using Umbraco.Cms.Infrastructure.Persistence;
 using Umbraco.Extensions;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Persistence;
+using UmbracoPrism.Core;
 
 namespace UmbracoPrism.Core.Services;
 
@@ -191,9 +192,16 @@ public class TenantService : ITenantService
                 continue;
             }
 
-            builder.Append(name.Trim());
+            var trimmedName = name.Trim();
+            var trimmedValue = value.Trim();
+            if (!PrismBrandingCssSafety.IsSafePropertyName(trimmedName) || !PrismBrandingCssSafety.IsSafeValue(trimmedValue))
+            {
+                continue;
+            }
+
+            builder.Append(trimmedName);
             builder.Append(':');
-            builder.Append(value.Trim());
+            builder.Append(trimmedValue);
             builder.Append(';');
         }
 

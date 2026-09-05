@@ -14,10 +14,12 @@ namespace UmbracoPrism.Core.Models;
 /// <param name="httpContextAccessor">Provides access to the current HTTP context and authentication state.</param>
 /// <param name="vault">Resolves tenant client secrets from secure storage.</param>
 /// <param name="tokenRefreshService">Performs resilient token refresh calls when session tokens expire.</param>
+/// <param name="tenantBindingValidator">Determines whether a principal's own claims match the current tenant.</param>
 public class PrismContext(
     IHttpContextAccessor httpContextAccessor,
     ISecretVaultService vault,
-    IPrismTokenRefreshService tokenRefreshService) : IPrismContext
+    IPrismTokenRefreshService tokenRefreshService,
+    IPrismTenantBindingValidator tenantBindingValidator) : IPrismContext
 {
     private static readonly DateTimeOffset ProcessStartedUtc = DateTimeOffset.UtcNow;
 
@@ -51,7 +53,7 @@ public class PrismContext(
             return null;
         }
 
-        if (!IsPrincipalBoundToCurrentTenant(authResult.Principal))
+        if (CurrentTenant is null || !tenantBindingValidator.IsBound(authResult.Principal, CurrentTenant))
         {
             Log.Warning("Rejecting token usage because principal tenant claim does not match resolved tenant context");
             LastAuthorizationFailureReason = "tenant-mismatch";
@@ -101,7 +103,7 @@ public class PrismContext(
             return null;
         }
 
-        if (authResult.Principal == null || !IsPrincipalBoundToCurrentTenant(authResult.Principal))
+        if (authResult.Principal == null || !tenantBindingValidator.IsBound(authResult.Principal, CurrentTenant))
         {
             Log.Warning("Rejecting token refresh because principal tenant claim does not match resolved tenant context");
             LastAuthorizationFailureReason = "tenant-mismatch";
@@ -248,73 +250,6 @@ public class PrismContext(
 
         LastAuthorizationFailureReason = null;
         return new AuthenticationHeaderValue("Bearer", result.AccessToken);
-    }
-
-    private bool IsPrincipalBoundToCurrentTenant(ClaimsPrincipal principal)
-    {
-        if (CurrentTenant == null)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(CurrentTenant.OidcAuthority))
-        {
-            return IsGenericOidcPrincipalBoundToCurrentTenant(principal);
-        }
-
-        var tenantId = CurrentTenant.EntraTenantId;
-        if (string.IsNullOrWhiteSpace(tenantId))
-        {
-            return false;
-        }
-
-        var principalTenantId = principal.FindFirstValue("tid")
-            ?? principal.FindFirstValue("http://schemas.microsoft.com/identity/claims/tenantid");
-
-        return !string.IsNullOrWhiteSpace(principalTenantId)
-            && string.Equals(principalTenantId, tenantId, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private bool IsGenericOidcPrincipalBoundToCurrentTenant(ClaimsPrincipal principal)
-    {
-        if (CurrentTenant == null || string.IsNullOrWhiteSpace(CurrentTenant.OidcAuthority))
-        {
-            return false;
-        }
-
-        var principalIssuer = principal.FindFirstValue("iss");
-        if (!UrisMatch(principalIssuer, CurrentTenant.OidcAuthority))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(CurrentTenant.OidcClientId))
-        {
-            return true;
-        }
-
-        var audienceMatches = principal.FindAll("aud")
-            .Select(claim => claim.Value)
-            .Any(audience => string.Equals(audience, CurrentTenant.OidcClientId, StringComparison.OrdinalIgnoreCase));
-        var authorizedPartyMatches = string.Equals(
-            principal.FindFirstValue("azp"),
-            CurrentTenant.OidcClientId,
-            StringComparison.OrdinalIgnoreCase);
-
-        return audienceMatches || authorizedPartyMatches;
-    }
-
-    private static bool UrisMatch(string? left, string? right)
-    {
-        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
-        {
-            return false;
-        }
-
-        return string.Equals(
-            left.TrimEnd('/'),
-            right.TrimEnd('/'),
-            StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool ShouldRefreshForRuntimeRestart(AuthenticationProperties? properties)
