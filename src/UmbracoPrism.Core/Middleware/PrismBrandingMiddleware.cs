@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using UmbracoPrism.Core;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Models;
 
@@ -259,9 +260,16 @@ public class PrismBrandingMiddleware(RequestDelegate next, ILogger<PrismBranding
         foreach (var (name, value) in overrides)
         {
             if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(value)) continue;
-            builder.Append(name.Trim());
+            var trimmedName = name.Trim();
+            var trimmedValue = value.Trim();
+            if (!PrismBrandingCssSafety.IsSafePropertyName(trimmedName) || !PrismBrandingCssSafety.IsSafeValue(trimmedValue))
+            {
+                continue;
+            }
+
+            builder.Append(trimmedName);
             builder.Append(':');
-            builder.Append(value.Trim());
+            builder.Append(trimmedValue);
             builder.Append(';');
         }
     }

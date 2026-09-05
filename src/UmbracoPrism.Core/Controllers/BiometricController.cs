@@ -49,7 +49,16 @@ public class BiometricController(
     /// and persists the credential record. Upserts if a record already exists for
     /// this tenant + device combination.
     /// </summary>
+    /// <remarks>
+    /// Explicit <c>PrismStrictIsolation</c> on top of the class-level cookie requirement:
+    /// this is a JSON API a device credential gets registered under, so a mismatched-tenant
+    /// principal should get a hard 403, not fall through to whatever anonymous behavior a
+    /// browser-facing page might reasonably have. Redundant with the automatic
+    /// OnValidatePrincipal check on the PrismMemberCookie scheme for the normal case — kept
+    /// here as an explicit, self-documenting backstop.
+    /// </remarks>
     [HttpPost("register")]
+    [Authorize(Policy = "PrismStrictIsolation")]
     public async Task<IActionResult> Register([FromBody] BiometricRegistrationRequest request)
     {
         if (!ModelState.IsValid)

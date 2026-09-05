@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
@@ -216,21 +218,50 @@ public class Phase1SecurityRegressionTests : IDisposable
     public void PrismVinylNotificationController_RequiresAdminAuthorization()
     {
         // SECURITY: Only admin users should be able to broadcast notifications.
-        // Current implementation has [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
-        // but does NOT enforce admin role.
+        // This asserts the specific policy on the specific action, not just "the class has
+        // some [Authorize] attribute" — that weaker check passed even before the admin-role
+        // requirement existed, and could never have caught this regressing.
+        var backInStockRequiresVinylAdmin = HasMethodAuthorizeAttributeWithPolicy<PrismVinylNotificationController>(
+            nameof(PrismVinylNotificationController.BackInStock), "RequireVinylAdmin");
 
-        // EXPECTED FIX: Add admin authorization policy or role check
+        backInStockRequiresVinylAdmin.Should().BeTrue(
+            "because any authenticated member (not just staff) could otherwise broadcast a " +
+            "notification to every member of the tenant");
+    }
 
-        // Strategy: We can't fully test without the fix in place, but we document
-        // the requirement and verify the controller has SOME authorization.
+    [Fact]
+    public async Task RequireVinylAdmin_DoesNotSucceed_ForMemberWithoutVinylAdminRole()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "member-1"), new Claim("role", "user")],
+            "Test", nameType: ClaimTypes.NameIdentifier, roleType: "role"));
 
-        var hasAuthorizeAttribute = HasAuthorizeAttribute<PrismVinylNotificationController>();
+        var requirement = new RolesAuthorizationRequirement(["vinyl-admin"]);
+        var context = new AuthorizationHandlerContext([requirement], principal, resource: null);
 
-        hasAuthorizeAttribute.Should().BeTrue(
-            "because PrismVinylNotificationController must require authentication");
+        await requirement.HandleAsync(context);
 
-        // TODO: After Blathers adds admin policy, verify:
-        // [Authorize(Policy = "RequireAdminRole")] or similar
+        context.HasSucceeded.Should().BeFalse(
+            "because a plain authenticated member must not be able to broadcast Vinyl Vault notifications");
+    }
+
+    [Fact]
+    public async Task RequireVinylAdmin_Succeeds_ForMemberWithVinylAdminRole()
+    {
+        // Mirrors exactly the claim shape keycloak/realm-export.json's client-level
+        // "realm roles (flat)" protocol mapper produces: one "role" claim per realm role,
+        // not Keycloak's default nested realm_access.roles.
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "vinyl-admin-1"), new Claim("role", "user"), new Claim("role", "vinyl-admin")],
+            "Test", nameType: ClaimTypes.NameIdentifier, roleType: "role"));
+
+        var requirement = new RolesAuthorizationRequirement(["vinyl-admin"]);
+        var context = new AuthorizationHandlerContext([requirement], principal, resource: null);
+
+        await requirement.HandleAsync(context);
+
+        context.HasSucceeded.Should().BeTrue(
+            "because vinyl-admin@prism.local's realm role must grant broadcast access");
     }
 
     [Fact]
@@ -625,6 +656,17 @@ public class Phase1SecurityRegressionTests : IDisposable
     private static bool HasAuthorizeAttributeWithPolicy<T>(string policy)
     {
         return typeof(T)
+            .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
+            .Any(a => a.Policy == policy);
+    }
+
+    private static bool HasMethodAuthorizeAttributeWithPolicy<T>(string methodName, string policy)
+    {
+        var method = typeof(T).GetMethod(methodName)
+            ?? throw new ArgumentException($"No method named '{methodName}' found on {typeof(T)}.");
+
+        return method
             .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true)
             .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()
             .Any(a => a.Policy == policy);

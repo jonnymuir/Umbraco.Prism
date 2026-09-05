@@ -54,6 +54,21 @@
         "phone",
         "microprofile-jwt",
         "offline_access"
+      ],
+      "protocolMappers": [
+        {
+          "name": "realm roles (flat)",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "role"
+          }
+        }
       ]
     }
   ],
@@ -95,6 +110,26 @@
         "user",
         "offline_access"
       ]
+    },
+    {
+      "username": "vinyl-admin@prism.local",
+      "email": "vinyl-admin@prism.local",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Vinyl",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "user",
+        "offline_access",
+        "vinyl-admin"
+      ]
     }
   ],
   "roles": {
@@ -106,6 +141,10 @@
       {
         "name": "offline_access",
         "description": "Offline access role"
+      },
+      {
+        "name": "vinyl-admin",
+        "description": "Can broadcast back-in-stock notifications for the Vinyl Vault demo"
       }
     ]
   },

@@ -27,7 +27,14 @@ public class PrismVinylNotificationController(
     /// If genre is provided, sends to genre subscribers; otherwise sends to all members.
     /// The tenant is determined from the authenticated user's session, not from request data.
     /// </summary>
+    /// <remarks>
+    /// Broadcasting to every member/subscriber of a tenant is a staff action — the class-level
+    /// PrismMemberCookie requirement alone would let any authenticated member trigger this.
+    /// "RequireVinylAdmin" additionally requires the "vinyl-admin" realm role (see
+    /// keycloak/realm-export.json).
+    /// </remarks>
     [HttpPost("back-in-stock")]
+    [Authorize(Policy = "RequireVinylAdmin")]
     public async Task<IActionResult> BackInStock([FromBody] PrismVinylBackInStockRequest request)
     {
         if (string.IsNullOrWhiteSpace(request?.VinylTitle))

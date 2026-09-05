@@ -43,6 +43,7 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IRefreshTokenEncryptionService, RefreshTokenEncryptionService>();
         builder.Services.AddSingleton<IExchangeRateLimitService, ExchangeRateLimitService>();
         builder.Services.AddSingleton<INotificationRateLimitService, NotificationRateLimitService>();
+        builder.Services.AddSingleton<IPrismTenantBindingValidator, PrismTenantBindingValidator>();
         builder.Services.AddScoped<IPrismContext, PrismContext>();
         builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
         builder.Services.AddScoped<IPrismNotificationService, PrismNotificationService>();
@@ -85,7 +86,11 @@ public class PrismComposer : IComposer
         });
 
         // 4. Authorization Handler
-        builder.Services.AddSingleton<IAuthorizationHandler, PrismTenantHandler>();
+        // PrismTenantHandler is Scoped, not Singleton: it now constructor-injects the Scoped
+        // IPrismContext directly (resolved once per request by ASP.NET Core's authorization
+        // system, not captured at construction), rather than reaching through
+        // IHttpContextAccessor as the old Entra-only implementation did.
+        builder.Services.AddScoped<IAuthorizationHandler, PrismTenantHandler>();
         builder.Services.AddSingleton<IAuthorizationHandler, PrismAdminHandler>();
 
         // 5. Dynamic OIDC Config & Credential Provider
@@ -122,6 +127,31 @@ public class PrismComposer : IComposer
             cookieOptions.LoginPath = "/auth/login";
             cookieOptions.Cookie.SameSite = SameSiteMode.Lax;
             cookieOptions.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+
+            // Tenant-binding enforcement, applied automatically to every PrismMemberCookie
+            // request, not opt-in per controller. Runs on every request that carries the
+            // cookie; PrismTenantMiddleware (registered as a PrePipeline filter, above any
+            // Umbraco middleware including this one) has already resolved IPrismContext.CurrentTenant
+            // by the time this fires. A principal whose own tenant claims don't match the
+            // hostname-resolved tenant is rejected — the request continues as anonymous rather
+            // than as the wrong tenant's member. Endpoints that want a hard 403 instead of an
+            // anonymous fallback declare the "PrismStrictIsolation" policy explicitly on top
+            // of this (see PrismTenantHandler), sharing the same IPrismTenantBindingValidator
+            // check rather than reimplementing it.
+            cookieOptions.Events.OnValidatePrincipal = context =>
+            {
+                var validator = context.HttpContext.RequestServices.GetRequiredService<IPrismTenantBindingValidator>();
+                var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
+
+                if (prismContext.CurrentTenant is null ||
+                    context.Principal is null ||
+                    !validator.IsBound(context.Principal, prismContext.CurrentTenant))
+                {
+                    context.RejectPrincipal();
+                }
+
+                return Task.CompletedTask;
+            };
         }, openIdConnectScheme: "PrismEntraID", cookieScheme: "PrismMemberCookie")
         .EnableTokenAcquisitionToCallDownstreamApi()
         .AddInMemoryTokenCaches();

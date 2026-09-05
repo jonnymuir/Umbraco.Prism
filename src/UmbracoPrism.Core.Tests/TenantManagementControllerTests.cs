@@ -239,6 +239,118 @@ public class TenantManagementControllerTests
         db.Verify(database => database.Insert(It.IsAny<PrismTenantSchema>()), Times.Never);
     }
 
+    [Fact]
+    public void CreateTenant_RejectsVaultSecretName_AlreadyUsedByAnotherTenant()
+    {
+        // SECURITY: SecretVaultService caches/fetches Key Vault secrets under a key built
+        // purely from the secret name (Prism_Secret_{secretName}), with no tenant
+        // discriminator. Two tenants sharing a name would silently share one cache entry
+        // and one vault secret.
+        var existingTenants = new List<PrismTenantSchema>
+        {
+            new()
+            {
+                Id = 1,
+                Name = "Acme A",
+                Hostname = "acme-a.example",
+                EntraTenantId = "entra-a",
+                EntraClientId = "client-a",
+                SecretKeyName = "shared-secret-name"
+            }
+        };
+
+        var request = new PrismTenantRequest
+        {
+            Name = "Acme B",
+            Hostname = "acme-b.example",
+            EntraTenantId = "entra-b",
+            EntraClientId = "client-b",
+            SecretKeyName = "shared-secret-name"
+        };
+
+        var (controller, db, tenantService, _) = BuildController(database =>
+        {
+            database.Setup(d => d.Fetch<PrismTenantSchema>()).Returns(existingTenants);
+        });
+
+        var result = controller.CreateTenant(request).Should().BeOfType<BadRequestObjectResult>().Subject;
+
+        result.Value.Should().NotBeNull();
+        db.Verify(database => database.Insert(It.IsAny<PrismTenantSchema>()), Times.Never);
+        tenantService.Verify(service => service.InvalidateDomain(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void CreateTenant_RejectsVaultSecretName_AlreadyUsedAsGenericOidcKeyVaultReference()
+    {
+        // Same collision, the other direction: an Entra tenant's SecretKeyName colliding with
+        // a generic-OIDC tenant's Key Vault OidcClientSecretReference — both resolve through
+        // the identical cache key, so both directions must be checked.
+        var existingTenants = new List<PrismTenantSchema>
+        {
+            new()
+            {
+                Id = 1,
+                Name = "Northwind",
+                Hostname = "northwind.example",
+                OidcAuthority = "https://auth.example.com/realms/northwind",
+                OidcClientId = "northwind-portal",
+                OidcClientSecretProvider = PrismSecretProviderNames.AzureKeyVault,
+                OidcClientSecretReference = "shared-secret-name"
+            }
+        };
+
+        var request = new PrismTenantRequest
+        {
+            Name = "Acme B",
+            Hostname = "acme-b.example",
+            EntraTenantId = "entra-b",
+            EntraClientId = "client-b",
+            SecretKeyName = "shared-secret-name"
+        };
+
+        var (controller, db, _, _) = BuildController(database =>
+        {
+            database.Setup(d => d.Fetch<PrismTenantSchema>()).Returns(existingTenants);
+        });
+
+        controller.CreateTenant(request).Should().BeOfType<BadRequestObjectResult>();
+        db.Verify(database => database.Insert(It.IsAny<PrismTenantSchema>()), Times.Never);
+    }
+
+    [Fact]
+    public void UpdateTenant_AllowsKeepingItsOwnExistingVaultSecretName()
+    {
+        // A tenant re-saving its own unchanged SecretKeyName must not collide with itself.
+        var existing = new PrismTenantSchema
+        {
+            Id = 1,
+            Name = "Acme A",
+            Hostname = "acme-a.example",
+            EntraTenantId = "entra-a",
+            EntraClientId = "client-a",
+            SecretKeyName = "acme-a-secret"
+        };
+
+        var request = new PrismTenantRequest
+        {
+            Name = "Acme A",
+            Hostname = "acme-a.example",
+            EntraTenantId = "entra-a",
+            EntraClientId = "client-a",
+            SecretKeyName = "acme-a-secret"
+        };
+
+        var (controller, db, _, _) = BuildController(database =>
+        {
+            database.Setup(d => d.SingleOrDefaultById<PrismTenantSchema>(1)).Returns(existing);
+            database.Setup(d => d.Fetch<PrismTenantSchema>()).Returns([existing]);
+        });
+
+        controller.UpdateTenant(1, request).Should().BeOfType<OkObjectResult>();
+        db.Verify(database => database.Update(It.IsAny<PrismTenantSchema>()), Times.Once);
+    }
+
     private static (
         TenantManagementController Controller,
         Mock<IUmbracoDatabase> Db,

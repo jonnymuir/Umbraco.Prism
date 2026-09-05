@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Moq;
+using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
@@ -449,7 +450,7 @@ public class BackchannelRewriteTests
                 (endpoint, _, _, _) => onRefreshCall(endpoint))
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
         {
             CurrentTenant = new PrismTenant
             {
@@ -684,7 +685,7 @@ public class BackchannelRewriteTests
                 (_, _, _, headers) => onHeaders(headers))
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
         {
             CurrentTenant = new PrismTenant
             {

@@ -173,7 +173,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
                 capturedFormData = form)
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
         {
             CurrentTenant = LocalhostKeycloakTenant
         };
@@ -230,7 +230,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
                 capturedEndpoint = endpoint)
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
         {
             CurrentTenant = LocalhostKeycloakTenant
         };
@@ -277,7 +277,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
 
         var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object)
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
         {
             CurrentTenant = LocalhostKeycloakTenant
         };

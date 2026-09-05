@@ -122,6 +122,16 @@ public class TestSiteComposer : IComposer
         {
             options.AddPolicy(WayfinderUmbracoAuthorizationPolicies.ServiceRequestPolling, policy =>
                 policy.RequireAuthenticatedUser());
+
+            // Vinyl Vault demo: broadcasting a back-in-stock notification is a staff action,
+            // not something every authenticated member should be able to trigger. The
+            // "vinyl-admin" realm role is mapped into a flat "role" claim by the client's own
+            // protocol mapper in keycloak/realm-export.json (Keycloak's default "roles" client
+            // scope only produces nested realm_access.roles, which ASP.NET Core's role-claim
+            // checks don't unpack) — see vinyl-admin@prism.local in that same file for the demo
+            // account holding this role.
+            options.AddPolicy("RequireVinylAdmin", policy =>
+                policy.RequireRole("vinyl-admin"));
         });
 
         // Explicit capability contract for both queues — matches Wayfinder.Umbraco's own generic
