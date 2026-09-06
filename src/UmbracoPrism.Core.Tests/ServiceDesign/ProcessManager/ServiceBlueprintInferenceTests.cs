@@ -150,7 +150,7 @@ public class ServiceBlueprintInferenceTests
 
         while (current is not null)
         {
-            if (File.Exists(Path.Combine(current.FullName, "UmbracoPrism.sln")))
+            if (File.Exists(Path.Combine(current.FullName, "UmbracoPrism.slnx")))
             {
                 return Path.Combine(current.FullName, "src", "UmbracoPrism.MockBusinessApp", "service-blueprints", fileName);
             }

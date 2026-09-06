@@ -27,7 +27,7 @@ Core conventions that repeatedly affect delivery quality in this repo.
 
 ### Testing
 
-- .NET validation runs through `dotnet build UmbracoPrism.sln` and `dotnet test UmbracoPrism.sln`.
+- .NET validation runs through `dotnet build UmbracoPrism.slnx` and `dotnet test UmbracoPrism.slnx`.
 - Core automated tests currently live in `src/UmbracoPrism.Core.Tests`.
 
 ### Code Style

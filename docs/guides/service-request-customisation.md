@@ -135,7 +135,7 @@ For deeper customization, changing HTML structure, adding custom elements, reorg
 
 ### Shell Partials
 
-The shell rendered for a stage is inferred from its authored components (see [Client rendering](../design/service-request-forms-engine-client.md#shell-selection)), not authored as a separate field:
+The shell rendered for a stage is inferred from its authored components (see [Client rendering](../archive/service-request-forms-engine-client.md#shell-selection)), not authored as a separate field:
 
 | Shell | Partial |
 | --- | --- |

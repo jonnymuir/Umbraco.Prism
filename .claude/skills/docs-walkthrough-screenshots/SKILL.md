@@ -41,7 +41,7 @@ Use this when documentation work needs fresh screenshots of the real Umbraco.Pri
 
 ### Follow the seeded login flow
 
-- The local demo credentials and walkthrough bootstrap are documented in `ASPIRE_DEV.md`.
+- The local demo credentials and walkthrough bootstrap are documented in `docs/ASPIRE_DEV.md`.
 - Default seeded demo user:
   - `demo@prism.local` / `password`
 - Use the existing Playwright tests to understand:

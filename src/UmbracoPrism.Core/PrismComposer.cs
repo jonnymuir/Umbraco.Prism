@@ -51,18 +51,16 @@ public class PrismComposer : IComposer
             builder.Config.GetSection(PrismConfiguration.SectionName));
         // 3. Middleware Registration
         // ForwardedHeaders must run before any middleware that reads RemoteIpAddress
-        // (e.g. biometric rate limiting in BiometricController).
-        // PRODUCTION: configure KnownProxies / KnownIPNetworks to restrict which upstream
-        // proxies are trusted to supply X-Forwarded-For (see ForwardedHeadersOptions docs).
-        builder.Services.Configure<ForwardedHeadersOptions>(options =>
-        {
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            // Clear default loopback-only network restrictions so ForwardedHeadersMiddleware
-            // processes the header when running behind any proxy. Deployments SHOULD
-            // restrict this to known proxy CIDRs via KnownIPNetworks before going to production.
-            options.KnownIPNetworks.Clear();
-            options.KnownProxies.Clear();
-        });
+        // (e.g. biometric rate limiting in BiometricController). Trust is opt-in, via
+        // Prism:ForwardedHeaders (see PrismForwardedHeadersOptions) — ASP.NET Core's own
+        // loopback-only default applies to any address a deployment doesn't explicitly name,
+        // so RemoteIpAddress stays trustworthy (and the biometric-exchange rate limiter
+        // meaningful) until a deployment actually sits behind a real, named proxy.
+        builder.Services.Configure<PrismForwardedHeadersOptions>(
+            builder.Config.GetSection(PrismForwardedHeadersOptions.SectionName));
+        builder.Services.AddOptions<ForwardedHeadersOptions>()
+            .Configure<IOptions<PrismForwardedHeadersOptions>>(
+                (options, prismOptions) => prismOptions.Value.ApplyTo(options));
 
         // SEC-PT2-004: Security response headers — configurable via Prism:SecurityHeaders.
         // Defaults: X-Content-Type-Options, X-Frame-Options (SAMEORIGIN), Referrer-Policy,

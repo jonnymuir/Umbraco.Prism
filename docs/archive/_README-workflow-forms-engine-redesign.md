@@ -4,11 +4,13 @@
 
 This document (`workflow-forms-engine-redesign.md`) was the v1→v2 transition plan proposing the shift from flat `fields[]` arrays to polymorphic component trees. It has been **fully implemented** in v2.0 and is archived here for historical context.
 
-**For current v2 architecture,** see:
-- [service-request-forms-engine.md](../design/service-request-forms-engine.md) - Current v2 architecture
-- [service-request-forms-engine-backend.md](../design/service-request-forms-engine-backend.md) - Backend implementation
-- [service-request-forms-engine-client.md](../design/service-request-forms-engine-client.md) - Client rendering
-- [Walkthroughs](../walkthroughs/) - Live examples of service blueprints
+**For the v2 architecture this proposal became,** now itself archived alongside this document
+since the service-blueprint engine moved entirely to [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder)/[`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)
+(see `docs/design/README.md`), see:
+- [service-request-forms-engine.md](./service-request-forms-engine.md) - v2 architecture as it stood in this repo
+- [service-request-forms-engine-backend.md](./service-request-forms-engine-backend.md) - Backend implementation
+- [service-request-forms-engine-client.md](./service-request-forms-engine-client.md) - Client rendering
+- [Walkthroughs](../walkthroughs/) - Live examples of service blueprints (current)
 
 **What changed from this proposal:**
 - ✅ Polymorphic component model implemented as proposed

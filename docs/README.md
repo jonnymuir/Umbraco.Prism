@@ -29,11 +29,13 @@ Comprehensive guide to the CSS variable annotation system. Learn the `@property`
 ### [Cloudflare Maintenance Pages](cloudflare-maintenance.md)
 Handle backend downtime at the edge. Custom error pages or Workers for branded maintenance pages. Separate responses for browser vs mobile app users.
 
-### [Reference Service Blueprint Contract](guides/reference-service-blueprint-contract.md)
-The `ServiceBlueprint` JSON contract: states, routes, gateways, queues, components, and response states, the shape every service blueprint is authored in, by a human or an AI agent.
-
-### [The Wayfinder Calculation Language](guides/calculation-language.md)
-Grammar, functions, tables/series, and `showWhen` for the declarative expression language behind service blueprint calculations.
+### The service-blueprint engine itself
+Moved entirely to [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder) and
+[`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) — see those repos'
+own `docs/guides/reference-service-blueprint-contract.md` and `docs/guides/calculation-language.md`
+for the `ServiceBlueprint` JSON contract and the calculation language. The stubs at
+`guides/reference-service-blueprint-contract.md`/`guides/calculation-language.md` in this repo
+just point there.
 
 ---
 
@@ -44,9 +46,9 @@ Push notification architecture: device registration, subscription management, co
 
 ---
 
-## Design Documents & Package Guides
+## Design Documents
 
-These documents cover architecture and implementation details. Some are contributor-focused internal references; the service blueprint set is now organised as package-consumer implementation guidance.
+Contributor-focused internal references.
 
 ### [Notifications Architecture](design/notifications-architecture.md)
 **Internal design:** System layers, FCM integration, tenant isolation, and notification delivery pipeline.
@@ -61,7 +63,8 @@ These documents cover architecture and implementation details. Some are contribu
 **Internal design:** Umbraco content hooks, notification handlers, and Vinyl Vault demo site architecture.
 
 ### [Service Blueprint package design docs](design/README.md)
-**Package guide:** Start here for the current service blueprint architecture, implementation story, backend contracts, Umbraco integration, validation, security, and advanced authoring patterns.
+**Archived:** the service-blueprint engine these docs described moved entirely to
+[`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder)/[`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) — see that page for where the live docs are now.
 
 ---
 

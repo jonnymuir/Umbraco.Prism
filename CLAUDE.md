@@ -47,13 +47,13 @@ Wayfinder package, for its own demo-queue implementation.
 
 ```bash
 # Build everything
-dotnet build UmbracoPrism.sln
+dotnet build UmbracoPrism.slnx
 
 # Run unit tests
 dotnet test src/UmbracoPrism.Core.Tests/
 
 # Run unit tests (Release, full filter)
-dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
+dotnet test UmbracoPrism.slnx -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
 
 # Vulnerability scan
 dotnet list src/UmbracoPrism.Core/UmbracoPrism.Core.csproj package --vulnerable --include-transitive

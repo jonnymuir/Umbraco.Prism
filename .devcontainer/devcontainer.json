@@ -16,7 +16,7 @@
   },
   "postCreateCommand": "bash .devcontainer/on-create.sh",
   "postStartCommand": "bash .devcontainer/on-start.sh",
-  "postAttachCommand": "code CODESPACES.md",
+  "postAttachCommand": "code docs/CODESPACES.md",
   "forwardPorts": [
     3000,
     17214,
@@ -74,7 +74,7 @@
   "customizations": {
     "codespaces": {
       "openFiles": [
-        "CODESPACES.md"
+        "docs/CODESPACES.md"
       ]
     },
     "vscode": {
@@ -85,7 +85,7 @@
       "settings": {
         "workbench.startupEditor": "none",
         "workbench.editorAssociations": {
-          "**/CODESPACES.md": "vscode.markdown.preview.editor"
+          "**/docs/CODESPACES.md": "vscode.markdown.preview.editor"
         }
       }
     }
