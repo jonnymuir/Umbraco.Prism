@@ -66,7 +66,7 @@ Umbraco talks to your business app via `IBusinessAppProcessManagerClient`
 
 The bearer token from the authenticated member's session is forwarded automatically,
 your business app resolves tenant/user identity from its claims, not from anything in the
-request body (see [security guarantees](../design/service-request-forms-engine-security.md)).
+request body (see [security guarantees](../archive/service-request-forms-engine-security.md)).
 
 Every response is a `ServiceRequestResponseEnvelope` (`Wayfinder.Models.ServiceDesign`):
 `InstanceId`, `ResponseState` (`render` / `defer` / `complete` / `error`, plus

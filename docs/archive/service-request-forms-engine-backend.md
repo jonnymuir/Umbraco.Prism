@@ -78,4 +78,4 @@ Your production business app should preserve the same responsibilities as `Busin
 - [Reference Service Blueprint Contract](../guides/reference-service-blueprint-contract.md)
 - [Building a service blueprint](./service-request-forms-engine-demo.md)
 - [Client rendering](./service-request-forms-engine-client.md)
-- [Service Request Hub and conditional fields](./service-request-hub-and-conditional-fields.md)
+- [Service Request Hub and conditional fields](../design/service-request-hub-and-conditional-fields.md)

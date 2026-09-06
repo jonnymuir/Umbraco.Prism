@@ -123,4 +123,4 @@ This matters most when you use:
 
 - [Backend authoring and contracts](./service-request-forms-engine-backend.md)
 - [Umbraco integration](./service-request-forms-engine-umbraco.md)
-- [Service Request Hub and conditional fields](./service-request-hub-and-conditional-fields.md)
+- [Service Request Hub and conditional fields](../design/service-request-hub-and-conditional-fields.md)

@@ -84,4 +84,4 @@ Keep any reviewer or admin surface behind your real authorization model.
 
 - [Validation](./service-blueprint-validation.md)
 - [Umbraco integration](./service-request-forms-engine-umbraco.md)
-- [Service Request Hub and conditional fields](./service-request-hub-and-conditional-fields.md)
+- [Service Request Hub and conditional fields](../design/service-request-hub-and-conditional-fields.md)
