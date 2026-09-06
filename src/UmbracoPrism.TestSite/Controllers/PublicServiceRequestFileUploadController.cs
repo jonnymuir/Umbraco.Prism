@@ -54,11 +54,7 @@ public class PublicServiceRequestFileUploadController(
         var userId = options.ResolveUserId(HttpContext);
         var accessProfile = options.ResolveAccessProfile!(HttpContext);
 
-        // TODO: Wayfinder.Umbraco's IStageNonceService.ResolveAsync now takes (nonce, instanceId,
-        // userId, ct) and binds the nonce to both — pass instanceId/userId here once this repo
-        // upgrades past Wayfinder.Umbraco 0.8.3 (see that repo's StageNonceService for the fix).
-        // Until then, IsOwnedInstance below is still the real access boundary for this endpoint.
-        var authoritativeFields = await nonceService.ResolveAsync(nonce, cancellationToken);
+        var authoritativeFields = await nonceService.ResolveAsync(nonce, instanceId, userId, cancellationToken);
         var field = authoritativeFields?.FirstOrDefault(f =>
             f.FieldKey.Equals(fieldKey, StringComparison.Ordinal)
             && f.FieldType.Equals("file-upload", StringComparison.OrdinalIgnoreCase));
