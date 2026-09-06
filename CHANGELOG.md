@@ -2,6 +2,15 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v5.0.1] — 2026-09-06
+
+### Bug Fixes & Improvements
+
+- Fixes a security default: forwarded-header trust (`X-Forwarded-For`) used to be unconditionally enabled for every proxy, letting a client spoof its own IP address past anything that reads it (for example, the anonymous biometric-exchange rate limiter). Trusting a proxy is now opt-in via `Prism:ForwardedHeaders` config — if you deploy behind a real reverse proxy and rely on the original client IP being visible, set `KnownProxies`/`KnownNetworks` there.
+- The reference site (`UmbracoPrism.TestSite`) now targets `Wayfinder.Umbraco` 1.0.0 and `Wayfinder`/`Wayfinder.Engine` 0.9.2 — if you're following it as a pattern for your own host, match those versions.
+
+---
+
 ## [v4.0.0] — 2026-08-21
 
 ### Breaking Changes
