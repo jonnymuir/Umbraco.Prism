@@ -55,7 +55,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Run core tests
-        run: dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
+        run: dotnet test UmbracoPrism.slnx -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
 
   localhost-auth-playwright:
     runs-on: ubuntu-latest

@@ -1,0 +1,17 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj" />
+    <Project Path="src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj" />
+    <Project Path="src/UmbracoPrism.Core/UmbracoPrism.Core.csproj" />
+    <Project Path="src/UmbracoPrism.KeycloakProxy/UmbracoPrism.KeycloakProxy.csproj" />
+    <Project Path="src/UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj" />
+    <Project Path="src/UmbracoPrism.ServiceDefaults/UmbracoPrism.ServiceDefaults.csproj" />
+    <Project Path="src/UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj" />
+    <Project Path="src/UmbracoPrism.uSync/UmbracoPrism.uSync.csproj" />
+  </Folder>
+</Solution>

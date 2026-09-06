@@ -93,7 +93,7 @@ Run these in order and stop if either fails:
 npm run check:marketplace
 ```
 ```bash
-dotnet test UmbracoPrism.sln -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
+dotnet test UmbracoPrism.slnx -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
 ```
 
 Fix any failures before proceeding.

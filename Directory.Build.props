@@ -1,5 +1,25 @@
 <Project>
   <PropertyGroup>
     <UmbracoVersion>17.5.3</UmbracoVersion>
+    <!-- Must match whatever Umbraco.Cms.Api.Management ($(UmbracoVersion)) itself references — a
+         higher version wins assembly-conflict resolution at build time but isn't actually present
+         at runtime in a host app, since Umbraco's own dependency is what's really on disk
+         (confirmed live, in the sibling Wayfinder.Umbraco repo: 2.7.5 throws FileNotFoundException
+         at startup against a real Umbraco 17.5.3 host, which ships 2.4.1 — the same version this
+         repo's own UmbracoPrism.TestSite ships as a host, and the same host Wayfinder.Umbraco is
+         installed into here). Stated once so every csproj that needs to compile against it can
+         only ever agree. 2.4.1 carries a known high-severity advisory (GHSA-v5pm-xwqc-g5wc, a
+         resource-exhaustion issue in OpenAPI document parsing); accepted here because nothing in
+         this estate parses an untrusted OpenAPI document at runtime with this dependency — it's
+         compile-time-only (PrivateAssets="all") to satisfy Umbraco's own transitive API surface.
+         Revisit once Umbraco.Cms.Api.Management itself moves off 2.4.1. -->
+    <MicrosoftOpenApiVersion>2.4.1</MicrosoftOpenApiVersion>
+  </PropertyGroup>
+
+  <!-- Ship the existing /// XML doc comments to consumers of the publishable package. Stage 1:
+       don't block the build on undocumented public members yet (CS1591). -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 </Project>
