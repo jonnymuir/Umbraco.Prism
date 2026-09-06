@@ -45,7 +45,7 @@ Use this when Prism or another ASP.NET Core app supports both Entra and generic 
 
 - `src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs` now uses `GetRequestedScope(tenant)` so generic OIDC tenants request `openid profile`, while Entra tenants keep `openid profile offline_access {clientId}/.default`.
 - `src/UmbracoPrism.Core.Tests/PrismOidcConfigurationTests.cs` asserts the scope split directly.
-- `ASPIRE_DEV.md` documents that the local Keycloak demo does not require offline-token grants.
+- `docs/ASPIRE_DEV.md` documents that the local Keycloak demo does not require offline-token grants.
 
 ## Anti-Patterns
 

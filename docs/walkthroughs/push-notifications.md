@@ -4,7 +4,7 @@ A complete guide to the Prism push notification system: from VAPID key generatio
 
 > **Note:** This walkthrough consolidates guidance from [`docs/PUSH_SETUP.md`](../PUSH_SETUP.md), [`docs/notifications-design.md`](../notifications-design.md), and the architecture docs in `docs/design/notifications-*.md`. Architecture decisions and technology rationale are explained in those documents, this walkthrough focuses on the operational steps. Where relevant, links point back to the source material rather than repeating it.
 
-> **Prerequisites:** Stack running. See [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup). For native mobile push, also complete the native setup steps in [`docs/PUSH_SETUP.md`](../PUSH_SETUP.md).
+> **Prerequisites:** Stack running. See [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#quick-start-local). For native mobile push, also complete the native setup steps in [`docs/PUSH_SETUP.md`](../PUSH_SETUP.md).
 
 ---
 

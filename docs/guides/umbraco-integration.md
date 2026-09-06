@@ -126,7 +126,7 @@ MockBusinessApp demonstrates the pattern. Your business app is analogous.
 1. **Read the embedding guide:** [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md)
 2. **Explore the reference implementation:** `src/UmbracoPrism.MockBusinessApp/`
 3. **Set up your first service blueprint:** [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md)
-4. **Understand the runtime model:** [Runtime Projection](../design/service-blueprint-editor-v1/02-runtime-projection.md)
+4. **Understand the runtime model:** [Runtime Projection](../archive/service-blueprint-editor-v1/02-runtime-projection.md)
 
 ---
 

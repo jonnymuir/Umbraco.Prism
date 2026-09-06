@@ -135,6 +135,6 @@ No. The repo-owned Keycloak tenant remains self-contained for local development.
 
 ## See Also
 
-- [ASPIRE_DEV.md](../ASPIRE_DEV.md)
+- [ASPIRE_DEV.md](ASPIRE_DEV.md)
 - [README.md](../README.md)
 - [Umbraco Setup](umbraco-setup.md)

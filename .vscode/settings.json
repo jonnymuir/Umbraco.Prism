@@ -8,6 +8,6 @@
   // before devcontainer customizations). This is especially important in Codespaces where the
   // postAttachCommand may run before customizations.vscode.settings is fully applied.
   "workbench.editorAssociations": {
-    "CODESPACES.md": "vscode.markdown.preview.editor"
+    "docs/CODESPACES.md": "vscode.markdown.preview.editor"
   }
 }

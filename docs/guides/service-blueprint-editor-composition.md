@@ -217,6 +217,6 @@ This is a power-user feature for copy-paste, quick edits, and diffing, there is 
 ## Next Steps
 
 1. **Implement `ServiceBlueprintSource`:** See [Embedding the Service Blueprint Editor](./embedding-the-service-blueprint-editor.md)
-2. **Review the editor design:** Understand what the editor can do and what it can't in [Service Blueprint Editor V1 Design](../design/service-blueprint-editor-v1/README.md)
+2. **Review the editor design:** Understand what the editor can do and what it can't in [Service Blueprint Editor V1 Design](../archive/service-blueprint-editor-v1/README.md)
 3. **Configure actions and forms:** Document your action catalog and forms engine integration for authors
 4. **Test the service blueprint:** Use the editor's built-in validation and simulation features to verify your definitions

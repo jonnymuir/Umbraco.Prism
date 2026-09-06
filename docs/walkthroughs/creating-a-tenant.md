@@ -2,7 +2,7 @@
 
 A step-by-step guide to adding a new tenant in the Umbraco backoffice, binding it to a hostname, configuring its OIDC authority, and verifying that the Prism middleware routes requests to it correctly.
 
-> **Prerequisites:** The Prism stack is running. See [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup). You should also be familiar with the core concepts in [docs/umbraco-setup.md](../umbraco-setup.md).
+> **Prerequisites:** The Prism stack is running. See [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#quick-start-local). You should also be familiar with the core concepts in [docs/umbraco-setup.md](../umbraco-setup.md).
 
 ---
 

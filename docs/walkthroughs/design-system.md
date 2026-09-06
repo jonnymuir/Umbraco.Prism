@@ -2,7 +2,7 @@
 
 An exploration of how Prism's design system works end-to-end: from GDS-aligned Lit web components in Storybook, through the branding annotation system, to CSS variables that update live on the tenant's frontend, all without a rebuild.
 
-> **Prerequisites:** Stack running. See [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#try-the-demo--local-setup).
+> **Prerequisites:** Stack running. See [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#quick-start-local).
 
 ---
 
