@@ -1,0 +1,16 @@
+# Accepted NuGet security advisories.
+#
+# The vulnerable-NuGet gate (jonnymuir/ci-security) fails CI on any High/Critical
+# advisory that is NOT listed here. An entry is a deliberate, reviewed decision to ship
+# a known-vulnerable dependency for a stated reason, with a condition for removing it.
+#
+# Format: one advisory id (GHSA-… or CVE-…) at the start of the line, then a '#' and a
+# short reason including WHEN to revisit. Blank lines and full-line comments are ignored.
+#
+# Example:
+#   GHSA-xxxx-xxxx-xxxx  # <pkg> <ver>: compile-time only, no untrusted input reaches it.
+#                        # Revisit when <upstream> ships a fix (tracking: <link>).
+#
+# (empty — nothing is currently accepted. The gate only blocks High/Critical; the known
+#  AngleSharp 0.17.1 Moderate advisory, transitive via the Wayfinder.Umbraco package's
+#  HtmlSanitizer dependency, is reported but not blocking.)

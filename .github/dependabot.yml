@@ -1,0 +1,69 @@
+# Dependabot version updates. Security updates (PRs for a known CVE) are enabled
+# separately in repo settings and need no entry here.
+#
+# Weekly and grouped so a quiet week produces at most one PR per ecosystem. nuget.org is
+# the only feed (see NuGet.config). `cooldown` holds a newly published version back for
+# 7 days so a poisoned release has a window to be spotted and yanked before it reaches
+# a PR here.
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      dotnet:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      root:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: npm
+    directory: "/src/UmbracoPrism.Client"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      client:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: npm
+    directory: "/src/UmbracoPrism.TestSite"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      testsite:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
