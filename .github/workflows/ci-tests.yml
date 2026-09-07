@@ -6,14 +6,22 @@ on:
   push:
     branches: [ main ]
 
+# Least privilege by default; jobs opt into more only where they need it.
+permissions:
+  contents: read
+
 jobs:
   marketplace-description:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.17.1
 
@@ -22,14 +30,18 @@ jobs:
 
   storybook-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: src/UmbracoPrism.Client
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.17.1
           cache: 'npm'
@@ -46,11 +58,15 @@ jobs:
 
   core-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: '10.0.x'
 
@@ -60,21 +76,25 @@ jobs:
   localhost-auth-playwright:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: src/UmbracoPrism.Client
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.17.1
           cache: 'npm'
           cache-dependency-path: src/UmbracoPrism.Client/package-lock.json
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: '10.0.x'
 
@@ -111,7 +131,7 @@ jobs:
 
       - name: Upload Playwright artifacts on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-failure-artifacts
           path: |
@@ -120,15 +140,13 @@ jobs:
           retention-days: 7
 
   # Single aggregate check so branch protection only needs to name one required status
-  # check per workflow — same pattern as squad-ci.yml's own "all" job. Named distinctly
-  # (not "all") since that name is already taken by squad-ci.yml's job in the same
-  # required-status-checks namespace; two jobs named "all" from different workflows would
-  # be indistinguishable to branch protection.
+  # check for this workflow (`ci-tests-all`) rather than every job individually.
   all:
     name: ci-tests-all
     runs-on: ubuntu-latest
     needs: [marketplace-description, storybook-tests, core-tests, localhost-auth-playwright]
     if: always()
+    permissions: {}
     steps:
       - name: Decide whether checks have passed
         run: |
