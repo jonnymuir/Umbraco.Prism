@@ -1,19 +1,14 @@
 <Project>
   <PropertyGroup>
-    <UmbracoVersion>17.5.3</UmbracoVersion>
-    <!-- Must match whatever Umbraco.Cms.Api.Management ($(UmbracoVersion)) itself references — a
-         higher version wins assembly-conflict resolution at build time but isn't actually present
-         at runtime in a host app, since Umbraco's own dependency is what's really on disk
-         (confirmed live, in the sibling Wayfinder.Umbraco repo: 2.7.5 throws FileNotFoundException
-         at startup against a real Umbraco 17.5.3 host, which ships 2.4.1 — the same version this
-         repo's own UmbracoPrism.TestSite ships as a host, and the same host Wayfinder.Umbraco is
-         installed into here). Stated once so every csproj that needs to compile against it can
-         only ever agree. 2.4.1 carries a known high-severity advisory (GHSA-v5pm-xwqc-g5wc, a
-         resource-exhaustion issue in OpenAPI document parsing); accepted here because nothing in
-         this estate parses an untrusted OpenAPI document at runtime with this dependency — it's
-         compile-time-only (PrivateAssets="all") to satisfy Umbraco's own transitive API surface.
-         Revisit once Umbraco.Cms.Api.Management itself moves off 2.4.1. -->
-    <MicrosoftOpenApiVersion>2.4.1</MicrosoftOpenApiVersion>
+    <UmbracoVersion>17.6.2</UmbracoVersion>
+    <!-- Microsoft.OpenApi is deliberately NOT pinned in this estate: it flows transitively from
+         Umbraco.Cms.Api.Management ($(UmbracoVersion)) at the version Umbraco itself requires
+         (17.6.x → 2.9.0+, which clears GHSA-v5pm-xwqc-g5wc, the OpenAPI-parsing resource-exhaustion
+         advisory). A hand-maintained pin here would risk holding a version *below* Umbraco's own,
+         which then isn't on disk in a real host — 2.7.5 was confirmed live to throw
+         FileNotFoundException at startup against an Umbraco 17.5.3 host that shipped 2.4.1. Only
+         re-pin to jump *ahead* of Umbraco for a fix it hasn't picked up yet, PrivateAssets="all". -->
+
   </PropertyGroup>
 
   <!-- Ship the existing /// XML doc comments to consumers of the publishable package. Stage 1:
