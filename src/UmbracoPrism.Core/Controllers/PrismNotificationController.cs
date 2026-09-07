@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Core.Controllers.Models;
+using UmbracoPrism.Core.Logging;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 
@@ -109,7 +110,7 @@ public class PrismNotificationController(
         }
 
         await notificationService.SubscribeToGenreAsync(userId, tenantId, request.Genre);
-        logger.LogInformation("User {UserId} subscribed to genre '{Genre}' in tenant {TenantId}.", userId, request.Genre, tenantId);
+        logger.LogInformation("User {UserId} subscribed to genre '{Genre}' in tenant {TenantId}.", userId, LogScrub.Line(request.Genre), tenantId);
         return Ok();
     }
 
@@ -130,7 +131,7 @@ public class PrismNotificationController(
             return Unauthorized(new { error = "User identity or tenant context could not be determined." });
 
         await notificationService.UnsubscribeFromGenreAsync(userId, tenantId, request.Genre);
-        logger.LogInformation("User {UserId} unsubscribed from genre '{Genre}' in tenant {TenantId}.", userId, request.Genre, tenantId);
+        logger.LogInformation("User {UserId} unsubscribed from genre '{Genre}' in tenant {TenantId}.", userId, LogScrub.Line(request.Genre), tenantId);
         return Ok();
     }
 

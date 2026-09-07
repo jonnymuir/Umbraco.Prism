@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Cache;
 using Umbraco.Cms.Infrastructure.Persistence;
 using Umbraco.Extensions;
+using UmbracoPrism.Core.Logging;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Persistence;
 using UmbracoPrism.Core;
@@ -136,8 +137,8 @@ public class TenantService : ITenantService
 
         _logger.LogInformation(
             "Prism tenant cache invalidated for domain '{Domain}'. Reason: {Reason}",
-            normalizedDomain,
-            reason);
+            LogScrub.Line(normalizedDomain),
+            LogScrub.Line(reason));
     }
 
     /// <inheritdoc />

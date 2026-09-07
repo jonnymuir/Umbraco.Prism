@@ -8,34 +8,38 @@ name: Capture Walkthrough Screenshots
 on:
   workflow_dispatch:
 
-# Write access lets the job commit the screenshots back to the branch.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   capture-screenshots:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write   # the job commits the regenerated screenshots back to the branch
     defaults:
       run:
         working-directory: src/UmbracoPrism.Client
 
     steps:
-      - uses: actions/checkout@v4
+      # persist-credentials stays true here on purpose — the final step does `git push`.
+      # zizmor's artipacked only matters if .git is uploaded as an artifact; the one
+      # upload-artifact step below is scoped to docs/images/walkthroughs/, so it isn't.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4 # zizmor: ignore[artipacked]
         with:
           # Fetch the branch (not a detached merge commit) so we can push back.
           ref: ${{ github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22.17.1
           cache: 'npm'
           cache-dependency-path: src/UmbracoPrism.Client/package-lock.json
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
 
@@ -72,7 +76,7 @@ jobs:
 
       - name: Upload screenshots as artifacts (always, for inspection)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: walkthrough-screenshots
           path: docs/images/walkthroughs/

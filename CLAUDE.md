@@ -8,7 +8,7 @@ The GDS-style service blueprint engine and its Umbraco-hosted implementation hav
 
 Building this repo from source restores against nuget.org only (`NuGet.config`), no token or secondary feed needed. The compiled service blueprint editor web component no longer has any local copy in this repo at all, `Wayfinder.Editor` and its own TS source now live entirely in the `Wayfinder` repo, consumed here purely as a transitive dependency of `Wayfinder.Umbraco`.
 
-Solo developer project. Work directly on `main` for simple fixes; use feature branches + PRs for substantive code changes.
+Solo developer project, but every change reaches `main` through a pull request. `main` is protected — required status checks, no admin bypass — and stays green at all times. No direct pushes.
 
 ---
 
@@ -207,7 +207,7 @@ OIDC via Keycloak. Stateless token handling; per-tenant JWKS validation; nonce h
 
 ### Branch policy
 
-Feature branches + PRs for substantive changes. Branch naming: `{type}/{issue-number}-{kebab-slug}` or descriptive. Direct commits to `main` for trivial fixes only.
+Every change goes through a feature branch + PR. Branch naming: `{type}/{issue-number}-{kebab-slug}` or descriptive. `main` is protected (required checks `security / security-all` and `ci-tests-all`, branch must be current before merge, no admin bypass) — there are no direct commits to `main`, however trivial. An emergency merge means deliberately, and visibly, disabling protection.
 
 ### Commit conventions
 

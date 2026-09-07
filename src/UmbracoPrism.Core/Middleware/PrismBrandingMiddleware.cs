@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Core;
 using UmbracoPrism.Core.Extensions;
+using UmbracoPrism.Core.Logging;
 using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Middleware;
@@ -41,7 +42,7 @@ public class PrismBrandingMiddleware(RequestDelegate next, ILogger<PrismBranding
             injectBiometricAutoLogin = !injectBiometricEnroll;
             logger.LogInformation(
                 "Prism biometric gate [{Path}]: mobile={Mobile} (source={MobileSource}) allowBiometric={AllowBiometric} authSucceeded={AuthSucceeded} isAuthenticated={IsAuthenticated} => injectEnroll={InjectEnroll} injectAutoLogin={InjectAutoLogin}",
-                context.Request.Path,
+                LogScrub.Line(context.Request.Path.ToString()),
                 isPrismMobileRequest,
                 mobileSource,
                 tenant?.AllowBiometricLogin ?? false,
@@ -54,7 +55,7 @@ public class PrismBrandingMiddleware(RequestDelegate next, ILogger<PrismBranding
         {
             logger.LogDebug(
                 "Prism biometric gate [{Path}]: mobile={Mobile} (source={MobileSource}) allowBiometric={AllowBiometric} — skipping auth check",
-                context.Request.Path,
+                LogScrub.Line(context.Request.Path.ToString()),
                 isPrismMobileRequest,
                 mobileSource,
                 tenant?.AllowBiometricLogin ?? false);
