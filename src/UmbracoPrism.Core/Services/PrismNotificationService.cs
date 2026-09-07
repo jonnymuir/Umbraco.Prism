@@ -4,6 +4,7 @@ using Google.Apis.Auth.OAuth2;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Infrastructure.Persistence;
+using UmbracoPrism.Core.Logging;
 using UmbracoPrism.Core.Persistence;
 
 namespace UmbracoPrism.Core.Services;
@@ -188,7 +189,7 @@ public class PrismNotificationService : IPrismNotificationService
         {
             _logger.LogWarning(
                 "FCM is not initialised (Prism:Firebase:CredentialJson not configured). " +
-                "Notification not sent (title: {Title}).", title);
+                "Notification not sent (title: {Title}).", LogScrub.Line(title));
             return;
         }
 
@@ -221,11 +222,11 @@ public class PrismNotificationService : IPrismNotificationService
 
                 _logger.LogInformation(
                     "FCM multicast: sent={Sent} failed={Failed} (title: {Title})",
-                    response.SuccessCount, response.FailureCount, title);
+                    response.SuccessCount, response.FailureCount, LogScrub.Line(title));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "FCM multicast batch failed (title: {Title}, batchOffset: {Offset})", title, offset);
+                _logger.LogError(ex, "FCM multicast batch failed (title: {Title}, batchOffset: {Offset})", LogScrub.Line(title), offset);
             }
         }
 

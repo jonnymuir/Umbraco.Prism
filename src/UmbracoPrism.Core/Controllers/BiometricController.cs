@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Umbraco.Cms.Infrastructure.Persistence;
 using UmbracoPrism.Core.Controllers.Models;
+using UmbracoPrism.Core.Logging;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Persistence;
 using UmbracoPrism.Core.Services;
@@ -141,7 +142,7 @@ public class BiometricController(
 
             logger.LogInformation(
                 "Biometric register: upserted credential for device {DeviceId} tenant {TenantId}",
-                request.DeviceId, tenantId);
+                LogScrub.Line(request.DeviceId), tenantId);
         }
         else
         {
@@ -162,7 +163,7 @@ public class BiometricController(
 
             logger.LogInformation(
                 "Biometric register: created credential for device {DeviceId} tenant {TenantId}",
-                request.DeviceId, tenantId);
+                LogScrub.Line(request.DeviceId), tenantId);
         }
 
         // 8. Return the token to the client (stored in device Keychain/Keystore)
@@ -511,13 +512,13 @@ public class BiometricController(
 
             logger.LogInformation(
                 "Biometric unenrol: revoked credential for user {UserOid} device {DeviceId} tenant {TenantId}",
-                userOid, deviceId, tenantId);
+                userOid, LogScrub.Line(deviceId), tenantId);
         }
         else
         {
             logger.LogInformation(
                 "Biometric unenrol: no active credential found for user {UserOid} device {DeviceId} tenant {TenantId} (idempotent)",
-                userOid, deviceId, tenantId);
+                userOid, LogScrub.Line(deviceId), tenantId);
         }
 
         return NoContent();
