@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Infrastructure.Persistence;
+using UmbracoPrism.Core.Logging;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Persistence;
 
@@ -46,7 +47,7 @@ public class DeviceAdminController(
         {
             logger.LogWarning(
                 "Device admin revoke: device {DeviceId} not found in tenant {TenantId}",
-                deviceId, tenantId);
+                LogScrub.Line(deviceId), tenantId);
             return NotFound();
         }
 
@@ -58,7 +59,7 @@ public class DeviceAdminController(
 
             logger.LogInformation(
                 "Device admin revoke: revoked device {DeviceId} in tenant {TenantId}",
-                deviceId, tenantId);
+                LogScrub.Line(deviceId), tenantId);
         }
 
         return NoContent();
