@@ -21,21 +21,21 @@ jobs:
         working-directory: src/UmbracoPrism.Client
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Fetch the branch (not a detached merge commit) so we can push back.
           ref: ${{ github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22.17.1
           cache: 'npm'
           cache-dependency-path: src/UmbracoPrism.Client/package-lock.json
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -72,7 +72,7 @@ jobs:
 
       - name: Upload screenshots as artifacts (always, for inspection)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: walkthrough-screenshots
           path: docs/images/walkthroughs/
