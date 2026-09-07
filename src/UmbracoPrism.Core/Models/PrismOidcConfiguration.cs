@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Tokens;
+using UmbracoPrism.Core.Logging;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 using Microsoft.Identity.Web;
@@ -325,7 +326,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
                 logger.LogDebug(
                     "Prism: token exchange POST → {Authority} | redirect_uri={RedirectUri} | client_id={ClientId} | scope={Scope}",
-                    authority, redirectUri, clientId, scope);
+                    LogScrub.Line(authority), LogScrub.Line(redirectUri), LogScrub.Line(clientId), LogScrub.Line(scope));
 
                 // 1. Manually exchange the code for tokens via simple HTTP
                 using var client = new HttpClient();
@@ -351,7 +352,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                     var headers = string.Join("; ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"));
                     logger.LogError(
                         "Prism: token exchange failed. Status={Status} Authority={Authority} Body={Body} ResponseHeaders=[{Headers}] RedirectUri={RedirectUri}",
-                        statusCode, authority, detail, headers, redirectUri);
+                        statusCode, LogScrub.Line(authority), LogScrub.Line(detail), LogScrub.Line(headers), LogScrub.Line(redirectUri));
 
                     throw new AuthenticationException(
                         $"Token exchange failed. Status: {statusCode}, Authority: {authority}, Body: {detail}");
