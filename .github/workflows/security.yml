@@ -21,7 +21,7 @@ on:
 
 jobs:
   security:
-    uses: jonnymuir/ci-security/.github/workflows/dotnet-security.yml@v1
+    uses: jonnymuir/ci-security/.github/workflows/dotnet-security.yml@94561c2274456c1461a78592afeba9a0e2174989 # v1
     permissions:
       contents: read
       security-events: write
