@@ -11,7 +11,7 @@
     <UmbracoVersion>17.6.2</UmbracoVersion>
     <UmbracoPackageRange>[$(UmbracoVersion), $([MSBuild]::Add($(UmbracoMajor), 1)).0.0)</UmbracoPackageRange>
     <!-- uSync's major tracks Umbraco's, so it gets the same treatment. -->
-    <USyncVersion>17.3.5</USyncVersion>
+    <USyncVersion>17.3.8</USyncVersion>
     <USyncPackageRange>[$(USyncVersion), $([MSBuild]::Add($(UmbracoMajor), 1)).0.0)</USyncPackageRange>
     <!-- Microsoft.OpenApi is deliberately NOT pinned in this estate: it flows transitively from
          Umbraco.Cms.Api.Management ($(UmbracoVersion)) at the version Umbraco itself requires
