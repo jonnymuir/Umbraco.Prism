@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <!-- Opt-in to app-local ICU to ensure consistent globalization APIs across different platforms -->
+    <PackageReference Include="CsvHelper" Version="33.1.0" />
     <PackageReference Include="Microsoft.ICU.ICU4C.Runtime" Version="72.1.0.3" />
     <!-- Only place in this repo that references Wayfinder — Prism.Core carries no service-design
          dependency at all (see docs/guides/support-systems.md in the core Wayfinder repo).
