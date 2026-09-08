@@ -224,32 +224,20 @@ export const OverflowTabs: Story = {
     if (!modal.shadowRoot) throw new Error('Shadow root not found');
     const shadow = modal.shadowRoot;
 
-    const tabGroup = shadow.querySelector('uui-tab-group') as HTMLElement | null;
-    if (!tabGroup) throw new Error('Tab group not found');
-
-    const tabGroupShadow = tabGroup.shadowRoot as ShadowRoot | null;
-    if (!tabGroupShadow) throw new Error('Tab group shadow root not found');
-
-    // uui-tab-group decides which tabs overflow via a ResizeObserver-driven measure pass,
-    // so #more-button only appears once that has run — poll for it rather than assuming it's
-    // there after a single frame (Firefox under CI needs more than one).
-    const moreButton = await waitFor(() => {
-      const btn = tabGroupShadow.querySelector('#more-button') as HTMLElement | null;
-      if (!btn) throw new Error('More button not found');
-      return btn;
-    });
-
-    moreButton.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
-
-    const hiddenTab = await waitFor(() => {
-      const tab = tabGroupShadow.querySelector(
-        '#hidden-tabs-container uui-tab[label="prism-typography.css"]'
-      ) as HTMLElement | null;
-      if (!tab) throw new Error('Hidden tab not found');
+    // The six branding tabs each render as a <uui-tab> in the modal's own markup (see
+    // _renderBrandingTab / the uui-tab-group block). uui-tab-group may visually collapse the
+    // overflow into its own dropdown, but that's its private concern — the <uui-tab> element
+    // is always present in the light DOM, and clicking it still fires the group's
+    // _handleTabGroupClick (which keys off data-tab-key). So drive selection through the tab
+    // element directly rather than reaching into uui-tab-group's shadow internals, which
+    // changed shape between UUI versions.
+    const typographyTab = await waitFor(() => {
+      const tab = shadow.querySelector('uui-tab[label="prism-typography.css"]') as HTMLElement | null;
+      if (!tab) throw new Error('prism-typography.css tab not rendered');
       return tab;
     });
 
-    hiddenTab.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+    typographyTab.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     await modal.updateComplete;
 
     await waitFor(() => expect(shadow.textContent ?? '').toContain('--prism-font-display'));
