@@ -4,21 +4,17 @@
   "version": "5.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
     "build": "tsc && vite build",
     "test:calc": "node scripts/run-calculation-golden.mjs",
     "test:save-error-parsing": "node --experimental-transform-types --import ./scripts/register-ts-js-resolve.mjs scripts/run-save-error-parsing-tests.mjs",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "test-storybook": "test-storybook --url http://localhost:6006",
-    "test-storybook:all": "test-storybook --url http://localhost:6006 --browsers chromium firefox webkit",
-    "test-storybook:ci": "start-server-and-test \"storybook dev -p 6006 --ci\" http://127.0.0.1:6006 test-storybook",
-    "test-storybook:ci:all": "start-server-and-test \"storybook dev -p 6006 --ci\" http://127.0.0.1:6006 \"npm run test-storybook:all\"",
     "test:playwright": "playwright test",
     "test:playwright:localhost-auth": "node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite && playwright test -c playwright.localhost-auth.config.ts --reporter=line",
     "test:playwright:ui": "playwright test --ui",
-    "demo:record": "playwright test tests/demo/garden-waste-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line"
+    "demo:record": "playwright test tests/demo/garden-waste-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line",
+    "test-storybook": "vitest run"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
@@ -44,22 +40,19 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.46.1",
-    "@storybook/addon-a11y": "^8.6.18",
-    "@storybook/addon-essentials": "^8.6.18",
-    "@storybook/addon-interactions": "^8.6.18",
-    "@storybook/test": "^8.6.18",
-    "@storybook/test-runner": "^0.21.0",
-    "@storybook/testing-library": "0.2.2",
-    "@storybook/web-components": "^8.6.18",
-    "@storybook/web-components-vite": "^8.6.18",
+    "@storybook/addon-a11y": "^10.6.0",
+    "@storybook/addon-docs": "^10.6.0",
+    "@storybook/addon-vitest": "^10.6.0",
+    "@storybook/web-components-vite": "^10.6.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/parser": "^8.58.0",
-    "axe-playwright": "^2.1.0",
+    "@vitest/browser-playwright": "^4.1.11",
     "eslint": "^10.1.0",
-    "start-server-and-test": "^2.0.4",
-    "storybook": "^8.6.18",
+    "playwright": "^1.58.2",
+    "storybook": "^10.6.0",
     "typescript": "~5.9.3",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vitest": "^4.1.11"
   }
 }
