@@ -77,7 +77,7 @@ node node_modules/.bin/playwright test tests/prism-create-tenant-modal.spec.ts -
 npm run storybook
 
 # Storybook tests (accessibility + interaction)
-npm run test-storybook:ci
+npm run test-storybook
 
 # Live stack E2E tests (requires Aspire running)
 npm run test:playwright:localhost-auth

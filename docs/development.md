@@ -95,12 +95,9 @@ npm run test-storybook
 
 Optionally, install the **Playwright Test extension** for a convenient Testing view UI to run Playwright tests. Tests are in [src/UmbracoPrism.Client/tests](../src/UmbracoPrism.Client/tests). You can also run `npm run test:playwright:ui` for the interactive runner without the extension.
 
-**Headless multi-browser + WCAG checks (recommended):**
-
-```bash
-cd src/UmbracoPrism.Client
-npm run test-storybook:all
-```
+`npm run test-storybook` runs every story's play function and an axe accessibility
+check (WCAG 2.0/2.1 A/AA) as Vitest browser-mode tests across chromium, firefox and
+webkit — see [vitest.config.ts](../src/UmbracoPrism.Client/vitest.config.ts).
 
 **CI usage (GitHub Actions):**
 
@@ -110,7 +107,7 @@ The workflow in [.github/workflows/ci-tests.yml](../.github/workflows/ci-tests.y
 cd src/UmbracoPrism.Client
 npm ci
 npx playwright install --with-deps
-npm run test-storybook:ci:all
+npm run test-storybook
 ```
 
 ### Localhost auth/session Playwright regressions
@@ -174,8 +171,9 @@ See [umbraco-marketplace.json](../umbraco-marketplace.json) for the listing meta
 
 **Accessibility (WCAG) checks:**
 
-Storybook test runner runs axe checks (WCAG 2.0/2.1 A/AA) via
-[src/UmbracoPrism.Client/.storybook/test-runner.ts](../src/UmbracoPrism.Client/.storybook/test-runner.ts).
+`npm run test-storybook` runs axe checks (WCAG 2.0/2.1 A/AA) on every story via
+`@storybook/addon-a11y` + `@storybook/addon-vitest` — the rule scope is set in
+[.storybook/preview.ts](../src/UmbracoPrism.Client/.storybook/preview.ts) (`a11y.test: 'error'`).
 
 To opt out for a specific story, set `parameters: { a11y: { disable: true } }` in your `.stories.ts` file:
 

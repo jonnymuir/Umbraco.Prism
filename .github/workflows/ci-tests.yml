@@ -54,7 +54,7 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Run Storybook tests
-        run: npm run test-storybook:ci:all
+        run: npm run test-storybook
 
   core-tests:
     runs-on: ubuntu-latest

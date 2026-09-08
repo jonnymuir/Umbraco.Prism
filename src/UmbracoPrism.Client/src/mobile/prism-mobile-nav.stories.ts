@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from '@storybook/web-components';
+import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
-import { expect, within } from '@storybook/test';
+import { expect, within } from 'storybook/test';
 import './prism-mobile-nav';
 import type { PrismMobileNavElement } from './prism-mobile-nav';
 

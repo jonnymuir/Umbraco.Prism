@@ -1,5 +1,5 @@
-import type { Meta, StoryObj } from '@storybook/web-components';
-import { expect } from '@storybook/test';
+import type { Meta, StoryObj } from '@storybook/web-components-vite';
+import { expect } from 'storybook/test';
 import './prism-biometric-settings';
 import { PrismBiometricSettingsElement } from './prism-biometric-settings';
 
