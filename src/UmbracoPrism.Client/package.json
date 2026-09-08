@@ -4,7 +4,6 @@
   "version": "5.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
     "build": "tsc && vite build",
     "test:calc": "node scripts/run-calculation-golden.mjs",
     "test:save-error-parsing": "node --experimental-transform-types --import ./scripts/register-ts-js-resolve.mjs scripts/run-save-error-parsing-tests.mjs",

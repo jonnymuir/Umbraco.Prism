@@ -227,21 +227,27 @@ export const OverflowTabs: Story = {
     const tabGroup = shadow.querySelector('uui-tab-group') as HTMLElement | null;
     if (!tabGroup) throw new Error('Tab group not found');
 
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-
     const tabGroupShadow = tabGroup.shadowRoot as ShadowRoot | null;
     if (!tabGroupShadow) throw new Error('Tab group shadow root not found');
 
-    const moreButton = tabGroupShadow.querySelector('#more-button') as HTMLElement | null;
-    if (!moreButton) throw new Error('More button not found');
+    // uui-tab-group decides which tabs overflow via a ResizeObserver-driven measure pass,
+    // so #more-button only appears once that has run — poll for it rather than assuming it's
+    // there after a single frame (Firefox under CI needs more than one).
+    const moreButton = await waitFor(() => {
+      const btn = tabGroupShadow.querySelector('#more-button') as HTMLElement | null;
+      if (!btn) throw new Error('More button not found');
+      return btn;
+    });
 
     moreButton.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
-    await new Promise((resolve) => requestAnimationFrame(resolve));
 
-    const hiddenTab = tabGroupShadow.querySelector(
-      '#hidden-tabs-container uui-tab[label="prism-typography.css"]'
-    ) as HTMLElement | null;
-    if (!hiddenTab) throw new Error('Hidden tab not found');
+    const hiddenTab = await waitFor(() => {
+      const tab = tabGroupShadow.querySelector(
+        '#hidden-tabs-container uui-tab[label="prism-typography.css"]'
+      ) as HTMLElement | null;
+      if (!tab) throw new Error('Hidden tab not found');
+      return tab;
+    });
 
     hiddenTab.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     await modal.updateComplete;

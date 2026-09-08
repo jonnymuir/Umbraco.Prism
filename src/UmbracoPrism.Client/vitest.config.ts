@@ -11,6 +11,10 @@ export default defineConfig({
   plugins: [storybookTest({ configDir: '.storybook' })],
   test: {
     name: 'storybook',
+    // Browser-mode story tests are more timing-sensitive than the former jest-based
+    // @storybook/test-runner (which retried internally); one retry absorbs the odd
+    // layout/ResizeObserver race without masking a real regression.
+    retry: 1,
     browser: {
       enabled: true,
       provider: playwright(),
