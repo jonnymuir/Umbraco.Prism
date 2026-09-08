@@ -1,6 +1,18 @@
 <Project>
   <PropertyGroup>
+    <!-- This estate targets one Umbraco major at a time (currently 17 LTS). UmbracoVersion is
+         the exact patch the build compiles and tests against; UmbracoPackageRange is what the
+         Umbraco.Cms.* PackageReferences use — floor at that patch, ceiling at the next major —
+         so a host on Umbraco 18+ hits an honest restore-time version conflict instead of running
+         these v17-built assemblies against a v18 API surface. Supporting a new Umbraco major is
+         a deliberate, matrix-tested step: bump UmbracoMajor + UmbracoVersion together.
+         See CLAUDE.md § Umbraco version support. -->
+    <UmbracoMajor>17</UmbracoMajor>
     <UmbracoVersion>17.6.2</UmbracoVersion>
+    <UmbracoPackageRange>[$(UmbracoVersion), $([MSBuild]::Add($(UmbracoMajor), 1)).0.0)</UmbracoPackageRange>
+    <!-- uSync's major tracks Umbraco's, so it gets the same treatment. -->
+    <USyncVersion>17.3.5</USyncVersion>
+    <USyncPackageRange>[$(USyncVersion), $([MSBuild]::Add($(UmbracoMajor), 1)).0.0)</USyncPackageRange>
     <!-- Microsoft.OpenApi is deliberately NOT pinned in this estate: it flows transitively from
          Umbraco.Cms.Api.Management ($(UmbracoVersion)) at the version Umbraco itself requires
          (17.6.x → 2.9.0+, which clears GHSA-v5pm-xwqc-g5wc, the OpenAPI-parsing resource-exhaustion

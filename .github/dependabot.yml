@@ -19,6 +19,15 @@ updates:
       dotnet:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # This estate targets one Umbraco major at a time (see CLAUDE.md § Umbraco version
+      # support). A new Umbraco major is a deliberate, matrix-tested migration, not an
+      # auto-PR; minor/patch within the supported major still flow. uSync's major tracks
+      # Umbraco's, so it's held the same way.
+      - dependency-name: "Umbraco.Cms*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "uSync*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
@@ -55,6 +64,11 @@ updates:
       client:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # The backoffice bundle's major is bound to the Umbraco major it ships against —
+      # bumped deliberately alongside the server side, not by auto-PR.
+      - dependency-name: "@umbraco-cms/backoffice"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: "/src/UmbracoPrism.TestSite"
