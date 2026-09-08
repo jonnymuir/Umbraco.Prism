@@ -28,6 +28,12 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "uSync*"
         update-types: ["version-update:semver-major"]
+      # AwesomeAssertions is intentionally held at 7.x — the community fork of FluentAssertions
+      # 7.2.0 that keeps the FluentAssertions namespace/assembly name, so it is a drop-in with
+      # zero test edits. 8.x / 9.x rename to the AwesomeAssertions namespace (touching every test
+      # file for no functional gain). Bump only as a deliberate namespace migration.
+      - dependency-name: "AwesomeAssertions"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
