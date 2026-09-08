@@ -40,7 +40,8 @@
     "@hey-api/openapi-ts": "^0.97.3",
     "@microsoft/signalr": {
       "ws": "^7.5.11"
-    }
+    },
+    "js-yaml": "^4.3.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
