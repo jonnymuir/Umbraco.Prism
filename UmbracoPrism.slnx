@@ -7,6 +7,7 @@
   <Folder Name="/src/">
     <Project Path="src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj" />
     <Project Path="src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj" />
+    <Project Path="src/UmbracoPrism.Core.IntegrationTests/UmbracoPrism.Core.IntegrationTests.csproj" />
     <Project Path="src/UmbracoPrism.Core/UmbracoPrism.Core.csproj" />
     <Project Path="src/UmbracoPrism.KeycloakProxy/UmbracoPrism.KeycloakProxy.csproj" />
     <Project Path="src/UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj" />

@@ -95,3 +95,7 @@ app.UseUmbraco()
     });
 
 await app.RunAsync();
+
+// Exposed so UmbracoPrism.Core.IntegrationTests can boot this exact host with
+// WebApplicationFactory<Program> for the authorization-contract behavioural suite (Layer 2).
+public partial class Program;

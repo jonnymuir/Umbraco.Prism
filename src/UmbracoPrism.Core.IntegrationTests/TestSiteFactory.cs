@@ -1,0 +1,116 @@
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+
+namespace UmbracoPrism.Core.IntegrationTests;
+
+/// <summary>
+/// Every booted-host test class shares one <see cref="TestSiteFactory"/> — Umbraco is expensive
+/// to boot and Wayfinder's static SupportSystemRegistry can only be registered once per process,
+/// so a second WebApplicationFactory boot in the same process would fail.
+/// </summary>
+[CollectionDefinition(Name)]
+public sealed class BootedTestSite : ICollectionFixture<TestSiteFactory>
+{
+    public const string Name = "Booted TestSite";
+}
+
+/// <summary>
+/// Boots the real <c>UmbracoPrism.TestSite</c> host — full Umbraco, Prism's composer (the
+/// PrismMemberCookie / backoffice schemes, every policy), and its own Wayfinder.Umbraco-backed
+/// demo queue — for the authorization-contract behavioural suite (auth-contract Layer 2).
+///
+/// Everything Umbraco / Prism would otherwise write into the source tree on first boot is
+/// redirected to a per-run temp directory (a fresh SQLite DB, the models directory) and
+/// unattended-install is forced on via config, so no wizard and no source-tree writes. OIDC is
+/// left unconfigured for connectivity — the deny-path tests never trigger a real challenge.
+/// </summary>
+public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLifetime
+{
+    private readonly string _tempRoot = Path.Combine(
+        Path.GetTempPath(), "prism-authcontract-" + Guid.NewGuid().ToString("N"));
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        Directory.CreateDirectory(Path.Combine(_tempRoot, "umbraco", "Data"));
+        Directory.CreateDirectory(Path.Combine(_tempRoot, "umbraco", "models"));
+
+        builder.UseEnvironment(Environments.Development);
+
+        builder.ConfigureAppConfiguration((_, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:umbracoDbDSN"] =
+                    $"Data Source={Path.Combine(_tempRoot, "umbraco", "Data", "Umbraco.sqlite.db")};Cache=Shared;Foreign Keys=True;Pooling=True",
+                ["ConnectionStrings:umbracoDbDSN_ProviderName"] = "Microsoft.Data.Sqlite",
+
+                // Supplied so Umbraco never generates one and persists it back into the source
+                // appsettings.json. A fixed base64 blob; this host serves no images under test.
+                ["Umbraco:CMS:Imaging:HMACSecretKey"] = "cHJpc20tYXV0aC1jb250cmFjdC1sYXllcjItbm90LXNlY3JldA==",
+
+                ["Umbraco:CMS:ModelsBuilder:ModelsDirectory"] = Path.Combine(_tempRoot, "umbraco", "models"),
+                ["Umbraco:CMS:ModelsBuilder:AcceptUnsafeModelsDirectory"] = "true",
+
+                ["Umbraco:CMS:Unattended:InstallUnattended"] = "true",
+                ["Umbraco:CMS:Unattended:UpgradeUnattended"] = "true",
+                ["Umbraco:CMS:Unattended:PackageMigrationsUnattended"] = "true",
+                ["Umbraco:CMS:Unattended:UnattendedUserName"] = "Auth Contract",
+                ["Umbraco:CMS:Unattended:UnattendedUserEmail"] = "auth-contract@example.test",
+                ["Umbraco:CMS:Unattended:UnattendedUserPassword"] = "AuthContract123!",
+            });
+        });
+    }
+
+    public async Task InitializeAsync()
+    {
+        using var client = CreateClient(new() { AllowAutoRedirect = false });
+        var deadline = DateTime.UtcNow.AddMinutes(4);
+        var ok = 0;
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                var res = await client.GetAsync("/umbraco");
+                if (res.StatusCode is System.Net.HttpStatusCode.OK or System.Net.HttpStatusCode.Redirect)
+                {
+                    if (++ok >= 3)
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    ok = 0;
+                }
+            }
+            catch (HttpRequestException)
+            {
+                ok = 0;
+            }
+
+            await Task.Delay(1000);
+        }
+
+        throw new TimeoutException("UmbracoPrism.TestSite did not reach a ready state within 4 minutes.");
+    }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing && Directory.Exists(_tempRoot))
+        {
+            try
+            {
+                Directory.Delete(_tempRoot, recursive: true);
+            }
+            catch (IOException)
+            {
+                // A SQLite handle can linger a moment after shutdown; %TEMP% is reaped anyway.
+            }
+        }
+    }
+}
