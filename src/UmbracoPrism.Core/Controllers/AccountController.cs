@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using UmbracoPrism.Core.Auth;
@@ -8,6 +9,9 @@ namespace UmbracoPrism.Core.Controllers;
 /// <summary>
 /// Controller for handling account-related actions such as login and logout.
 /// </summary>
+// The Entra ID auth entry/exit surface — Login/Register issue an OIDC Challenge (no session
+// yet), Logout is a [ValidateAntiForgeryToken]-guarded POST. None has anything to authorize.
+[AllowAnonymous]
 [Route("auth")]
 public class AccountController : Controller
 {
