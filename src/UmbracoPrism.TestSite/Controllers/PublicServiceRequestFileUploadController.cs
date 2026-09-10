@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Wayfinder.Umbraco.Configuration;
@@ -20,6 +21,10 @@ namespace UmbracoPrism.TestSite.Controllers;
 /// authoritative-fields check the stage's own whole-page submission performs, so an upload can't
 /// be aimed at a field that isn't actually part of the visitor's current stage.
 /// </remarks>
+// [AllowAnonymous] is deliberate — see the class remarks: identity is host-resolved
+// (may be an anonymous citizen journey) and the engine's ownership check is the access
+// boundary. Never-ships TestSite.
+[AllowAnonymous]
 [ApiController]
 [Route("service-request/upload")]
 public class PublicServiceRequestFileUploadController(

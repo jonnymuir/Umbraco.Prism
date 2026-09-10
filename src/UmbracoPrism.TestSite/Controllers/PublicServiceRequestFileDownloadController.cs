@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using Wayfinder.Umbraco.Configuration;
 using Wayfinder.Umbraco.Services;
@@ -21,6 +22,10 @@ namespace UmbracoPrism.TestSite.Controllers;
 /// <c>ResolveAccessProfile</c> do, and requiring it to own the instance
 /// (<see cref="UmbracoProcessManagerEngine.TryGetOwnedFileReference"/>), not from a login challenge.
 /// </remarks>
+// [AllowAnonymous] is deliberate — see the class remarks: identity is host-resolved
+// (may be an anonymous citizen journey) and the engine's ownership check is the access
+// boundary. Never-ships TestSite.
+[AllowAnonymous]
 [ApiController]
 [Route("service-request/files")]
 public class PublicServiceRequestFileDownloadController(

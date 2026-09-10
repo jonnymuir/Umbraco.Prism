@@ -25,7 +25,10 @@ public class DeviceAdminController(
     /// Soft-deletes by setting RevokedAt. Returns 204 on success; 404 if the device
     /// is not found within the current tenant.
     /// </summary>
+    // SEC-PT2-009: browser-originated admin API (PrismMemberCookie), so it must carry the
+    // antiforgery token — it is not a Capacitor mobile JSON endpoint.
     [HttpDelete("{deviceId}")]
+    [ValidateAntiForgeryToken]
     public IActionResult Revoke(string deviceId)
     {
         // 1. Verify tenant context
