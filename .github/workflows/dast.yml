@@ -1,0 +1,61 @@
+name: DAST
+
+# Dynamic scan — OWASP ZAP baseline (passive rules only, non-destructive) against a running
+# UmbracoPrism.TestSite, boots the full Aspire stack it depends on (Keycloak, MockBusinessApp).
+# Implementation lives in jonnymuir/ci-security so the same scan runs identically across the
+# estate (see the Wayfinder / Wayfinder.Umbraco repos' own dast.yml).
+#
+# Separate from security.yml because it boots an app (different execution model).
+#
+# Posture: ADVISORY for now (fail-action: false). Once this file's first report is triaged
+# into .zap/rules.tsv, flip fail-action to true and add the "DAST baseline" check-run to
+# the branch ruleset — the same advisory -> blocking rollout Wayfinder and Wayfinder.Umbraco's
+# own DAST followed.
+#
+# The boot-command replicates the prep steps ci-tests.yml's own localhost-auth-playwright job
+# already uses to bring the same Aspire stack up (Keycloak image pre-pull, its data dir, dev
+# certs trust) — see that job for the precedent. TestSite serves HTTPS-only with a self-signed
+# dev-certs cert, hence curl-insecure: true for the readiness check (does not affect the ZAP
+# scan itself, which is a separate question — see whatever this PR's own run finds).
+#
+# Runs on every pull_request (so the required check reports pre-merge, like CodeQL/zizmor),
+# on push to main, nightly, and on demand. Boots the full stack (~minutes) — mirrors the
+# localhost-auth-playwright job's own 30-minute budget.
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 4 * * *'   # nightly 04:00 UTC
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  baseline:
+    # SHA-pinned (zizmor blanket policy); Dependabot's github-actions ecosystem keeps
+    # this current, so ci-security changes arrive as a reviewed bump.
+    uses: jonnymuir/ci-security/.github/workflows/dast-baseline.yml@d5663651482851ef824487236a7506da02306bef # v1
+    permissions:
+      contents: read
+    with:
+      boot-command: |
+        docker pull quay.io/keycloak/keycloak:26.0.0
+        mkdir -p artifacts/aspire/keycloak-data
+        chmod 777 artifacts/aspire/keycloak-data
+        dotnet dev-certs https
+        dotnet dev-certs https --trust
+        dotnet run --project src/UmbracoPrism.AppHost
+      target-url: https://localhost:44345
+      # The readiness JSON endpoint the Playwright live-app-host helper itself treats as the
+      # authoritative gate (see src/UmbracoPrism.Client/tests/support/live-app-host.ts's own
+      # "TestSite seed contract" check) — this workflow's own health-check is status-code-only
+      # (not body-aware), so it's a weaker signal than that helper's, but the best single-URL
+      # proxy available without extending ci-security further.
+      health-path: /api/prism/downstream-demo/seed-contract-ready
+      # Matches live-app-host.ts's own readinessTimeoutMs (8 minutes) — an empirically-derived
+      # figure for this exact stack's cold boot on CI hardware.
+      boot-timeout-seconds: 480
+      curl-insecure: true
+      node-build: '["src/UmbracoPrism.Client"]'
+      # rules-file-path defaults to .zap/rules.tsv
+      fail-action: false
