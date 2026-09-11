@@ -7,6 +7,19 @@
 //   <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell-guard.js"></script>
 // See docs/walkthroughs/building-a-mobile-app.md.
 (function () {
+    // Any scheme capable of encoding executable content — not just javascript:. Checking one
+    // and not the others is an incomplete guard (CWE-020/184): this function decides whether
+    // to force a click/window.open into a same-window location.assign() instead of leaving
+    // default browser handling alone, so an unchecked data:/vbscript: URL would otherwise get
+    // forced into the current window rather than staying isolated the way default handling
+    // (a new window, or no interception at all) would have kept it.
+    function isDangerousScheme(url) {
+        var normalized = url.trim().toLowerCase();
+        return normalized.startsWith('javascript:')
+            || normalized.startsWith('data:')
+            || normalized.startsWith('vbscript:');
+    }
+
     var root = document.documentElement;
     if (!root.classList.contains('prism-mobile')) {
         root.classList.add('prism-mobile');
@@ -20,7 +33,7 @@
         if (!anchor) return;
 
         var href = anchor.getAttribute('href');
-        if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+        if (!href || href.startsWith('#') || isDangerousScheme(href)) return;
 
         if (href.startsWith('mailto:') || href.startsWith('tel:')) {
             event.preventDefault();
@@ -35,7 +48,7 @@
     }, true);
 
     window.open = function (url) {
-        if (typeof url === 'string' && url.length > 0) {
+        if (typeof url === 'string' && url.length > 0 && !isDangerousScheme(url)) {
             window.location.assign(url);
         }
         return null;
