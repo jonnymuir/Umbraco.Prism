@@ -7,9 +7,73 @@
 #   url-regex — omit (empty 3rd column) to apply to every URL; otherwise a Python
 #               regex matched against the finding's URL
 #
-# Posture: ADVISORY for now (fail-action: false in dast.yml). Once this file covers the
-# report, flip fail-action to true and add the "DAST baseline" check-run to the branch
-# ruleset — the same advisory -> blocking rollout Wayfinder and Wayfinder.Umbraco's own
-# DAST followed.
+# Posture: BLOCKING (fail-action: true in dast.yml) — every finding below has been
+# judged and accepted; a NEW un-IGNOREd WARN/FAIL now fails the scan.
 #
 # alert IDs: https://www.zaproxy.org/docs/alerts/
+#
+# --- Triaged from the 2026-09-11 unauthenticated baseline of the full Aspire stack
+#     (Keycloak + MockBusinessApp + TestSite), after SEC-PT2-004's two real header/cookie
+#     regressions were root-caused and fixed (#193 OnStarting header-survival, #194
+#     antiforgery X-Frame-Options duplication, #195 antiforgery cookie Secure flag). ---
+
+# ---- /umbraco* : the Umbraco backoffice owns its own header + CSP regime ----
+# PrismSecurityHeadersMiddleware is deliberately scoped to skip /umbraco* by default
+# (PrismSecurityHeadersOptions.ExcludeBackoffice — a Lit web-component SPA a strict CSP
+# would break), the same posture Wayfinder.Umbraco's own reference-app middleware ships.
+# A real deployment fronts the backoffice with its own policy (reverse proxy / WAF), and
+# it is often not publicly reachable at all. Each line is path-scoped so the identical
+# header regressing on the *front end* still fails the scan.
+10020	IGNORE	.*/umbraco(/|$)	anti-clickjacking: backoffice, Umbraco-owned
+10021	IGNORE	.*/umbraco	X-Content-Type-Options: backoffice + its static assets, Umbraco-owned
+10035	IGNORE	.*/umbraco	HSTS: backoffice + its static assets, Umbraco-owned
+10063	IGNORE	.*/umbraco	Permissions-Policy: backoffice, Umbraco-owned
+10109	IGNORE	.*/umbraco	informational: the backoffice is a SPA
+
+# Content Security Policy (CSP) Header Not Set — front-end pages ship CSP as
+# Content-Security-Policy-Report-Only, not enforced, by deliberate documented design
+# (SEC-PT2-004: "tune then enforce" — ZAP only recognises the enforced header, not the
+# report-only one, so it flags every front-end page as if no CSP existed at all). Revisit
+# once the report-only policy has been tuned against real traffic and promoted to
+# enforced — this is genuinely open follow-up work, not a false positive being waved
+# through. /umbraco* is separately backoffice-owned (see above).
+10038	IGNORE		CSP ships Report-Only by design (SEC-PT2-004 tune-then-enforce plan), not yet promoted to enforced
+
+# Re-examine Cache-control Directives — the app explicitly sends
+# "Cache-control: no-cache, no-store" + "Pragma: no-cache" on every dynamic page (an
+# anti-caching stance, stricter than default, not weaker); ZAP's heuristic flags the
+# directive combination for review regardless of which way it errs. Correct behaviour.
+10015	IGNORE		explicit no-cache/no-store on dynamic pages — a stricter, not weaker, stance
+
+# Storable and Cacheable Content — informational cache-control notes on immutable static
+# assets (CSS), robots.txt, sitemap.xml (both legitimately 404 — this app has neither),
+# and the anonymous landing page. Correct behaviour.
+10049	IGNORE		informational cache-control notes on static assets + the anonymous landing page
+
+# Cookie with SameSite Attribute None — the OIDC nonce + correlation cookies
+# (.AspNetCore.OpenIdConnect.Nonce.*, .AspNetCore.Correlation.*) on /auth/login and
+# /auth/register, minted by Microsoft.Identity.Web ahead of the redirect to Keycloak.
+# SameSite=None is required for the cross-origin OIDC redirect round-trip to survive;
+# verified live (curl -I) both cookies also carry Secure + HttpOnly, so this is the
+# correct, necessary configuration for the flow, not a gap.
+10054	IGNORE	.*/auth/(login|register).*	OIDC nonce/correlation cookies — SameSite=None required for the redirect round-trip, Secure+HttpOnly confirmed
+
+# Suspicious Comments — plain English prose comments (verified: no secrets, no
+# security-relevant TODO markers) in both the shared Wayfinder rendering JS and
+# TestSite's own authored front-end JS.
+10027	IGNORE	.*/(_content/Wayfinder\.Rendering\.GovUk/js/.*|js/prism-.*\.js)	prose words in genuine code comments
+
+# Timestamp Disclosure (Unix) in vendored GOV.UK Frontend CSS — a numeric literal in the
+# minified stylesheet, not a timestamp. Third-party vendored asset.
+10096	IGNORE	.*/govuk-frontend\.min\.css	numeric literal in minified vendored CSS
+
+# Session Management Response Identified — informational; ZAP spotting the ASP.NET
+# antiforgery / TempData / PrismPublicServiceRequestVisitor cookies on the service-request
+# journey POSTs and the caseworker worklist. Expected.
+10112	IGNORE		informational: ASP.NET antiforgery / TempData / visitor-correlation cookies
+
+# Cross-Origin-Embedder-Policy Header Missing or Invalid — COEP: require-corp exists only
+# to enable cross-origin isolation (SharedArrayBuffer, high-resolution timers), which this
+# app does not use. PrismSecurityHeadersMiddleware does not set COOP or CORP either, by
+# the same reasoning — there is no cross-origin-isolation use case anywhere in Prism.
+90004	IGNORE		COEP (and COOP/CORP) only matter for cross-origin isolation, which this app does not use
