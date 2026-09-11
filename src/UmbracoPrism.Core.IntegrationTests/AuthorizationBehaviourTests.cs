@@ -15,7 +15,17 @@ namespace UmbracoPrism.Core.IntegrationTests;
 [Collection(BootedTestSite.Name)]
 public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
 {
-    private HttpClient Anonymous() => factory.CreateClient(new() { AllowAutoRedirect = false });
+    // BaseAddress must be https:// — TestSite is HTTPS-only in every real deployment, and
+    // AntiforgeryOptions.Cookie.SecurePolicy = Always (PrismComposer, SEC-PT2-004 follow-up)
+    // makes ASP.NET Core's own antiforgery system hard-throw (CheckSSLConfig) on a non-HTTPS
+    // request for both minting and validating a token — WebApplicationFactory's default
+    // http://localhost base address doesn't match that reality and would 500 every
+    // antiforgery-guarded request here instead of exercising the real deny path.
+    private HttpClient Anonymous() => factory.CreateClient(new()
+    {
+        AllowAutoRedirect = false,
+        BaseAddress = new Uri("https://localhost")
+    });
 
     // ---- Endpoints behind [Authorize(AuthenticationSchemes = "PrismMemberCookie")] ----
 
