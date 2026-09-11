@@ -82,8 +82,21 @@ public class PrismComposer : IComposer
         // one value. PrismSecurityHeadersOptions.FrameOptions already covers this
         // (configurably, including the ability to omit it) — suppress the framework's own
         // unconditional, unconfigurable copy so there is exactly one source of truth.
+        //
+        // A second, unrelated framework default fixed in the same place: AntiforgeryOptions's
+        // own Cookie.SecurePolicy defaults to CookieSecurePolicy.None, not SameAsRequest as its
+        // sibling cookie-auth handler does (confirmed: `new AntiforgeryOptions().Cookie
+        // .SecurePolicy` is `None` out of the box) — so the antiforgery cookie itself ships
+        // with no Secure flag on every page that mints a token, found live via the same DAST
+        // scan (Cookie Without Secure Flag [10011]) on both /apply-for-a-juggling-licence and
+        // /caseworker-queue. TestSite (and every real deployment) is HTTPS-only, so there is no
+        // legitimate plain-HTTP case this cookie needs to survive — Always, matching
+        // PrismMemberCookie's own SecurePolicy above.
         builder.Services.Configure<AntiforgeryOptions>(options =>
-            options.SuppressXFrameOptionsHeader = true);
+        {
+            options.SuppressXFrameOptionsHeader = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        });
 
         builder.Services.Configure<UmbracoPipelineOptions>(options =>
         {
