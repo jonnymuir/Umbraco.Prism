@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Middleware;
@@ -8,6 +9,15 @@ namespace UmbracoPrism.Core.Tests;
 
 /// <summary>
 /// Regression tests for SEC-PT2-004 — security response headers middleware.
+///
+/// The middleware defers header-setting to HttpResponse.OnStarting (see its own remarks:
+/// header-clearing mid-pipeline elsewhere in the response, found live) — DefaultHttpContext's
+/// own default IHttpResponseFeature never actually invokes registered OnStarting callbacks
+/// (confirmed: neither Response.StartAsync() nor the HttpResponse.WriteAsync extension, which
+/// calls StartAsync() internally, triggers them). FiringResponseFeature below is a thin
+/// IHttpResponseFeature that captures OnStarting registrations and lets a test fire them on
+/// demand — the standard workaround for testing OnStarting-based middleware without a full
+/// TestServer boot.
 /// </summary>
 public class PrismSecurityHeadersMiddlewareTests
 {
@@ -18,29 +28,34 @@ public class PrismSecurityHeadersMiddlewareTests
         return new PrismSecurityHeadersMiddleware(_ => Task.CompletedTask, opts);
     }
 
-    private static DefaultHttpContext BuildHttpsContext(string path = "/")
+    private static (DefaultHttpContext Context, FiringResponseFeature Feature) BuildHttpsContext(string path = "/")
     {
         var ctx = new DefaultHttpContext();
         ctx.Request.Path = path;
         ctx.Request.IsHttps = true;
-        return ctx;
+        var feature = new FiringResponseFeature(ctx.Features.Get<IHttpResponseFeature>()!);
+        ctx.Features.Set<IHttpResponseFeature>(feature);
+        return (ctx, feature);
     }
 
-    private static DefaultHttpContext BuildHttpContext(string path = "/")
+    private static (DefaultHttpContext Context, FiringResponseFeature Feature) BuildHttpContext(string path = "/")
     {
         var ctx = new DefaultHttpContext();
         ctx.Request.Path = path;
         ctx.Request.IsHttps = false;
-        return ctx;
+        var feature = new FiringResponseFeature(ctx.Features.Get<IHttpResponseFeature>()!);
+        ctx.Features.Set<IHttpResponseFeature>(feature);
+        return (ctx, feature);
     }
 
     [Fact]
     public async Task SecurityHeaders_AreApplied_OnDefaultHttpsRequest()
     {
         var middleware = BuildMiddleware();
-        var ctx = BuildHttpsContext("/dashboard");
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
 
         await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("X-Content-Type-Options");
         ctx.Response.Headers["X-Content-Type-Options"].ToString().Should().Be("nosniff");
@@ -56,9 +71,10 @@ public class PrismSecurityHeadersMiddlewareTests
     public async Task HstsHeader_IsOmitted_OnHttpRequest()
     {
         var middleware = BuildMiddleware();
-        var ctx = BuildHttpContext("/dashboard");
+        var (ctx, feature) = BuildHttpContext("/dashboard");
 
         await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().NotContainKey("Strict-Transport-Security",
             "HSTS must only be set on HTTPS responses");
@@ -68,9 +84,10 @@ public class PrismSecurityHeadersMiddlewareTests
     public async Task SecurityHeaders_AreSkipped_ForBackofficeRoutes()
     {
         var middleware = BuildMiddleware();
-        var ctx = BuildHttpsContext("/umbraco/backoffice/api/something");
+        var (ctx, feature) = BuildHttpsContext("/umbraco/backoffice/api/something");
 
         await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().NotContainKey("X-Content-Type-Options",
             "backoffice routes are excluded from Prism security headers by default");
@@ -82,9 +99,10 @@ public class PrismSecurityHeadersMiddlewareTests
     {
         var options = new PrismSecurityHeadersOptions { ExcludeBackoffice = false };
         var middleware = BuildMiddleware(options);
-        var ctx = BuildHttpsContext("/umbraco/backoffice/api/something");
+        var (ctx, feature) = BuildHttpsContext("/umbraco/backoffice/api/something");
 
         await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("X-Content-Type-Options");
     }
@@ -94,9 +112,10 @@ public class PrismSecurityHeadersMiddlewareTests
     {
         var options = new PrismSecurityHeadersOptions { Enabled = false };
         var middleware = BuildMiddleware(options);
-        var ctx = BuildHttpsContext("/dashboard");
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
 
         await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().NotContainKey("X-Content-Type-Options",
             "middleware must be fully disabled when Enabled=false");
@@ -106,9 +125,10 @@ public class PrismSecurityHeadersMiddlewareTests
     public async Task ContentSecurityPolicy_IsReportOnlyByDefault()
     {
         var middleware = BuildMiddleware();
-        var ctx = BuildHttpsContext("/dashboard");
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
 
         await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("Content-Security-Policy-Report-Only",
             "CSP ships as Report-Only by default (SEC-PT2-004 follow-up: promote to enforced once tuned)");
@@ -120,11 +140,77 @@ public class PrismSecurityHeadersMiddlewareTests
     public async Task HstsHeader_HasCorrectValue()
     {
         var middleware = BuildMiddleware();
-        var ctx = BuildHttpsContext("/dashboard");
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
 
         await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
 
         ctx.Response.Headers["Strict-Transport-Security"].ToString()
             .Should().Be("max-age=31536000; includeSubDomains");
+    }
+
+    [Fact]
+    public async Task SecurityHeaders_SurviveAResponseResetAfterTheMiddlewareRan()
+    {
+        // The exact live regression this whole OnStarting design defends against: Umbraco's
+        // own "no content matches this URL" 404 page resets response state further down the
+        // pipeline (after this middleware ran) before writing its branded body — proven by
+        // Umbraco's front-end 404 carrying none of these headers before this fix, even though
+        // the middleware sat earlier in the pipeline. Headers set inline (Headers.Append
+        // called directly, not deferred to OnStarting) would be wiped by that reset; headers
+        // deferred to OnStarting are not, because OnStarting fires after everything downstream
+        // has already decided the final response.
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/some-unrouted-path");
+
+        await middleware.InvokeAsync(ctx);
+        ctx.Response.Headers.Clear(); // simulates the downstream reset
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().ContainKey("X-Content-Type-Options",
+            "OnStarting-deferred headers must survive a downstream response reset");
+    }
+
+    private sealed class FiringResponseFeature(IHttpResponseFeature inner) : IHttpResponseFeature
+    {
+        private readonly List<(Func<object, Task> Callback, object? State)> _onStarting = [];
+
+        public void OnStarting(Func<object, Task> callback, object state) =>
+            _onStarting.Add((callback, state));
+
+        public async Task FireOnStartingAsync()
+        {
+            foreach (var (callback, state) in _onStarting)
+                await callback(state!);
+        }
+
+        public void OnCompleted(Func<object, Task> callback, object state) =>
+            inner.OnCompleted(callback, state);
+
+        public int StatusCode
+        {
+            get => inner.StatusCode;
+            set => inner.StatusCode = value;
+        }
+
+        public string? ReasonPhrase
+        {
+            get => inner.ReasonPhrase;
+            set => inner.ReasonPhrase = value;
+        }
+
+        public IHeaderDictionary Headers
+        {
+            get => inner.Headers;
+            set => inner.Headers = value;
+        }
+
+        public Stream Body
+        {
+            get => inner.Body;
+            set => inner.Body = value;
+        }
+
+        public bool HasStarted => inner.HasStarted;
     }
 }

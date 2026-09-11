@@ -11,6 +11,17 @@ namespace UmbracoPrism.Core.Middleware;
 ///
 /// SEC-PT2-004: adds HSTS, X-Content-Type-Options, Referrer-Policy, X-Frame-Options,
 /// Permissions-Policy, and Content-Security-Policy-Report-Only by default.
+///
+/// Headers are set via <see cref="HttpResponse.OnStarting"/>, not inline before
+/// <c>next(context)</c>. Found live: a genuine 404 — Umbraco's own "no content matches this
+/// URL" page, not a bare framework 404 — carried none of these headers, even after moving
+/// this middleware to the very front of the pipeline via <c>IStartupFilter</c> (tried and
+/// reverted — pipeline *position* wasn't the cause). Umbraco's own content-resolution
+/// middleware evidently resets the response before writing that branded page, which wipes
+/// out anything set inline earlier in the same request regardless of where in the pipeline
+/// it ran. <c>OnStarting</c> registers a callback that fires at the last possible moment —
+/// right before the response's headers actually go out — so it survives that reset instead
+/// of racing it.
 /// </summary>
 internal sealed class PrismSecurityHeadersMiddleware(
     RequestDelegate next,
@@ -22,7 +33,11 @@ internal sealed class PrismSecurityHeadersMiddleware(
     {
         if (_options.Enabled && !IsExcluded(context))
         {
-            AppendSecurityHeaders(context);
+            context.Response.OnStarting(() =>
+            {
+                AppendSecurityHeaders(context);
+                return Task.CompletedTask;
+            });
         }
 
         await next(context);
