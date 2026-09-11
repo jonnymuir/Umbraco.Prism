@@ -62,11 +62,12 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
 
         // The contract this asserts: Exchange is [AllowAnonymous] (the request reaches the action
         // rather than being challenged by the auth middleware) and, given no valid BiometricToken
-        // JWT, it never issues a PrismMemberCookie session.
-        //
-        // NOTE: on a cold host Exchange currently returns 500 rather than a 4xx for a body with no
-        // token — an anonymous endpoint should fail gracefully. Tracked for the Layer 3 OAuth
-        // conformance pass; not asserted here so this stays a pure authorization-contract check.
+        // JWT, it never issues a PrismMemberCookie session — and never a 5xx: this is a public,
+        // unauthenticated, attacker-reachable endpoint, so any unexpected failure must degrade to
+        // a generic 4xx rejection, never leak a raw server error (a real, if not locally
+        // reproducible, 500 was once observed here on a cold host — see BiometricController
+        // .Exchange's own outer try/catch).
+        ((int)res.StatusCode).Should().BeLessThan(500, "an anonymous, attacker-reachable endpoint must fail closed with a 4xx, never leak a 5xx");
         res.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized, "Exchange is [AllowAnonymous]");
         res.StatusCode.Should().NotBe(HttpStatusCode.Forbidden, "Exchange is [AllowAnonymous]");
         res.Headers.Contains("Set-Cookie").Should().BeFalse("no session may be issued without a valid biometric token");

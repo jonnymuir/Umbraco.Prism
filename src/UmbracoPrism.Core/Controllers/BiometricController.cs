@@ -220,7 +220,27 @@ public class BiometricController(
         }
 
         // ── Standard exchange flow ──
+        // Wrapped whole: this is a public, unauthenticated, attacker-reachable endpoint — the
+        // biometric token IS the credential — so any unexpected exception anywhere below (a cold
+        // DB connection, a transient vault/Entra call, anything not already covered by a narrower
+        // catch) must degrade to a generic rejected-exchange response, never an unhandled 500
+        // that could leak internals. Found live: a real (if not locally reproducible from any
+        // payload shape tried — this is defense-in-depth, not a fix for a pinned root cause) 500
+        // on a cold host near a request with no token.
+        try
+        {
+            return await ExecuteExchangeAsync(request, tokenHash);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Biometric exchange: unexpected failure");
+            LogExchangeAudit("Failure", "internal_error", tokenId: null, tenantId: null);
+            return StatusCode(400, new { error = "exchange_failed" });
+        }
+    }
 
+    private async Task<IActionResult> ExecuteExchangeAsync(BiometricExchangeRequest request, string tokenHash)
+    {
         // 1. Verify tenant context
         var tenant = prismContext.CurrentTenant;
         if (tenant == null)

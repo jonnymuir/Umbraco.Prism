@@ -144,8 +144,19 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
         options.Authority = "https://login.microsoftonline.com/common/v2.0";
         options.MapInboundClaims = false;
 
-        options.TokenValidationParameters.ValidateIssuer = false;
-        options.TokenValidationParameters.ValidateAudience = false;
+        // Defense-in-depth: the base default is fail-safe (true), not fail-open. The normal login
+        // flow never actually validates a token against this base TokenValidationParameters
+        // instance at all — OnAuthorizationCodeReceived below exchanges and validates the ID
+        // token manually (real ValidIssuer/ValidAudience per tenant, both implicitly required)
+        // and calls context.HandleResponse() before the OIDC middleware's own automatic
+        // code-exchange-and-validate path would ever run. IssuerSigningKeyResolver, further down,
+        // is the one place that resolves per-tenant ValidIssuer/ValidAudience dynamically for that
+        // otherwise-unreachable fallback path — if it's ever reached with these left at their
+        // literal default, "true" fails closed (no ValidIssuer/ValidAudience configured yet →
+        // every token rejected) where "false" would have silently accepted a token from any
+        // issuer/audience.
+        options.TokenValidationParameters.ValidateIssuer = true;
+        options.TokenValidationParameters.ValidateAudience = true;
         options.ResponseType = OpenIdConnectResponseType.Code;
         options.ResponseMode = OpenIdConnectResponseMode.Query;
         options.SaveTokens = true;
