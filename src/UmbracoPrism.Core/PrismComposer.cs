@@ -12,6 +12,7 @@ using Microsoft.Identity.Web;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Antiforgery;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Notifications;
 using UmbracoPrism.Core.Extensions;
@@ -68,6 +69,21 @@ public class PrismComposer : IComposer
         // once tuned per-deployment). Backoffice paths excluded by default.
         builder.Services.Configure<PrismSecurityHeadersOptions>(
             builder.Config.GetSection(PrismSecurityHeadersOptions.SectionName));
+
+        // ASP.NET Core's own antiforgery middleware sets X-Frame-Options: SAMEORIGIN itself,
+        // automatically, on any response where a token gets issued (IAntiforgery
+        // .GetAndStoreTokens) — an easy-to-miss built-in behaviour, not something either
+        // Wayfinder.Umbraco or this repo's own code asks for. Found live: every page that
+        // mints an antiforgery token (the citizen stage form, the caseworker worklist) sent
+        // X-Frame-Options TWICE — once from here, once from the framework's own default.
+        // Two independent, identically-valued instances of the same header is a real
+        // clickjacking-protection regression, not a cosmetic duplicate: some browsers treat a
+        // header sent more than once as untrustworthy and ignore it entirely rather than pick
+        // one value. PrismSecurityHeadersOptions.FrameOptions already covers this
+        // (configurably, including the ability to omit it) — suppress the framework's own
+        // unconditional, unconfigurable copy so there is exactly one source of truth.
+        builder.Services.Configure<AntiforgeryOptions>(options =>
+            options.SuppressXFrameOptionsHeader = true);
 
         builder.Services.Configure<UmbracoPipelineOptions>(options =>
         {
