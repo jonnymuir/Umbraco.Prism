@@ -206,7 +206,8 @@ Once Prism is running:
 - **Configure Entra authentication** by providing your Entra app registration details in `appsettings.json` (Client ID, Tenant ID, etc.).
 - **Customize the dashboard** by editing the Dashboard Razor template (`memberDashboard.cshtml`).
 - **Add more pages** under Dashboard by creating new documents and assigning the `memberDashboard` type (or custom subtypes).
-- **Generate a mobile app** from the Prism backoffice tenant editor to ship native iOS/Android apps for your portal.
+- **Add tenant branding overrides** by referencing `<link rel="stylesheet" href="/umbraco/prism/branding.css" />` in your layout — see [branding-design-system.md](branding-design-system.md#how-overrides-reach-the-live-site). Prism doesn't inject this for you.
+- **Generate a mobile app** from the Prism backoffice tenant editor to ship native iOS/Android apps for your portal. If you do, your layout needs a few more asset references — see [Wiring the Mobile Shell and Biometric Scripts into Your Layout](walkthroughs/building-a-mobile-app.md#wiring-the-mobile-shell-and-biometric-scripts-into-your-layout).
 - **Enable biometric auth** (optional) for returning users to skip OIDC on subsequent app launches. See `/docs/biometric-setup.md` for key configuration details.
 
 For detailed feature walkthroughs, see the main [README.md](../README.md).

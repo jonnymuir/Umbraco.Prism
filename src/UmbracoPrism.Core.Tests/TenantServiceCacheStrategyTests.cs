@@ -154,12 +154,14 @@ public class TenantServiceCacheStrategyTests
     [Fact]
     public async Task GetByDomainAsync_DropsBrandingOverride_ContainingStyleTagBreakout()
     {
-        // SECURITY: BrandingCssDeclarations is rendered unescaped inside a <style> tag on
-        // every page this tenant serves (PrismBrandingMiddleware.InjectBranding). A value
-        // containing "</style>" would terminate that element early and let the remainder
-        // render as live HTML — a stored, tenant-wide script injection from a single
-        // compromised/malicious backoffice admin account. This must never reach the
-        // rendered declaration string.
+        // SECURITY: BrandingCssDeclarations is rendered unescaped as the body of a real
+        // text/css response (PrismBrandingAssetsController.BrandingCss). Serving it as its own
+        // resource — rather than splicing it inline into a <style> tag on every page, as it
+        // used to be — already closes off the classic "</style>" breakout into surrounding
+        // HTML/script. This validation is defence-in-depth on top of that: a malformed or
+        // malicious value here would still corrupt the tenant's live stylesheet (e.g. via a raw
+        // CSS comment breakout affecting rules that follow), so it must never reach the
+        // rendered declaration string regardless of delivery mechanism.
         var db = new Mock<IUmbracoDatabase>();
         db.Setup(x => x.FirstOrDefault<PrismTenantSchema>(It.IsAny<string>(), It.IsAny<object[]>()))
             .Returns(new PrismTenantSchema

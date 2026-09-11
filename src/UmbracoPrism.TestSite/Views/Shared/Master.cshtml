@@ -1,3 +1,4 @@
+@using UmbracoPrism.Core.Extensions
 @using UmbracoPrism.Core.Models
 @using Umbraco.Cms.Core.Models
 @using Umbraco.Cms.Core.Models.Blocks
@@ -13,6 +14,15 @@
     var settings = TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.SettingsAlias);
     var mobileNavLinks = settings?.Value<BlockListModel>("mobileNavLinks");
     var webNavLinks = settings?.Value<BlockListModel>("webNavLinks");
+
+    // SEC-PT2-004 CSP follow-up: Prism no longer auto-injects the mobile shell / biometric
+    // scripts into the response — they're plain static assets (and, for branding, a plain
+    // stylesheet endpoint) a host references explicitly, exactly like prism-mobile-nav.js
+    // below. See docs/walkthroughs/building-a-mobile-app.md for the integration contract any
+    // consuming host follows.
+    var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(Context);
+    var biometricLoginEnabled = isPrismMobileRequest && (tenant?.AllowBiometricLogin ?? false);
+    var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
 }
 
 <!DOCTYPE html>
@@ -40,6 +50,16 @@
         This keeps the demo honest: the branding layer is what partners will edit.
     -->
     <link rel="stylesheet" href="/branding/prism-branding.css" />
+
+    <!-- Per-tenant branding overrides (SEC-PT2-004: served as its own resource, not spliced
+         inline, so it needs no CSP unsafe-inline/nonce exception). Loaded last so tenant
+         overrides win the cascade; always a valid — if possibly empty — stylesheet. -->
+    <link rel="stylesheet" href="/umbraco/prism/branding.css" />
+
+    @if (isPrismMobileRequest)
+    {
+        <link rel="stylesheet" href="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell.css" />
+    }
 
 </head>
 <body class="govuk-template__body">
@@ -88,6 +108,25 @@
     <!-- Wayfinder.Rendering.GovUk's own bulk-data-review script — the component is entirely
          client-fetched, so this has no server-side equivalent. -->
     <script src="/_content/Wayfinder.Rendering.GovUk/js/wayfinder-bulk-data-review.js"></script>
+
+    @if (isPrismMobileRequest)
+    {
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell-guard.js"></script>
+    }
+
+    @if (biometricLoginEnabled)
+    {
+        @* Enroll if a session already exists to enroll a device against; otherwise attempt
+           silent auto-login from a previously-enrolled device's stored credential. *@
+        if (isAuthenticated)
+        {
+            <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js"></script>
+        }
+        else
+        {
+            <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-autologin.js"></script>
+        }
+    }
 
 </body>
 </html>

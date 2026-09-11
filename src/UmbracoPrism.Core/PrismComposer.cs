@@ -107,7 +107,7 @@ public class PrismComposer : IComposer
                     app.UseForwardedHeaders();
                     app.UseMiddleware<PrismSecurityHeadersMiddleware>();
                     app.UseMiddleware<PrismTenantMiddleware>();
-                    app.UseMiddleware<PrismBrandingMiddleware>();
+                    app.UseMiddleware<PrismMobileCookieMiddleware>();
                 }
             ));
         });
