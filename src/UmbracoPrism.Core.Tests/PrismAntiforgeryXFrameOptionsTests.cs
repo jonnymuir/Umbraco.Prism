@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -11,24 +12,32 @@ using UmbracoPrism.Core.Middleware;
 namespace UmbracoPrism.Core.Tests;
 
 /// <summary>
-/// Regression test for the duplicate-X-Frame-Options bug (SEC-PT2-004 follow-up): ASP.NET
-/// Core's own antiforgery middleware sets X-Frame-Options: SAMEORIGIN automatically whenever
-/// IAntiforgery.GetAndStoreTokens issues a token — independently of, and in addition to,
-/// PrismSecurityHeadersMiddleware's own copy. Found live via the DAST baseline scan: every
-/// page that mints a token sent the header twice, which some browsers treat as untrustworthy
-/// and ignore entirely, silently disabling clickjacking protection on exactly the pages that
-/// most need it (real forms).
+/// Regression tests for two independent ASP.NET Core Antiforgery framework defaults, both found
+/// live via the same DAST baseline scan and both fixed in the same PrismComposer configuration
+/// block (SEC-PT2-004 follow-up):
+///
+/// 1. Duplicate X-Frame-Options: the framework's own antiforgery middleware sets
+///    X-Frame-Options: SAMEORIGIN automatically whenever IAntiforgery.GetAndStoreTokens issues a
+///    token — independently of, and in addition to, PrismSecurityHeadersMiddleware's own copy.
+///    Every page that mints a token sent the header twice, which some browsers treat as
+///    untrustworthy and ignore entirely, silently disabling clickjacking protection on exactly
+///    the pages that most need it (real forms).
+/// 2. Antiforgery cookie missing Secure: AntiforgeryOptions's own Cookie.SecurePolicy defaults to
+///    CookieSecurePolicy.None (confirmed: `new AntiforgeryOptions().Cookie.SecurePolicy` is
+///    `None` out of the box, not SameAsRequest as might be assumed) — so the antiforgery cookie
+///    itself shipped with no Secure flag on every token-minting page (ZAP: "Cookie Without
+///    Secure Flag [10011]").
 ///
 /// This exercises the real ASP.NET Core antiforgery middleware and PrismSecurityHeadersMiddleware
 /// together through a minimal TestServer pipeline — not a mock, and not just an assertion that
-/// an options flag is set — to prove the framework's own documented behaviour (suppressed when
-/// AntiforgeryOptions.SuppressXFrameOptionsHeader = true) is what this repo is actually relying
-/// on. UmbracoPrism.Core.IntegrationTests' own booted TestSite fixture can't reach this: it seeds
-/// no front-end content, so nothing there ever mints a token to reproduce the bug against.
+/// an options flag is set — to prove the framework's own documented behaviour (suppressed only
+/// when explicitly configured) is what this repo is actually relying on. UmbracoPrism.Core.
+/// IntegrationTests' own booted TestSite fixture can't reach this: it seeds no front-end
+/// content, so nothing there ever mints a token to reproduce the bugs against.
 /// </summary>
 public class PrismAntiforgeryXFrameOptionsTests
 {
-    private static async Task<IHost> BuildHostAsync(bool suppressXFrameOptionsHeader)
+    private static async Task<IHost> BuildHostAsync(bool applyPrismAntiforgeryConfiguration)
     {
         var builder = new HostBuilder()
             .ConfigureWebHost(webBuilder =>
@@ -37,11 +46,14 @@ public class PrismAntiforgeryXFrameOptionsTests
                 webBuilder.ConfigureServices(services =>
                 {
                     services.AddAntiforgery();
-                    if (suppressXFrameOptionsHeader)
+                    if (applyPrismAntiforgeryConfiguration)
                     {
                         // The exact configuration PrismComposer applies.
                         services.Configure<AntiforgeryOptions>(options =>
-                            options.SuppressXFrameOptionsHeader = true);
+                        {
+                            options.SuppressXFrameOptionsHeader = true;
+                            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                        });
                     }
 
                     services.Configure<PrismSecurityHeadersOptions>(_ => { });
@@ -63,11 +75,25 @@ public class PrismAntiforgeryXFrameOptionsTests
         return await builder.StartAsync();
     }
 
+    /// <summary>
+    /// TestServer honours the request URI's scheme for HttpContext.Request.IsHttps (there's no
+    /// real TLS negotiation) — needed because Cookie.SecurePolicy = Always makes ASP.NET Core's
+    /// own antiforgery system throw on a non-SSL request (CheckSSLConfig), and TestServer's
+    /// default client base address is http://. TestSite itself (and every real deployment) is
+    /// HTTPS-only, so this matches production, not a workaround for it.
+    /// </summary>
+    private static HttpClient GetHttpsTestClient(IHost host)
+    {
+        var client = host.GetTestClient();
+        client.BaseAddress = new Uri("https://localhost/");
+        return client;
+    }
+
     [Fact]
     public async Task XFrameOptions_IsSentExactlyOnce_WhenTheFrameworksOwnCopyIsSuppressed()
     {
-        using var host = await BuildHostAsync(suppressXFrameOptionsHeader: true);
-        using var client = host.GetTestClient();
+        using var host = await BuildHostAsync(applyPrismAntiforgeryConfiguration: true);
+        using var client = GetHttpsTestClient(host);
 
         var response = await client.GetAsync("/");
 
@@ -85,8 +111,8 @@ public class PrismAntiforgeryXFrameOptionsTests
         // AntiforgeryOptions.SuppressXFrameOptionsHeader, the same minimal pipeline —
         // PrismSecurityHeadersMiddleware plus a single GetAndStoreTokens call — genuinely
         // does send the header twice.
-        using var host = await BuildHostAsync(suppressXFrameOptionsHeader: false);
-        using var client = host.GetTestClient();
+        using var host = await BuildHostAsync(applyPrismAntiforgeryConfiguration: false);
+        using var client = GetHttpsTestClient(host);
 
         var response = await client.GetAsync("/");
 
@@ -94,5 +120,48 @@ public class PrismAntiforgeryXFrameOptionsTests
         values.Should().HaveCount(2,
             "this documents the live bug: ASP.NET Core's own antiforgery middleware adds its " +
             "own X-Frame-Options on top of PrismSecurityHeadersMiddleware's, unless suppressed");
+    }
+
+    [Fact]
+    public async Task AntiforgeryCookie_CarriesSecureFlag_WhenPrismConfigurationIsApplied()
+    {
+        using var host = await BuildHostAsync(applyPrismAntiforgeryConfiguration: true);
+        using var client = GetHttpsTestClient(host);
+
+        var response = await client.GetAsync("/");
+
+        var antiforgeryCookie = GetAntiforgerySetCookieHeader(response);
+        antiforgeryCookie.Should().Contain("secure",
+            "Cookie.SecurePolicy = Always must mark the antiforgery cookie itself Secure — " +
+            "TestSite (and every real deployment) is HTTPS-only, so there is no legitimate " +
+            "plain-HTTP case this cookie needs to survive");
+    }
+
+    [Fact]
+    public async Task AntiforgeryCookie_LacksSecureFlag_WhenPrismConfigurationIsNotApplied()
+    {
+        // Proves the bug this fix addresses is real, not a misdiagnosis: AntiforgeryOptions's
+        // own default Cookie.SecurePolicy is CookieSecurePolicy.None (confirmed directly:
+        // `new AntiforgeryOptions().Cookie.SecurePolicy` is None out of the box), so without
+        // PrismComposer's explicit override the antiforgery cookie genuinely ships with no
+        // Secure flag — this is what the DAST scan caught as "Cookie Without Secure Flag [10011]".
+        using var host = await BuildHostAsync(applyPrismAntiforgeryConfiguration: false);
+        using var client = GetHttpsTestClient(host);
+
+        var response = await client.GetAsync("/");
+
+        var antiforgeryCookie = GetAntiforgerySetCookieHeader(response);
+        antiforgeryCookie.Should().NotContain("secure",
+            "this documents the live bug: the framework's own default antiforgery Cookie " +
+            ".SecurePolicy is None, not SameAsRequest, unless explicitly overridden");
+    }
+
+    private static string GetAntiforgerySetCookieHeader(HttpResponseMessage response)
+    {
+        response.Headers.TryGetValues("Set-Cookie", out var cookies).Should().BeTrue();
+        var antiforgeryCookie = cookies!.SingleOrDefault(c =>
+            c.StartsWith(".AspNetCore.Antiforgery.", StringComparison.Ordinal));
+        antiforgeryCookie.Should().NotBeNull("the pipeline always mints one via GetAndStoreTokens");
+        return antiforgeryCookie!;
     }
 }

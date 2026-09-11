@@ -65,7 +65,14 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
 
     public async Task InitializeAsync()
     {
-        using var client = CreateClient(new() { AllowAutoRedirect = false });
+        // https:// — see the same note on AuthorizationBehaviourTests.Anonymous(): TestSite is
+        // HTTPS-only in every real deployment, and AntiforgeryOptions.Cookie.SecurePolicy =
+        // Always hard-throws on a non-HTTPS request.
+        using var client = CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
         var deadline = DateTime.UtcNow.AddMinutes(4);
         var ok = 0;
         while (DateTime.UtcNow < deadline)
