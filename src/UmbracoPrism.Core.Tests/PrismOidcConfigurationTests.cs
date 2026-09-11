@@ -261,6 +261,29 @@ public class PrismOidcConfigurationTests
         refreshRelease.TrySetResult();
     }
 
+    /// <summary>
+    /// Defense-in-depth regression: the base TokenValidationParameters this method configures
+    /// must default fail-safe. The normal login flow never actually validates a token against
+    /// this instance (OnAuthorizationCodeReceived does its own manual validation with real
+    /// per-tenant ValidIssuer/ValidAudience and calls HandleResponse() first) — but if that ever
+    /// changes, or IssuerSigningKeyResolver is ever reached without it setting these explicitly,
+    /// "true" fails closed where "false" would silently accept a token from any issuer/audience.
+    /// </summary>
+    [Fact]
+    public void PostConfigure_LeavesValidateIssuerAndAudienceTrue_OnTheBaseTokenValidationParameters()
+    {
+        var options = ConfigureOptions(new Mock<IPrismSigningKeyCache>().Object, new PrismTenant
+        {
+            EntraTenantId = "tenant-a",
+            EntraClientId = "client-a"
+        });
+
+        options.TokenValidationParameters.ValidateIssuer.Should().BeTrue(
+            "the base default must fail closed, not rely solely on a per-request resolver mutation to become safe");
+        options.TokenValidationParameters.ValidateAudience.Should().BeTrue(
+            "the base default must fail closed, not rely solely on a per-request resolver mutation to become safe");
+    }
+
     [Fact]
     public void PostConfigure_DoesNotRefresh_WhenCachedKeyAlreadyMatchesKid()
     {
@@ -342,6 +365,67 @@ public class PrismOidcConfigurationTests
         await options.Events.OnRedirectToIdentityProvider(context);
 
         context.ProtocolMessage.Scope.Should().Be("openid profile");
+    }
+
+    /// <summary>
+    /// PKCE regression guard. The OIDC middleware's own default UsePkce=true challenge behaviour
+    /// generates a code_verifier and stores it in AuthenticationProperties.Items["code_verifier"]
+    /// before OnRedirectToIdentityProvider runs; this copies it to a Prism-owned key
+    /// (Prism_PKCE_Verifier) so OnAuthorizationCodeReceived — running against a fresh
+    /// AuthenticationProperties reconstructed from the callback's state parameter — can still
+    /// find it and send it as code_verifier on the manual token-exchange POST. If that copy ever
+    /// regresses (or UsePkce is ever turned off), the exchange silently drops the PKCE proof.
+    /// </summary>
+    [Fact]
+    public void UsePkce_DefaultsToTrue()
+    {
+        var options = ConfigureOptions(new Mock<IPrismSigningKeyCache>().Object, new PrismTenant
+        {
+            EntraTenantId = "tenant-a",
+            EntraClientId = "client-a"
+        });
+
+        options.UsePkce.Should().BeTrue("PrismOidcConfiguration relies on this default — it never sets UsePkce itself");
+    }
+
+    [Fact]
+    public async Task PostConfigure_Redirect_CapturesTheMiddlewareGeneratedCodeVerifierUnderThePrismKey()
+    {
+        var tenant = new PrismTenant
+        {
+            OidcAuthority = "https://localhost:8443/realms/prism-dev",
+            OidcClientId = "prism-client"
+        };
+        var options = ConfigureOptions(new Mock<IPrismSigningKeyCache>().Object, tenant);
+        var context = CreateRedirectContext(options, tenant);
+
+        // Simulates what the OIDC middleware's own UsePkce=true handling does before
+        // OnRedirectToIdentityProvider runs, for real, on every challenge.
+        context.Properties.Items["code_verifier"] = "middleware-generated-verifier";
+
+        await options.Events.OnRedirectToIdentityProvider(context);
+
+        context.Properties.Items["Prism_PKCE_Verifier"].Should().Be("middleware-generated-verifier");
+    }
+
+    [Fact]
+    public async Task PostConfigure_Redirect_CapturesAnEmptyVerifier_WhenTheMiddlewareDidNotGenerateOne()
+    {
+        // Fail-visible, not fail-silent: an empty string still round-trips through the exchange
+        // as a real (if empty) code_verifier value, rather than the key being absent entirely —
+        // Keycloak/Entra reject an empty code_verifier against a real code_challenge outright,
+        // so PKCE going missing surfaces as a login failure, not a silent downgrade.
+        var tenant = new PrismTenant
+        {
+            OidcAuthority = "https://localhost:8443/realms/prism-dev",
+            OidcClientId = "prism-client"
+        };
+        var options = ConfigureOptions(new Mock<IPrismSigningKeyCache>().Object, tenant);
+        var context = CreateRedirectContext(options, tenant);
+
+        await options.Events.OnRedirectToIdentityProvider(context);
+
+        context.Properties.Items["Prism_PKCE_Verifier"].Should().Be(string.Empty);
     }
 
     [Fact]
