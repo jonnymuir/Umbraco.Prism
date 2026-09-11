@@ -7,10 +7,11 @@ name: DAST
 #
 # Separate from security.yml because it boots an app (different execution model).
 #
-# Posture: ADVISORY for now (fail-action: false). Once this file's first report is triaged
-# into .zap/rules.tsv, flip fail-action to true and add the "DAST baseline" check-run to
-# the branch ruleset — the same advisory -> blocking rollout Wayfinder and Wayfinder.Umbraco's
-# own DAST followed.
+# Posture: BLOCKING (fail-action: true) — .zap/rules.tsv now covers the full unauthenticated
+# report (triaged 2026-09-11, after SEC-PT2-004's two real regressions found by the first
+# report were root-caused and fixed: #193 OnStarting header-survival, #194 antiforgery
+# X-Frame-Options duplication, #195 antiforgery cookie Secure flag). Same advisory -> blocking
+# rollout Wayfinder and Wayfinder.Umbraco's own DAST followed.
 #
 # The boot-command replicates the prep steps ci-tests.yml's own localhost-auth-playwright job
 # already uses to bring the same Aspire stack up (Keycloak image pre-pull, its data dir, dev
@@ -58,4 +59,4 @@ jobs:
       curl-insecure: true
       node-build: '["src/UmbracoPrism.Client"]'
       # rules-file-path defaults to .zap/rules.tsv
-      fail-action: false
+      fail-action: true
