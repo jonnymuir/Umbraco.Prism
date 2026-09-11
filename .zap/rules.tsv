@@ -1,0 +1,15 @@
+# OWASP ZAP baseline scan rules for the DAST job (.github/workflows/dast.yml).
+#
+# Tab-separated: <alertId>	<action>	<url-regex>	<optional note>
+#   action = IGNORE  — accepted / not applicable, never fails the scan
+#            WARN     — reported, does not fail the scan (default for anything not listed)
+#            FAIL     — reported and fails the scan
+#   url-regex — omit (empty 3rd column) to apply to every URL; otherwise a Python
+#               regex matched against the finding's URL
+#
+# Posture: ADVISORY for now (fail-action: false in dast.yml). Once this file covers the
+# report, flip fail-action to true and add the "DAST baseline" check-run to the branch
+# ruleset — the same advisory -> blocking rollout Wayfinder and Wayfinder.Umbraco's own
+# DAST followed.
+#
+# alert IDs: https://www.zaproxy.org/docs/alerts/
