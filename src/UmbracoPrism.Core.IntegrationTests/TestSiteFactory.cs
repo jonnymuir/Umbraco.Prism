@@ -75,6 +75,21 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
                 // appsettings.json. A fixed base64 blob; this host serves no images under test.
                 ["Umbraco:CMS:Imaging:HMACSecretKey"] = "cHJpc20tYXV0aC1jb250cmFjdC1sYXllcjItbm90LXNlY3JldA==",
 
+                // BiometricTokenService/RefreshTokenEncryptionService throw InvalidOperationException
+                // from their own constructors — i.e. during controller DI activation, before any
+                // middleware-level or action-level try/catch can reach it — when these are absent.
+                // UmbracoPrism.TestSite normally gets them from `dotnet user-secrets` (its
+                // UserSecretsId), which .NET auto-loads because this factory forces the Development
+                // environment below; user secrets live outside the repo, so CI never has them. This
+                // is THE actual root cause behind AuthorizationBehaviourTests' long-standing
+                // "CI-only 500" note on the Exchange test — not a cold-runner timing flake at all
+                // (it was 100% deterministic in CI from the start, just never actually diagnosed
+                // until RawExceptionCapture's response-body capture finally showed the real
+                // exception). Fixed test-only values, not real secrets — this host issues no real
+                // biometric tokens under test.
+                ["Prism:Biometric:SigningKey"] = "prism-authcontract-test-signing-key-not-a-real-secret",
+                ["Prism:Biometric:EncryptionKey"] = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+
                 ["Umbraco:CMS:ModelsBuilder:ModelsDirectory"] = Path.Combine(_tempRoot, "umbraco", "models"),
                 ["Umbraco:CMS:ModelsBuilder:AcceptUnsafeModelsDirectory"] = "true",
 

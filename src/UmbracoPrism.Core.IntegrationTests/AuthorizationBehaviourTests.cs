@@ -76,19 +76,22 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
         // rather than being challenged by the auth middleware) and, given no valid BiometricToken
         // JWT, it never issues a PrismMemberCookie session.
         //
-        // STILL OPEN — two root-cause theories tried and disproved so far, both worth keeping the
-        // record of: (1) "always logged via Microsoft.AspNetCore.Hosting.Diagnostics" — wrong,
-        // HostErrorLogCapture caught nothing across two separate CI recurrences of this exact 500.
-        // (2) PrismTenantMiddleware's uncaught PrismTenants lookup racing the migration gate —
-        // plausible (Exchange's own outer catch converts every exception inside it to 400, so a
-        // 500 really can only come from outside that method, and this middleware runs before any
-        // controller is constructed) but disproved by evidence, not just untested: TenantService
-        // .GetByDomainAsync was hardened against exactly this (now merged, and worth keeping — a
-        // real defensive fix on its own merits) and the identical 500 still recurred on the very
-        // next CI run with no local repro either way. Whatever throws is still unidentified.
-        // RawExceptionCapture (an IStartupFilter wrapping the ENTIRE pipeline) now backstops
-        // HostErrorLogCapture — it bypasses logging categories/levels entirely, so unlike the log
-        // capture it CANNOT miss a genuinely thrown exception, whatever it turns out to be.
+        // RESOLVED — this was never a cold-runner timing flake at all, despite the framing on the
+        // original note; it was 100% deterministic in CI from the very first run, just never
+        // actually diagnosed until the response-body capture below finally showed the real
+        // exception: BiometricTokenService's own constructor throws InvalidOperationException when
+        // Prism:Biometric:SigningKey is absent — during controller DI activation, before Exchange's
+        // own try/catch (or any middleware-level one) can reach it. UmbracoPrism.TestSite normally
+        // gets that value from `dotnet user-secrets` (its UserSecretsId), auto-loaded because this
+        // factory forces the Development environment — user secrets live outside the repo, so every
+        // developer machine that ever ran `dotnet user-secrets set` for this project had it and CI
+        // never did. Fixed in TestSiteFactory's own config (see its comment) with fixed test-only
+        // values; confirmed by removing the local secrets file entirely and re-running, which
+        // reproduced the exact CI failure locally for the first time, then passed once fixed.
+        // Two other things landed chasing this, both kept as good on their own merits even though
+        // neither was the actual cause: TenantService.GetByDomainAsync no longer crashes the request
+        // on a database failure during tenant lookup, and RawExceptionCapture (an IStartupFilter
+        // wrapping the entire pipeline) backstops HostErrorLogCapture for whatever the next one is.
         if (res.StatusCode == HttpStatusCode.InternalServerError)
         {
             var rawExceptions = factory.DrainRawExceptions();
