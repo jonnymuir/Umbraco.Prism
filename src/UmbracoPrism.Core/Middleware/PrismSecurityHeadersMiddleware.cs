@@ -5,7 +5,7 @@ using UmbracoPrism.Core.Configuration;
 namespace UmbracoPrism.Core.Middleware;
 
 /// <summary>
-/// Appends standard security response headers to every non-backoffice response.
+/// Sets standard security response headers on every non-backoffice response.
 /// Registered automatically by <see cref="UmbracoPrism.Core.PrismComposer"/> via
 /// <c>UmbracoPipelineFilter</c>. Configure via <see cref="PrismSecurityHeadersOptions"/>.
 ///
@@ -22,6 +22,15 @@ namespace UmbracoPrism.Core.Middleware;
 /// it ran. <c>OnStarting</c> registers a callback that fires at the last possible moment —
 /// right before the response's headers actually go out — so it survives that reset instead
 /// of racing it.
+///
+/// Headers are SET via the indexer (replacing any existing value), not <c>Append</c>ed. A
+/// header sent twice — even with identical values — is a real regression some browsers treat
+/// as untrustworthy and drop entirely; this already bit X-Frame-Options once (ASP.NET Core's
+/// own Antiforgery middleware appends it independently — see AntiforgeryOptions
+/// .SuppressXFrameOptionsHeader in PrismComposer). The indexer makes every header this
+/// middleware owns idempotent against being set again by anything else downstream — including
+/// something not yet discovered — rather than fixing that one known case and leaving the same
+/// class of risk open for every other header.
 /// </summary>
 internal sealed class PrismSecurityHeadersMiddleware(
     RequestDelegate next,
@@ -35,7 +44,7 @@ internal sealed class PrismSecurityHeadersMiddleware(
         {
             context.Response.OnStarting(() =>
             {
-                AppendSecurityHeaders(context);
+                SetSecurityHeaders(context);
                 return Task.CompletedTask;
             });
         }
@@ -51,26 +60,27 @@ internal sealed class PrismSecurityHeadersMiddleware(
         return context.Request.Path.StartsWithSegments("/umbraco", StringComparison.OrdinalIgnoreCase);
     }
 
-    private void AppendSecurityHeaders(HttpContext context)
+    private void SetSecurityHeaders(HttpContext context)
     {
         var headers = context.Response.Headers;
 
         if (_options.ContentTypeOptions is not null)
-            headers.Append("X-Content-Type-Options", _options.ContentTypeOptions);
+            headers["X-Content-Type-Options"] = _options.ContentTypeOptions;
 
         if (_options.FrameOptions is not null)
-            headers.Append("X-Frame-Options", _options.FrameOptions);
+            headers["X-Frame-Options"] = _options.FrameOptions;
 
         if (_options.ReferrerPolicy is not null)
-            headers.Append("Referrer-Policy", _options.ReferrerPolicy);
+            headers["Referrer-Policy"] = _options.ReferrerPolicy;
 
         if (_options.PermissionsPolicy is not null)
-            headers.Append("Permissions-Policy", _options.PermissionsPolicy);
+            headers["Permissions-Policy"] = _options.PermissionsPolicy;
 
         if (_options.HstsValue is not null && context.Request.IsHttps)
-            headers.Append("Strict-Transport-Security", _options.HstsValue);
+            headers["Strict-Transport-Security"] = _options.HstsValue;
 
         if (_options.ContentSecurityPolicyReportOnly is not null)
-            headers.Append("Content-Security-Policy-Report-Only", _options.ContentSecurityPolicyReportOnly);
+            headers["Content-Security-Policy-Report-Only"] = CspPolicyBuilder.WithAdditionalSources(
+                _options.ContentSecurityPolicyReportOnly, _options.AdditionalContentSecurityPolicySources);
     }
 }

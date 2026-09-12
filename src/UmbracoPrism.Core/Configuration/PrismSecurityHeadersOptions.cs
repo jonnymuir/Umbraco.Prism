@@ -70,4 +70,14 @@ public class PrismSecurityHeadersOptions
     /// </summary>
     public string? ContentSecurityPolicyReportOnly { get; set; } =
         "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; frame-ancestors 'self'";
+
+    /// <summary>
+    /// Sources a host can append to a specific CSP directive, keyed by directive name (e.g.
+    /// <c>connect-src</c>), without having to fork and hand-maintain Prism's whole policy string
+    /// just to add one third-party origin (an analytics endpoint, a payment provider's iframe,
+    /// their own API). Value is one or more space-separated sources, e.g.
+    /// <c>{ ["connect-src"] = "https://api.example.com" }</c>. A directive Prism doesn't already
+    /// emit is added as a new one. Applied to whichever CSP header(s) are active.
+    /// </summary>
+    public Dictionary<string, string> AdditionalContentSecurityPolicySources { get; set; } = new();
 }
