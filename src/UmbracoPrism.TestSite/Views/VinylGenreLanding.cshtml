@@ -19,7 +19,7 @@
         }
         
         @* Subscription button - will be wired to notification API *@
-        <button class="btn-subscribe" data-genre="@genreName" onclick="toggleSubscription('@genreName')">
+        <button class="btn-subscribe" data-action="toggle-subscription" data-genre="@genreName">
             🔔 Subscribe to @genreName Notifications
         </button>
     </div>
@@ -68,18 +68,5 @@
     </div>
 </div>
 
-<script>
-    function toggleSubscription(genre) {
-        // This would call the Prism notification subscription API
-        // For now, just show an alert
-        alert('Subscription feature will be wired to /umbraco/api/prismnotification/subscribe endpoint');
-        console.log('Toggle subscription for genre:', genre);
-        
-        // TODO: Integrate with PrismNotificationController
-        // fetch('/umbraco/api/prismnotification/subscribe', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({ genre: genre })
-        // });
-    }
-</script>
+<!-- Subscribe demo action (SEC-PT2-004: externalized, not spliced inline). -->
+<script src="/js/vinyl-genre-landing-actions.js"></script>

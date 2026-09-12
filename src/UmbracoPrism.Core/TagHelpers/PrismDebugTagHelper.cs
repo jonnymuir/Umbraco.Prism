@@ -63,36 +63,18 @@ public class PrismDebugTagHelper(
             var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(ViewContext.HttpContext);
             var mobileDetectionSource = PrismMobileRequestDetection.GetPrismMobileDetectionSource(ViewContext.HttpContext);
 
+            // SEC-PT2-004: externalized (not spliced inline), same rationale as every other
+            // formerly-inline asset in this repo — needs no CSP unsafe-inline/nonce exception.
             sb.Append("""
-                <style>
-                    .prism-debug-root { font-family: -apple-system, system-ui, sans-serif; line-height: 1.6; padding: 2rem; background: #f0f2f5; color: #1c1e21; border-radius: 12px; margin: 20px 0; border: 1px solid #ddd; }
-                    .prism-debug-root .card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 1.5rem; border: 1px solid #e1e4e8; position: relative; }
-                    .prism-debug-root h2 { font-size: 1.1rem; margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
-                    .prism-debug-root .copy-btn { font-size: 0.7rem; background: #e9ecef; border: 1px solid #dee2e6; padding: 2px 8px; border-radius: 4px; cursor: pointer; color: #495057; }
-                    .prism-debug-root .copy-btn:hover { background: #dee2e6; }
-                    .prism-debug-root .status-badge { display: inline-block; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
-                    .prism-debug-root .status-online { background: #e6fcf5; color: #0ca678; }
-                    .prism-debug-root .btn { display: inline-block; padding: 0.6rem 1.2rem; border-radius: 6px; text-decoration: none; color: white; font-weight: 600; font-size: 0.9rem; }
-                    .prism-debug-root .btn-login { background: #007bff; }
-                    .prism-debug-root code { background: #f8f9fa; padding: 0.2rem 0.4rem; border-radius: 4px; border: 1px solid #dee2e6; font-size: 0.85rem; color: #d63384; }
-                </style>
-                <script>
-                    function copyToPrismClipboard(btn, elementId) {
-                        const text = document.getElementById(elementId).innerText;
-                        navigator.clipboard.writeText(text).then(() => {
-                            const original = btn.innerText;
-                            btn.innerText = 'Copied!';
-                            setTimeout(() => btn.innerText = original, 2000);
-                        });
-                    }
-                </script>
+                <link rel="stylesheet" href="/App_Plugins/UmbracoPrism/diagnostics/prism-debug.css" />
+                <script src="/App_Plugins/UmbracoPrism/diagnostics/prism-debug-copy.js"></script>
                 <h1>Umbraco Prism Runtime</h1>
                 """);
 
             // 1. Tenant Section
             sb.Append($"""
                 <div class="card">
-                    <h2>📡 Tenant Info <button class="copy-btn" onclick="copyToPrismClipboard(this, 'prism-tenant-data')">Copy</button></h2>
+                    <h2>📡 Tenant Info <button class="copy-btn" data-action="copy-to-clipboard" data-copy-target="prism-tenant-data">Copy</button></h2>
                     <div id="prism-tenant-data">
                         <p><strong>Name:</strong> {tenant?.Name ?? "None"}</p>
                         <p><strong>Entra ID:</strong> <code>{tenant?.EntraTenantId ?? "N/A"}</code></p>
@@ -111,7 +93,7 @@ public class PrismDebugTagHelper(
                 var antiforgeryTokens = antiforgery.GetAndStoreTokens(ViewContext.HttpContext);
                 sb.Append($"""
                     <div class="card">
-                        <h2>👤 Identity <button class="copy-btn" onclick="copyToPrismClipboard(this, 'prism-user-data')">Copy</button></h2>
+                        <h2>👤 Identity <button class="copy-btn" data-action="copy-to-clipboard" data-copy-target="prism-user-data">Copy</button></h2>
                         <div id="prism-user-data">
                             <p><strong>User:</strong> {prismUser.Name}</p>
                             <p><strong>Email:</strong> {prismUser.Email}</p>
@@ -127,7 +109,7 @@ public class PrismDebugTagHelper(
                 // 2.5 Claims Section
                 sb.Append($"""
                     <div class="card">
-                        <h2>Attributes & Claims <button class="copy-btn" onclick="copyToPrismClipboard(this, 'prism-claims-data')">Copy</button></h2>
+                        <h2>Attributes & Claims <button class="copy-btn" data-action="copy-to-clipboard" data-copy-target="prism-claims-data">Copy</button></h2>
                         <div id="prism-claims-data" style="max-height: 300px; overflow-y: auto;">
                             <table style="width:100%; font-size: 0.8rem; border-collapse: collapse;">
                                 {string.Join("", ViewContext.HttpContext.User.Claims.Select(c =>
@@ -156,7 +138,7 @@ public class PrismDebugTagHelper(
 
             sb.Append($"""
                 <div class="card">
-                    <h2>HttpContext Debug <button class="copy-btn" onclick="copyToPrismClipboard(this, 'prism-cache-debug')">Copy</button></h2>
+                    <h2>HttpContext Debug <button class="copy-btn" data-action="copy-to-clipboard" data-copy-target="prism-cache-debug">Copy</button></h2>
                     <div id="prism-cache-debug">
                         <p><strong>OID found:</strong> <code>{oid ?? "MISSING"}</code></p>
                         <p><strong>TID found:</strong> <code>{tid ?? "MISSING"}</code></p>

@@ -4,10 +4,11 @@
 @{
     Layout = "~/Views/Shared/Master.cshtml";
 
-    var heroImage = Model?.Value<IPublishedContent>("heroImage");
-    var cardImage = Model?.Value<IPublishedContent>("cardImage");
-    var heroImageUrl = heroImage?.Url();
-    var cardImageUrl = cardImage?.Url();
+    // Used only to decide whether to show "no image set" placeholder copy below — the actual
+    // --prism-hero-image/--prism-card-image CSS values come from /css/home-imagery.css
+    // (HomeImageryCssController), not from these.
+    var heroImageUrl = Model?.Value<IPublishedContent>("heroImage")?.Url();
+    var cardImageUrl = Model?.Value<IPublishedContent>("cardImage")?.Url();
     var rootContent = Umbraco.ContentAtRoot().ToList();
     var dashboardUrl = TestSiteSeedContract.ResolveUrl(
         TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.DashboardAlias),
@@ -17,30 +18,12 @@
     var displayName = Context.User.FindFirst("name")?.Value
                       ?? Context.User.FindFirst("preferred_username")?.Value
                       ?? "Member";
-    var hasImageryOverrides = !string.IsNullOrWhiteSpace(heroImageUrl) || !string.IsNullOrWhiteSpace(cardImageUrl);
-
-    var imageryCss = new System.Text.StringBuilder();
-    if (hasImageryOverrides)
-    {
-        imageryCss.Append(":root{");
-        if (!string.IsNullOrWhiteSpace(heroImageUrl))
-        {
-            imageryCss.Append($"--prism-hero-image:url('{heroImageUrl}');");
-        }
-        if (!string.IsNullOrWhiteSpace(cardImageUrl))
-        {
-            imageryCss.Append($"--prism-card-image:url('{cardImageUrl}');");
-        }
-        imageryCss.Append('}');
-    }
 }
 
-    @if (hasImageryOverrides)
-    {
-        <style>
-            @Html.Raw(imageryCss.ToString())
-        </style>
-    }
+    <!-- Hero/card image CSS variable overrides (SEC-PT2-004: served as their own resource by
+         HomeImageryCssController, not spliced inline, so this needs no CSP unsafe-inline/nonce
+         exception). Always a valid — if possibly empty — stylesheet. -->
+    <link rel="stylesheet" href="/css/home-imagery.css" />
 
 <div class="page" data-prism-home-ready="true">
 

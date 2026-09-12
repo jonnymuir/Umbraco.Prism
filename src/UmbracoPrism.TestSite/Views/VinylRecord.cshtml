@@ -67,12 +67,12 @@
             
             @* Subscription button for this genre *@
             <div class="actions">
-                <button class="btn-subscribe" onclick="subscribeToGenre('@genreName')">
+                <button class="btn-subscribe" data-action="subscribe-genre" data-genre="@genreName">
                     🔔 Subscribe to @genreName Notifications
                 </button>
                 @if (!inStock)
                 {
-                    <button class="btn-waitlist" onclick="joinWaitlist('@Model.Key')">
+                    <button class="btn-waitlist" data-action="join-waitlist" data-content-key="@Model.Key">
                         📬 Join Waitlist
                     </button>
                 }
@@ -96,27 +96,7 @@
     </div>
 </div>
 
-<script>
-    function subscribeToGenre(genre) {
-        // TODO: Wire to PrismNotificationService API
-        alert('Subscribe to ' + genre + ' notifications - will call /umbraco/api/prismnotification/subscribe');
-        console.log('Subscribe to genre:', genre);
-        
-        // Example API call (to be implemented):
-        // fetch('/umbraco/api/prismnotification/subscribe', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({ 
-        //         userId: 'current-user-id',  // From auth context
-        //         tenantId: 'current-tenant',  // From tenant context
-        //         genre: genre 
-        //     })
-        // });
-    }
-    
-    function joinWaitlist(contentKey) {
-        // TODO: Wire to waitlist API (when Blathers implements it)
-        alert('Join waitlist for this vinyl - feature to be implemented');
-        console.log('Join waitlist for:', contentKey);
-    }
-</script>
+<!-- Subscribe/waitlist demo actions (SEC-PT2-004: externalized, not spliced inline, so this
+     needs no CSP unsafe-inline exception — same for the buttons' data-action/data-genre/
+     data-content-key attributes above, which replace what used to be onclick="..."). -->
+<script src="/js/vinyl-record-actions.js"></script>

@@ -754,8 +754,11 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
     [Fact]
     public void MemberDashboard_RendersDiagnosticBodies_AsTextOnly()
     {
-        var viewPath = Path.Combine(RepoRoot, "src", "UmbracoPrism.TestSite", "Views", "memberDashboard.cshtml");
-        var content = File.ReadAllText(viewPath);
+        // Externalized to its own file (SEC-PT2-004 CSP follow-up) — this test now reads that
+        // file rather than memberDashboard.cshtml itself, but asserts the exact same contract.
+        var scriptPath = Path.Combine(
+            RepoRoot, "src", "UmbracoPrism.TestSite", "wwwroot", "js", "member-dashboard-downstream-demo.js");
+        var content = File.ReadAllText(scriptPath);
 
         content.Should().Contain("payload.diagnosticBody",
             because: "the dashboard should prefer the raw diagnostic body when the downstream API returns non-JSON content");

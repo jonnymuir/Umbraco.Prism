@@ -162,7 +162,7 @@
                         Click the button below to call the Mock Business App API using your current Prism Bearer token.
                         The API will validate the token, resolve your tenant, and return your registered role.
                     </p>
-                    <button onclick="callDownstreamApi()" class="btn btn-primary" id="api-btn" type="button"
+                    <button class="btn btn-primary" id="api-btn" type="button"
                             style="font-size: var(--prism-text-size-sm, 13px); padding: 8px 16px;">
                         Call Mock Business App API
                     </button>
@@ -189,7 +189,7 @@
                                 <span id="api-body-label" style="font-size:var(--prism-text-size-sm,13px); color:var(--prism-muted,#64748b); font-weight:700;"></span>
                                 <span id="api-content-type" style="font-size:var(--prism-text-size-sm,13px); color:var(--prism-muted,#64748b); font-family:monospace;"></span>
                             </div>
-                            <button onclick="resetApiDemo()" type="button" style="background:none; border:none; color:var(--prism-muted,#64748b); cursor:pointer; font-size:var(--prism-text-size-sm,13px); padding:2px 6px;">✕ Reset</button>
+                            <button id="api-reset-btn" type="button" style="background:none; border:none; color:var(--prism-muted,#64748b); cursor:pointer; font-size:var(--prism-text-size-sm,13px); padding:2px 6px;">✕ Reset</button>
                         </div>
                         <pre id="api-body" style="margin:0; padding:16px; font-size:var(--prism-text-size-sm,13px); overflow-x:auto; white-space:pre-wrap; word-break:break-word; color:var(--prism-text,#0f172a);"></pre>
                     </div>
@@ -197,199 +197,9 @@
             </div>
         </div>
 
-        <script>
-            const downstreamDemoEndpoint = '/api/prism/downstream-demo';
-
-            function getApiElements() {
-                return {
-                    button: document.getElementById('api-btn'),
-                    loading: document.getElementById('api-loading'),
-                    result: document.getElementById('api-result'),
-                    badge: document.getElementById('api-status-badge'),
-                    url: document.getElementById('api-url-label'),
-                    timing: document.getElementById('api-timing'),
-                    bodyLabel: document.getElementById('api-body-label'),
-                    contentType: document.getElementById('api-content-type'),
-                    body: document.getElementById('api-body'),
-                    summary: document.getElementById('api-summary')
-                };
-            }
-
-            function setApiButtonBusy(isBusy) {
-                const { button } = getApiElements();
-                if (!button) return;
-
-                button.disabled = isBusy;
-                button.setAttribute('aria-busy', isBusy ? 'true' : 'false');
-                button.textContent = isBusy ? 'Calling Mock Business App API…' : 'Call Mock Business App API';
-            }
-
-            function readApiBody(payload, rawText, fallbackMessage) {
-                if (payload && typeof payload.diagnosticBody === 'string' && payload.diagnosticBody.trim()) {
-                    return payload.diagnosticBody.trim();
-                }
-
-                if (payload && typeof payload.body === 'string' && payload.body.trim()) {
-                    return payload.body.trim();
-                }
-
-                if (payload && typeof payload.error === 'string' && payload.error.trim()) {
-                    return payload.error.trim();
-                }
-
-                if (payload && typeof payload.message === 'string' && payload.message.trim()) {
-                    return payload.message.trim();
-                }
-
-                if (typeof rawText === 'string' && rawText.trim()) {
-                    return rawText.trim();
-                }
-
-                return fallbackMessage;
-            }
-
-            function createApiSummary(statusCode, statusText, contentType) {
-                const normalizedContentType = typeof contentType === 'string'
-                    ? contentType.toLowerCase()
-                    : '';
-
-                if (statusText === 'Invalid Response') {
-                    if (normalizedContentType.includes('html')) {
-                        return 'The downstream service returned HTML instead of JSON. Inspect the raw response below.';
-                    }
-
-                    return `The downstream service returned ${contentType || 'non-JSON content'} instead of JSON.`;
-                }
-
-                if (statusCode >= 200 && statusCode < 300) {
-                    return 'Mock Business App responded successfully.';
-                }
-
-                if (statusCode === 401 || statusCode === 403) {
-                    return 'Your Prism session is no longer valid. Sign in again, then retry the call.';
-                }
-
-                if (statusCode === 0 || statusText === 'Timeout' || statusText === 'Network Error') {
-                    return 'We could not reach the Mock Business App. Check that it is running, then try again.';
-                }
-
-                if (statusCode >= 500) {
-                    return 'The Mock Business App returned a server error. Please try again in a moment.';
-                }
-
-                return 'The Mock Business App call did not complete successfully.';
-            }
-
-            function renderApiResult(model) {
-                const elements = getApiElements();
-                if (!elements.loading || !elements.badge || !elements.result || !elements.url || !elements.timing || !elements.bodyLabel || !elements.contentType || !elements.body || !elements.summary) {
-                    return;
-                }
-
-                const ok = model.statusCode >= 200 && model.statusCode < 300;
-                elements.loading.style.display = 'none';
-                elements.result.style.display = 'block';
-                elements.badge.textContent = `${model.statusCode} ${model.statusText}`;
-                elements.badge.style.background = ok ? 'rgba(22,163,74,0.12)' : 'rgba(239,68,68,0.12)';
-                elements.badge.style.color = ok ? 'var(--prism-success,#16a34a)' : 'var(--prism-danger,#ef4444)';
-                elements.url.textContent = model.url;
-                elements.timing.textContent = typeof model.elapsedMs === 'number' ? `${model.elapsedMs}ms` : '';
-                elements.bodyLabel.textContent = model.bodyLabel || 'Response body';
-                elements.contentType.textContent = model.contentType || 'unknown';
-                elements.body.textContent = model.body;
-                elements.summary.textContent = model.summary;
-                elements.summary.style.color = ok ? 'var(--prism-success,#16a34a)' : 'var(--prism-danger,#ef4444)';
-            }
-
-            async function parseApiResponse(res) {
-                const rawText = await res.text();
-                let payload = null;
-
-                if (rawText.trim()) {
-                    try {
-                        payload = JSON.parse(rawText);
-                    } catch {
-                        payload = null;
-                    }
-                }
-
-                const statusCode = Number.isFinite(payload?.statusCode) ? payload.statusCode : (res.status || 0);
-                const statusText = typeof payload?.statusText === 'string' && payload.statusText.trim()
-                    ? payload.statusText.trim()
-                    : (res.statusText || (res.ok ? 'OK' : 'Request Failed'));
-                const url = typeof payload?.url === 'string' && payload.url.trim()
-                    ? payload.url.trim()
-                    : (res.url || downstreamDemoEndpoint);
-                const contentType = typeof payload?.contentType === 'string' && payload.contentType.trim()
-                    ? payload.contentType.trim()
-                    : (res.headers.get('content-type')?.split(';')[0] || 'unknown');
-                const elapsedMs = Number.isFinite(payload?.elapsedMs) ? payload.elapsedMs : null;
-                const hasDiagnosticBody = typeof payload?.diagnosticBody === 'string' && payload.diagnosticBody.trim();
-                const diagnosticBodyTruncated = payload?.diagnosticBodyTruncated === true;
-                const summary = typeof payload?.summary === 'string' && payload.summary.trim()
-                    ? payload.summary.trim()
-                    : createApiSummary(statusCode, statusText, contentType);
-                const body = readApiBody(payload, rawText, summary);
-
-                return {
-                    statusCode,
-                    statusText,
-                    url,
-                    elapsedMs,
-                    contentType,
-                    body,
-                    summary,
-                    bodyLabel: hasDiagnosticBody
-                        ? `Downstream diagnostics${diagnosticBodyTruncated ? ' (truncated)' : ''}`
-                        : 'Response body'
-                };
-            }
-
-            async function callDownstreamApi() {
-                const elements = getApiElements();
-                if (!elements.loading || !elements.result) return;
-
-                setApiButtonBusy(true);
-                elements.result.style.display = 'none';
-                elements.loading.style.display = 'block';
-
-                try {
-                    const res = await fetch(downstreamDemoEndpoint, { credentials: 'include' });
-                    const model = await parseApiResponse(res);
-                    renderApiResult(model);
-                } catch (err) {
-                    renderApiResult({
-                        statusCode: 0,
-                        statusText: 'Client Error',
-                        url: downstreamDemoEndpoint,
-                        elapsedMs: null,
-                        contentType: 'none',
-                        body: err instanceof Error ? err.message : String(err),
-                        summary: 'The dashboard could not complete the request. Please try again.'
-                    });
-                } finally {
-                    setApiButtonBusy(false);
-                }
-            }
-
-            function resetApiDemo() {
-                const elements = getApiElements();
-                if (!elements.result || !elements.loading || !elements.body || !elements.summary || !elements.timing || !elements.bodyLabel || !elements.contentType || !elements.url || !elements.badge) {
-                    return;
-                }
-
-                setApiButtonBusy(false);
-                elements.loading.style.display = 'none';
-                elements.result.style.display = 'none';
-                elements.badge.textContent = '';
-                elements.url.textContent = '';
-                elements.timing.textContent = '';
-                elements.bodyLabel.textContent = '';
-                elements.contentType.textContent = '';
-                elements.summary.textContent = '';
-                elements.body.textContent = '';
-            }
-        </script>
+        <!-- Downstream API demo script (SEC-PT2-004: externalized, not spliced inline; the
+             call/reset buttons above are wired by id in the script itself, not onclick="..."). -->
+        <script src="/js/member-dashboard-downstream-demo.js"></script>
 
 
         <div style="margin-top: 24px;">
