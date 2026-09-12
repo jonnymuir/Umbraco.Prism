@@ -57,19 +57,31 @@ public class PrismSecurityHeadersOptions
         "camera=(), microphone=(), geolocation=(), payment=(), usb=()";
 
     /// <summary>
-    /// Value for <c>Content-Security-Policy-Report-Only</c>. Set to null to omit.
+    /// Value for the enforced <c>Content-Security-Policy</c> header. Set to null to omit.
     ///
-    /// CSP ships as Report-Only by default because a strict enforced CSP requires
-    /// careful tuning for: (a) Umbraco backoffice inline scripts/styles, (b) GOV.UK
-    /// Frontend inline event attributes, (c) TestSite inline <script> blocks.
-    /// Tune this per-deployment and promote to <c>Content-Security-Policy</c>
-    /// once you are confident it does not break any page.
-    ///
-    /// Default starter policy: self + unsafe-inline (deliberately permissive —
-    /// tighten before enforcing). See SEC-PT2-004 follow-up.
+    /// Default: <c>self</c> for script-src/style-src — no <c>unsafe-inline</c>. This is safe to
+    /// enforce because every page Prism itself renders (branding, mobile-shell, biometric, the
+    /// TestSite reference host's own demo pages) serves its CSS/JS as real external resources,
+    /// never spliced inline — CSP's inline restrictions only ever apply to literal inline
+    /// <c>&lt;style&gt;</c>/<c>&lt;script&gt;</c> content and inline event-handler attributes
+    /// (<c>onclick="..."</c>), never to externally-referenced <c>&lt;link href&gt;</c>/
+    /// <c>&lt;script src&gt;</c>. A host adding its own inline content, or a third-party embed
+    /// that needs one, should externalize it the same way (or add a source via
+    /// <see cref="AdditionalContentSecurityPolicySources"/>/its own override) rather than
+    /// reintroducing <c>unsafe-inline</c>. Backoffice paths are excluded from this middleware
+    /// entirely by default (<see cref="ExcludeBackoffice"/>) — this policy governs the front end.
     /// </summary>
-    public string? ContentSecurityPolicyReportOnly { get; set; } =
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; frame-ancestors 'self'";
+    public string? ContentSecurityPolicy { get; set; } =
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; frame-ancestors 'self'";
+
+    /// <summary>
+    /// Value for the monitoring-only <c>Content-Security-Policy-Report-Only</c> header. Set to
+    /// null (the default) to omit it entirely. A host tightening or extending its own policy
+    /// beyond Prism's default can set this to a stricter draft policy to see what it would break
+    /// in the browser console before promoting it to <see cref="ContentSecurityPolicy"/> — both
+    /// headers can be active at once if useful, they're independent.
+    /// </summary>
+    public string? ContentSecurityPolicyReportOnly { get; set; }
 
     /// <summary>
     /// Sources a host can append to a specific CSP directive, keyed by directive name (e.g.
