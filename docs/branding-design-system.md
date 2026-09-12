@@ -298,6 +298,34 @@ No rebuild. No deploy.
 
 ---
 
+## How Overrides Reach the Live Site
+
+Saved overrides are served as a plain stylesheet at `GET /umbraco/prism/branding.css` — resolved
+for the current tenant (by hostname) exactly the same way every other Prism request is, with
+mobile-specific overrides layered on top when the request is a detected Prism mobile request.
+It always returns a valid CSS document, empty when a tenant has no overrides configured, so it's
+safe to reference unconditionally.
+
+**Your host must reference it explicitly**, the same way you already reference any other Prism
+front-end asset (e.g. `prism-mobile-nav.js`):
+
+```html
+<link rel="stylesheet" href="/branding/prism-branding.css" />   <!-- your own base stylesheet -->
+<link rel="stylesheet" href="/umbraco/prism/branding.css" />    <!-- Prism's tenant overrides, loaded last -->
+```
+
+Load it **after** your own base stylesheet so tenant overrides win the cascade — `:root{...}`
+rules of matching specificity apply in source order, and the override endpoint doesn't know or
+care what came before it.
+
+This is a deliberate design choice (SEC-PT2-004): earlier versions of Prism spliced the override
+CSS inline into every HTML response via middleware. Serving it as its own resource instead means
+it never needs a Content-Security-Policy `unsafe-inline`/nonce exception, no matter how often a
+tenant's branding changes — CSP only restricts literal inline `<style>` content, never an
+externally-referenced stylesheet, regardless of how dynamic what's behind that URL is.
+
+---
+
 ## Adding a New Tenant-Editable Variable
 
 Let's walk through adding a new variable from scratch.
@@ -514,10 +542,15 @@ If the editor shows `type: text` when you expected `color`:
 
 ### CSS Variables Not Updating on Tenant Site
 
-1. Open browser DevTools → Inspect
-2. Check `:root` CSS, are the new values present?
-3. If not, check the backoffice, was the change saved?
-4. If yes, reload the page (no deploy needed)
+1. Request `/umbraco/prism/branding.css` directly (same host as the tenant site) — are the new
+   values present in the response? This is the actual source of truth; the browser's Elements
+   panel will show the same rules attributed to that stylesheet.
+2. If not, check the backoffice, was the change saved?
+3. If yes, reload the page (no deploy needed)
+4. If `/umbraco/prism/branding.css` has the right values but the page still looks wrong, check
+   your layout actually references it (`<link rel="stylesheet" href="/umbraco/prism/branding.css" />`)
+   **after** your own base stylesheet — see
+   [How Overrides Reach the Live Site](#how-overrides-reach-the-live-site)
 5. If still not working, restart the app to clear cache
 
 ---

@@ -131,6 +131,68 @@ When the mobile app next connects, it checks this tenant setting and offers biom
 
 💡 **What's happening:** The `prism-biometric-settings` web component (in `src/UmbracoPrism.Client/src/backoffice/prism-biometric-settings.ts`) reads the tenant's `biometricEnabled` flag from `GET /umbraco/api/prism/tenants/{id}` and saves it via `PATCH /umbraco/api/prism/tenants/{id}`. The mobile app reads the same flag on startup to decide whether to show the enrollment prompt.
 
+### Wiring the Mobile Shell and Biometric Scripts into Your Layout
+
+Prism ships the mobile-shell CSS/JS and biometric enroll/auto-login scripts as plain static
+files under `wwwroot/mobile-shell/` in `UmbracoPrism.Core` — the same delivery mechanism as
+`prism-mobile-nav.js` above. **Your host must reference them explicitly** in its own layout;
+Prism does not inject them for you (SEC-PT2-004: this used to happen via a response-rewriting
+middleware, which was retired in favour of ordinary asset references — see
+[branding-design-system.md](../branding-design-system.md#how-overrides-reach-the-live-site) for
+the same change applied to branding CSS).
+
+Detect a Prism mobile request with `PrismMobileRequestDetection.IsPrismMobileRequest(Context)`
+(`UmbracoPrism.Core.Extensions`) and conditionally include the assets in `<head>` / before
+`</body>`:
+
+```cshtml
+@using UmbracoPrism.Core.Extensions
+@{
+    var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(Context);
+    var biometricLoginEnabled = isPrismMobileRequest && (tenant?.AllowBiometricLogin ?? false);
+    var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
+}
+
+@if (isPrismMobileRequest)
+{
+    <link rel="stylesheet" href="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell.css" />
+}
+
+@* … your page content … *@
+
+@if (isPrismMobileRequest)
+{
+    <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell-guard.js"></script>
+}
+
+@if (biometricLoginEnabled)
+{
+    @if (isAuthenticated)
+    {
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js"></script>
+    }
+    else
+    {
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-autologin.js"></script>
+    }
+}
+```
+
+| Asset | Purpose | Include when |
+|---|---|---|
+| `prism-mobile-shell.css` | Safe-area padding, full-width layout for the WebView | Any Prism mobile request |
+| `prism-mobile-shell-guard.js` | Adds the `prism-mobile` CSS class; keeps `target="_blank"` links and `window.open()` inside the WebView instead of spawning a new window | Any Prism mobile request |
+| `prism-biometric-enroll.js` | Shows the "Enable Face ID / Touch ID?" banner and registers a device credential | Mobile request, biometric login enabled for the tenant, user already authenticated |
+| `prism-biometric-autologin.js` | Silently exchanges a previously-enrolled device's stored credential for a session, before the login page would otherwise render | Mobile request, biometric login enabled for the tenant, user not yet authenticated |
+
+`UmbracoPrism.TestSite`'s own `Views/Shared/Master.cshtml` is the reference implementation —
+copy the pattern above from there if you'd rather see it in full context.
+
+None of these scripts need a build-time tenant hostname baked in — by the time any of them run,
+the Capacitor WebView has already navigated to your site's real HTTPS origin (see the bootstrap
+shell `MobileBundleService` generates), so `window.location.host` and plain relative fetch URLs
+are always correct.
+
 ---
 
 ## Part 4: Deep Link Handling

@@ -4,14 +4,16 @@ namespace UmbracoPrism.Core;
 
 /// <summary>
 /// Validates tenant-admin-supplied branding override name/value pairs before they are
-/// concatenated into a CSS declaration string that gets rendered, unescaped, inside a
-/// <c>&lt;style&gt;</c> tag on every page a tenant serves (see <c>PrismBrandingMiddleware</c>
-/// and <c>TenantService.BuildCssDeclarations</c>). A value containing <c>&lt;/style&gt;</c>
-/// would terminate that element early and let subsequent "CSS" render as live HTML/script —
-/// this is the only thing standing between a compromised or malicious backoffice admin account
-/// and stored, tenant-wide script injection, since branding overrides are otherwise unvalidated
-/// free text. Both callers must reject the same pair the same way; this is the single place
-/// that rule lives.
+/// concatenated into a CSS declaration string that gets rendered, unescaped, as the body of the
+/// tenant's own <c>text/css</c> branding response (see
+/// <c>PrismBrandingCssBuilder</c>/<c>PrismBrandingAssetsController</c> and
+/// <c>TenantService.BuildCssDeclarations</c>). Branding overrides are otherwise unvalidated free
+/// text, so a compromised or malicious backoffice admin account could otherwise corrupt the
+/// tenant's live stylesheet (e.g. a raw CSS comment breakout affecting rules that follow) —
+/// serving branding CSS as its own resource, rather than splicing it inline into a
+/// <c>&lt;style&gt;</c> tag on every page as it used to be, already closes off the more severe
+/// "escape into surrounding HTML/script" class of attack that motivated this originally, but the
+/// validation itself remains the single source of truth both callers must apply the same way.
 /// </summary>
 public static partial class PrismBrandingCssSafety
 {

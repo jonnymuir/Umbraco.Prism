@@ -65,6 +65,13 @@ public class AuthorizationContractTests
             "sensitive values, gated to Development / explicit config like the rest of the controller.",
         [(typeof(global::UmbracoPrism.TestSite.Controllers.DownstreamDemoController), "GetSeedContractReady")] =
             "Never-ships TestSite dashboard diagnostic — a readiness flag for the demo's seed data.",
+
+        [(typeof(PrismBrandingAssetsController), "*")] =
+            "Serves a tenant's branding override CSS as a plain stylesheet (SEC-PT2-004 CSP " +
+            "follow-up — externally-referenced resources need no CSP inline-content exception, " +
+            "unlike the inline <style> this replaced). Read-only, no session, no capability: " +
+            "the response is CSS text derived from the current tenant's own already-public " +
+            "branding config, resolved the same way any other page on that tenant's host is.",
     };
 
     /// <summary>Controllers whose auth decision is a deliberate imperative check, not an attribute.</summary>

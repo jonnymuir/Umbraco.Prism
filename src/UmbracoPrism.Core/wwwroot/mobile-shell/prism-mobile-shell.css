@@ -1,0 +1,28 @@
+/* Prism mobile shell base styles.
+ * Previously spliced inline into every response by PrismBrandingMiddleware whenever a Prism
+ * mobile request was detected; now a plain static asset a host references explicitly (SEC-PT2-004
+ * CSP follow-up — content never changes, so it needs no server involvement at all). Hosts that
+ * support the Prism mobile shell include this unconditionally in their layout, e.g.:
+ *   <link rel="stylesheet" href="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell.css" />
+ * See docs/walkthroughs/building-a-mobile-app.md.
+ */
+html.prism-mobile,
+html.prism-mobile body {
+    width: 100%;
+    max-width: 100%;
+    min-height: 100%;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+html.prism-mobile body {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+}
+
+html.prism-mobile .container {
+    width: 100%;
+    max-width: none;
+}
