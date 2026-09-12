@@ -1,0 +1,152 @@
+name: Deploy to TestFlight
+
+# Manual dispatch only, to start: each run consumes an App Store Connect build slot and
+# Apple processing time. Move to automatic-on-push later once this pipeline is proven out.
+#
+# See docs/guides/mobile-app-ci-cd-pipeline.md for the one-time Apple Developer Portal /
+# App Store Connect setup and the full list of secrets/variables this workflow needs.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-testflight:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      # Repo variables (Settings > Secrets and variables > Actions > Variables), via env
+      # first rather than inlined into run: (zizmor template-injection convention).
+      PRISM_APP_HOSTNAME: ${{ vars.PRISM_REFERENCE_APP_HOSTNAME }}
+      PRISM_APP_NAME: ${{ vars.PRISM_REFERENCE_APP_NAME }}
+      PRISM_APP_ID: ${{ vars.PRISM_REFERENCE_APP_ID }}
+      PRISM_APP_VERSION: ${{ vars.PRISM_REFERENCE_APP_VERSION }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.17.1
+
+      - name: Validate required configuration
+        run: |
+          if [ -z "$PRISM_APP_HOSTNAME" ]; then
+            echo "::error::Repo variable PRISM_REFERENCE_APP_HOSTNAME is not set. See docs/guides/mobile-app-ci-cd-pipeline.md."
+            exit 1
+          fi
+
+      # Step 1 of the pipeline: generate the same Capacitor starter bundle the backoffice's
+      # "Produce Mobile" action would produce, headlessly. MobileBundleService has zero DI
+      # dependencies, so this never boots Umbraco/a database/Aspire.
+      - name: Generate mobile bundle
+        run: >
+          dotnet run --project src/UmbracoPrism.MobileBundleCli --
+          --hostname "$PRISM_APP_HOSTNAME"
+          --app-name "${PRISM_APP_NAME:-Prism Reference}"
+          --app-id "${PRISM_APP_ID:-com.jonnymuir.prismreference}"
+          --version "${PRISM_APP_VERSION:-1.0.0}"
+          --output mobile-bundle.zip
+
+      - name: Unzip mobile bundle
+        run: unzip -q mobile-bundle.zip -d mobile-app
+
+      - name: Install bundle dependencies
+        working-directory: mobile-app
+        run: npm install
+
+      # Runs `npx cap add ios` (first run only) + `npx cap sync ios` + the Info.plist
+      # biometric-usage-string patch, then stops (GitHub Actions sets CI=true on every
+      # runner, which this script checks to skip trying to launch a simulator or open
+      # Xcode's GUI — see MobileBundleService.BuildBootstrapIosScript). Reuses the tenant's
+      # own tested bootstrap path rather than reimplementing cap add/sync as separate steps.
+      - name: Bootstrap iOS project
+        working-directory: mobile-app
+        run: npm run bootstrap:ios
+
+      - name: Write App Store Connect API key
+        env:
+          APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+
+      # xcodebuild resolves/creates the distribution certificate and provisioning profile
+      # itself, scoped to the bundle ID, using the API key's authority — no manual .p12
+      # export, no keychain import, no profile rotation to manage.
+      - name: Archive iOS app
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild \
+            -workspace mobile-app/ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -archivePath build/App.xcarchive \
+            archive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Export .ipa
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/App.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist .github/mobile/ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+
+      # altool is the tool that still performs this upload as of writing, despite being
+      # long-deprecated in favour of Transporter/notarytool for other workflows — Apple's
+      # own TestFlight-upload-via-CLI story has shifted before and may again; if this step
+      # starts failing with a deprecation error, check `xcrun altool --help` and Apple's
+      # current App Store Connect API docs on this runner before assuming the credentials
+      # are wrong.
+      - name: Upload to TestFlight
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          IPA_PATH=$(find build/ipa -maxdepth 1 -name '*.ipa' | head -n 1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "::error::No .ipa found under build/ipa after export."
+            exit 1
+          fi
+          xcrun altool --upload-app \
+            -f "$IPA_PATH" \
+            -t ios \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Remove API key from disk
+        if: always()
+        run: rm -rf "$HOME/.appstoreconnect"
+
+      - name: Upload build artifacts (always, for inspection)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: testflight-build
+          path: |
+            build/ipa/*.ipa
+            build/App.xcarchive/dSYMs
+          retention-days: 14
+          if-no-files-found: warn
