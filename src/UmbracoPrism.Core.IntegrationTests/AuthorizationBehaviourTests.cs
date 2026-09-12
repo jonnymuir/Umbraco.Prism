@@ -68,23 +68,52 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
         using var client = Anonymous();
         using var body = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
 
+        factory.DrainRecentErrorLogs(); // discard anything logged/thrown before this request
+        factory.DrainRawExceptions();
         var res = await client.PostAsync("/umbraco/prism/mobile/biometric/exchange", body);
 
         // The contract this asserts: Exchange is [AllowAnonymous] (the request reaches the action
         // rather than being challenged by the auth middleware) and, given no valid BiometricToken
         // JWT, it never issues a PrismMemberCookie session.
         //
-        // NOTE: on a cold GitHub Actions runner this can still return 500 instead of a 4xx — not
-        // fixed here. BiometricController.Exchange now wraps its own body in a try/catch (real
-        // hardening against an attacker-controlled-input exception inside that flow — DB lookup,
-        // vault secret resolution, the Entra token-refresh call), but that didn't catch this: five
-        // malformed-payload shapes (empty body, invalid JSON, wrong field types, {} — this one)
-        // all correctly return 400 locally, and the exact `dotnet test` invocation CI uses
-        // reproduces green locally too. The exception is evidently thrown before Exchange's own
-        // code runs at all — somewhere in the ASP.NET Core pipeline itself on a cold host — which
-        // is outside anything a controller-level try/catch can reach. Left loose so this stays a
-        // pure authorization-contract check; the underlying flake needs host-level exception
-        // logging (not yet wired into this test project) to actually pin down.
+        // RESOLVED — root cause: BiometricTokenService's own constructor throws
+        // InvalidOperationException when Prism:Biometric:SigningKey is absent — during controller
+        // DI activation, before Exchange's own try/catch (or any middleware-level one) can reach
+        // it. UmbracoPrism.TestSite normally gets that value from `dotnet user-secrets`, which
+        // .NET only auto-loads when the app's environment resolves to Development at the point
+        // Program.cs builds its host — every developer machine that ran `dotnet user-secrets set`
+        // for this project had it. Whether that's true for a given CI run turned out NOT to be
+        // fully deterministic (one CI run passed without any fix at all — see TestSiteFactory's
+        // own comment), so this wasn't purely "CI never has it" either; the original "cold runner"
+        // framing wasn't as wrong as it first looked once RawExceptionCapture's response-body
+        // capture actually showed the real exception. Fixed in TestSiteFactory's own config with
+        // fixed test-only values, removing the dependency on that ambient behavior entirely;
+        // confirmed by removing the local secrets file and re-running, which reproduced the same
+        // exception locally for the first time, then passed once fixed.
+        // Two other things landed chasing this, both kept as good on their own merits even though
+        // neither was the actual cause: TenantService.GetByDomainAsync no longer crashes the request
+        // on a database failure during tenant lookup, and RawExceptionCapture (an IStartupFilter
+        // wrapping the entire pipeline) backstops HostErrorLogCapture for whatever the next one is.
+        if (res.StatusCode == HttpStatusCode.InternalServerError)
+        {
+            var rawExceptions = factory.DrainRawExceptions();
+            var errors = factory.DrainRecentErrorLogs();
+            var responseBody = await res.Content.ReadAsStringAsync();
+            var responseHeaders = string.Join(", ", res.Headers
+                .Concat(res.Content.Headers)
+                .Select(h => $"{h.Key}={string.Join("|", h.Value)}"));
+            var details = rawExceptions.Count > 0
+                ? string.Join("\n---\n", rawExceptions.Select(ex => ex.ToString()))
+                : errors.Count > 0
+                    ? string.Join("\n---\n", errors)
+                    : "(no exception captured by RawExceptionCapture and no Error/Critical host log either — the response may have started successfully and failed while writing the body, outside any middleware's try/catch)";
+            Assert.Fail(
+                $"Exchange returned 500 unexpectedly.\n" +
+                $"Response headers: {responseHeaders}\n" +
+                $"Response body: {(string.IsNullOrEmpty(responseBody) ? "(empty)" : responseBody)}\n" +
+                $"Captured diagnostics for this request:\n{details}");
+        }
+
         res.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized, "Exchange is [AllowAnonymous]");
         res.StatusCode.Should().NotBe(HttpStatusCode.Forbidden, "Exchange is [AllowAnonymous]");
         res.Headers.Contains("Set-Cookie").Should().BeFalse("no session may be issued without a valid biometric token");

@@ -59,62 +59,83 @@ public class TenantService : ITenantService
         var cacheKey = BuildTenantCacheKey(normalizedDomain);
         var populatedFromDatabase = false;
 
-        // Callback executes only on cache miss, which allows hit/miss counting.
-        var tenant = _runtimeCache.GetCacheItem<PrismTenant?>(cacheKey, () =>
+        PrismTenant? tenant;
+        try
         {
-            populatedFromDatabase = true;
-            Interlocked.Increment(ref _cacheMisses);
-            Interlocked.Increment(ref _databaseLoads);
-
-            using var db = _databaseFactory.CreateDatabase();
-
-            var tenantSchema = db.FirstOrDefault<PrismTenantSchema>(
-                "SELECT * FROM PrismTenants WHERE Hostname = @0",
-                [normalizedDomain]);
-
-            // Codespaces lenient fallback: if there is no exact row for this host but the
-            // request arrived on a *.app.github.dev hostname (both legacy and regional schemes),
-            // return the first seeded .app.github.dev demo tenant. This handles the case where
-            // the opaque forwarding token changed since the tenant row was seeded.
-            // Security: IsRepoOwnedLocalDemoTenant still gates OIDC configuration downstream —
-            // this fallback is for tenant *lookup* only, not for security validation.
-            if (tenantSchema is null &&
-                normalizedDomain.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase))
+            // Callback executes only on cache miss, which allows hit/miss counting. The whole
+            // GetCacheItem call (not just the callback) is inside this try: a failure must never
+            // be cached as "no tenant for this host" — Umbraco's cache wrappers don't cache a
+            // factory exception (it just propagates), so catching out here is what keeps a
+            // transient failure retryable on the very next request instead of sticking.
+            tenant = _runtimeCache.GetCacheItem<PrismTenant?>(cacheKey, () =>
             {
-                tenantSchema = db.FirstOrDefault<PrismTenantSchema>(
-                    "SELECT * FROM PrismTenants WHERE Hostname LIKE @0",
-                    "%.app.github.dev");
-            }
+                populatedFromDatabase = true;
+                Interlocked.Increment(ref _cacheMisses);
+                Interlocked.Increment(ref _databaseLoads);
 
-            if (tenantSchema == null) return null;
+                using var db = _databaseFactory.CreateDatabase();
 
-            var brandingOverrides = ParseBrandingOverrides(tenantSchema.BrandingOverrides);
-            var mobileBrandingOverrides = ParseBrandingOverrides(tenantSchema.MobileBrandingOverrides);
+                var tenantSchema = db.FirstOrDefault<PrismTenantSchema>(
+                    "SELECT * FROM PrismTenants WHERE Hostname = @0",
+                    [normalizedDomain]);
 
-            // Resolve {{TOKEN_NAME}} placeholders in identity fields. Hostname is the lookup
-            // key and is never stored with tokens — see PrismTenantSyncHandler for details.
-            return new PrismTenant
-            {
-                Id = tenantSchema.Id,
-                Name = tenantSchema.Name,
-                Hostname = tenantSchema.Hostname,
-                EntraTenantId = _tokenResolver.Resolve(tenantSchema.EntraTenantId),
-                EntraClientId = _tokenResolver.Resolve(tenantSchema.EntraClientId),
-                SecretKeyName = _tokenResolver.Resolve(tenantSchema.SecretKeyName),
-                BrandingOverrides = brandingOverrides,
-                MobileBrandingOverrides = mobileBrandingOverrides,
-                BrandingCssDeclarations = BuildCssDeclarations(brandingOverrides),
-                MobileBrandingCssDeclarations = BuildCssDeclarations(mobileBrandingOverrides),
-                AllowBiometricLogin = tenantSchema.AllowBiometricLogin,
-                OidcAuthority = _tokenResolver.Resolve(tenantSchema.OidcAuthority),
-                OidcClientId = _tokenResolver.Resolve(tenantSchema.OidcClientId),
-                OidcClientSecretProvider = _tokenResolver.Resolve(tenantSchema.OidcClientSecretProvider)
-                    ?? (!string.IsNullOrWhiteSpace(tenantSchema.OidcClientSecret)
-                        ? PrismSecretProviderNames.Inline
-                        : null),
-                OidcClientSecretReference = _tokenResolver.Resolve(tenantSchema.OidcClientSecretReference ?? tenantSchema.OidcClientSecret)
-            };
-        }, TimeSpan.FromMinutes(30));
+                // Codespaces lenient fallback: if there is no exact row for this host but the
+                // request arrived on a *.app.github.dev hostname (both legacy and regional schemes),
+                // return the first seeded .app.github.dev demo tenant. This handles the case where
+                // the opaque forwarding token changed since the tenant row was seeded.
+                // Security: IsRepoOwnedLocalDemoTenant still gates OIDC configuration downstream —
+                // this fallback is for tenant *lookup* only, not for security validation.
+                if (tenantSchema is null &&
+                    normalizedDomain.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase))
+                {
+                    tenantSchema = db.FirstOrDefault<PrismTenantSchema>(
+                        "SELECT * FROM PrismTenants WHERE Hostname LIKE @0",
+                        "%.app.github.dev");
+                }
+
+                if (tenantSchema == null) return null;
+
+                var brandingOverrides = ParseBrandingOverrides(tenantSchema.BrandingOverrides);
+                var mobileBrandingOverrides = ParseBrandingOverrides(tenantSchema.MobileBrandingOverrides);
+
+                // Resolve {{TOKEN_NAME}} placeholders in identity fields. Hostname is the lookup
+                // key and is never stored with tokens — see PrismTenantSyncHandler for details.
+                return new PrismTenant
+                {
+                    Id = tenantSchema.Id,
+                    Name = tenantSchema.Name,
+                    Hostname = tenantSchema.Hostname,
+                    EntraTenantId = _tokenResolver.Resolve(tenantSchema.EntraTenantId),
+                    EntraClientId = _tokenResolver.Resolve(tenantSchema.EntraClientId),
+                    SecretKeyName = _tokenResolver.Resolve(tenantSchema.SecretKeyName),
+                    BrandingOverrides = brandingOverrides,
+                    MobileBrandingOverrides = mobileBrandingOverrides,
+                    BrandingCssDeclarations = BuildCssDeclarations(brandingOverrides),
+                    MobileBrandingCssDeclarations = BuildCssDeclarations(mobileBrandingOverrides),
+                    AllowBiometricLogin = tenantSchema.AllowBiometricLogin,
+                    OidcAuthority = _tokenResolver.Resolve(tenantSchema.OidcAuthority),
+                    OidcClientId = _tokenResolver.Resolve(tenantSchema.OidcClientId),
+                    OidcClientSecretProvider = _tokenResolver.Resolve(tenantSchema.OidcClientSecretProvider)
+                        ?? (!string.IsNullOrWhiteSpace(tenantSchema.OidcClientSecret)
+                            ? PrismSecretProviderNames.Inline
+                            : null),
+                    OidcClientSecretReference = _tokenResolver.Resolve(tenantSchema.OidcClientSecretReference ?? tenantSchema.OidcClientSecret)
+                };
+            }, TimeSpan.FromMinutes(30));
+        }
+        catch (Exception ex)
+        {
+            // A cold-boot race (a request reaching this middleware before Umbraco's own migration
+            // gate has finished creating PrismTenants — see PrismMigrationPlan) surfaces here as a
+            // raw database exception ("no such table: PrismTenants" on SQLite), thrown before any
+            // controller action even runs. Treat it exactly like an unrecognized host rather than
+            // crashing the whole request: logged loudly (a *persistent* failure still shows up),
+            // not cached (see the comment above — the next request retries once the table exists).
+            _logger.LogWarning(ex,
+                "Tenant lookup failed for host '{Host}' due to an unexpected database error; treating as unresolved for this request.",
+                LogScrub.Line(normalizedDomain));
+            return Task.FromResult<PrismTenant?>(null);
+        }
 
         if (!populatedFromDatabase)
         {
