@@ -21,7 +21,11 @@ namespace UmbracoPrism.Core.Tests;
 ///    token — independently of, and in addition to, PrismSecurityHeadersMiddleware's own copy.
 ///    Every page that mints a token sent the header twice, which some browsers treat as
 ///    untrustworthy and ignore entirely, silently disabling clickjacking protection on exactly
-///    the pages that most need it (real forms).
+///    the pages that most need it (real forms). Originally fixed via explicit suppression
+///    (AntiforgeryOptions.SuppressXFrameOptionsHeader); PrismSecurityHeadersMiddleware's later
+///    move to setting headers via the indexer (replacing, not Append-ing) closes the same
+///    vulnerability class more generally, independently of that specific suppression flag — see
+///    XFrameOptions_IsSentExactlyOnce_EvenWhenTheFrameworksOwnCopyIsNotSuppressed below.
 /// 2. Antiforgery cookie missing Secure: AntiforgeryOptions's own Cookie.SecurePolicy defaults to
 ///    CookieSecurePolicy.None (confirmed: `new AntiforgeryOptions().Cookie.SecurePolicy` is
 ///    `None` out of the box, not SameAsRequest as might be assumed) — so the antiforgery cookie
@@ -105,21 +109,26 @@ public class PrismAntiforgeryXFrameOptionsTests
     }
 
     [Fact]
-    public async Task XFrameOptions_IsSentTwice_WhenTheFrameworksOwnCopyIsNotSuppressed()
+    public async Task XFrameOptions_IsSentExactlyOnce_EvenWhenTheFrameworksOwnCopyIsNotSuppressed()
     {
-        // Proves the bug this suppression fixes is real, not a misdiagnosis: without
-        // AntiforgeryOptions.SuppressXFrameOptionsHeader, the same minimal pipeline —
-        // PrismSecurityHeadersMiddleware plus a single GetAndStoreTokens call — genuinely
-        // does send the header twice.
+        // This used to be "IsSentTwice" — proving the duplicate was real when
+        // SuppressXFrameOptionsHeader wasn't set. PrismSecurityHeadersMiddleware now SETS its
+        // headers via the indexer (replacing any existing value) rather than Append, deferred to
+        // OnStarting — which fires after GetAndStoreTokens' own synchronous, non-deferred header
+        // write in this pipeline, so Prism's copy always wins regardless of suppression. That's a
+        // second, more general layer of defence against the same vulnerability class (any header
+        // this middleware owns being duplicated by something downstream, known or not), on top of
+        // the explicit suppression flag PrismComposer still sets. Kept as its own test — proving
+        // the general fix actually covers this specific historical case, not just a fresh one.
         using var host = await BuildHostAsync(applyPrismAntiforgeryConfiguration: false);
         using var client = GetHttpsTestClient(host);
 
         var response = await client.GetAsync("/");
 
         response.Headers.TryGetValues("X-Frame-Options", out var values).Should().BeTrue();
-        values.Should().HaveCount(2,
-            "this documents the live bug: ASP.NET Core's own antiforgery middleware adds its " +
-            "own X-Frame-Options on top of PrismSecurityHeadersMiddleware's, unless suppressed");
+        values.Should().ContainSingle(
+            "PrismSecurityHeadersMiddleware's indexer-based, OnStarting-deferred header set " +
+            "overwrites the framework's own earlier copy, independently of explicit suppression");
     }
 
     [Fact]
