@@ -336,6 +336,58 @@ public class TenantServiceCacheStrategyTests
         refreshed.MobileBrandingCssDeclarations.Should().Be("--prism-primary:#bbbbbb;");
     }
 
+    [Fact]
+    public async Task GetByDomainAsync_TreatsADatabaseFailureDuringLookupAsAnUnresolvedTenant()
+    {
+        // Regression for a real production/CI symptom: PrismTenantMiddleware calls this for
+        // EVERY request, before any controller runs. A cold-boot race (a request reaching this
+        // middleware before Umbraco's own migration gate has finished creating PrismTenants — see
+        // PrismMigrationPlan) previously surfaced as an unhandled "no such table: PrismTenants"
+        // exception here, 500-ing the whole request. This must never crash the request — it
+        // should behave exactly like an unrecognized host.
+        var db = new Mock<IUmbracoDatabase>();
+        db.Setup(x => x.FirstOrDefault<PrismTenantSchema>(It.IsAny<string>(), It.IsAny<object[]>()))
+            .Throws(new InvalidOperationException("no such table: PrismTenants"));
+
+        var dbFactory = new Mock<IUmbracoDatabaseFactory>();
+        dbFactory.Setup(x => x.CreateDatabase()).Returns(db.Object);
+
+        var service = CreateTenantService(dbFactory.Object);
+
+        var tenant = await service.GetByDomainAsync("tenant-a.example.com");
+
+        tenant.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetByDomainAsync_DoesNotCacheADatabaseFailure_SoTheNextLookupRetries()
+    {
+        var db = new Mock<IUmbracoDatabase>();
+        db.SetupSequence(x => x.FirstOrDefault<PrismTenantSchema>(It.IsAny<string>(), It.IsAny<object[]>()))
+            .Throws(new InvalidOperationException("no such table: PrismTenants"))
+            .Returns(new PrismTenantSchema
+            {
+                Id = 1,
+                Name = "Tenant A",
+                Hostname = "tenant-a.example.com",
+                EntraTenantId = "entra-a",
+                EntraClientId = "client-a",
+                SecretKeyName = "secret-a"
+            });
+
+        var dbFactory = new Mock<IUmbracoDatabaseFactory>();
+        dbFactory.Setup(x => x.CreateDatabase()).Returns(db.Object);
+
+        var service = CreateTenantService(dbFactory.Object);
+
+        var duringOutage = await service.GetByDomainAsync("tenant-a.example.com");
+        var afterRecovery = await service.GetByDomainAsync("tenant-a.example.com");
+
+        duringOutage.Should().BeNull("the table didn't exist yet");
+        afterRecovery.Should().NotBeNull("the failed lookup must not have been cached as a permanent negative result");
+        afterRecovery!.Name.Should().Be("Tenant A");
+    }
+
     private static PrismTenantSchema CloneSchema(PrismTenantSchema schema) =>
         new()
         {

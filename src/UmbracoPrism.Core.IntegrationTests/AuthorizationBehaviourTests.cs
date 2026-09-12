@@ -75,15 +75,21 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
         // rather than being challenged by the auth middleware) and, given no valid BiometricToken
         // JWT, it never issues a PrismMemberCookie session.
         //
-        // HISTORICAL NOTE: on a cold GitHub Actions runner this used to return 500 instead of a
-        // 4xx, with no local repro and no captured exception to explain it — BiometricController
-        // .Exchange's own try/catch didn't catch it, implying the exception was thrown before
-        // Exchange's own code ran at all, somewhere in the ASP.NET Core pipeline itself. Rather
-        // than leave that permanently undiagnosable, the factory now captures every Error/Critical
-        // host log (HostErrorLogCapture) — ASP.NET Core always logs an unhandled exception via
-        // "Microsoft.AspNetCore.Hosting.Diagnostics" as it unwinds, regardless of environment. If
-        // this test ever sees 500 again, the assertion below surfaces that exact exception in the
-        // test output instead of a bare status-code mismatch, so it can finally be root-caused.
+        // HISTORICAL NOTE (root-caused and fixed): this used to return 500 instead of a 4xx on a
+        // cold GitHub Actions runner, with no local repro. HostErrorLogCapture (added to chase
+        // this) then caught the very same failure recurring in CI with an empty capture — the
+        // "always logged via Microsoft.AspNetCore.Hosting.Diagnostics" assumption was itself
+        // wrong, because there was no unhandled-exception-at-the-top-of-the-pipeline at all: every
+        // request runs through PrismTenantMiddleware first, which calls
+        // TenantService.GetByDomainAsync — a raw, uncaught "SELECT ... FROM PrismTenants" query,
+        // thrown before any controller (Exchange included) is even constructed. On a cold boot
+        // that can race Umbraco's own migration gate (PrismMigrationPlan, which creates
+        // PrismTenants) and throw "no such table: PrismTenants" — the exact shape of the
+        // already-known migration race, just via a second code path the earlier fix didn't cover.
+        // Fixed at the source: TenantService.GetByDomainAsync now treats a database failure during
+        // lookup as an unresolved tenant (logged, not cached — see its own comment), the same way
+        // it already treats a genuinely unrecognized host. The capture below stays as a safety net
+        // for whatever the next one is, since it correctly proved this one wrong first.
         if (res.StatusCode == HttpStatusCode.InternalServerError)
         {
             var errors = factory.DrainRecentErrorLogs();
