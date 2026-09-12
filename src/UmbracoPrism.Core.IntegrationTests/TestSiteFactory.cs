@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace UmbracoPrism.Core.IntegrationTests;
 
@@ -30,6 +33,26 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
 {
     private readonly string _tempRoot = Path.Combine(
         Path.GetTempPath(), "prism-authcontract-" + Guid.NewGuid().ToString("N"));
+    private readonly HostErrorLogCapture _errorLogCapture = new();
+    private readonly RawExceptionCapture _rawExceptionCapture = new();
+
+    /// <summary>
+    /// Drains every Error/Critical-level log entry captured since the last drain — including any
+    /// exception object attached — so a test can surface exactly what the host logged for an
+    /// unexpected response (e.g. a 500 it didn't ask for), rather than just the status code.
+    /// See AuthorizationBehaviourTests' BiometricController.Exchange test for why this exists: a
+    /// CI-only 500 with no local repro, previously undiagnosable because nothing captured the
+    /// actual exception.
+    /// </summary>
+    public IReadOnlyList<HostErrorLogCapture.Entry> DrainRecentErrorLogs() => _errorLogCapture.Drain();
+
+    /// <summary>
+    /// Drains every exception that unwound past any middleware in the pipeline since the last
+    /// drain — see <see cref="RawExceptionCapture"/>. Stronger than <see cref="DrainRecentErrorLogs"/>:
+    /// bypasses logging entirely, so it can't miss an exception that's logged below Error level
+    /// or not logged at all.
+    /// </summary>
+    public IReadOnlyList<Exception> DrainRawExceptions() => _rawExceptionCapture.Drain();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -37,6 +60,8 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
         Directory.CreateDirectory(Path.Combine(_tempRoot, "umbraco", "models"));
 
         builder.UseEnvironment(Environments.Development);
+        builder.ConfigureLogging(logging => logging.AddProvider(_errorLogCapture));
+        builder.ConfigureServices(services => services.AddSingleton<IStartupFilter>(_rawExceptionCapture));
 
         builder.ConfigureAppConfiguration((_, config) =>
         {
@@ -49,6 +74,24 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
                 // Supplied so Umbraco never generates one and persists it back into the source
                 // appsettings.json. A fixed base64 blob; this host serves no images under test.
                 ["Umbraco:CMS:Imaging:HMACSecretKey"] = "cHJpc20tYXV0aC1jb250cmFjdC1sYXllcjItbm90LXNlY3JldA==",
+
+                // BiometricTokenService/RefreshTokenEncryptionService throw InvalidOperationException
+                // from their own constructors — i.e. during controller DI activation, before any
+                // middleware-level or action-level try/catch can reach it — when these are absent.
+                // UmbracoPrism.TestSite normally gets them from `dotnet user-secrets` (its
+                // UserSecretsId), which .NET only auto-loads when the app's environment resolves to
+                // Development at the point Program.cs builds its host — whether that's true for a
+                // given `dotnet test` invocation is apparently NOT as fixed as "this factory calls
+                // UseEnvironment(Development) below" would suggest (confirmed: one CI run passed
+                // without this fix, so it isn't strictly always-missing in CI either). This is root
+                // cause behind AuthorizationBehaviourTests' long-standing "CI-only 500" note on the
+                // Exchange test either way — diagnosed via RawExceptionCapture's response-body
+                // capture, which finally showed the real exception. Supplying these directly here
+                // removes the dependency on that ambient, apparently-not-fully-deterministic
+                // behavior entirely, regardless of the precise mechanics behind it. Fixed test-only
+                // values, not real secrets — this host issues no real biometric tokens under test.
+                ["Prism:Biometric:SigningKey"] = "prism-authcontract-test-signing-key-not-a-real-secret",
+                ["Prism:Biometric:EncryptionKey"] = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
 
                 ["Umbraco:CMS:ModelsBuilder:ModelsDirectory"] = Path.Combine(_tempRoot, "umbraco", "models"),
                 ["Umbraco:CMS:ModelsBuilder:AcceptUnsafeModelsDirectory"] = "true",
