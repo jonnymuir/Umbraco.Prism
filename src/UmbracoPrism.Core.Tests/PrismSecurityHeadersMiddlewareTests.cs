@@ -135,9 +135,13 @@ public class PrismSecurityHeadersMiddlewareTests
             "renders is a real external resource, never spliced inline, so there is nothing " +
             "left that needs unsafe-inline");
         csp.Should().NotContain("unsafe-inline");
-        csp.Should().Contain("object-src 'none'").And.Contain("base-uri 'self'",
-            "these two directives don't fall back to default-src per spec (unlike most others) " +
+        csp.Should().Contain("object-src 'none'").And.Contain("base-uri 'self'")
+            .And.Contain("form-action 'self'",
+            "these directives don't fall back to default-src per spec (unlike most others) " +
             "— found live via ZAP baseline (rule 10055) once CSP went from Report-Only to enforced");
+        csp.Should().NotContain("img-src 'self' data: https:",
+            "a blanket https: image wildcard was an unjustified default (ZAP rule 10055, " +
+            "\"CSP: Wildcard Directive\") — nothing in Prism renders a third-party HTTPS image");
         ctx.Response.Headers.Should().NotContainKey("Content-Security-Policy-Report-Only",
             "Report-Only is opt-in (null by default) — a host enables it itself to test a " +
             "stricter draft policy alongside the enforced one");
@@ -215,7 +219,7 @@ public class PrismSecurityHeadersMiddlewareTests
         await feature.FireOnStartingAsync();
 
         var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
-        csp.Should().Contain("img-src 'self' data: https: https://images.example.com",
+        csp.Should().Contain("img-src 'self' data: https://images.example.com",
             "the host's extra source is appended to Prism's own existing img-src, not replacing it");
     }
 

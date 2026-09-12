@@ -18,14 +18,18 @@
 #     antiforgery X-Frame-Options duplication, #195 antiforgery cookie Secure flag). ---
 #
 # --- 2026-09-12 (#203): CSP promoted from Report-Only to enforced (SEC-PT2-004's own
-#     "tune then enforce" plan, now complete) — the "CSP Header Not Set" [10038] IGNORE
-#     entry that used to live here is gone: it was excusing a real, deliberately-open gap
-#     (ZAP only recognises the enforced header), not a false positive, so removing the
-#     excuse rather than updating its wording is correct now that the header is genuinely
-#     present. Enforcing surfaced one new real finding, fixed properly, not IGNOREd:
-#     "Failure to Define Directive with No Fallback" [10055] — object-src and base-uri
-#     don't fall back to default-src per spec, so PrismSecurityHeadersOptions' default
-#     policy now sets both explicitly (object-src 'none'; base-uri 'self'). ---
+#     "tune then enforce" plan, now complete) — the old blanket "CSP Header Not Set" [10038]
+#     IGNORE entry is gone: it was excusing a real, deliberately-open gap on the front end
+#     (ZAP only recognises the enforced header), not a false positive, so removing the excuse
+#     rather than updating its wording was correct now that the header is genuinely present.
+#     Its one legitimate remaining case — /umbraco itself, out of scope by design
+#     (ExcludeBackoffice) — gets its own path-scoped entry below instead, matching every other
+#     backoffice header exclusion already on this list. Enforcing also surfaced two more real
+#     findings under [10055], both fixed properly, not IGNOREd: "Failure to Define Directive
+#     with No Fallback" (object-src/base-uri/form-action don't fall back to default-src per
+#     spec, so PrismSecurityHeadersOptions' default policy now sets all three explicitly) and
+#     "CSP: Wildcard Directive" (the default img-src's blanket "https:" scheme-wildcard had no
+#     backing requirement anywhere in the codebase, so it was dropped rather than accepted). ---
 
 # ---- /umbraco* : the Umbraco backoffice owns its own header + CSP regime ----
 # PrismSecurityHeadersMiddleware is deliberately scoped to skip /umbraco* by default
@@ -37,6 +41,7 @@
 10020	IGNORE	.*/umbraco(/|$)	anti-clickjacking: backoffice, Umbraco-owned
 10021	IGNORE	.*/umbraco	X-Content-Type-Options: backoffice + its static assets, Umbraco-owned
 10035	IGNORE	.*/umbraco	HSTS: backoffice + its static assets, Umbraco-owned
+10038	IGNORE	.*/umbraco	CSP Header Not Set: backoffice, Umbraco-owned (excluded by ExcludeBackoffice)
 10063	IGNORE	.*/umbraco	Permissions-Policy: backoffice, Umbraco-owned
 10109	IGNORE	.*/umbraco	informational: the backoffice is a SPA
 
