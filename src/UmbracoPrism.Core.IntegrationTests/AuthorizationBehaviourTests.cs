@@ -68,35 +68,37 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
         using var client = Anonymous();
         using var body = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
 
-        factory.DrainRecentErrorLogs(); // discard anything logged before this request
+        factory.DrainRecentErrorLogs(); // discard anything logged/thrown before this request
+        factory.DrainRawExceptions();
         var res = await client.PostAsync("/umbraco/prism/mobile/biometric/exchange", body);
 
         // The contract this asserts: Exchange is [AllowAnonymous] (the request reaches the action
         // rather than being challenged by the auth middleware) and, given no valid BiometricToken
         // JWT, it never issues a PrismMemberCookie session.
         //
-        // HISTORICAL NOTE (root-caused and fixed): this used to return 500 instead of a 4xx on a
-        // cold GitHub Actions runner, with no local repro. HostErrorLogCapture (added to chase
-        // this) then caught the very same failure recurring in CI with an empty capture — the
-        // "always logged via Microsoft.AspNetCore.Hosting.Diagnostics" assumption was itself
-        // wrong, because there was no unhandled-exception-at-the-top-of-the-pipeline at all: every
-        // request runs through PrismTenantMiddleware first, which calls
-        // TenantService.GetByDomainAsync — a raw, uncaught "SELECT ... FROM PrismTenants" query,
-        // thrown before any controller (Exchange included) is even constructed. On a cold boot
-        // that can race Umbraco's own migration gate (PrismMigrationPlan, which creates
-        // PrismTenants) and throw "no such table: PrismTenants" — the exact shape of the
-        // already-known migration race, just via a second code path the earlier fix didn't cover.
-        // Fixed at the source: TenantService.GetByDomainAsync now treats a database failure during
-        // lookup as an unresolved tenant (logged, not cached — see its own comment), the same way
-        // it already treats a genuinely unrecognized host. The capture below stays as a safety net
-        // for whatever the next one is, since it correctly proved this one wrong first.
+        // STILL OPEN — two root-cause theories tried and disproved so far, both worth keeping the
+        // record of: (1) "always logged via Microsoft.AspNetCore.Hosting.Diagnostics" — wrong,
+        // HostErrorLogCapture caught nothing across two separate CI recurrences of this exact 500.
+        // (2) PrismTenantMiddleware's uncaught PrismTenants lookup racing the migration gate —
+        // plausible (Exchange's own outer catch converts every exception inside it to 400, so a
+        // 500 really can only come from outside that method, and this middleware runs before any
+        // controller is constructed) but disproved by evidence, not just untested: TenantService
+        // .GetByDomainAsync was hardened against exactly this (now merged, and worth keeping — a
+        // real defensive fix on its own merits) and the identical 500 still recurred on the very
+        // next CI run with no local repro either way. Whatever throws is still unidentified.
+        // RawExceptionCapture (an IStartupFilter wrapping the ENTIRE pipeline) now backstops
+        // HostErrorLogCapture — it bypasses logging categories/levels entirely, so unlike the log
+        // capture it CANNOT miss a genuinely thrown exception, whatever it turns out to be.
         if (res.StatusCode == HttpStatusCode.InternalServerError)
         {
+            var rawExceptions = factory.DrainRawExceptions();
             var errors = factory.DrainRecentErrorLogs();
-            var details = errors.Count == 0
-                ? "(no Error/Critical host log captured for this request — the exception may be logged below Error level, or thrown after the response already started)"
-                : string.Join("\n---\n", errors);
-            Assert.Fail($"Exchange returned 500 unexpectedly. Captured host logs for this request:\n{details}");
+            var details = rawExceptions.Count > 0
+                ? string.Join("\n---\n", rawExceptions.Select(ex => ex.ToString()))
+                : errors.Count > 0
+                    ? string.Join("\n---\n", errors)
+                    : "(no exception captured by RawExceptionCapture and no Error/Critical host log either — the response may have started successfully and failed while writing the body, outside any middleware's try/catch)";
+            Assert.Fail($"Exchange returned 500 unexpectedly. Captured diagnostics for this request:\n{details}");
         }
 
         res.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized, "Exchange is [AllowAnonymous]");

@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -32,6 +34,7 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
     private readonly string _tempRoot = Path.Combine(
         Path.GetTempPath(), "prism-authcontract-" + Guid.NewGuid().ToString("N"));
     private readonly HostErrorLogCapture _errorLogCapture = new();
+    private readonly RawExceptionCapture _rawExceptionCapture = new();
 
     /// <summary>
     /// Drains every Error/Critical-level log entry captured since the last drain — including any
@@ -43,6 +46,14 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
     /// </summary>
     public IReadOnlyList<HostErrorLogCapture.Entry> DrainRecentErrorLogs() => _errorLogCapture.Drain();
 
+    /// <summary>
+    /// Drains every exception that unwound past any middleware in the pipeline since the last
+    /// drain — see <see cref="RawExceptionCapture"/>. Stronger than <see cref="DrainRecentErrorLogs"/>:
+    /// bypasses logging entirely, so it can't miss an exception that's logged below Error level
+    /// or not logged at all.
+    /// </summary>
+    public IReadOnlyList<Exception> DrainRawExceptions() => _rawExceptionCapture.Drain();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         Directory.CreateDirectory(Path.Combine(_tempRoot, "umbraco", "Data"));
@@ -50,6 +61,7 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
 
         builder.UseEnvironment(Environments.Development);
         builder.ConfigureLogging(logging => logging.AddProvider(_errorLogCapture));
+        builder.ConfigureServices(services => services.AddSingleton<IStartupFilter>(_rawExceptionCapture));
 
         builder.ConfigureAppConfiguration((_, config) =>
         {
