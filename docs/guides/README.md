@@ -17,6 +17,10 @@ Step-by-step guides for common service blueprints and customizations in Umbraco.
 - **[Form Validation Patterns](./service-request-forms-validation.md)**: Configure validation rules, error messages, and display patterns for service blueprint forms.
 - **[Using GDS Components](./service-blueprint-gds-components.md)**: Reference guide for GOV.UK Design System components used in Prism service blueprints.
 
+## Deployment
+
+- **[Mobile App CI/CD Pipeline (TestFlight & Play Store)](./mobile-app-ci-cd-pipeline.md)**: Fully automated GitHub Actions pipeline that generates, signs, and uploads the reference mobile app to TestFlight (Play Store planned). Required secrets/variables checklist.
+
 ## Reference
 
 - **[Reference Service Blueprint Contract](./reference-service-blueprint-contract.md)**: Technical specification for `ServiceBlueprint`: states, routes, gateways, queues, components, response states.
