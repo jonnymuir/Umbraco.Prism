@@ -171,6 +171,67 @@ public class PrismSecurityHeadersMiddlewareTests
             "OnStarting-deferred headers must survive a downstream response reset");
     }
 
+    [Fact]
+    public async Task SecurityHeaders_ReplaceRatherThanDuplicate_AHeaderAlreadySetByDownstreamCode()
+    {
+        // General-purpose regression for the whole class of bug PR #194 fixed one instance of
+        // (ASP.NET Core's own Antiforgery middleware appending X-Frame-Options independently): a
+        // header sent twice, even with identical values, is a real regression — some browsers
+        // treat a duplicated header as untrustworthy and drop it entirely. Every header this
+        // middleware owns must be idempotent against something else downstream already having
+        // set it, not just the one case already known about.
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+
+        ctx.Response.Headers.Append("X-Frame-Options", "DENY"); // simulates something else setting it first
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.GetCommaSeparatedValues("X-Frame-Options").Should().Equal(["SAMEORIGIN"],
+            "the header must be replaced, not appended to, however it was already set");
+    }
+
+    [Fact]
+    public async Task ContentSecurityPolicy_AppendsAdditionalSourcesToAnExistingDirective()
+    {
+        var options = new PrismSecurityHeadersOptions
+        {
+            AdditionalContentSecurityPolicySources = new Dictionary<string, string>
+            {
+                ["img-src"] = "https://images.example.com"
+            }
+        };
+        var middleware = BuildMiddleware(options);
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        var csp = ctx.Response.Headers["Content-Security-Policy-Report-Only"].ToString();
+        csp.Should().Contain("img-src 'self' data: https: https://images.example.com",
+            "the host's extra source is appended to Prism's own existing img-src, not replacing it");
+    }
+
+    [Fact]
+    public async Task ContentSecurityPolicy_AddsANewDirective_WhenPrismDoesNotAlreadyEmitIt()
+    {
+        var options = new PrismSecurityHeadersOptions
+        {
+            AdditionalContentSecurityPolicySources = new Dictionary<string, string>
+            {
+                ["frame-src"] = "https://payments.example.com"
+            }
+        };
+        var middleware = BuildMiddleware(options);
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        var csp = ctx.Response.Headers["Content-Security-Policy-Report-Only"].ToString();
+        csp.Should().Contain("frame-src https://payments.example.com");
+    }
+
     private sealed class FiringResponseFeature(IHttpResponseFeature inner) : IHttpResponseFeature
     {
         private readonly List<(Func<object, Task> Callback, object? State)> _onStarting = [];
