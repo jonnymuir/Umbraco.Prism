@@ -68,23 +68,31 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
         using var client = Anonymous();
         using var body = new StringContent("{}", System.Text.Encoding.UTF8, "application/json");
 
+        factory.DrainRecentErrorLogs(); // discard anything logged before this request
         var res = await client.PostAsync("/umbraco/prism/mobile/biometric/exchange", body);
 
         // The contract this asserts: Exchange is [AllowAnonymous] (the request reaches the action
         // rather than being challenged by the auth middleware) and, given no valid BiometricToken
         // JWT, it never issues a PrismMemberCookie session.
         //
-        // NOTE: on a cold GitHub Actions runner this can still return 500 instead of a 4xx — not
-        // fixed here. BiometricController.Exchange now wraps its own body in a try/catch (real
-        // hardening against an attacker-controlled-input exception inside that flow — DB lookup,
-        // vault secret resolution, the Entra token-refresh call), but that didn't catch this: five
-        // malformed-payload shapes (empty body, invalid JSON, wrong field types, {} — this one)
-        // all correctly return 400 locally, and the exact `dotnet test` invocation CI uses
-        // reproduces green locally too. The exception is evidently thrown before Exchange's own
-        // code runs at all — somewhere in the ASP.NET Core pipeline itself on a cold host — which
-        // is outside anything a controller-level try/catch can reach. Left loose so this stays a
-        // pure authorization-contract check; the underlying flake needs host-level exception
-        // logging (not yet wired into this test project) to actually pin down.
+        // HISTORICAL NOTE: on a cold GitHub Actions runner this used to return 500 instead of a
+        // 4xx, with no local repro and no captured exception to explain it — BiometricController
+        // .Exchange's own try/catch didn't catch it, implying the exception was thrown before
+        // Exchange's own code ran at all, somewhere in the ASP.NET Core pipeline itself. Rather
+        // than leave that permanently undiagnosable, the factory now captures every Error/Critical
+        // host log (HostErrorLogCapture) — ASP.NET Core always logs an unhandled exception via
+        // "Microsoft.AspNetCore.Hosting.Diagnostics" as it unwinds, regardless of environment. If
+        // this test ever sees 500 again, the assertion below surfaces that exact exception in the
+        // test output instead of a bare status-code mismatch, so it can finally be root-caused.
+        if (res.StatusCode == HttpStatusCode.InternalServerError)
+        {
+            var errors = factory.DrainRecentErrorLogs();
+            var details = errors.Count == 0
+                ? "(no Error/Critical host log captured for this request — the exception may be logged below Error level, or thrown after the response already started)"
+                : string.Join("\n---\n", errors);
+            Assert.Fail($"Exchange returned 500 unexpectedly. Captured host logs for this request:\n{details}");
+        }
+
         res.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized, "Exchange is [AllowAnonymous]");
         res.StatusCode.Should().NotBe(HttpStatusCode.Forbidden, "Exchange is [AllowAnonymous]");
         res.Headers.Contains("Set-Cookie").Should().BeFalse("no session may be issued without a valid biometric token");

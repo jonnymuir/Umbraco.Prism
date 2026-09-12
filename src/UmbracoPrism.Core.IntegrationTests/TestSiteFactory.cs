@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace UmbracoPrism.Core.IntegrationTests;
 
@@ -30,6 +31,17 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
 {
     private readonly string _tempRoot = Path.Combine(
         Path.GetTempPath(), "prism-authcontract-" + Guid.NewGuid().ToString("N"));
+    private readonly HostErrorLogCapture _errorLogCapture = new();
+
+    /// <summary>
+    /// Drains every Error/Critical-level log entry captured since the last drain — including any
+    /// exception object attached — so a test can surface exactly what the host logged for an
+    /// unexpected response (e.g. a 500 it didn't ask for), rather than just the status code.
+    /// See AuthorizationBehaviourTests' BiometricController.Exchange test for why this exists: a
+    /// CI-only 500 with no local repro, previously undiagnosable because nothing captured the
+    /// actual exception.
+    /// </summary>
+    public IReadOnlyList<HostErrorLogCapture.Entry> DrainRecentErrorLogs() => _errorLogCapture.Drain();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -37,6 +49,7 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
         Directory.CreateDirectory(Path.Combine(_tempRoot, "umbraco", "models"));
 
         builder.UseEnvironment(Environments.Development);
+        builder.ConfigureLogging(logging => logging.AddProvider(_errorLogCapture));
 
         builder.ConfigureAppConfiguration((_, config) =>
         {
