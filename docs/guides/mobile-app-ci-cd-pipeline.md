@@ -59,15 +59,17 @@ point of the API-key/automatic-signing approach.
 
 | Variable | Purpose | Required? |
 |---|---|---|
-| `PRISM_REFERENCE_APP_HOSTNAME` | The reference app's live hostname, e.g. `portal.example.com` | Yes — the workflow fails fast with a clear error if unset |
+| `PRISM_REFERENCE_APP_HOSTNAME` | The reference app's live hostname | Yes — the workflow fails fast with a clear error if unset |
 | `PRISM_REFERENCE_APP_NAME` | Display name shown on the device | No — defaults to "Prism Reference" |
 | `PRISM_REFERENCE_APP_ID` | Reverse-DNS bundle identifier | No — defaults to `com.jonnymuir.prismreference` |
 | `PRISM_REFERENCE_APP_VERSION` | App version string | No — defaults to `1.0.0` |
 
-Until the reference app has real hosting, a placeholder value in `PRISM_REFERENCE_APP_HOSTNAME`
-is enough to validate that the pipeline itself builds, signs, and uploads correctly — the app will
-just show its themed "can't connect" screen in TestFlight until the real host resolves. No
-workflow change is needed later: flip the variable to the real value once hosting exists.
+Until the reference app has real hosting, set `PRISM_REFERENCE_APP_HOSTNAME` to **`example.com`**
+(the IANA-reserved placeholder domain — no trademark/ToS concern, unlike pointing it at a real
+site you don't control) to validate that the pipeline itself builds, signs, and uploads correctly.
+The app will just show its themed "can't connect" screen in TestFlight until the real host
+resolves — that's expected and fine for a first pipeline test. No workflow change is needed later:
+flip the variable to the real value once hosting exists.
 
 ## Running it
 
