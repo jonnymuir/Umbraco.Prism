@@ -70,9 +70,18 @@ public class PrismSecurityHeadersOptions
     /// <see cref="AdditionalContentSecurityPolicySources"/>/its own override) rather than
     /// reintroducing <c>unsafe-inline</c>. Backoffice paths are excluded from this middleware
     /// entirely by default (<see cref="ExcludeBackoffice"/>) — this policy governs the front end.
+    ///
+    /// Also sets <c>object-src</c> and <c>base-uri</c> explicitly — found live (ZAP baseline,
+    /// once CSP went from Report-Only to enforced): these two directives don't fall back to
+    /// <c>default-src</c> at all per spec, unlike most others, so leaving them unset is a real
+    /// gap (rule 10055, "Failure to Define Directive with No Fallback"), not just a linter
+    /// nit — a page could still load a plugin/applet via <c>&lt;object&gt;</c>/<c>&lt;embed&gt;</c>,
+    /// or have its relative-URL resolution hijacked via an injected <c>&lt;base&gt;</c> tag,
+    /// even with every other directive locked down.
     /// </summary>
     public string? ContentSecurityPolicy { get; set; } =
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; frame-ancestors 'self'";
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; " +
+        "object-src 'none'; base-uri 'self'; frame-ancestors 'self'";
 
     /// <summary>
     /// Value for the monitoring-only <c>Content-Security-Policy-Report-Only</c> header. Set to

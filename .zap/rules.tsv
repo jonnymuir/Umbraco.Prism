@@ -16,6 +16,16 @@
 #     (Keycloak + MockBusinessApp + TestSite), after SEC-PT2-004's two real header/cookie
 #     regressions were root-caused and fixed (#193 OnStarting header-survival, #194
 #     antiforgery X-Frame-Options duplication, #195 antiforgery cookie Secure flag). ---
+#
+# --- 2026-09-12 (#203): CSP promoted from Report-Only to enforced (SEC-PT2-004's own
+#     "tune then enforce" plan, now complete) — the "CSP Header Not Set" [10038] IGNORE
+#     entry that used to live here is gone: it was excusing a real, deliberately-open gap
+#     (ZAP only recognises the enforced header), not a false positive, so removing the
+#     excuse rather than updating its wording is correct now that the header is genuinely
+#     present. Enforcing surfaced one new real finding, fixed properly, not IGNOREd:
+#     "Failure to Define Directive with No Fallback" [10055] — object-src and base-uri
+#     don't fall back to default-src per spec, so PrismSecurityHeadersOptions' default
+#     policy now sets both explicitly (object-src 'none'; base-uri 'self'). ---
 
 # ---- /umbraco* : the Umbraco backoffice owns its own header + CSP regime ----
 # PrismSecurityHeadersMiddleware is deliberately scoped to skip /umbraco* by default
@@ -29,15 +39,6 @@
 10035	IGNORE	.*/umbraco	HSTS: backoffice + its static assets, Umbraco-owned
 10063	IGNORE	.*/umbraco	Permissions-Policy: backoffice, Umbraco-owned
 10109	IGNORE	.*/umbraco	informational: the backoffice is a SPA
-
-# Content Security Policy (CSP) Header Not Set — front-end pages ship CSP as
-# Content-Security-Policy-Report-Only, not enforced, by deliberate documented design
-# (SEC-PT2-004: "tune then enforce" — ZAP only recognises the enforced header, not the
-# report-only one, so it flags every front-end page as if no CSP existed at all). Revisit
-# once the report-only policy has been tuned against real traffic and promoted to
-# enforced — this is genuinely open follow-up work, not a false positive being waved
-# through. /umbraco* is separately backoffice-owned (see above).
-10038	IGNORE		CSP ships Report-Only by design (SEC-PT2-004 tune-then-enforce plan), not yet promoted to enforced
 
 # Re-examine Cache-control Directives — the app explicitly sends
 # "Cache-control: no-cache, no-store" + "Pragma: no-cache" on every dynamic page (an

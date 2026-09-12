@@ -135,6 +135,9 @@ public class PrismSecurityHeadersMiddlewareTests
             "renders is a real external resource, never spliced inline, so there is nothing " +
             "left that needs unsafe-inline");
         csp.Should().NotContain("unsafe-inline");
+        csp.Should().Contain("object-src 'none'").And.Contain("base-uri 'self'",
+            "these two directives don't fall back to default-src per spec (unlike most others) " +
+            "— found live via ZAP baseline (rule 10055) once CSP went from Report-Only to enforced");
         ctx.Response.Headers.Should().NotContainKey("Content-Security-Policy-Report-Only",
             "Report-Only is opt-in (null by default) — a host enables it itself to test a " +
             "stricter draft policy alongside the enforced one");
