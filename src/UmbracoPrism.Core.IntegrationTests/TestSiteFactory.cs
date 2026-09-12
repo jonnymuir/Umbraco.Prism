@@ -79,14 +79,17 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
                 // from their own constructors — i.e. during controller DI activation, before any
                 // middleware-level or action-level try/catch can reach it — when these are absent.
                 // UmbracoPrism.TestSite normally gets them from `dotnet user-secrets` (its
-                // UserSecretsId), which .NET auto-loads because this factory forces the Development
-                // environment below; user secrets live outside the repo, so CI never has them. This
-                // is THE actual root cause behind AuthorizationBehaviourTests' long-standing
-                // "CI-only 500" note on the Exchange test — not a cold-runner timing flake at all
-                // (it was 100% deterministic in CI from the start, just never actually diagnosed
-                // until RawExceptionCapture's response-body capture finally showed the real
-                // exception). Fixed test-only values, not real secrets — this host issues no real
-                // biometric tokens under test.
+                // UserSecretsId), which .NET only auto-loads when the app's environment resolves to
+                // Development at the point Program.cs builds its host — whether that's true for a
+                // given `dotnet test` invocation is apparently NOT as fixed as "this factory calls
+                // UseEnvironment(Development) below" would suggest (confirmed: one CI run passed
+                // without this fix, so it isn't strictly always-missing in CI either). This is root
+                // cause behind AuthorizationBehaviourTests' long-standing "CI-only 500" note on the
+                // Exchange test either way — diagnosed via RawExceptionCapture's response-body
+                // capture, which finally showed the real exception. Supplying these directly here
+                // removes the dependency on that ambient, apparently-not-fully-deterministic
+                // behavior entirely, regardless of the precise mechanics behind it. Fixed test-only
+                // values, not real secrets — this host issues no real biometric tokens under test.
                 ["Prism:Biometric:SigningKey"] = "prism-authcontract-test-signing-key-not-a-real-secret",
                 ["Prism:Biometric:EncryptionKey"] = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
 

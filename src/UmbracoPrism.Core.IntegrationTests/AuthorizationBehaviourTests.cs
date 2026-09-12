@@ -76,18 +76,20 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
         // rather than being challenged by the auth middleware) and, given no valid BiometricToken
         // JWT, it never issues a PrismMemberCookie session.
         //
-        // RESOLVED — this was never a cold-runner timing flake at all, despite the framing on the
-        // original note; it was 100% deterministic in CI from the very first run, just never
-        // actually diagnosed until the response-body capture below finally showed the real
-        // exception: BiometricTokenService's own constructor throws InvalidOperationException when
-        // Prism:Biometric:SigningKey is absent — during controller DI activation, before Exchange's
-        // own try/catch (or any middleware-level one) can reach it. UmbracoPrism.TestSite normally
-        // gets that value from `dotnet user-secrets` (its UserSecretsId), auto-loaded because this
-        // factory forces the Development environment — user secrets live outside the repo, so every
-        // developer machine that ever ran `dotnet user-secrets set` for this project had it and CI
-        // never did. Fixed in TestSiteFactory's own config (see its comment) with fixed test-only
-        // values; confirmed by removing the local secrets file entirely and re-running, which
-        // reproduced the exact CI failure locally for the first time, then passed once fixed.
+        // RESOLVED — root cause: BiometricTokenService's own constructor throws
+        // InvalidOperationException when Prism:Biometric:SigningKey is absent — during controller
+        // DI activation, before Exchange's own try/catch (or any middleware-level one) can reach
+        // it. UmbracoPrism.TestSite normally gets that value from `dotnet user-secrets`, which
+        // .NET only auto-loads when the app's environment resolves to Development at the point
+        // Program.cs builds its host — every developer machine that ran `dotnet user-secrets set`
+        // for this project had it. Whether that's true for a given CI run turned out NOT to be
+        // fully deterministic (one CI run passed without any fix at all — see TestSiteFactory's
+        // own comment), so this wasn't purely "CI never has it" either; the original "cold runner"
+        // framing wasn't as wrong as it first looked once RawExceptionCapture's response-body
+        // capture actually showed the real exception. Fixed in TestSiteFactory's own config with
+        // fixed test-only values, removing the dependency on that ambient behavior entirely;
+        // confirmed by removing the local secrets file and re-running, which reproduced the same
+        // exception locally for the first time, then passed once fixed.
         // Two other things landed chasing this, both kept as good on their own merits even though
         // neither was the actual cause: TenantService.GetByDomainAsync no longer crashes the request
         // on a database failure during tenant lookup, and RawExceptionCapture (an IStartupFilter
