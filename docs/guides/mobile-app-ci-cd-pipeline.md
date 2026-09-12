@@ -44,6 +44,12 @@ point of the API-key/automatic-signing approach.
       download the `.p8` file once — Apple only lets you download it once, so store it somewhere
       safe until it's in GitHub Secrets.
 - [ ] Confirm the Apple Developer Program membership is a paid one covering Distribution.
+- [ ] Note your **Team ID** (Apple Developer portal → **Account** → **Membership details**) —
+      needed below. This isn't a secret (it ends up embedded in every `.ipa`'s own provisioning
+      profile anyway), but `xcodebuild -allowProvisioningUpdates` still needs to be told which
+      team to provision for explicitly — a freshly-generated Capacitor Xcode project has no team
+      set at all, and archiving fails outright ("Signing for 'App' requires a development team")
+      without it. Found live on this pipeline's first real dispatch run.
 
 ## GitHub repository configuration
 
@@ -63,6 +69,7 @@ point of the API-key/automatic-signing approach.
 | `PRISM_REFERENCE_APP_NAME` | Display name shown on the device | No — defaults to "Prism Reference" |
 | `PRISM_REFERENCE_APP_ID` | Reverse-DNS bundle identifier | No — defaults to `com.jonnymuir.prismreference` |
 | `PRISM_REFERENCE_APP_VERSION` | App version string | No — defaults to `1.0.0` |
+| `PRISM_APPLE_TEAM_ID` | Your Apple Developer Team ID | Yes — the workflow fails fast with a clear error if unset |
 
 Until the reference app has real hosting, set `PRISM_REFERENCE_APP_HOSTNAME` to **`example.com`**
 (the IANA-reserved placeholder domain — no trademark/ToS concern, unlike pointing it at a real

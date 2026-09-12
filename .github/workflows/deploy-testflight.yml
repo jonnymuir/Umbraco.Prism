@@ -22,6 +22,10 @@ jobs:
       PRISM_APP_NAME: ${{ vars.PRISM_REFERENCE_APP_NAME }}
       PRISM_APP_ID: ${{ vars.PRISM_REFERENCE_APP_ID }}
       PRISM_APP_VERSION: ${{ vars.PRISM_REFERENCE_APP_VERSION }}
+      # Not a secret — an Apple Team ID is a public-ish account identifier (it ends up inside
+      # every .ipa's own embedded provisioning profile), not a credential. Find it at
+      # developer.apple.com/account under Membership details.
+      PRISM_APPLE_TEAM_ID: ${{ vars.PRISM_APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,6 +45,10 @@ jobs:
         run: |
           if [ -z "$PRISM_APP_HOSTNAME" ]; then
             echo "::error::Repo variable PRISM_REFERENCE_APP_HOSTNAME is not set. See docs/guides/mobile-app-ci-cd-pipeline.md."
+            exit 1
+          fi
+          if [ -z "$PRISM_APPLE_TEAM_ID" ]; then
+            echo "::error::Repo variable PRISM_APPLE_TEAM_ID is not set. See docs/guides/mobile-app-ci-cd-pipeline.md."
             exit 1
           fi
 
@@ -82,7 +90,12 @@ jobs:
 
       # xcodebuild resolves/creates the distribution certificate and provisioning profile
       # itself, scoped to the bundle ID, using the API key's authority — no manual .p12
-      # export, no keychain import, no profile rotation to manage.
+      # export, no keychain import, no profile rotation to manage. It does NOT, however,
+      # infer which Apple *team* to provision for on its own: a freshly `cap add ios`-
+      # generated project has no team set at all, and archiving fails outright ("Signing
+      # for 'App' requires a development team") without one — found live on the first real
+      # dispatch of this workflow. DEVELOPMENT_TEAM is a plain trailing build-setting
+      # override, not a flag of its own.
       - name: Archive iOS app
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -97,7 +110,30 @@ jobs:
             -allowProvisioningUpdates \
             -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
-            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$PRISM_APPLE_TEAM_ID"
+
+      # Generated at runtime rather than a static checked-in file: the team ID it needs to
+      # carry is per-account configuration (PRISM_APPLE_TEAM_ID), not something to hardcode
+      # into a file every fork/clone would otherwise share.
+      - name: Write export options plist
+        run: |
+          cat > ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store-connect</string>
+              <key>signingStyle</key>
+              <string>automatic</string>
+              <key>destination</key>
+              <string>export</string>
+              <key>teamID</key>
+              <string>${PRISM_APPLE_TEAM_ID}</string>
+          </dict>
+          </plist>
+          PLIST
 
       - name: Export .ipa
         env:
@@ -108,7 +144,7 @@ jobs:
             -exportArchive \
             -archivePath build/App.xcarchive \
             -exportPath build/ipa \
-            -exportOptionsPlist .github/mobile/ExportOptions.plist \
+            -exportOptionsPlist ExportOptions.plist \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
