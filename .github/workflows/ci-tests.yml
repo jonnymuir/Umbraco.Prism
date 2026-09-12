@@ -75,7 +75,10 @@ jobs:
 
   localhost-auth-playwright:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 60, not 30: this lane boots Keycloak + MockBusinessApp + TestSite (SQLite) + a browser on a
+    # standard 2-vCPU runner, and the retry loop below can burn up to ~2 full boot-stall budgets
+    # (see live-app-host.ts's own stallRecoveryThresholdMs/maxRecoveryAttempts) before giving up.
+    timeout-minutes: 60
     permissions:
       contents: read
     defaults:
@@ -127,7 +130,32 @@ jobs:
         run: node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite
 
       - name: Run localhost auth/session Playwright lane
-        run: npm run test:playwright:localhost-auth -- --max-failures=1
+        # This lane's own boot harness (live-app-host.ts) already recovers once in-process from a
+        # detected stall (same Node process, same runner) — not enough on a runner that's under
+        # sustained resource contention (Keycloak + MockBusinessApp + TestSite + a browser, all on
+        # a standard 2-vCPU box): every request, including Keycloak's own health check, timing out
+        # at once points at the runner itself being starved, which an in-process restart can't
+        # fix. A fresh step invocation gets a genuinely clean process tree and a forced SQLite
+        # runtime reset (LiveAppHost defaults resetTestSiteRuntimeOnNextStart to true on every new
+        # process), so retrying the whole step is a materially different, stronger reset than the
+        # in-process one. This repo is public — GitHub Actions minutes are unmetered here, so the
+        # only cost of a spurious retry is wall-clock time, not budget.
+        run: |
+          set +e
+          max_attempts=2
+          attempt=1
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "::group::localhost auth/session Playwright lane — attempt $attempt/$max_attempts"
+            npm run test:playwright:localhost-auth -- --max-failures=1
+            status=$?
+            echo "::endgroup::"
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+            echo "::warning::localhost auth/session Playwright lane failed on attempt $attempt/$max_attempts (exit $status)."
+            attempt=$((attempt + 1))
+          done
+          exit "$status"
 
       - name: Upload Playwright artifacts on failure
         if: failure()
