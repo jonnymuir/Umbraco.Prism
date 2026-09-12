@@ -38,11 +38,17 @@ point of the API-key/automatic-signing approach.
 - [ ] Register the app's Bundle ID (e.g. `com.jonnymuir.prismreference`) under **Certificates,
       Identifiers & Profiles**.
 - [ ] Create the app record in **App Store Connect** with that same Bundle ID.
-- [ ] Generate an **App Store Connect API Key**: Users and Access → Integrations → App Store
-      Connect API → generate a key with the **App Manager** role (needed both to let `xcodebuild`
-      resolve signing and to upload to TestFlight). Note its **Key ID** and **Issuer ID**, and
-      download the `.p8` file once — Apple only lets you download it once, so store it somewhere
-      safe until it's in GitHub Secrets.
+- [ ] Generate an **App Store Connect API Key** under the **Team Keys** tab (not Individual Keys
+      — Team Keys are the account-level, service-account-style keys meant for CI/automation;
+      Individual Keys are tied to your own personal account access): Users and Access →
+      Integrations → App Store Connect API → generate a key with the **Admin** role.
+      **Admin, not App Manager** — found live: App Manager can create/manage a Development
+      certificate (enough for `xcodebuild archive` to succeed) but cannot create or query an
+      **iOS Distribution** certificate or provisioning profile via cloud-managed signing, so the
+      later `-exportArchive` step fails with `Cloud signing permission error` / `No signing
+      certificate "iOS Distribution" found` even though archiving worked. Note its **Key ID** and
+      **Issuer ID**, and download the `.p8` file once — Apple only lets you download it once, so
+      store it somewhere safe until it's in GitHub Secrets.
 - [ ] Confirm the Apple Developer Program membership is a paid one covering Distribution.
 - [ ] Note your **Team ID** (Apple Developer portal → **Account** → **Membership details**) —
       needed below. This isn't a secret (it ends up embedded in every `.ipa`'s own provisioning
