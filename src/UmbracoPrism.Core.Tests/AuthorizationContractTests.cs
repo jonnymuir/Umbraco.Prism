@@ -72,6 +72,13 @@ public class AuthorizationContractTests
             "unlike the inline <style> this replaced). Read-only, no session, no capability: " +
             "the response is CSS text derived from the current tenant's own already-public " +
             "branding config, resolved the same way any other page on that tenant's host is.",
+
+        [(typeof(global::UmbracoPrism.TestSite.Controllers.HomeImageryCssController), "*")] =
+            "Never-ships TestSite: serves the home page's hero/card image CSS variable overrides " +
+            "as a plain stylesheet (SEC-PT2-004 CSP follow-up, same rationale as " +
+            "PrismBrandingAssetsController). Read-only, no session, no capability — the response " +
+            "is CSS text derived from the home page's own already-public content, resolved the " +
+            "same way the page itself is rendered for any visitor.",
     };
 
     /// <summary>Controllers whose auth decision is a deliberate imperative check, not an attribute.</summary>
