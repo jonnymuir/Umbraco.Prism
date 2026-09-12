@@ -93,12 +93,20 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
         {
             var rawExceptions = factory.DrainRawExceptions();
             var errors = factory.DrainRecentErrorLogs();
+            var responseBody = await res.Content.ReadAsStringAsync();
+            var responseHeaders = string.Join(", ", res.Headers
+                .Concat(res.Content.Headers)
+                .Select(h => $"{h.Key}={string.Join("|", h.Value)}"));
             var details = rawExceptions.Count > 0
                 ? string.Join("\n---\n", rawExceptions.Select(ex => ex.ToString()))
                 : errors.Count > 0
                     ? string.Join("\n---\n", errors)
                     : "(no exception captured by RawExceptionCapture and no Error/Critical host log either — the response may have started successfully and failed while writing the body, outside any middleware's try/catch)";
-            Assert.Fail($"Exchange returned 500 unexpectedly. Captured diagnostics for this request:\n{details}");
+            Assert.Fail(
+                $"Exchange returned 500 unexpectedly.\n" +
+                $"Response headers: {responseHeaders}\n" +
+                $"Response body: {(string.IsNullOrEmpty(responseBody) ? "(empty)" : responseBody)}\n" +
+                $"Captured diagnostics for this request:\n{details}");
         }
 
         res.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized, "Exchange is [AllowAnonymous]");
