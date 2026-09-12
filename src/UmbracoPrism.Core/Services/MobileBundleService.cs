@@ -1051,7 +1051,10 @@ if ! bash scripts/trust-ios-localhost-cert.sh; then
   echo "⚠️ Cert trust step did not complete. Continuing..."
 fi
 
-if xcrun simctl list devices booted | grep -q "(Booted)"; then
+if [[ "${CI:-}" == "true" ]]; then
+  echo "CI environment detected — skipping simulator run/open. The ios/ project is synced and"
+  echo "ready for a signing/archive step (e.g. xcodebuild) to take over from here."
+elif xcrun simctl list devices booted | grep -q "(Booted)"; then
   echo "Booted simulator found. Running app..."
   npx cap run ios
 else
@@ -1109,7 +1112,10 @@ fi
 
 npx cap sync android
 {{manifestInjection}}
-if command -v adb >/dev/null 2>&1 && adb devices | tail -n +2 | grep -q "device"; then
+if [[ "${CI:-}" == "true" ]]; then
+  echo "CI environment detected — skipping emulator run/open. The android/ project is synced and"
+  echo "ready for a signing/build step (e.g. ./gradlew bundleRelease) to take over from here."
+elif command -v adb >/dev/null 2>&1 && adb devices | tail -n +2 | grep -q "device"; then
   echo "Android device/emulator found. Running app..."
   npx cap run android
 else

@@ -10,6 +10,7 @@
     <Project Path="src/UmbracoPrism.Core.IntegrationTests/UmbracoPrism.Core.IntegrationTests.csproj" />
     <Project Path="src/UmbracoPrism.Core/UmbracoPrism.Core.csproj" />
     <Project Path="src/UmbracoPrism.KeycloakProxy/UmbracoPrism.KeycloakProxy.csproj" />
+    <Project Path="src/UmbracoPrism.MobileBundleCli/UmbracoPrism.MobileBundleCli.csproj" />
     <Project Path="src/UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj" />
     <Project Path="src/UmbracoPrism.ServiceDefaults/UmbracoPrism.ServiceDefaults.csproj" />
     <Project Path="src/UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj" />
