@@ -10,6 +10,17 @@ const readinessTimeoutMs = 480_000; // 8 minutes — CI runners vary; 5min was t
 const readinessPollIntervalMs = 10_000;
 const readinessCheckpointIntervalMs = 30_000;
 const probeTimeoutMs = 5_000;
+// probe()'s bodyIncludes check needs the full page, not just the first few KB — a full-page
+// render (GOV.UK boilerplate + branding links + the mobile-shell HTML) routinely runs well past
+// a few KB before reaching the text a check is looking for. Confirmed live: PR #197 CI's
+// "Juggling licence service blueprint route" check failed deterministically (never once, across
+// four independent full stack restarts, becoming ready) even though the page rendered correctly
+// — its expected text sits at byte ~11,300 of a ~15KB page, past the previous 8,192-byte cap, so
+// response.body.includes(text) could never see it no matter how long the loop waited. That looked
+// exactly like a slow cold-start stall (same symptom: "still waiting" forever) but no amount of
+// warmup or extra timeout fixes a truncated buffer. 256KB is generously above any page this suite
+// renders today.
+const probeBodyCaptureLimitBytes = 262_144;
 // A wedged resource (port still listening, process not actually responding) doesn't recover on
 // its own — waiting out the full readinessTimeoutMs just burns the CI budget. If the exact same
 // set of checks has been pending this long with zero progress, restart the whole stack once
@@ -489,7 +500,7 @@ async function probe(urlString: string): Promise<ProbeResult> {
 
         response.setEncoding('utf8');
         response.on('data', chunk => {
-          if (body.length < 8_192) {
+          if (body.length < probeBodyCaptureLimitBytes) {
             body += chunk;
           }
         });
