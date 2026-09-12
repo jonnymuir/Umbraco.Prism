@@ -16,6 +16,8 @@ using Microsoft.AspNetCore.Antiforgery;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Notifications;
 using UmbracoPrism.Core.Extensions;
+using UmbracoPrism.Core.Persistence;
+using Umbraco.Extensions;
 
 namespace UmbracoPrism.Core;
 
@@ -216,7 +218,16 @@ public class PrismComposer : IComposer
         //   Rationale: native apps cannot supply the ASP.NET Core antiforgery cookie+header pair.
         //   CSRF protection on those endpoints: SameSite=Lax + JSON Content-Type + origin checks.
         // Any new browser-facing POST endpoint MUST carry [ValidateAntiForgeryToken].
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismMigrationHandler>();
+        // Registered as a proper Umbraco package migration plan (runs during Umbraco's own
+        // boot/upgrade phase, gated behind its "upgrading, please wait" holding page like
+        // Umbraco's own core migrations) rather than reactively on UmbracoApplicationStartedNotification
+        // — that notification fires once Umbraco has ALREADY reached RuntimeLevel.Run and started
+        // serving real traffic, so a reactive handler races every request against its own table
+        // creation. Found live via a CI flake: "no such table: PrismTenants" on tenant-dependent
+        // pages, reproducing even on main, whenever a request landed in the window between
+        // Umbraco reaching Run and the old PrismMigrationHandler's migration finishing. This
+        // registration makes that race structurally impossible instead of papering over it.
+        builder.PackageMigrationPlans().Add<PrismMigrationPlan>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismContentTypeSeeder>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismStarterContentSeeder>();
         builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>();
