@@ -64,7 +64,7 @@ public class PrismSecurityHeadersMiddlewareTests
         ctx.Response.Headers.Should().ContainKey("Referrer-Policy");
         ctx.Response.Headers.Should().ContainKey("Permissions-Policy");
         ctx.Response.Headers.Should().ContainKey("Strict-Transport-Security");
-        ctx.Response.Headers.Should().ContainKey("Content-Security-Policy-Report-Only");
+        ctx.Response.Headers.Should().ContainKey("Content-Security-Policy");
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public class PrismSecurityHeadersMiddlewareTests
     }
 
     [Fact]
-    public async Task ContentSecurityPolicy_IsReportOnlyByDefault()
+    public async Task ContentSecurityPolicy_IsEnforcedByDefault_WithNoUnsafeInline()
     {
         var middleware = BuildMiddleware();
         var (ctx, feature) = BuildHttpsContext("/dashboard");
@@ -130,10 +130,21 @@ public class PrismSecurityHeadersMiddlewareTests
         await middleware.InvokeAsync(ctx);
         await feature.FireOnStartingAsync();
 
-        ctx.Response.Headers.Should().ContainKey("Content-Security-Policy-Report-Only",
-            "CSP ships as Report-Only by default (SEC-PT2-004 follow-up: promote to enforced once tuned)");
-        ctx.Response.Headers.Should().NotContainKey("Content-Security-Policy",
-            "enforced CSP is not set by default — must be explicitly configured after tuning");
+        var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
+        csp.Should().NotBeEmpty("CSP ships enforced by default — every asset Prism itself " +
+            "renders is a real external resource, never spliced inline, so there is nothing " +
+            "left that needs unsafe-inline");
+        csp.Should().NotContain("unsafe-inline");
+        csp.Should().Contain("object-src 'none'").And.Contain("base-uri 'self'")
+            .And.Contain("form-action 'self'",
+            "these directives don't fall back to default-src per spec (unlike most others) " +
+            "— found live via ZAP baseline (rule 10055) once CSP went from Report-Only to enforced");
+        csp.Should().NotContain("img-src 'self' data: https:",
+            "a blanket https: image wildcard was an unjustified default (ZAP rule 10055, " +
+            "\"CSP: Wildcard Directive\") — nothing in Prism renders a third-party HTTPS image");
+        ctx.Response.Headers.Should().NotContainKey("Content-Security-Policy-Report-Only",
+            "Report-Only is opt-in (null by default) — a host enables it itself to test a " +
+            "stricter draft policy alongside the enforced one");
     }
 
     [Fact]
@@ -207,8 +218,8 @@ public class PrismSecurityHeadersMiddlewareTests
         await middleware.InvokeAsync(ctx);
         await feature.FireOnStartingAsync();
 
-        var csp = ctx.Response.Headers["Content-Security-Policy-Report-Only"].ToString();
-        csp.Should().Contain("img-src 'self' data: https: https://images.example.com",
+        var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
+        csp.Should().Contain("img-src 'self' data: https://images.example.com",
             "the host's extra source is appended to Prism's own existing img-src, not replacing it");
     }
 
@@ -228,8 +239,26 @@ public class PrismSecurityHeadersMiddlewareTests
         await middleware.InvokeAsync(ctx);
         await feature.FireOnStartingAsync();
 
-        var csp = ctx.Response.Headers["Content-Security-Policy-Report-Only"].ToString();
+        var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
         csp.Should().Contain("frame-src https://payments.example.com");
+    }
+
+    [Fact]
+    public async Task ContentSecurityPolicyReportOnly_IsOptIn_AndIndependentOfTheEnforcedPolicy()
+    {
+        var options = new PrismSecurityHeadersOptions
+        {
+            ContentSecurityPolicyReportOnly = "default-src 'none'"
+        };
+        var middleware = BuildMiddleware(options);
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers["Content-Security-Policy-Report-Only"].ToString().Should().Be("default-src 'none'");
+        ctx.Response.Headers.Should().ContainKey("Content-Security-Policy",
+            "the enforced policy stays active — Report-Only is additive, not a replacement");
     }
 
     private sealed class FiringResponseFeature(IHttpResponseFeature inner) : IHttpResponseFeature

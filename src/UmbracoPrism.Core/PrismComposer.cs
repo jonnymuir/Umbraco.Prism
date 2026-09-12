@@ -67,8 +67,10 @@ public class PrismComposer : IComposer
 
         // SEC-PT2-004: Security response headers — configurable via Prism:SecurityHeaders.
         // Defaults: X-Content-Type-Options, X-Frame-Options (SAMEORIGIN), Referrer-Policy,
-        // Permissions-Policy, HSTS (HTTPS only), CSP-Report-Only (promote to enforced CSP
-        // once tuned per-deployment). Backoffice paths excluded by default.
+        // Permissions-Policy, HSTS (HTTPS only), an enforced Content-Security-Policy (self
+        // only, no unsafe-inline — safe because Prism's own branding/mobile-shell/biometric
+        // assets, and the TestSite reference host's own pages, are all real external
+        // resources, never spliced inline). Backoffice paths excluded by default.
         builder.Services.Configure<PrismSecurityHeadersOptions>(
             builder.Config.GetSection(PrismSecurityHeadersOptions.SectionName));
 

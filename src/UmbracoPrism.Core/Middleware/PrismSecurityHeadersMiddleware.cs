@@ -10,7 +10,7 @@ namespace UmbracoPrism.Core.Middleware;
 /// <c>UmbracoPipelineFilter</c>. Configure via <see cref="PrismSecurityHeadersOptions"/>.
 ///
 /// SEC-PT2-004: adds HSTS, X-Content-Type-Options, Referrer-Policy, X-Frame-Options,
-/// Permissions-Policy, and Content-Security-Policy-Report-Only by default.
+/// Permissions-Policy, and an enforced Content-Security-Policy by default.
 ///
 /// Headers are set via <see cref="HttpResponse.OnStarting"/>, not inline before
 /// <c>next(context)</c>. Found live: a genuine 404 — Umbraco's own "no content matches this
@@ -78,6 +78,10 @@ internal sealed class PrismSecurityHeadersMiddleware(
 
         if (_options.HstsValue is not null && context.Request.IsHttps)
             headers["Strict-Transport-Security"] = _options.HstsValue;
+
+        if (_options.ContentSecurityPolicy is not null)
+            headers["Content-Security-Policy"] = CspPolicyBuilder.WithAdditionalSources(
+                _options.ContentSecurityPolicy, _options.AdditionalContentSecurityPolicySources);
 
         if (_options.ContentSecurityPolicyReportOnly is not null)
             headers["Content-Security-Policy-Report-Only"] = CspPolicyBuilder.WithAdditionalSources(
