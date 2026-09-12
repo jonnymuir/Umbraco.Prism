@@ -266,4 +266,29 @@ public class MobileBundleServiceTests
         androidBootstrap.Should().Contain("USE_BIOMETRIC");
         androidBootstrap.Should().Contain("android.permission.USE_BIOMETRIC");
     }
+
+    [Fact]
+    public async Task BuildBundleAsync_BootstrapScripts_SkipSimulatorAndEmulatorLaunchInCi()
+    {
+        // A CI runner has no booted simulator/emulator, so the scripts' normal "run app, or open
+        // the IDE" fallback would try to launch Xcode/Android Studio's GUI — hanging or failing
+        // headlessly. Both scripts must check the standard $CI env var (set by GitHub Actions and
+        // most other CI systems) and stop after sync instead, leaving the native project ready
+        // for a separate signing/build step (xcodebuild / gradlew) to take over.
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest { AppName = "Test App", AppId = "com.example.test" };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        iosBootstrap.Should().Contain("\"${CI:-}\" == \"true\"");
+        iosBootstrap.Should().Contain("skipping simulator run/open");
+
+        var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
+        androidBootstrap.Should().Contain("\"${CI:-}\" == \"true\"");
+        androidBootstrap.Should().Contain("skipping emulator run/open");
+    }
 }
