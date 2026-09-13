@@ -232,6 +232,7 @@ public class PrismComposer : IComposer
         builder.PackageMigrationPlans().Add<PrismMigrationPlan>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismContentTypeSeeder>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismStarterContentSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismConfiguredTenantSeeder>();
         builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>();
         builder.Services.ConfigureOptions<PrismManagementApiConfiguration>();
     }
