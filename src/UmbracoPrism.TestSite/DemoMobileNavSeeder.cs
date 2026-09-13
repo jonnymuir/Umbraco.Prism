@@ -4,11 +4,13 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
+using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.TestSite;
 
@@ -18,13 +20,16 @@ namespace UmbracoPrism.TestSite;
 /// each backed by an SVG icon written to /media/prism-nav-icons/ and registered in the
 /// Umbraco media library under a "Prism Navigation Icons" folder.
 ///
-/// Runs idempotently in Development only and repairs stale/missing nav contracts.
+/// Runs idempotently whenever <c>Prism:SeedStarterContent</c> is enabled (see
+/// <see cref="MobileNavSchemaSetup"/> for why this moved off a Development-only gate) and
+/// repairs stale/missing nav contracts.
 /// </summary>
 public class DemoMobileNavSeeder(
     IWebHostEnvironment env,
     IContentService contentService,
     IContentTypeService contentTypeService,
     IMediaService mediaService,
+    IOptions<PrismConfiguration> prismConfig,
     IRuntimeState runtimeState,
     ILogger<DemoMobileNavSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
@@ -72,7 +77,7 @@ public class DemoMobileNavSeeder(
         CancellationToken cancellationToken)
     {
         if (runtimeState.Level < RuntimeLevel.Run) return;
-        if (!env.IsDevelopment()) return;
+        if (!prismConfig.Value.SeedStarterContent) return;
 
         try
         {
