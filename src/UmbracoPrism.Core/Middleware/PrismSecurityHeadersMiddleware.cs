@@ -97,5 +97,16 @@ internal sealed class PrismSecurityHeadersMiddleware(
             headers["Cache-Control"] = "no-store, must-revalidate";
             headers["Pragma"] = "no-cache";
         }
+
+        // Deliberately independent of the authenticated check above — these are anonymous
+        // static assets, but need the exact same header for a different reason (see the option's
+        // own doc comment: an intermediary CDN/edge cache, not the browser, is what silently
+        // served stale copies across multiple redeploys).
+        if (_options.NoCachePrismStaticAssets &&
+            context.Request.Path.StartsWithSegments("/App_Plugins/UmbracoPrism", StringComparison.OrdinalIgnoreCase))
+        {
+            headers["Cache-Control"] = "no-store, must-revalidate";
+            headers["Pragma"] = "no-cache";
+        }
     }
 }

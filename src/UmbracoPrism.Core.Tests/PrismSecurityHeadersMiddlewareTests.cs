@@ -113,6 +113,46 @@ public class PrismSecurityHeadersMiddlewareTests
     }
 
     [Fact]
+    public async Task NoStoreCacheControl_IsApplied_OnAnonymousPrismStaticAssetRequest()
+    {
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js");
+        // DefaultHttpContext.User defaults to an unauthenticated ClaimsPrincipal — this header
+        // must apply regardless of auth state, since the problem it fixes (an intermediary edge
+        // cache, not the browser) doesn't care who's asking.
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().ContainKey("Cache-Control");
+        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("no-store, must-revalidate");
+    }
+
+    [Fact]
+    public async Task NoStoreCacheControl_IsNotApplied_OnUnrelatedAnonymousStaticAsset()
+    {
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/css/base.css");
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().NotContainKey("Cache-Control");
+    }
+
+    [Fact]
+    public async Task NoStorePrismStaticAssetCacheControl_CanBeDisabled_ViaOptions()
+    {
+        var middleware = BuildMiddleware(new PrismSecurityHeadersOptions { NoCachePrismStaticAssets = false });
+        var (ctx, feature) = BuildHttpsContext("/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js");
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().NotContainKey("Cache-Control");
+    }
+
+    [Fact]
     public async Task HstsHeader_IsOmitted_OnHttpRequest()
     {
         var middleware = BuildMiddleware();

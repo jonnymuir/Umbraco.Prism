@@ -125,4 +125,22 @@ public class PrismSecurityHeadersOptions
     /// eligible for shared/disk caching at all.
     /// </summary>
     public bool NoCacheAuthenticated { get; set; } = true;
+
+    /// <summary>
+    /// When true (default), every response under <c>/App_Plugins/UmbracoPrism/</c> (mobile-shell
+    /// JS/CSS, the branding stylesheet endpoint, the tenant demo widgets, the compiled Client
+    /// bundle) gets <c>Cache-Control: no-store, must-revalidate</c>. These files carry no
+    /// Cache-Control of their own otherwise — found live: Cloudflare's own default (a 4-hour
+    /// <c>max-age</c> it adds itself for static-looking extensions when the origin sends none)
+    /// silently served a stale, pre-fix copy of <c>prism-biometric-enroll.js</c> for hours across
+    /// three separate redeploys, each one appearing to have "done nothing" from the phone testing
+    /// it, purely because the edge cache never revalidated against the new deploy. A CDN/tunnel a
+    /// host puts in front of Prism cannot be relied on to leave static assets uncached by default;
+    /// an explicit origin header is the only thing an edge cache is obligated to honor. Trades
+    /// away this path's cacheability entirely rather than something more nuanced (a content-hash
+    /// query string + long max-age) — worth revisiting once these assets aren't under active
+    /// iteration, but zero risk of masking a fix is the right default for a package other people
+    /// are actively building against right now.
+    /// </summary>
+    public bool NoCachePrismStaticAssets { get; set; } = true;
 }
