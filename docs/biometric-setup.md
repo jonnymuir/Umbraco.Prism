@@ -182,6 +182,12 @@ Replace `prismvault` with your actual vault name.
 
 That's it. Prism automatically loads your secrets from Key Vault on the first biometric login. No code changes needed in `Program.cs`.
 
+**Authentication note:** this "just works" via local dev's own Azure CLI/Visual Studio sign-in, or
+an Azure-hosted app's Managed Identity — see [Umbraco Setup § Key Vault for
+Production](umbraco-setup.md#optional-key-vault-for-production) if you're hosting anywhere else
+(a plain VPS, on-prem, another cloud), which needs an explicit service-principal credential
+instead.
+
 ### Optional: Fail-Fast Behavior
 
 By default, Key Vault errors surface on the **first biometric login** (fail-late). If you prefer to catch Key Vault issues at **startup** (fail-fast), add this line to your `Program.cs` before calling `builder.AddUmbraco()`:
