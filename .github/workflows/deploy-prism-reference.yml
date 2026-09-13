@@ -1,0 +1,91 @@
+name: Deploy Prism Reference App
+
+# Manual dispatch only, to start — this deploys UmbracoPrism.TestSite to the live public
+# reference app (prismreference.com), not a review environment. Move to automatic-on-push
+# later once this pipeline is proven out, same posture as deploy-testflight.yml.
+#
+# Unlike NckExchange's own deploy pipeline (a sibling app on the same VPS, see
+# jonnymuir/infra-notes for the full picture), this workflow never touches secrets at all —
+# Prism's Azure Key Vault / Umbraco unattended-install config lives permanently in
+# /etc/prism-reference/env on the VPS itself (an EnvironmentFile read by the systemd service),
+# untouched by deploys. Each run only ever replaces the app's own published files.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Secrets via env first, never inlined into run: (zizmor template-injection convention).
+      PRISM_VPS_HOST: ${{ secrets.PRISM_VPS_HOST }}
+      PRISM_VPS_USERNAME: ${{ secrets.PRISM_VPS_USERNAME }}
+      PRISM_VPS_PASSWORD: ${{ secrets.PRISM_VPS_PASSWORD }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.17.1
+
+      # TestSite's own .csproj runs `npm ci` + copies GOV.UK Frontend assets as a BeforeBuild
+      # target — Node above is for that, not for this workflow directly.
+      - name: Publish UmbracoPrism.TestSite
+        run: >
+          dotnet publish src/UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj
+          -c Release --no-self-contained -o publish
+
+      - name: Stop the service (release file locks)
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ env.PRISM_VPS_HOST }}
+          username: ${{ env.PRISM_VPS_USERNAME }}
+          password: ${{ env.PRISM_VPS_PASSWORD }}
+          script: sudo systemctl stop prism-reference
+
+      - name: Copy published files to the VPS
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
+        with:
+          host: ${{ env.PRISM_VPS_HOST }}
+          username: ${{ env.PRISM_VPS_USERNAME }}
+          password: ${{ env.PRISM_VPS_PASSWORD }}
+          source: "publish/*"
+          target: "/var/www/prism-reference/"
+          strip_components: 1
+
+      - name: Fix permissions and start the service
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ env.PRISM_VPS_HOST }}
+          username: ${{ env.PRISM_VPS_USERNAME }}
+          password: ${{ env.PRISM_VPS_PASSWORD }}
+          script: |
+            sudo chown -R www-data:www-data /var/www/prism-reference
+            sudo systemctl start prism-reference
+
+      # Checks the real public URL (through Cloudflare Tunnel), not just "is Kestrel alive" on
+      # the VPS — a genuine end-to-end check of the whole path. First boot runs Umbraco's
+      # unattended install (schema + admin user creation), which is slower than a normal
+      # restart, hence the generous retry budget.
+      - name: Wait for the app to come up
+        run: |
+          for i in $(seq 1 40); do
+            if curl --fail -s -o /dev/null https://prismreference.com/api/health; then
+              echo "Healthy after $((i * 5))s"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::https://prismreference.com/api/health did not become healthy in time"
+          exit 1
