@@ -68,6 +68,51 @@ public class PrismSecurityHeadersMiddlewareTests
     }
 
     [Fact]
+    public async Task NoStoreCacheControl_IsApplied_OnAuthenticatedRequest()
+    {
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+        ctx.User = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(authenticationType: "PrismMemberCookie"));
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().ContainKey("Cache-Control");
+        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("no-store, must-revalidate");
+        ctx.Response.Headers.Should().ContainKey("Pragma");
+        ctx.Response.Headers["Pragma"].ToString().Should().Be("no-cache");
+    }
+
+    [Fact]
+    public async Task NoStoreCacheControl_IsNotApplied_OnAnonymousRequest()
+    {
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/");
+        // DefaultHttpContext.User defaults to an unauthenticated ClaimsPrincipal.
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().NotContainKey("Cache-Control");
+        ctx.Response.Headers.Should().NotContainKey("Pragma");
+    }
+
+    [Fact]
+    public async Task NoStoreCacheControl_CanBeDisabled_ViaOptions()
+    {
+        var middleware = BuildMiddleware(new PrismSecurityHeadersOptions { NoCacheAuthenticated = false });
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+        ctx.User = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(authenticationType: "PrismMemberCookie"));
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().NotContainKey("Cache-Control");
+    }
+
+    [Fact]
     public async Task HstsHeader_IsOmitted_OnHttpRequest()
     {
         var middleware = BuildMiddleware();
