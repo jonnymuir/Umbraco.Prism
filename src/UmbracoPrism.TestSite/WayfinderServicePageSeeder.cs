@@ -2,10 +2,12 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
+using UmbracoPrism.Core.Models;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Engine.Abstractions;
 
@@ -15,9 +17,13 @@ namespace UmbracoPrism.TestSite;
 /// Seeds TestSite's two worked Wayfinder.Umbraco examples — "Apply for a juggling licence" (a
 /// public, anonymous-first citizen self-service journey) and "Submit contributions file" / the
 /// caseworker queue (the NJF Contributions Team's bulk-contributions worklist demo, including a
-/// real downstream support-system call to Mock Business App). Mirrors
+/// real downstream support-system call to Mock Business App at interaction time — this seeder
+/// itself makes no network calls, it's pure content/blueprint-definition creation). Mirrors
 /// Wayfinder.Umbraco.ReferenceApp's own ReferenceContentSeeder: C# seeders own initial demo data;
 /// uSync only captures subsequent portable edits made through the backoffice.
+///
+/// Runs whenever <c>Prism:SeedStarterContent</c> is enabled (see
+/// <see cref="MobileNavSchemaSetup"/> for why this moved off a Development-only gate).
 /// </summary>
 /// <remarks>
 /// Seeds definitions through <see cref="IServiceBlueprintSourceStore"/> — the same authoring-side
@@ -25,12 +31,30 @@ namespace UmbracoPrism.TestSite;
 /// <c>UmbracoProcessManagerEngine</c> is a singleton that loads its definitions once at
 /// construction; a raw DB insert made after that point (as every seeder's notification handler
 /// runs) would never become visible to the running engine.
+///
+/// KNOWN LATENT RACE, pre-existing (not introduced by the config-gate change above): this class
+/// depends on <c>PrismStarterContentSeeder</c> (Core) having already created the <c>homePage</c>
+/// node and <see cref="WayfinderServicePageContentType"/> having already created the
+/// <c>wayfinderServicePage</c> content type — both react to the same
+/// <see cref="UmbracoApplicationStartedNotification"/>, and despite correct composer/DI
+/// registration ordering (<c>[ComposeAfter(typeof(PrismComposer))]</c> on
+/// <c>TestSiteComposer</c>), that does NOT guarantee this handler runs after theirs have fully
+/// completed — confirmed empirically: on a genuinely first-ever boot of an empty database this
+/// seeder silently no-ops (its own existence checks correctly find nothing to build on yet,
+/// log at Debug, and return — see <c>EnsureStagePage</c>), then succeeds cleanly on the very
+/// next restart against that same, now-populated database, no code change. Self-heals on any
+/// later boot since every check here is a live existence check, not a one-shot flag — so a
+/// redeploy/restart is always a safe, sufficient workaround. Not fixed here: doing so properly
+/// means either making this seeder resilient to running before its dependencies (retry/wait) or
+/// restructuring so it doesn't depend on notification-handler ordering at all — a bigger, more
+/// careful change than this pass warrants.
 /// </remarks>
 public class WayfinderServicePageSeeder(
     IContentService contentService,
     IContentTypeService contentTypeService,
     IServiceBlueprintSourceStore workflowSourceStore,
     IWebHostEnvironment env,
+    IOptions<PrismConfiguration> prismConfig,
     IRuntimeState runtimeState,
     ILogger<WayfinderServicePageSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
@@ -54,7 +78,7 @@ public class WayfinderServicePageSeeder(
     public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
         if (runtimeState.Level < RuntimeLevel.Run) return;
-        if (!env.IsDevelopment()) return;
+        if (!prismConfig.Value.SeedStarterContent) return;
 
         try
         {

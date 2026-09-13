@@ -1,25 +1,29 @@
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Strings;
+using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.TestSite;
 
 /// <summary>
 /// Creates Vinyl Vault document types on application startup.
 /// Runs once to ensure content types are registered before seeder runs.
-/// Development-only for demo purposes.
+/// Runs whenever <c>Prism:SeedStarterContent</c> is enabled (see
+/// <see cref="MobileNavSchemaSetup"/> for why this moved off a Development-only gate —
+/// TestSite's own demo seeders had simply never run anywhere but local dev until this repo's
+/// reference app got a real, permanent deployment; nothing here is dev-specific).
 /// </summary>
 public class VinylVaultContentTypes : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     private readonly IContentTypeService _contentTypeService;
     private readonly IDataTypeService _dataTypeService;
     private readonly IShortStringHelper _shortStringHelper;
-    private readonly IWebHostEnvironment _env;
+    private readonly IOptions<PrismConfiguration> _prismConfig;
     private readonly IRuntimeState _runtimeState;
     private readonly ILogger<VinylVaultContentTypes> _logger;
 
@@ -35,14 +39,14 @@ public class VinylVaultContentTypes : INotificationAsyncHandler<UmbracoApplicati
         IContentTypeService contentTypeService,
         IDataTypeService dataTypeService,
         IShortStringHelper shortStringHelper,
-        IWebHostEnvironment env,
+        IOptions<PrismConfiguration> prismConfig,
         IRuntimeState runtimeState,
         ILogger<VinylVaultContentTypes> logger)
     {
         _contentTypeService = contentTypeService;
         _dataTypeService = dataTypeService;
         _shortStringHelper = shortStringHelper;
-        _env = env;
+        _prismConfig = prismConfig;
         _runtimeState = runtimeState;
         _logger = logger;
     }
@@ -50,7 +54,7 @@ public class VinylVaultContentTypes : INotificationAsyncHandler<UmbracoApplicati
     public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
         if (_runtimeState.Level < RuntimeLevel.Run) return;
-        if (!_env.IsDevelopment()) return;
+        if (!_prismConfig.Value.SeedStarterContent) return;
 
         _logger.LogInformation("VINYL VAULT SCHEMA: Starting setup");
         await Task.Run(SetupSchemaAsync, cancellationToken);
