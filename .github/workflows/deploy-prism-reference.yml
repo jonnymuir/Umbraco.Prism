@@ -64,11 +64,12 @@ jobs:
           target: "/var/www/prism-reference/"
           strip_components: 1
 
-      # Same trigger-file mechanism NckExchange's own deploy pipeline already uses live on this
-      # box (a standard uSync convention, not project-specific code) — dropping usync.once tells
-      # uSync to reapply everything under uSync/v17/ on the next boot, picking up new/changed
-      # config (like a new tenant) even though this isn't a fresh install anymore.
-      - name: Fix permissions, trigger uSync reapply, and start the service
+      # The tenant is seeded/reconciled directly from config (PrismConfiguredTenantSeeder, a
+      # code-based reconciler on UmbracoApplicationStartedNotification) — not uSync, which a
+      # first attempt at this used but never actually created the row (see the seeder class's
+      # own doc comment for the full story). Nothing extra to trigger here: it runs on every
+      # boot on its own.
+      - name: Fix permissions and start the service
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ env.PRISM_VPS_HOST }}
@@ -76,8 +77,6 @@ jobs:
           password: ${{ env.PRISM_VPS_PASSWORD }}
           script: |
             sudo chown -R www-data:www-data /var/www/prism-reference
-            sudo touch /var/www/prism-reference/uSync/v17/usync.once
-            sudo chown www-data:www-data /var/www/prism-reference/uSync/v17/usync.once
             sudo systemctl start prism-reference
 
       # Checks the real public URL (through Cloudflare Tunnel), not just "is Kestrel alive" on
