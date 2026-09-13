@@ -531,5 +531,15 @@ src/UmbracoPrism.TestSite/appsettings.Local.json
 # See src/UmbracoPrism.MockBusinessApp/README.md for setup instructions.
 src/UmbracoPrism.MockBusinessApp/appsettings.Local.json
 
-# uSync export files — environment-specific, not source artefacts.
+# uSync export files — environment-specific, not source artefacts. Exception: TestSite's own
+# uSync/v17/Tenants/ is deliberately-authored seed config (e.g. the live prismreference.com
+# tenant), not a local runtime export — genuinely meant to be committed. Un-ignoring a directory
+# only removes traversal pruning for it, it does NOT re-ignore its other contents — so
+# everything else directly under v17/ (DataTypes, MediaTypes, usync.config, ...) is re-ignored
+# explicitly via the wildcard below, with Tenants/ carved back out. Verified live with
+# `git check-ignore -v` against a sibling file (same class of gotcha as the wwwroot/debug/
+# collision from SEC-PT2-004 — first attempt at this fix got it wrong too, verify, don't assume).
 uSync/
+!src/UmbracoPrism.TestSite/uSync/
+src/UmbracoPrism.TestSite/uSync/v17/*
+!src/UmbracoPrism.TestSite/uSync/v17/Tenants/
