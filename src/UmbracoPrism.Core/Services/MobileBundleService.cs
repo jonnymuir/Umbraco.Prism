@@ -62,6 +62,15 @@ public class MobileBundleService : IMobileBundleService
             AddEntry(archive, "scripts/trust-ios-localhost-cert.sh", BuildTrustIosLocalhostCertScript(startUrl));
           AddEntry(archive, "resources/mobile-assets.json", BuildAssetsManifest(iconUrl, splashUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics));
 
+            // Default app icon (an opaque-background Umbraco Prism mark — @capacitor/assets
+            // requires no alpha channel for the iOS App Store icon specifically). Without this,
+            // every generated app ships Capacitor's own generic default icon, found live on the
+            // first real TestFlight build. A tenant/implementer overrides it by replacing this
+            // file (any square, opaque-background source @capacitor/assets accepts — PNG or SVG)
+            // before running the bootstrap script; the generate step re-runs against whatever's
+            // there.
+            AddEntry(archive, "resources/icon.svg", BuildDefaultAppIconSvg());
+
             if (biometricAuthEnabled)
             {
                 AddEntry(archive, "resources/ios-info-plist-additions.xml", BuildIosInfoPlistAdditions(appName));
@@ -180,6 +189,7 @@ public class MobileBundleService : IMobileBundleService
     "@capacitor/cli": "^7.0.0",
     "@capacitor/android": "^7.0.0",
     "@capacitor/ios": "^7.0.0",
+    "@capacitor/assets": "^3.0.0",
     "typescript": "^5.7.0"
   }
 }
@@ -892,6 +902,42 @@ The `resources/mobile-assets.json` file stores the values entered in Backoffice 
 """;
     }
 
+    private static string BuildDefaultAppIconSvg()
+    {
+        // Sourced from assets/app-icon.svg (a derivative of assets/logo.svg with an opaque
+        // background added — iOS App Store icons must have no alpha channel). Keep both in sync
+        // by eye; there's no build step linking them, this is a small, rarely-changed asset.
+        return """
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1024" height="1024" fill="#1B264F"/>
+    <g transform="translate(179.5, 195.5) scale(6.33)">
+        <defs>
+            <linearGradient id="i_brand1" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#3544B1" />
+                <stop offset="100%" style="stop-color:#2DA7D1" />
+            </linearGradient>
+            <linearGradient id="i_brand2" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#3544B1" />
+                <stop offset="100%" style="stop-color:#F5A623" />
+            </linearGradient>
+            <linearGradient id="i_brand3" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#3544B1" />
+                <stop offset="100%" style="stop-color:#E91E63" />
+            </linearGradient>
+        </defs>
+
+        <g transform="translate(2, 25)">
+            <path d="M2 25C2 14.5066 10.5066 6 21 6H35C37.7614 6 40 8.23858 40 11V39C40 41.7614 37.7614 44 35 44H21C10.5066 44 2 35.4934 2 25Z" fill="#F8FAFC"/>
+            <path d="M44 11H50L58 25L50 39H44V11Z" fill="#F8FAFC"/>
+            <rect x="62" y="0" width="30" height="14" rx="7" fill="url(#i_brand1)"/>
+            <rect x="62" y="18" width="38" height="14" rx="7" fill="url(#i_brand2)"/>
+            <rect x="62" y="36" width="30" height="14" rx="7" fill="url(#i_brand3)"/>
+        </g>
+    </g>
+</svg>
+""";
+    }
+
     private static string BuildTrustIosLocalhostCertScript(string startUrl)
     {
         var uri = new Uri(startUrl);
@@ -1045,6 +1091,9 @@ if ! npx cap ls | grep -qi "ios"; then
 fi
 
 npx cap sync ios
+
+echo "Generating app icon and splash screen from resources/icon.svg..."
+npx capacitor-assets generate --ios
 {{infoPlistInjection}}
 echo "Applying localhost cert trust (if needed)..."
 if ! bash scripts/trust-ios-localhost-cert.sh; then
@@ -1111,6 +1160,9 @@ if [ -f "$GRADLE_WRAPPER" ]; then
 fi
 
 npx cap sync android
+
+echo "Generating app icon and splash screen from resources/icon.svg..."
+npx capacitor-assets generate --android
 {{manifestInjection}}
 if [[ "${CI:-}" == "true" ]]; then
   echo "CI environment detected — skipping emulator run/open. The android/ project is synced and"
