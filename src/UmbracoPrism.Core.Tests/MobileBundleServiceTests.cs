@@ -43,6 +43,7 @@ public class MobileBundleServiceTests
         archive.GetEntry("scripts/bootstrap-ios.sh").Should().NotBeNull();
         archive.GetEntry("scripts/bootstrap-android.sh").Should().NotBeNull();
         archive.GetEntry("scripts/trust-ios-localhost-cert.sh").Should().NotBeNull();
+        archive.GetEntry("resources/icon.svg").Should().NotBeNull();
 
         var config = ReadEntry(archive, "capacitor.config.ts");
         config.Should().Contain("appId: 'com.example.northwind'");
@@ -290,5 +291,34 @@ public class MobileBundleServiceTests
         var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
         androidBootstrap.Should().Contain("\"${CI:-}\" == \"true\"");
         androidBootstrap.Should().Contain("skipping emulator run/open");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_IncludesADefaultAppIcon_AndWiresUpAssetGeneration()
+    {
+        // Found live on the first real TestFlight build: every generated app shipped Capacitor's
+        // own generic default icon — nothing in the pipeline had ever baked in a real one.
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest { AppName = "Test App", AppId = "com.example.test" };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var icon = ReadEntry(archive, "resources/icon.svg");
+        // iOS App Store icons must be fully opaque — no alpha channel — so the source itself must
+        // carry a solid background rather than relying on @capacitor/assets to add one.
+        icon.Should().Contain("<rect width=\"1024\" height=\"1024\" fill=\"#1B264F\"/>",
+            "the icon source must have an opaque background — iOS App Store icons reject alpha");
+
+        var packageJson = ReadEntry(archive, "package.json");
+        packageJson.Should().Contain("\"@capacitor/assets\"");
+
+        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        iosBootstrap.Should().Contain("npx capacitor-assets generate --ios");
+
+        var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
+        androidBootstrap.Should().Contain("npx capacitor-assets generate --android");
     }
 }
