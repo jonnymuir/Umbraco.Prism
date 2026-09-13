@@ -43,6 +43,22 @@ If using Azure Key Vault in production, Prism loads secrets automatically when y
 
 That's all you need. Secrets load automatically on first use (fail-late, the default). 
 
+**Authentication note:** `Prism:VaultUri` is all this config needs to *say*, but Key Vault access
+itself goes through `DefaultAzureCredential`, which needs *something* in its credential chain to
+actually succeed — this "just works" in two common cases, and needs one explicit extra step in a
+third:
+- **Local development**: your machine's own interactive Azure CLI/Visual Studio sign-in is picked
+  up automatically. Nothing to configure.
+- **Hosted on Azure itself** (App Service, a VM, etc.): a Managed Identity is picked up
+  automatically. Nothing to configure — no app registration needed at all.
+- **Hosted anywhere else** (a plain VPS, on-prem, another cloud): neither of the above exists, so
+  `DefaultAzureCredential` has nothing to fall back to. You need a real service-principal identity
+  — a dedicated Entra app registration, in whichever tenant owns the Key Vault (which may not be
+  the same tenant as your OIDC login app — Entra External ID tenants in particular are usually
+  standalone identity directories with no Azure subscription of their own) — granted the **Key
+  Vault Secrets User** role, with its Client ID/Secret/Tenant ID supplied as the standard
+  `AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET`/`AZURE_TENANT_ID` environment variables.
+
 For fail-fast behavior (validate Key Vault at startup), optionally add this line to `Program.cs` **before** `builder.AddUmbraco()`:
 
 ```csharp
