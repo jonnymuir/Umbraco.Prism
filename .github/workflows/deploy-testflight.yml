@@ -96,10 +96,19 @@ jobs:
       # for 'App' requires a development team") without one — found live on the first real
       # dispatch of this workflow. DEVELOPMENT_TEAM is a plain trailing build-setting
       # override, not a flag of its own.
+      # CURRENT_PROJECT_VERSION (the build number) matters here specifically: App Store Connect
+      # rejects a second upload with the same (marketing version, build number) pair for this
+      # bundle ID, and a fresh `cap add ios` always produces a fixed "1" every run — confirmed
+      # live (there's no persisted state between CI runs to increment it otherwise). The GitHub
+      # Actions run number is a simple, always-unique, monotonically increasing source for it —
+      # no extra state to manage. MARKETING_VERSION is left at Capacitor's own default (1.0);
+      # unlike the build number, Apple only needs THAT to be unique per marketing-version release,
+      # not per build.
       - name: Archive iOS app
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
           xcodebuild \
             -workspace mobile-app/ios/App/App.xcworkspace \
@@ -111,7 +120,8 @@ jobs:
             -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8" \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
-            DEVELOPMENT_TEAM="$PRISM_APPLE_TEAM_ID"
+            DEVELOPMENT_TEAM="$PRISM_APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER"
 
       # Generated at runtime rather than a static checked-in file: the team ID it needs to
       # carry is per-account configuration (PRISM_APPLE_TEAM_ID), not something to hardcode

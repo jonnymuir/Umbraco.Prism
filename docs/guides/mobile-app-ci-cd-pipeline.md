@@ -90,6 +90,21 @@ Actions tab → **Deploy to TestFlight** → **Run workflow**. First run: inspec
 `.ipa` workflow artifact even before trusting the TestFlight upload step, then confirm the build
 lands in App Store Connect → TestFlight and installs on a real device via the TestFlight app.
 
+**Every run uploads a genuinely new build automatically** — no manual version bump needed. A
+fresh `cap add ios` (run from scratch every CI run, no state persists between them) always
+produces a fixed `MARKETING_VERSION=1.0`/`CURRENT_PROJECT_VERSION=1`; App Store Connect rejects a
+second upload with an identical pair for the same bundle ID. The workflow overrides
+`CURRENT_PROJECT_VERSION` at archive time to the GitHub Actions run number (`github.run_number`)
+— simple, always-unique, no extra state to manage — while leaving `MARKETING_VERSION` at
+Capacitor's default, since Apple only requires that to be unique per marketing-version *release*,
+not per build.
+
+**Known separate issue, not yet fixed**: `UmbracoPrism.MobileBundleCli`'s `--version` flag
+(and `MobileBundleService`'s `request.Version`) doesn't actually do anything — it's accepted but
+never applied to the generated `capacitor.config.ts` or the iOS project once scaffolded. Doesn't
+block this pipeline (which sidesteps it entirely via the build-number override above), but worth
+fixing so the flag isn't silently misleading for other consumers of the CLI.
+
 ## Android (Play Store) — planned, not yet built
 
 The same shape, as a second workflow (`.github/workflows/deploy-play-internal.yml`,
