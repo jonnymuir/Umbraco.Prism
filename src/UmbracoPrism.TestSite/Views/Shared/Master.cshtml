@@ -2,8 +2,11 @@
 @using UmbracoPrism.Core.Models
 @using Umbraco.Cms.Core.Models
 @using Umbraco.Cms.Core.Models.Blocks
+@using Microsoft.AspNetCore.Hosting
+@using Microsoft.Extensions.Hosting
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @inject IPrismContext PrismContext
+@inject IWebHostEnvironment Env
 @{
     // 1. Resolve the Tenant once at the top level
     var tenant = PrismContext.CurrentTenant;
@@ -23,6 +26,13 @@
     var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(Context);
     var biometricLoginEnabled = isPrismMobileRequest && (tenant?.AllowBiometricLogin ?? false);
     var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
+
+    // The UA-mock toggle is a local dev/QA aid for exercising mobile rendering from a desktop
+    // browser without installing the app. It has no reason to exist once a request is already
+    // genuinely coming from the mobile app (the UA is already real), and it has no reason to
+    // exist on a real deployed environment at all (found live on prismreference.com, where it
+    // makes no sense to offer visitors a way to fake being on mobile).
+    var showMobileUaDemo = Env.IsDevelopment() && !isPrismMobileRequest;
 }
 
 <!DOCTYPE html>
@@ -66,13 +76,19 @@
 
     <a href="#main-content" class="skip-link">Skip to main content</a>
 
-    <prism-mobile-user-agent-demo />
+    @if (showMobileUaDemo)
+    {
+        <prism-mobile-user-agent-demo />
+    }
 
     <header class="header">
         <div class="logo">
             <strong>@(tenant?.Name ?? "Prism Portal")</strong>
         </div>
-        @await Html.PartialAsync("_DesktopNav", webNavLinks)
+        @if (!isPrismMobileRequest)
+        {
+            @await Html.PartialAsync("_DesktopNav", webNavLinks)
+        }
     </header>
 
     <main id="main-content" class="container">
@@ -83,7 +99,7 @@
         <p>&copy; @DateTime.Now.Year @(tenant?.Name ?? "Prism Portal") &mdash; Powered by Prism Multi-Tenant Engine</p>
     </footer>
 
-    @if (mobileNavLinks != null)
+    @if (isPrismMobileRequest && mobileNavLinks != null)
     {
         @await Html.PartialAsync("_MobileShellNav", mobileNavLinks)
     }

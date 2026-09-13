@@ -55,6 +55,14 @@ jobs:
       # Step 1 of the pipeline: generate the same Capacitor starter bundle the backoffice's
       # "Produce Mobile" action would produce, headlessly. MobileBundleService has zero DI
       # dependencies, so this never boots Umbraco/a database/Aspire.
+      #
+      # --biometric-auth true: without this, BiometricAuthEnabled defaults to false and the
+      # bundle silently omits the native biometric plugin *and* the Info.plist/AndroidManifest
+      # permission additions (NSFaceIDUsageDescription / USE_BIOMETRIC) — found live: the
+      # reference tenant has AllowBiometricLogin on server-side (Master.cshtml correctly injected
+      # the enroll/autologin JS), but with no native plugin installed at all there was nothing for
+      # that JS to call, so biometric login could never actually trigger regardless. This flag is
+      # what the reference app showcasing the feature actually depends on.
       - name: Generate mobile bundle
         run: >
           dotnet run --project src/UmbracoPrism.MobileBundleCli --
@@ -62,6 +70,7 @@ jobs:
           --app-name "${PRISM_APP_NAME:-Prism Reference}"
           --app-id "${PRISM_APP_ID:-com.jonnymuir.prismreference}"
           --version "${PRISM_APP_VERSION:-1.0.0}"
+          --biometric-auth true
           --output mobile-bundle.zip
 
       - name: Unzip mobile bundle
