@@ -16,7 +16,13 @@ html.prism-mobile body {
 }
 
 html.prism-mobile body {
-    padding-top: env(safe-area-inset-top, 0px);
+    /* No padding-top here: the top inset is owned by whatever sits at the very top of the
+       page (a site header, a portal/dashboard header) — each already applies its own
+       env(safe-area-inset-top) so its own background can extend behind the notch/Dynamic
+       Island while its content stays clear of it. Applying the same inset here again
+       double-counts it, stacking into a visibly oversized empty bar — found live: a large
+       empty block of header background above the title on a Dynamic Island device.
+       Bottom/left/right have no other owner, so they stay here. */
     padding-right: env(safe-area-inset-right, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     padding-left: env(safe-area-inset-left, 0px);
