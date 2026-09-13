@@ -213,7 +213,13 @@ const config: CapacitorConfig = {
   webDir: 'www',
   bundledWebRuntime: false,
   ios: {
-    contentInset: 'automatic'
+    // 'automatic' is Capacitor's own default (setting it explicitly here would be a no-op) but
+    // is a documented source of horizontal content-shift/touch-offset bugs in WKWebView's
+    // UIScrollView content-inset adjustment (see Apple Developer Forums thread 777756) — the
+    // OIDC login screen (Entra/ciamlogin.com) is hosted content we can't add safe-area CSS to,
+    // so it's the one place this actually bites. 'never' opts the WebView out of automatic
+    // inset adjustment entirely rather than risk the shift on a page we don't control.
+    contentInset: 'never'
   },
   appendUserAgent: '{{EscapeSingleQuotes(marker)}}',
   server: {
@@ -436,7 +442,7 @@ npm run open:android
 - Prism detects mobile mode using the appended user-agent marker.
 - Tenant branding overrides are applied first.
 - Mobile branding overrides are applied after tenant overrides.
-- Generated config sets iOS `contentInset: 'automatic'` and `StatusBar.overlaysWebView: false` for safer default viewport behavior.
+- Generated config sets iOS `contentInset: 'never'` and `StatusBar.overlaysWebView: false` for safer default viewport behavior — `'never'` deliberately opts out of Capacitor's own default (`'automatic'`), which is a documented source of horizontal content-shift bugs in hosted content the app doesn't control (e.g. the Entra/OIDC login screen).
 - App startup uses Capacitor top-level WebView loading of your Start URL.
 - Generated config appends `prismMobile=1` to Start URL for server-side mobile detection.
 - Prism mobile middleware can enforce in-WebView behavior for `target="_blank"` and `window.open`.
