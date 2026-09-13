@@ -1,5 +1,17 @@
 /* Base — HTML element defaults */
 
+/* Found live on the mobile app: several elements combine width:100% with their own padding
+   under the default content-box model, pushing content past the right edge of the viewport
+   (e.g. the header's own safe-area padding-top was additionally inflating its min-height,
+   since min-height excludes padding under content-box). border-box makes width/height
+   calculations include padding and border everywhere, which is what every measurement in
+   this stylesheet already assumes. */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
 body {
     font-family: var(--prism-font-body, -apple-system, sans-serif);
     line-height: 1.6;

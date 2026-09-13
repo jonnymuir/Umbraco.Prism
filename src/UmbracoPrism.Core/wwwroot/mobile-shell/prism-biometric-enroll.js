@@ -98,16 +98,25 @@ var __prismDebug = (function() {
     }
   })();
 
+    // Styled from the tenant's own Prism branding custom properties (--prism-*, set in
+    // prism-branding.css / a tenant's backoffice overrides) rather than hardcoded colors, so
+    // this native-feeling prompt actually looks like part of the branded app it's enrolling
+    // biometrics for, not a generic unstyled toast bolted on top of it — found live: hardcoded
+    // #2563eb didn't match the tenant's actual --prism-primary blue at all.
     function showEnrollBanner() {
       if (document.getElementById('prism-bio-banner')) return;
       var banner = document.createElement('div');
       banner.id = 'prism-bio-banner';
-      banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #e5e7eb;box-shadow:0 -4px 16px rgba(0,0,0,.12);font-family:-apple-system,BlinkMacSystemFont,sans-serif;';
-      banner.innerHTML = '<p style="margin:0 0 8px;font-size:1rem;font-weight:600;color:#111827;">Enable Face ID / Touch ID?</p>' +
-        '<p style="margin:0 0 12px;font-size:.875rem;color:#6b7280;">Sign in faster next time without entering your password.</p>' +
-        '<div style="display:flex;gap:8px;">' +
-          '<button id="prism-bio-yes" style="flex:1;padding:12px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:.875rem;font-weight:600;cursor:pointer;">Enable</button>' +
-          '<button id="prism-bio-no" style="flex:1;padding:12px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-size:.875rem;font-weight:600;cursor:pointer;">Not now</button>' +
+      banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;' +
+        'padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));' +
+        'background:var(--prism-surface,#fff);border-top:1px solid var(--prism-border,#e5e7eb);' +
+        'border-radius:16px 16px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.15);' +
+        'font-family:var(--prism-font-body,-apple-system,BlinkMacSystemFont,sans-serif);';
+      banner.innerHTML = '<p style="margin:0 0 6px;font-size:1.0625rem;font-weight:600;color:var(--prism-text,#111827);">Enable Face ID / Touch ID?</p>' +
+        '<p style="margin:0 0 16px;font-size:.9rem;color:var(--prism-muted,#6b7280);">Sign in faster next time without entering your password.</p>' +
+        '<div style="display:flex;gap:10px;">' +
+          '<button id="prism-bio-yes" style="flex:1;padding:13px;background:var(--prism-primary,#2563eb);color:var(--prism-primary-contrast,#fff);border:none;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;">Enable</button>' +
+          '<button id="prism-bio-no" style="flex:1;padding:13px;background:var(--prism-surface-alt,#f3f4f6);color:var(--prism-text,#374151);border:none;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;">Not now</button>' +
         '</div>';
       document.body.appendChild(banner);
       document.getElementById('prism-bio-no').addEventListener('click', function () { banner.remove(); });
@@ -167,7 +176,7 @@ var __prismDebug = (function() {
 
         var banner = document.getElementById('prism-bio-banner');
         if (banner) {
-          banner.innerHTML = '<p style="margin:0;font-size:.9rem;font-weight:600;color:#16a34a;text-align:center;padding:4px 0;">&#10003; Biometric login enabled</p>';
+          banner.innerHTML = '<p style="margin:0;font-size:.9rem;font-weight:600;color:var(--prism-accent,#16a34a);text-align:center;padding:4px 0;">&#10003; Biometric login enabled</p>';
           setTimeout(function () { banner.remove(); }, 2000);
         }
       } catch (e) {
@@ -185,10 +194,14 @@ var __prismDebug = (function() {
         if (!errEl) {
           errEl = document.createElement('p');
           errEl.id = 'prism-bio-err';
-          errEl.style.cssText = 'margin:8px 0 0;color:#dc2626;font-size:.8rem;';
+          errEl.style.cssText = 'margin:8px 0 0;color:var(--prism-danger,#dc2626);font-size:.8rem;';
           banner.appendChild(errEl);
         }
-      errEl.textContent = 'Setup failed. Please try again.';
+        // The reason is shown inline (not just logged) so a real device failure is diagnosable
+        // straight from a screenshot — without it, "Setup failed" alone (the previous copy)
+        // gave no way to tell a plugin-not-installed error apart from a server/network one
+        // without a Mac + cable + Safari's remote Web Inspector.
+      errEl.textContent = 'Setup failed: ' + (msg || 'unknown error') + '. Please try again.';
     }
   }
 })();
