@@ -10,7 +10,9 @@ namespace UmbracoPrism.Core.Middleware;
 /// <c>UmbracoPipelineFilter</c>. Configure via <see cref="PrismSecurityHeadersOptions"/>.
 ///
 /// SEC-PT2-004: adds HSTS, X-Content-Type-Options, Referrer-Policy, X-Frame-Options,
-/// Permissions-Policy, and an enforced Content-Security-Policy by default.
+/// Permissions-Policy, and an enforced Content-Security-Policy by default. Also adds
+/// Cache-Control: no-store on any authenticated response (see
+/// <see cref="PrismSecurityHeadersOptions.NoCacheAuthenticated"/>).
 ///
 /// Headers are set via <see cref="HttpResponse.OnStarting"/>, not inline before
 /// <c>next(context)</c>. Found live: a genuine 404 — Umbraco's own "no content matches this
@@ -86,5 +88,14 @@ internal sealed class PrismSecurityHeadersMiddleware(
         if (_options.ContentSecurityPolicyReportOnly is not null)
             headers["Content-Security-Policy-Report-Only"] = CspPolicyBuilder.WithAdditionalSources(
                 _options.ContentSecurityPolicyReportOnly, _options.AdditionalContentSecurityPolicySources);
+
+        // Checked here (inside the OnStarting callback, not up front in InvokeAsync) so it sees
+        // the authentication middleware's final verdict on context.User, not whatever it was
+        // before the rest of the pipeline ran.
+        if (_options.NoCacheAuthenticated && context.User.Identity?.IsAuthenticated == true)
+        {
+            headers["Cache-Control"] = "no-store, must-revalidate";
+            headers["Pragma"] = "no-cache";
+        }
     }
 }

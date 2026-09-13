@@ -110,4 +110,19 @@ public class PrismSecurityHeadersOptions
     /// emit is added as a new one. Applied to whichever CSP header(s) are active.
     /// </summary>
     public Dictionary<string, string> AdditionalContentSecurityPolicySources { get; set; } = new();
+
+    /// <summary>
+    /// When true (default), any response to an authenticated request gets
+    /// <c>Cache-Control: no-store, must-revalidate</c> (plus <c>Pragma: no-cache</c> for older
+    /// HTTP/1.0 caches). Prism sets no cache headers of its own otherwise, on any response — a
+    /// page rendered while signed in has nothing stopping a WebView, browser disk cache, or
+    /// shared proxy from serving that same authenticated content back after sign-out. Found live
+    /// in the mobile app: sign-out (a plain POST + redirect, which does complete correctly
+    /// server-side) left the UI still showing the signed-in dashboard until the app was fully
+    /// closed and reopened — consistent with a cached prior response of the same URL being
+    /// replayed rather than a fresh request reaching the server. This is also an OWASP-recommended
+    /// control independent of that specific symptom: authenticated content should never be
+    /// eligible for shared/disk caching at all.
+    /// </summary>
+    public bool NoCacheAuthenticated { get; set; } = true;
 }
