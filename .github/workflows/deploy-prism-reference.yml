@@ -39,8 +39,23 @@ jobs:
         with:
           node-version: 22.17.1
 
-      # TestSite's own .csproj runs `npm ci` + copies GOV.UK Frontend assets as a BeforeBuild
-      # target — Node above is for that, not for this workflow directly.
+      # UmbracoPrism.Core exposes its Lit web components (prism-mobile-nav, the backoffice
+      # dashboard, etc.) under /App_Plugins/UmbracoPrism/ via <StaticWebAssetBasePath> — but
+      # that only remaps wwwroot/dist/*, it doesn't build it. There's no MSBuild target wiring
+      # this into `dotnet publish` (unlike TestSite's own GOV.UK-assets BeforeBuild target, a
+      # separate, unrelated npm step), so without this the published app silently ships with
+      # none of Core's own JS at all — found live: prism-mobile-nav.js 404'd on the deployed
+      # site even though everything server-side (content, publish state) was genuinely correct;
+      # confirmed by publishing locally once these files existed and seeing them land at the
+      # right path, then confirming they don't exist at all on a path this repo never builds.
+      - name: Build UmbracoPrism.Client (Core's own web components)
+        working-directory: src/UmbracoPrism.Client
+        run: |
+          npm ci
+          npm run build
+
+      # TestSite's own .csproj also runs `npm ci` + copies GOV.UK Frontend assets as a
+      # BeforeBuild target — that's separate from the Client build above.
       - name: Publish UmbracoPrism.TestSite
         run: >
           dotnet publish src/UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj
