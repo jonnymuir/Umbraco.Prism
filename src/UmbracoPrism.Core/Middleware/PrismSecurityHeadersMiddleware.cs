@@ -12,7 +12,8 @@ namespace UmbracoPrism.Core.Middleware;
 /// SEC-PT2-004: adds HSTS, X-Content-Type-Options, Referrer-Policy, X-Frame-Options,
 /// Permissions-Policy, and an enforced Content-Security-Policy by default. Also adds
 /// Cache-Control: no-store on any authenticated response (see
-/// <see cref="PrismSecurityHeadersOptions.NoCacheAuthenticated"/>).
+/// <see cref="PrismSecurityHeadersOptions.NoCacheAuthenticated"/>) and on any CSS/JS response
+/// (see <see cref="PrismSecurityHeadersOptions.NoCacheStaticAssets"/>).
 ///
 /// Headers are set via <see cref="HttpResponse.OnStarting"/>, not inline before
 /// <c>next(context)</c>. Found live: a genuine 404 — Umbraco's own "no content matches this
@@ -97,5 +98,33 @@ internal sealed class PrismSecurityHeadersMiddleware(
             headers["Cache-Control"] = "no-store, must-revalidate";
             headers["Pragma"] = "no-cache";
         }
+
+        // Deliberately independent of the authenticated check above, and deliberately
+        // site-wide rather than scoped to any one project's static-asset folder — see the
+        // option's own doc comment: an intermediary CDN/edge cache, not the browser, is what
+        // silently served stale copies across multiple redeploys, and it caches by file
+        // extension, not by path.
+        if (_options.NoCacheStaticAssets && IsCssOrJavaScript(context))
+        {
+            headers["Cache-Control"] = "no-store, must-revalidate";
+            headers["Pragma"] = "no-cache";
+        }
+    }
+
+    private static bool IsCssOrJavaScript(HttpContext context)
+    {
+        var contentType = context.Response.ContentType;
+        if (!string.IsNullOrEmpty(contentType))
+        {
+            return contentType.Contains("text/css", StringComparison.OrdinalIgnoreCase)
+                || contentType.Contains("javascript", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Content-Type should always be set by the time OnStarting fires for a real static
+        // file response — this is a defensive fallback, not the primary path.
+        var path = context.Request.Path.Value;
+        return path is not null &&
+            (path.EndsWith(".css", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".js", StringComparison.OrdinalIgnoreCase));
     }
 }

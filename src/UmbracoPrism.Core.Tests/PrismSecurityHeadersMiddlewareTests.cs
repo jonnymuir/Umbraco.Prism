@@ -113,6 +113,82 @@ public class PrismSecurityHeadersMiddlewareTests
     }
 
     [Fact]
+    public async Task NoStoreCacheControl_IsApplied_OnAnonymousJavaScriptRequest_ByExtensionFallback()
+    {
+        // DefaultHttpContext never has Content-Type set by a test (only real static-file
+        // middleware sets it), so this exercises the path-extension fallback specifically.
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js");
+        // DefaultHttpContext.User defaults to an unauthenticated ClaimsPrincipal — this header
+        // must apply regardless of auth state, since the problem it fixes (an intermediary edge
+        // cache, not the browser) doesn't care who's asking.
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().ContainKey("Cache-Control");
+        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("no-store, must-revalidate");
+    }
+
+    [Fact]
+    public async Task NoStoreCacheControl_IsApplied_OnAnyCssPath_NotJustPrismsOwn()
+    {
+        // The bug this fixes is an edge cache's own extension-based default policy, which
+        // applies to a host's own CSS (e.g. TestSite's /css/base.css) exactly as much as
+        // Prism's — found live: both were served stale after the same redeploy. This must not
+        // regress back to being scoped only to Prism's own static-asset folder.
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/css/base.css");
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().ContainKey("Cache-Control");
+        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("no-store, must-revalidate");
+    }
+
+    [Fact]
+    public async Task NoStoreCacheControl_IsApplied_ByContentType_RegardlessOfPath()
+    {
+        // A path with no recognizable extension at all (e.g. a versionless/hashed asset URL)
+        // must still be caught via Content-Type, the primary signal — extension is only a
+        // defensive fallback.
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/assets/bundle");
+        ctx.Response.ContentType = "application/javascript; charset=utf-8";
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().ContainKey("Cache-Control");
+    }
+
+    [Fact]
+    public async Task NoStoreCacheControl_IsNotApplied_OnNonCssJsAsset()
+    {
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/media/logo.png");
+        ctx.Response.ContentType = "image/png";
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().NotContainKey("Cache-Control");
+    }
+
+    [Fact]
+    public async Task NoStoreStaticAssetCacheControl_CanBeDisabled_ViaOptions()
+    {
+        var middleware = BuildMiddleware(new PrismSecurityHeadersOptions { NoCacheStaticAssets = false });
+        var (ctx, feature) = BuildHttpsContext("/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js");
+
+        await middleware.InvokeAsync(ctx);
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().NotContainKey("Cache-Control");
+    }
+
+    [Fact]
     public async Task HstsHeader_IsOmitted_OnHttpRequest()
     {
         var middleware = BuildMiddleware();
