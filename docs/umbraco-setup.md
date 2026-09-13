@@ -177,56 +177,54 @@ In the Prism dashboard:
 
 For local development without Azure Key Vault, you can test Prism without authentication. The site will render pages but without member sign-in.
 
-### Seeding a Tenant as Code (uSync), and Promoting It Through Environments
+### Seeding a Tenant from Configuration (No Backoffice, No Manual Step)
 
 Manually adding a tenant via the backoffice is fine for local development, but a real deployment
-usually wants tenant config checked into source control and applied automatically on deploy —
-the same way any other Umbraco content is managed via uSync. Prism's tenant records are fully
-uSync-portable (`PrismTenantHandler`/`PrismTenantSerializer`), so a tenant can be defined as a
-`.config` file under `uSync/v17/Tenants/` in your site project, alongside every other uSync file.
+usually wants a tenant that just exists automatically once the app boots — no interactive step,
+safe to redeploy repeatedly. Set `Prism:SeedTenant` in configuration and
+`PrismConfiguredTenantSeeder` (registered automatically, no `Program.cs` change needed) creates
+it — and **reconciles** it back to these values on every boot, the same idempotent pattern
+`PrismStarterContentSeeder` already uses for starter content: a config change takes effect on the
+next deploy/restart, no migration step required.
 
-Notably, nothing about a tenant record is inherently secret — `EntraTenantId` and `EntraClientId`
-are public identifiers (Microsoft's own docs treat both as safe to expose), and `SecretKeyName`
-is just the *name* of a secret in Key Vault, not the secret's value. That makes tenant `.config`
-files safe to commit even to a public repo.
-
-**Promoting the same file across environments** (dev → staging → production, say, where the
-Entra tenant/app registration genuinely differs per environment) uses Prism's own token
-mechanism: write `{{TOKEN_NAME}}` (uppercase, digits, underscores) instead of a literal value for
-any `Identity` field except `Hostname`, and it resolves live against `IConfiguration` — meaning a
-plain environment variable of that exact name — every time the tenant is looked up, not just
-once at import time (`TenantService` calls `ITenantTokenResolver.Resolve()` on every `Identity`
-field on every lookup; only `Hostname` is resolved once, at uSync import time, since it's the DB's
-lookup key and must be stored already-resolved):
-
-```xml
-<?xml version="1.0" encoding="utf-8"?>
-<PrismTenant Key="17aaedc1-ea01-f94e-7825-a5261d1ad818" Alias="my-tenant" Level="1">
-  <Info>
-    <Name>My Tenant</Name>
-    <Hostname>my-tenant.example.com</Hostname>
-    <AllowBiometricLogin>true</AllowBiometricLogin>
-  </Info>
-  <Identity>
-    <EntraTenantId>{{MY_TENANT_ENTRA_TENANT_ID}}</EntraTenantId>
-    <EntraClientId>{{MY_TENANT_ENTRA_CLIENT_ID}}</EntraClientId>
-    <SecretKeyName>{{MY_TENANT_SECRET_KEY_NAME}}</SecretKeyName>
-  </Identity>
-  <Branding />
-  <MobileBranding />
-</PrismTenant>
+```json
+{
+  "Prism": {
+    "SeedTenant": {
+      "Hostname": "my-tenant.example.com",
+      "Name": "My Tenant",
+      "EntraTenantId": "...",
+      "EntraClientId": "...",
+      "SecretKeyName": "my-tenant-oidc-secret"
+    }
+  }
+}
 ```
 
-The same committed file works in every environment — only the environment variables differ (set
-via whatever your deployment already uses: a systemd `EnvironmentFile`, a container's env config,
-GitHub Actions environment secrets/variables surfaced at deploy time, etc.). To apply a new or
-changed tenant file to an *already-running* site (not a fresh install, which auto-imports uSync
-on first boot), drop a `usync.once` marker file into your uSync root
-(`uSync/v17/usync.once`) before restarting the app — a standard uSync convention that tells it to
-reapply everything on next boot, not something Prism adds itself.
+Seeding only runs while `Hostname` is set — omit the whole section (or leave it out of a given
+environment's config) to skip it entirely.
 
-See [`UmbracoPrism.TestSite`'s own production reference deployment](https://github.com/jonnymuir/Umbraco.Prism/blob/main/src/UmbracoPrism.TestSite/uSync/v17/Tenants/prism-reference.config)
-for a real, working example of this pattern.
+Notably, nothing here is inherently secret — `EntraTenantId`/`EntraClientId` are public
+identifiers (Microsoft's own docs treat both as safe to expose), and `SecretKeyName` is just the
+*name* of a secret in Key Vault, not its value — so this section is safe to commit even in
+`appsettings.json` on a public repo, if you want a tenant to always exist for every deployment of
+a given codebase.
+
+**Promoting the same deployment across environments** (dev → staging → production, where the
+Entra tenant/app registration genuinely differs per environment): since this reads from
+`IConfiguration`, standard ASP.NET Core configuration layering already gives you this — set
+`Prism:SeedTenant:*` via environment variables (`Prism__SeedTenant__Hostname`,
+`Prism__SeedTenant__EntraTenantId`, ...) in each environment's own deployment config (a systemd
+`EnvironmentFile`, a container's env vars, GitHub Actions environment secrets/variables surfaced
+at deploy time, etc.), rather than in a committed `appsettings.json` — no code or template
+placeholders needed, it's the same mechanism any other environment-specific setting already uses.
+
+(A uSync-file-based version of this — a committed `PrismTenant` `.config`, using
+`PrismTenantHandler`/`PrismTenantSerializer` — was tried first for the actual production reference
+app, but never created the row: this codebase's own established pattern for "content that must
+exist on a real deploy" is a code-based reconciler like this one, not uSync. `PrismTenantHandler`
+still exists for uSync's own manual export/import actions in the backoffice, just not as an
+auto-apply-on-deploy mechanism.)
 
 ## 6. The MockBackOffice Demo (Optional)
 
