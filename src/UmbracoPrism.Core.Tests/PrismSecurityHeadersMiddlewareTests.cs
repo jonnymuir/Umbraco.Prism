@@ -2,8 +2,10 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
+using Moq;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Middleware;
+using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Tests;
 
@@ -26,6 +28,20 @@ public class PrismSecurityHeadersMiddlewareTests
     {
         var opts = Options.Create(options ?? new PrismSecurityHeadersOptions());
         return new PrismSecurityHeadersMiddleware(_ => Task.CompletedTask, opts);
+    }
+
+    /// <summary>
+    /// InvokeAsync takes IPrismContext via per-request method injection in the real pipeline
+    /// (resolved from the request's scoped IServiceProvider) — these tests call it directly, so
+    /// they supply their own. null (the default) exercises the no-tenant-resolved case (an
+    /// anonymous/pre-tenant-resolution request), same as every test not explicitly about the
+    /// tenant-derived form-action widening.
+    /// </summary>
+    private static IPrismContext BuildPrismContext(PrismTenant? tenant = null)
+    {
+        var mock = new Mock<IPrismContext>();
+        mock.SetupGet(x => x.CurrentTenant).Returns(tenant);
+        return mock.Object;
     }
 
     private static (DefaultHttpContext Context, FiringResponseFeature Feature) BuildHttpsContext(string path = "/")
@@ -54,7 +70,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware();
         var (ctx, feature) = BuildHttpsContext("/dashboard");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("X-Content-Type-Options");
@@ -75,7 +91,7 @@ public class PrismSecurityHeadersMiddlewareTests
         ctx.User = new System.Security.Claims.ClaimsPrincipal(
             new System.Security.Claims.ClaimsIdentity(authenticationType: "PrismMemberCookie"));
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("Cache-Control");
@@ -91,7 +107,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var (ctx, feature) = BuildHttpsContext("/");
         // DefaultHttpContext.User defaults to an unauthenticated ClaimsPrincipal.
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().NotContainKey("Cache-Control");
@@ -106,7 +122,7 @@ public class PrismSecurityHeadersMiddlewareTests
         ctx.User = new System.Security.Claims.ClaimsPrincipal(
             new System.Security.Claims.ClaimsIdentity(authenticationType: "PrismMemberCookie"));
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().NotContainKey("Cache-Control");
@@ -123,7 +139,7 @@ public class PrismSecurityHeadersMiddlewareTests
         // must apply regardless of auth state, since the problem it fixes (an intermediary edge
         // cache, not the browser) doesn't care who's asking.
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("Cache-Control");
@@ -140,7 +156,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware();
         var (ctx, feature) = BuildHttpsContext("/css/base.css");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("Cache-Control");
@@ -157,7 +173,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var (ctx, feature) = BuildHttpsContext("/assets/bundle");
         ctx.Response.ContentType = "application/javascript; charset=utf-8";
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("Cache-Control");
@@ -170,7 +186,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var (ctx, feature) = BuildHttpsContext("/media/logo.png");
         ctx.Response.ContentType = "image/png";
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().NotContainKey("Cache-Control");
@@ -182,7 +198,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware(new PrismSecurityHeadersOptions { NoCacheStaticAssets = false });
         var (ctx, feature) = BuildHttpsContext("/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().NotContainKey("Cache-Control");
@@ -194,7 +210,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware();
         var (ctx, feature) = BuildHttpContext("/dashboard");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().NotContainKey("Strict-Transport-Security",
@@ -207,7 +223,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware();
         var (ctx, feature) = BuildHttpsContext("/umbraco/backoffice/api/something");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().NotContainKey("X-Content-Type-Options",
@@ -222,7 +238,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware(options);
         var (ctx, feature) = BuildHttpsContext("/umbraco/backoffice/api/something");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("X-Content-Type-Options");
@@ -235,7 +251,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware(options);
         var (ctx, feature) = BuildHttpsContext("/dashboard");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().NotContainKey("X-Content-Type-Options",
@@ -248,7 +264,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware();
         var (ctx, feature) = BuildHttpsContext("/dashboard");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
@@ -274,7 +290,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware();
         var (ctx, feature) = BuildHttpsContext("/dashboard");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers["Strict-Transport-Security"].ToString()
@@ -295,7 +311,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware();
         var (ctx, feature) = BuildHttpsContext("/some-unrouted-path");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         ctx.Response.Headers.Clear(); // simulates the downstream reset
         await feature.FireOnStartingAsync();
 
@@ -316,7 +332,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var (ctx, feature) = BuildHttpsContext("/dashboard");
 
         ctx.Response.Headers.Append("X-Frame-Options", "DENY"); // simulates something else setting it first
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.GetCommaSeparatedValues("X-Frame-Options").Should().Equal(["SAMEORIGIN"],
@@ -336,7 +352,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware(options);
         var (ctx, feature) = BuildHttpsContext("/dashboard");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
@@ -357,11 +373,86 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware(options);
         var (ctx, feature) = BuildHttpsContext("/dashboard");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
         csp.Should().Contain("frame-src https://payments.example.com");
+    }
+
+    [Fact]
+    public async Task FormAction_WidensToAGenericOidcAuthorityHost_ForSignOutToWork()
+    {
+        // Found live: sign-out silently did nothing — the browser itself cancelled the redirect
+        // to the OIDC provider's own end-session endpoint (net::ERR_ABORTED), because CSP's
+        // form-action governs any redirect chain resulting from a form submission, not just the
+        // form's own immediate target. 'self' alone can never be enough for a tenant using an
+        // external OIDC provider (Keycloak locally, in this fixture).
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+        var tenant = new PrismTenant { OidcAuthority = "https://localhost:8443/realms/prism-dev" };
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext(tenant));
+        await feature.FireOnStartingAsync();
+
+        var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
+        csp.Should().Contain("form-action 'self' https://localhost:8443");
+    }
+
+    [Fact]
+    public async Task FormAction_WidensToEntraHosts_WhenTenantHasAnEntraTenantId()
+    {
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+        var tenant = new PrismTenant { EntraTenantId = "dd837f0b-f52d-4008-9786-edd8c389d0a0" };
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext(tenant));
+        await feature.FireOnStartingAsync();
+
+        var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
+        csp.Should().Contain("https://login.microsoftonline.com");
+        csp.Should().Contain("https://*.ciamlogin.com");
+        csp.Should().Contain("https://*.b2clogin.com");
+        csp.Should().Contain("https://dd837f0b-f52d-4008-9786-edd8c389d0a0.ciamlogin.com");
+        csp.Should().Contain("https://dd837f0b-f52d-4008-9786-edd8c389d0a0.b2clogin.com");
+    }
+
+    [Fact]
+    public async Task FormAction_IsNotWidened_WhenNoTenantHasBeenResolvedYet()
+    {
+        // e.g. a request that never reaches tenant resolution at all (a 404, a static asset).
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext(tenant: null));
+        await feature.FireOnStartingAsync();
+
+        var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
+        csp.Should().Contain("form-action 'self'");
+        csp.Should().NotContain("ciamlogin.com");
+        csp.Should().NotContain("localhost:8443");
+    }
+
+    [Fact]
+    public async Task FormAction_CombinesTenantHosts_WithAHostsOwnConfiguredAdditionalSources()
+    {
+        var options = new PrismSecurityHeadersOptions
+        {
+            AdditionalContentSecurityPolicySources = new Dictionary<string, string>
+            {
+                ["form-action"] = "https://a-host-configured-target.example.com"
+            }
+        };
+        var middleware = BuildMiddleware(options);
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+        var tenant = new PrismTenant { OidcAuthority = "https://localhost:8443/realms/prism-dev" };
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext(tenant));
+        await feature.FireOnStartingAsync();
+
+        var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
+        csp.Should().Contain("https://a-host-configured-target.example.com");
+        csp.Should().Contain("https://localhost:8443");
     }
 
     [Fact]
@@ -374,7 +465,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var middleware = BuildMiddleware(options);
         var (ctx, feature) = BuildHttpsContext("/dashboard");
 
-        await middleware.InvokeAsync(ctx);
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers["Content-Security-Policy-Report-Only"].ToString().Should().Be("default-src 'none'");
