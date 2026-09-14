@@ -4,8 +4,10 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { signIn, businessAppOrigin } from '../walkthroughs/support/walkthrough';
-import { beat, showSlate, clearSlate, moveNarrationTo, startNarrationTimeline, getNarrationTimeline } from './support/narration';
-import { humanClick, humanType } from './support/human-interactions';
+import {
+  beat, showSlate, clearSlate, moveNarrationTo, startNarrationTimeline, getNarrationTimeline,
+  humanClick, humanType
+} from 'wayfinder-demo-recording-kit';
 
 // Playwright's automatic video-to-test-result attachment only works for pages scoped to a single
 // test (the built-in page/context fixtures). This spec deliberately shares ONE page across every
