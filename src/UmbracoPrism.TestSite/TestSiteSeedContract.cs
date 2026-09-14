@@ -29,6 +29,10 @@ public static class TestSiteSeedContract
     public const string CaseworkerQueuePageName = "Caseworker queue";
     public const string CaseworkerQueuePageUrl = "/caseworker-queue";
 
+    public const string MoneyModellerPageName = "Money Modeller";
+    public const string MoneyModellerPageUrl = "/money-modeller";
+    public const string MoneyModellerBlueprintKey = "money-modeller";
+
     public static IContent? FindContentByAlias(IContentService contentService, string alias)
         => EnumerateContentTree(contentService)
             .FirstOrDefault(content => content.ContentType.Alias == alias);
