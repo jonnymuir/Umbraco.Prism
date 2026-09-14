@@ -2,11 +2,8 @@
 @using UmbracoPrism.Core.Models
 @using Umbraco.Cms.Core.Models
 @using Umbraco.Cms.Core.Models.Blocks
-@using Microsoft.AspNetCore.Hosting
-@using Microsoft.Extensions.Hosting
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @inject IPrismContext PrismContext
-@inject IWebHostEnvironment Env
 @{
     // 1. Resolve the Tenant once at the top level
     var tenant = PrismContext.CurrentTenant;
@@ -27,12 +24,19 @@
     var biometricLoginEnabled = isPrismMobileRequest && (tenant?.AllowBiometricLogin ?? false);
     var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
 
-    // The UA-mock toggle is a local dev/QA aid for exercising mobile rendering from a desktop
-    // browser without installing the app. It has no reason to exist once a request is already
-    // genuinely coming from the mobile app (the UA is already real), and it has no reason to
-    // exist on a real deployed environment at all (found live on prismreference.com, where it
-    // makes no sense to offer visitors a way to fake being on mobile).
-    var showMobileUaDemo = Env.IsDevelopment() && !isPrismMobileRequest;
+    // The UA-mock toggle is a dev/QA aid for exercising mobile rendering from a desktop
+    // browser without installing the app — it must stay reachable on ANY browser, in ANY
+    // environment, including prismreference.com itself (implementers testing mobile rendering
+    // from the web is a real, wanted use of the reference app), and including while a cookie
+    // currently has mobile faked ON — that's exactly when it's needed most, to turn the fake
+    // back off (found live: gating this off outside Development left no way to undo a stuck
+    // cookie on a deployed site). IsNativeMobileRequest, not IsPrismMobileRequest, is the only
+    // check that belongs here: it looks solely at the raw User-Agent header (unfakeable from a
+    // normal browser), so it's the one signal that's actually true only inside the genuine
+    // compiled app — see its own doc comment for why the plain negation of
+    // IsPrismMobileRequest would be wrong (the real app's own first page load carries
+    // ?prismMobile=1, which would misread as "not native").
+    var showMobileUaDemo = !PrismMobileRequestDetection.IsNativeMobileRequest(Context);
 }
 
 <!DOCTYPE html>
