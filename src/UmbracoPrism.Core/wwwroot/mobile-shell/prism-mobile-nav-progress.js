@@ -38,9 +38,22 @@
     }, AUTO_HIDE_MS);
   }
 
+  // Same list, and same CWE-020/184 rationale, as prism-mobile-shell-guard.js's own
+  // isDangerousScheme(): any scheme capable of encoding executable content, not just
+  // javascript:. Checking one and not the others is an incomplete guard (caught live by
+  // CodeQL) — a data:/vbscript: URL should never be treated as "just another same-document
+  // navigation" worth a spinner for, whatever the origin comparison below would separately
+  // conclude about it.
+  function isDangerousScheme(href) {
+    var normalized = href.trim().toLowerCase();
+    return normalized.startsWith('javascript:')
+      || normalized.startsWith('data:')
+      || normalized.startsWith('vbscript:');
+  }
+
   function isSameDocumentUrl(href) {
     if (!href || href.startsWith('#')) return false;
-    if (href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) return false;
+    if (href.startsWith('mailto:') || href.startsWith('tel:') || isDangerousScheme(href)) return false;
     try {
       return new URL(href, window.location.href).origin === window.location.origin;
     } catch (e) {
