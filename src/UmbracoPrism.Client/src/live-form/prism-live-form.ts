@@ -5,8 +5,9 @@
 //
 //  - reads the embedded live model ([data-wayfinder-live-model]): the calculation set,
 //    input types/defaults and service-sourced values the server evaluated with,
-//  - listens to the stage's ordinary form controls (fields[...]) and re-evaluates the
-//    same declarative definitions via the shared expression engine on every change,
+//  - listens to the stage's ordinary form controls (field:{key} inputs — GovUk.FieldName's own
+//    convention, see readInput's own remarks) and re-evaluates the same declarative definitions
+//    via the shared expression engine on every change,
 //  - updates whatever declares a binding: stat cards ([data-wayfinder-stat-field]),
 //    charts ([data-wayfinder-chart]), slider value readouts ([data-wayfinder-slider]), and
 //    visibility wrappers ([data-wayfinder-show-when]).
@@ -26,7 +27,7 @@ import {
 
 interface LiveModel {
   calculations: CalculationSet;
-  inputTypes: Record<string, 'number' | 'string'>;
+  inputTypes: Record<string, 'number' | 'string' | 'boolean'>;
   defaults: Record<string, string>;
   service: Record<string, unknown>;
 }
@@ -65,8 +66,15 @@ function boot(): void {
   const serviceScope = toScope(model.service ?? {});
 
   const readInput = (key: string): unknown => {
+    // GovUk.FieldName's own convention (Wayfinder.Rendering.GovUk) is "field:{key}", not
+    // "fields[key]" — found live: every slider/input's real name= attribute never matched this
+    // selector at all, so no interaction ever re-triggered update() (the initial on-load call
+    // added below happened to mask this for the very first render, since it reads the same
+    // server-supplied defaults the server itself rendered with — but every subsequent drag,
+    // and the Recalculate button's own client-side repaint immediately after, silently fell
+    // back to those defaults too, undoing whatever the user had actually changed).
     const controls = form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
-      `[name="fields[${key}]"]`,
+      `[name="field:${key}"]`,
     );
     let raw: string | null = null;
     for (const control of controls) {
@@ -85,13 +93,35 @@ function boot(): void {
       raw = model.defaults[key] ?? null;
     }
 
+    const type = model.inputTypes[key];
+
     if (raw === null) {
-      return undefined;
+      // Absent (nothing typed/ticked yet, no declared default) isn't the same as unknown — the
+      // field is genuinely declared on this stage, it just has no value in the browser right
+      // now. A number has no safe placeholder (0 is a real, meaningful value), so it stays out
+      // of scope and any expression referencing it bare simply doesn't evaluate yet (see the
+      // catch in update(), which leaves server-rendered values until it can). String/boolean
+      // fields DO have a safe "nothing here" value — matching CalculationScopeBuilder.Build's
+      // server-side rule (Wayfinder/Services/Calculations/CalculationScopeBuilder.cs).
+      if (type === 'number') {
+        return undefined;
+      }
+      return type === 'boolean' ? false : '';
     }
 
-    if (model.inputTypes[key] === 'number') {
+    if (type === 'number') {
       const cleaned = raw.replace(/£|,/g, '').trim();
       return /^-?\d+(\.\d+)?$/.test(cleaned) ? Dec.fromString(cleaned) : undefined;
+    }
+
+    if (type === 'boolean') {
+      // A checked GOV.UK checkbox's own value="true" (or a string default authored the same
+      // way) needs coercing to a real boolean the same way CalculationScopeBuilder.Build does
+      // server-side — the calculation engine's own boolean handling requires an actual boolean,
+      // not this string.
+      if (raw === 'true' || raw === 'True') return true;
+      if (raw === 'false' || raw === 'False') return false;
+      return raw;
     }
 
     return raw;
@@ -165,13 +195,13 @@ function boot(): void {
       updateSliderReadout(target);
     }
 
-    if (target.matches('[name^="fields["]')) {
+    if (target.matches('[name^="field:"]')) {
       update();
     }
   });
 
   form.addEventListener('change', (event) => {
-    if ((event.target as HTMLElement).matches('[name^="fields["]')) {
+    if ((event.target as HTMLElement).matches('[name^="field:"]')) {
       update();
     }
   });
@@ -218,6 +248,19 @@ function rebuildChart(figure: HTMLElement, series: Record<string, Array<Record<s
     ...band,
     color: band.color ?? palette[index % palette.length],
   }));
+
+  // The legend itself is server-rendered once and never otherwise touched by this function —
+  // its swatches carry the same literal style="background:..." CSP blocks, and unlike the bars
+  // below, nothing was ever repainting them through a safe element.style.* write. Found live:
+  // the bars themselves had real colour, but every legend swatch next to them stayed blank.
+  const legendItems = figure.querySelectorAll<HTMLElement>('.wayfinder-chart__legend-item');
+  legendItems.forEach((item, index) => {
+    const swatch = item.querySelector<HTMLElement>('.wayfinder-chart__swatch');
+    const color = bands[index]?.color;
+    if (swatch && color) {
+      swatch.style.background = color;
+    }
+  });
 
   const numeric = rows.map((row) => ({
     x: row[config.x] instanceof Dec ? (row[config.x] as Dec).toNumber() : 0,
