@@ -109,6 +109,26 @@ var __prismDebug = (function() {
     // this native-feeling prompt actually looks like part of the branded app it's enrolling
     // biometrics for, not a generic unstyled toast bolted on top of it — found live: hardcoded
     // #2563eb didn't match the tenant's actual --prism-primary blue at all.
+    //
+    // Every element built via createElement + .style.cssText = '...' (CSSOM property
+    // assignment), never innerHTML with an embedded style="..." attribute. This page's CSP is
+    // style-src 'self' with no unsafe-inline — a style="" HTML attribute parsed from an
+    // innerHTML string is exactly what that blocks, silently, with no console error visible
+    // without a Mac + cable + Safari's remote Web Inspector; .style.cssText = on an element
+    // reference is a distinct CSSOM code path CSP's style-src does not govern. Found live: the
+    // banner container itself (styled this way already) rendered correctly, but its children
+    // — built via banner.innerHTML = '<button style="...">' — silently got NO styling at all,
+    // falling back to native default <button> chrome (measured 59×20 via the diagnostic below,
+    // exactly what an unstyled, content-sized button looks like). A prior fix
+    // (-webkit-appearance:none) was real but irrelevant: it was delivered via that same blocked
+    // attribute, so it never had a chance to apply either.
+    function styledEl(tag, cssText, text) {
+      var el = document.createElement(tag);
+      el.style.cssText = cssText;
+      if (text !== undefined) el.textContent = text;
+      return el;
+    }
+
     function showEnrollBanner() {
       if (document.getElementById('prism-bio-banner')) return;
       var banner = document.createElement('div');
@@ -118,30 +138,38 @@ var __prismDebug = (function() {
         'background:var(--prism-surface,#fff);border-top:1px solid var(--prism-border,#e5e7eb);' +
         'border-radius:16px 16px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.15);' +
         'font-family:var(--prism-font-body,-apple-system,BlinkMacSystemFont,sans-serif);';
-      // min-height:52px (not just padding) guarantees a proper touch target regardless of
-      // font rendering — 13px padding + text alone measured visibly small/cramped live.
-      // -webkit-appearance:none/appearance:none is load-bearing, not decorative: iOS WebKit
-      // gives <button> native OS chrome by default, and that native chrome can silently override
-      // CSS sizing (min-height included) with the platform's own intrinsic control height —
-      // a well-documented WKWebView quirk. Found live: the diagnostic below measured these
-      // buttons at 20px tall on a real device despite min-height:52px being confirmed served
-      // and rendering correctly in an isolated (non-native-chrome) simulator repro — the
-      // isolated repro never exercised real native button chrome, which only WebKit itself
-      // applies, so it couldn't have caught this.
+
+      banner.appendChild(styledEl('p',
+        'margin:0 0 6px;font-size:1.0625rem;font-weight:600;color:var(--prism-text,#111827);',
+        'Enable Face ID / Touch ID?'));
+      banner.appendChild(styledEl('p',
+        'margin:0 0 18px;font-size:.9rem;color:var(--prism-muted,#6b7280);',
+        'Sign in faster next time without entering your password.'));
+
+      var row = styledEl('div', 'display:flex;gap:12px;');
+      // min-height:52px (not just padding) guarantees a proper touch target regardless of font
+      // rendering. -webkit-appearance:none/appearance:none matters too, separately from the CSP
+      // issue above: iOS WebKit gives <button> native OS chrome by default, which can override
+      // CSS sizing with the platform's own intrinsic control height even once styling actually
+      // applies — a real, documented WKWebView quirk, just not the one actually in play here.
       var btnStyle = 'flex:1;min-height:52px;padding:14px 16px;border:none;border-radius:10px;' +
         'font-size:1.0625rem;font-weight:600;cursor:pointer;-webkit-appearance:none;appearance:none;';
-      banner.innerHTML = '<p style="margin:0 0 6px;font-size:1.0625rem;font-weight:600;color:var(--prism-text,#111827);">Enable Face ID / Touch ID?</p>' +
-        '<p style="margin:0 0 18px;font-size:.9rem;color:var(--prism-muted,#6b7280);">Sign in faster next time without entering your password.</p>' +
-        '<div style="display:flex;gap:12px;">' +
-          '<button id="prism-bio-yes" style="' + btnStyle + 'background:var(--prism-primary,#2563eb);color:var(--prism-primary-contrast,#fff);">Enable</button>' +
-          '<button id="prism-bio-no" style="' + btnStyle + 'background:var(--prism-surface-alt,#f3f4f6);color:var(--prism-text,#374151);">Not now</button>' +
-        '</div>';
+      var yesBtn = styledEl('button', btnStyle +
+        'background:var(--prism-primary,#2563eb);color:var(--prism-primary-contrast,#fff);', 'Enable');
+      yesBtn.id = 'prism-bio-yes';
+      var noBtn = styledEl('button', btnStyle +
+        'background:var(--prism-surface-alt,#f3f4f6);color:var(--prism-text,#374151);', 'Not now');
+      noBtn.id = 'prism-bio-no';
+      row.appendChild(yesBtn);
+      row.appendChild(noBtn);
+      banner.appendChild(row);
+
       document.body.appendChild(banner);
-      document.getElementById('prism-bio-no').addEventListener('click', function () {
+      noBtn.addEventListener('click', function () {
         localStorage.setItem(DECLINED_KEY, String(Date.now()));
         banner.remove();
       });
-      document.getElementById('prism-bio-yes').addEventListener('click', handleEnroll);
+      yesBtn.addEventListener('click', handleEnroll);
 
       // TEMPORARY diagnostic (2026-09-14): a real device reported these buttons looking tiny
       // even though this exact min-height:52px CSS is confirmed served (no-store header rules
@@ -154,7 +182,7 @@ var __prismDebug = (function() {
         var diag = document.createElement('p');
         diag.id = 'prism-bio-diag';
         diag.style.cssText = 'margin:8px 0 0;font-size:.7rem;font-family:monospace;color:#dc2626;background:#fef2f2;padding:4px 6px;border-radius:4px;';
-        diag.textContent = 'DIAG build=2026-09-14-c btn=' + rect.width.toFixed(0) + 'x' + rect.height.toFixed(0) +
+        diag.textContent = 'DIAG build=2026-09-14-d btn=' + rect.width.toFixed(0) + 'x' + rect.height.toFixed(0) +
           ' dPR=' + window.devicePixelRatio + ' vw=' + window.innerWidth;
         banner.appendChild(diag);
       }, 50);
@@ -213,7 +241,13 @@ var __prismDebug = (function() {
 
         var banner = document.getElementById('prism-bio-banner');
         if (banner) {
-          banner.innerHTML = '<p style="margin:0;font-size:.9rem;font-weight:600;color:var(--prism-accent,#16a34a);text-align:center;padding:4px 0;">&#10003; Biometric login enabled</p>';
+          // Same CSP constraint as showEnrollBanner() above — createElement + cssText, not
+          // innerHTML with a style="" attribute.
+          banner.innerHTML = '';
+          banner.appendChild(styledEl('p',
+            'margin:0;font-size:.9rem;font-weight:600;color:var(--prism-accent,#16a34a);' +
+            'text-align:center;padding:4px 0;',
+            '✓ Biometric login enabled'));
           setTimeout(function () { banner.remove(); }, 2000);
         }
       } catch (e) {
