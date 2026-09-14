@@ -544,6 +544,15 @@ pre.dash-api-card__body {
 }
 
 /* Mobile navigation */
+html.prism-mobile {
+    /* Single source of truth for the fixed bottom nav bar's real rendered height (item
+       min-height 38px + 10px top padding + 10px bottom padding + 1px border, some headroom) —
+       shared with .container's own bottom-padding reservation below so the two can't drift
+       independently. Not a --prism-* token: this is a structural layout constant, not a
+       tenant-branding value. */
+    --mobile-nav-height: 70px;
+}
+
 .mobile-shell-nav {
     display: none;
 }
@@ -561,6 +570,13 @@ pre.dash-api-card__body {
     border-top: 1px solid rgba(148, 163, 184, 0.3);
     backdrop-filter: blur(8px);
     z-index: 1000;
+}
+
+/* Found live: nothing reserved space for the fixed nav bar above, so real page content (a
+   form's own Submit button, say) could render directly underneath it, partly or fully hidden —
+   not just the footer. */
+.prism-mobile .container {
+    padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
 }
 
 .mobile-shell-nav__item {
