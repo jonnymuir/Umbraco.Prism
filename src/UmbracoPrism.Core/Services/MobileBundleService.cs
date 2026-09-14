@@ -1082,62 +1082,6 @@ fi
 """
             : string.Empty;
 
-        // Capacitor's own `zoomEnabled: false` (already the framework default we rely on — see
-        // capacitor.config.ts's absence of the key) only disables the user's pinch-zoom gesture.
-        // It does NOT stop WKWebView's own "zoom into a focused text input" behaviour, which
-        // fires independently whenever a page's own viewport doesn't cap maximum-scale — reported
-        // live on the Entra/ciamlogin.com sign-in page (hosted content we don't control and can't
-        // add page-level CSS/viewport-meta to, same constraint as the contentInset fix above): the
-        // password field triggered a zoomed-in, left-clipped layout. The only lever that reaches
-        // hosted content is a native WKUserScript, injected via the documented Capacitor extension
-        // point (CAPBridgeViewController.webViewConfiguration(for:), "recommended to call super's
-        // implementation and modify the result") — so this subclasses it and rewires
-        // Main.storyboard to use the subclass, the sanctioned way to add custom native iOS code to
-        // a generated Capacitor project. Unconditional (not gated on biometricAuthEnabled) since
-        // it's a general WebKit fix, not biometric-specific.
-        var zoomFixInjection = """
-
-echo "Disabling WebKit's zoom-into-focused-input behaviour on hosted content..."
-if [ -d ios/App/App ]; then
-  cat > ios/App/App/PrismBridgeViewController.swift << 'PRISM_SWIFT_EOF'
-import Capacitor
-import WebKit
-
-// Force-pins every page's own viewport meta tag to maximum-scale=1 at the WebKit level, so it
-// applies even to cross-origin hosted content (forMainFrameOnly: false) that this app has no
-// CSS/markup control over — see bootstrap-ios.sh's own comment for the full rationale. Runs at
-// document start and again on DOMContentLoaded, so it wins regardless of whether the page's own
-// <meta name=viewport> tag exists yet.
-class PrismBridgeViewController: CAPBridgeViewController {
-    override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
-        let configuration = super.webViewConfiguration(for: instanceConfiguration)
-        let source = "(function(){function pin(){var meta=document.querySelector('meta[name=viewport]');if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}meta.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
-        let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
-        configuration.userContentController.addUserScript(script)
-        return configuration
-    }
-}
-PRISM_SWIFT_EOF
-  echo "✓ PrismBridgeViewController.swift written"
-
-  STORYBOARD="ios/App/App/Base.lproj/Main.storyboard"
-  if [ -f "$STORYBOARD" ]; then
-    if grep -q 'customClass="CAPBridgeViewController"' "$STORYBOARD"; then
-      sed -i.bak 's/customClass="CAPBridgeViewController" customModule="Capacitor"/customClass="PrismBridgeViewController" customModule="App"/' "$STORYBOARD"
-      rm -f "$STORYBOARD.bak"
-      echo "✓ Main.storyboard wired to PrismBridgeViewController"
-    else
-      echo "✓ Main.storyboard already wired to PrismBridgeViewController"
-    fi
-  else
-    echo "⚠️ Main.storyboard not found. Run 'npx cap add ios' first."
-  fi
-else
-  echo "⚠️ ios/App/App not found. Run 'npx cap add ios' first."
-fi
-
-""";
-
         return $$"""
 #!/usr/bin/env bash
 set -euo pipefail
@@ -1156,7 +1100,7 @@ npx cap sync ios
 
 echo "Generating app icon and splash screen from resources/icon.svg..."
 npx capacitor-assets generate --ios
-{{infoPlistInjection}}{{zoomFixInjection}}
+{{infoPlistInjection}}
 echo "Applying localhost cert trust (if needed)..."
 if ! bash scripts/trust-ios-localhost-cert.sh; then
   echo "⚠️ Cert trust step did not complete. Continuing..."
