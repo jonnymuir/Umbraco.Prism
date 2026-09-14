@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using FluentAssertions;
@@ -551,6 +552,59 @@ public class BiometricControllerTests
             It.Is<AuthenticationProperties>(props =>
                 props.GetTokens().Any(t => t.Name == "access_token" && t.Value == "new-access-token") &&
                 props.GetTokens().Any(t => t.Name == "refresh_token" && t.Value == "new-refresh-token"))),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Exchange_HappyPath_CarriesDisplayClaimsFromTheReturnedIdToken()
+    {
+        // Found live: "Welcome back, Member" — a real signed-in user's own dashboard falling
+        // back to the generic default every time they re-entered via Face ID, because the
+        // cookie principal biometric exchange mints only ever carried oid/tid. A full
+        // interactive sign-in gets name/preferred_username/email for free from the OIDC
+        // middleware's own claims mapping; exchange never went through that middleware at all.
+        var idToken = new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(claims:
+        [
+            new Claim("name", "Jonny Muir"),
+            new Claim("preferred_username", "jonny@prism.local"),
+            new Claim("email", "jonny@prism.local"),
+        ]));
+
+        var (controller, _, biometricToken, _, _, authMock, _) = BuildExchangeScenario(
+            refreshResult: new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600, IdToken: idToken));
+
+        var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
+        await controller.Exchange(request);
+
+        authMock.Verify(s => s.SignInAsync(
+            It.IsAny<HttpContext>(),
+            "PrismMemberCookie",
+            It.Is<ClaimsPrincipal>(p =>
+                p.FindFirst("name")!.Value == "Jonny Muir" &&
+                p.FindFirst("preferred_username")!.Value == "jonny@prism.local" &&
+                p.FindFirst("email")!.Value == "jonny@prism.local"),
+            It.IsAny<AuthenticationProperties>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Exchange_HappyPath_NoIdTokenReturned_StillIssuesCookieWithNoDisplayClaims()
+    {
+        // The pre-existing shape (no IdToken on the refresh result) must keep working exactly
+        // as before — display claims are an addition, not something the rest of the flow now
+        // depends on.
+        var (controller, _, biometricToken, _, _, authMock, _) = BuildExchangeScenario(
+            refreshResult: new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
+
+        var request = new BiometricExchangeRequest { BiometricToken = biometricToken };
+        var result = await controller.Exchange(request);
+
+        result.Should().BeOfType<OkResult>();
+        authMock.Verify(s => s.SignInAsync(
+            It.IsAny<HttpContext>(),
+            "PrismMemberCookie",
+            It.Is<ClaimsPrincipal>(p => p.FindFirst("name") == null),
+            It.IsAny<AuthenticationProperties>()),
             Times.Once);
     }
 

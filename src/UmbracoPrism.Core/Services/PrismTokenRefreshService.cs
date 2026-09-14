@@ -176,8 +176,9 @@ public sealed class PrismTokenRefreshService : IPrismTokenRefreshService
             var accessToken = root.TryGetProperty("access_token", out var at) ? at.GetString() : null;
             var refreshToken = root.TryGetProperty("refresh_token", out var rt) ? rt.GetString() : null;
             int? expiresIn = root.TryGetProperty("expires_in", out var exp) ? exp.GetInt32() : null;
+            var idToken = root.TryGetProperty("id_token", out var it) ? it.GetString() : null;
 
-            return new TokenRefreshResult(true, accessToken, refreshToken, expiresIn);
+            return new TokenRefreshResult(true, accessToken, refreshToken, expiresIn, IdToken: idToken);
         }
         catch (JsonException ex)
         {

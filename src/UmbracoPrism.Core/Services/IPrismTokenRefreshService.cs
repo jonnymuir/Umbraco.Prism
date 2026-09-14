@@ -32,4 +32,11 @@ public interface IPrismTokenRefreshService
 /// <param name="RefreshToken">The new refresh token, or null when not returned.</param>
 /// <param name="ExpiresIn">Lifetime in seconds of the new access token, or null when not returned.</param>
 /// <param name="FailureReason">High-level refresh failure category for diagnostics, or null on success.</param>
-public record TokenRefreshResult(bool Success, string? AccessToken, string? RefreshToken, int? ExpiresIn, string? FailureReason = null);
+/// <param name="IdToken">
+/// The new ID token, or null when not returned. Requested (via the <c>openid</c> scope) but
+/// previously discarded entirely — see BiometricController.ExecuteExchangeAsync's own remarks
+/// for why a caller minting a fresh session from this result needs it: it's the only place a
+/// biometric-only re-authentication can get the display claims (name/preferred_username/email)
+/// a full interactive sign-in gets for free from the OIDC middleware's own claims mapping.
+/// </param>
+public record TokenRefreshResult(bool Success, string? AccessToken, string? RefreshToken, int? ExpiresIn, string? FailureReason = null, string? IdToken = null);

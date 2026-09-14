@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -405,6 +406,7 @@ public class BiometricController(
         var identity = new ClaimsIdentity("PrismMemberCookie");
         identity.AddClaim(new Claim("oid", claims.UserOid));
         identity.AddClaim(new Claim("tid", tenant.EntraTenantId));
+        AddDisplayClaimsFromIdToken(identity, tokenResult.IdToken);
 
         var principal = new ClaimsPrincipal(identity);
 
@@ -584,6 +586,48 @@ public class BiometricController(
         }
 
         return NoContent();
+    }
+
+    // A full interactive Entra sign-in gets name/preferred_username/email on its
+    // ClaimsPrincipal for free — the OIDC middleware maps the whole ID token's claims onto it
+    // automatically. Biometric exchange never went through that middleware at all (it mints the
+    // cookie principal directly, see step 12 above), so those display claims were always
+    // silently missing from a biometric-only session — found live: the dashboard's own "Welcome
+    // back, Member"/"NAME: Member" fallbacks firing even for a real signed-in user, every single
+    // time they re-entered via Face ID rather than a fresh interactive login.
+    //
+    // Not validated (signature/issuer/audience) the way the OIDC middleware validates an
+    // interactive sign-in's id_token — deliberately: this token is Entra's own direct HTTPS
+    // response to our own authenticated refresh_token request moments earlier, exactly the same
+    // trust boundary tokenResult.AccessToken/RefreshToken already carry with no separate
+    // validation step either. Reading, not trusting-as-an-independent-credential.
+    private static void AddDisplayClaimsFromIdToken(ClaimsIdentity identity, string? idToken)
+    {
+        if (string.IsNullOrWhiteSpace(idToken))
+        {
+            return;
+        }
+
+        JwtSecurityToken parsed;
+        try
+        {
+            parsed = new JwtSecurityTokenHandler().ReadJwtToken(idToken);
+        }
+        catch (ArgumentException)
+        {
+            // Malformed token — shouldn't happen from a trusted source, but this is purely a
+            // display-name nicety, never worth failing the whole sign-in over.
+            return;
+        }
+
+        foreach (var claimType in new[] { "name", "preferred_username", "email" })
+        {
+            var value = parsed.Claims.FirstOrDefault(c => c.Type == claimType)?.Value;
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                identity.AddClaim(new Claim(claimType, value));
+            }
+        }
     }
 
     // Use RemoteIpAddress as the partition key — ForwardedHeadersMiddleware (configured in

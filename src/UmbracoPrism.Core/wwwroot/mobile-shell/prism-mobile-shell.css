@@ -30,6 +30,17 @@ html.prism-mobile body {
     overflow-x: hidden;
 }
 
+html.prism-mobile {
+    /* Suppresses iOS's own "hold a link" callout menu (Open Link/Copy Link/Share/Save —
+       genuinely useful, expected browser behaviour on the web) — inherited by default, so
+       setting it on the root covers every link/button without enumerating them. Found live: it
+       reads as a real bug inside a native app shell, where nav items and CTAs are styled to
+       look like native rows/buttons, not a webpage's own links. Deliberately leaves
+       -webkit-user-select (text selection) untouched — a separate, more debatable UX call
+       nothing here asked for. */
+    -webkit-touch-callout: none;
+}
+
 html.prism-mobile body {
     /* No padding-top here: the top inset is owned by whatever sits at the very top of the
        page (a site header, a portal/dashboard header) — each already applies its own
