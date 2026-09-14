@@ -143,5 +143,15 @@
         }
     }
 
+    @if (isPrismMobileRequest && isAuthenticated)
+    {
+        @* Deliberately not gated on biometricLoginEnabled — the silent-logout half of this
+           script (avoiding Entra's own account-picker interstitial inside the app's one
+           WebView) matters for every mobile sign-out, not just biometric-enabled tenants; the
+           biometric-revoke calls it also makes are harmless no-ops when nothing was ever
+           enrolled. See the script's own remarks. *@
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-signout.js"></script>
+    }
+
 </body>
 </html>

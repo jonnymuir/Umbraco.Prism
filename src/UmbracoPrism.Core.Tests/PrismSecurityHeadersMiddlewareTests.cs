@@ -456,6 +456,65 @@ public class PrismSecurityHeadersMiddlewareTests
     }
 
     [Fact]
+    public async Task FrameSrc_WidensToAGenericOidcAuthorityHost_ForMobileSilentSignOutToWork()
+    {
+        // Mirrors FormAction_WidensToAGenericOidcAuthorityHost_ForSignOutToWork — the mobile
+        // app's silent sign-out (prism-biometric-signout.js) loads the IdP's own end-session
+        // endpoint in a hidden iframe rather than a visible top-level redirect. frame-src has
+        // no fallback to form-action, only to default-src 'self', so it needs the exact same
+        // per-tenant widening independently.
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+        var tenant = new PrismTenant { OidcAuthority = "https://localhost:8443/realms/prism-dev" };
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext(tenant));
+        await feature.FireOnStartingAsync();
+
+        var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
+        csp.Should().Contain("frame-src https://localhost:8443");
+    }
+
+    [Fact]
+    public async Task FrameSrc_WidensToEntraHosts_WhenTenantHasAnEntraTenantId()
+    {
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+        var tenant = new PrismTenant { EntraTenantId = "dd837f0b-f52d-4008-9786-edd8c389d0a0" };
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext(tenant));
+        await feature.FireOnStartingAsync();
+
+        var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
+        csp.Should().Contain("frame-src https://login.microsoftonline.com");
+        csp.Should().Contain("https://*.ciamlogin.com");
+        csp.Should().Contain("https://*.b2clogin.com");
+        csp.Should().Contain("https://dd837f0b-f52d-4008-9786-edd8c389d0a0.ciamlogin.com");
+        csp.Should().Contain("https://dd837f0b-f52d-4008-9786-edd8c389d0a0.b2clogin.com");
+    }
+
+    [Fact]
+    public async Task FrameSrc_CombinesTenantHosts_WithAHostsOwnConfiguredAdditionalSources()
+    {
+        var options = new PrismSecurityHeadersOptions
+        {
+            AdditionalContentSecurityPolicySources = new Dictionary<string, string>
+            {
+                ["frame-src"] = "https://a-host-configured-target.example.com"
+            }
+        };
+        var middleware = BuildMiddleware(options);
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+        var tenant = new PrismTenant { OidcAuthority = "https://localhost:8443/realms/prism-dev" };
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext(tenant));
+        await feature.FireOnStartingAsync();
+
+        var csp = ctx.Response.Headers["Content-Security-Policy"].ToString();
+        csp.Should().Contain("https://a-host-configured-target.example.com");
+        csp.Should().Contain("frame-src https://a-host-configured-target.example.com https://localhost:8443");
+    }
+
+    [Fact]
     public async Task ContentSecurityPolicyReportOnly_IsOptIn_AndIndependentOfTheEnforcedPolicy()
     {
         var options = new PrismSecurityHeadersOptions

@@ -54,19 +54,12 @@ var __prismDebug = (function() {
     return;
   }
 
-  // Hook logout: intercept any logout/signout navigation to clear biometric credentials
-  // and revoke the server-side credential record before the session ends.
-  document.addEventListener('click', async function(e) {
-    var a = e.target.closest('a[href*="logout" i], a[href*="signout" i], button[data-action*="logout" i]');
-    if (!a) return;
-    try {
-      await Cap.nativePromise('SecureStorage', 'internalRemoveItem', { prefixedKey: TOKEN_KEY, sync: false });
-      localStorage.removeItem(ENROLL_KEY);
-      localStorage.removeItem(DEV_ID_KEY);
-      await fetch('/umbraco/prism/mobile/biometric/revoke', { method: 'DELETE', credentials: 'include' });
-      __prismDebug.log('[Prism Enroll] biometric credentials cleared on logout');
-    } catch(err) { /* best-effort */ }
-  }, true);
+  // Clearing biometric credentials on logout is prism-biometric-signout.js's job, not this
+  // file's — see that script's own remarks. (A click-listener used to live here, but it
+  // matched a[href*="logout"]/button[data-action*="logout"], which no Sign Out button in this
+  // codebase is: every one is a plain <button type="submit"> inside a <form action="/auth/
+  // logout">, so the listener never actually fired — found live, via the exact bug it was
+  // meant to prevent: biometric auto sign-in survived sign-out.)
 
   (async function () {
     try {

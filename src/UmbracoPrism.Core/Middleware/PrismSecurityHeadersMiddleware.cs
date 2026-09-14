@@ -133,8 +133,20 @@ internal sealed class PrismSecurityHeadersMiddleware(
     /// <summary>
     /// Merges the host's own configured <see cref="PrismSecurityHeadersOptions
     /// .AdditionalContentSecurityPolicySources"/> with the current tenant's own OIDC provider
-    /// host(s), appended to <c>form-action</c> specifically (never replacing a host's own
-    /// configured value for that directive — both apply).
+    /// host(s), appended to <c>form-action</c> and <c>frame-src</c> specifically (never
+    /// replacing a host's own configured value for either directive — both apply).
+    ///
+    /// <c>frame-src</c> widening exists for the mobile app's own silent sign-out: the native
+    /// shell's single WebView can't show the IdP's federated end-session page as a visible
+    /// top-level navigation the way web sign-out does (Entra's own hosted logout UI includes an
+    /// account-chooser interstitial that reads as broken on a single-account app — see
+    /// prism-biometric-signout.js's own remarks), so it instead loads that exact same
+    /// already-correct URL (built by the exact same code path as the web flow — this directive
+    /// only widens WHERE an iframe may navigate, it doesn't change what URL gets built or
+    /// requested) into a hidden iframe, clearing the IdP's own session cookie without the user
+    /// ever seeing its UI. Without this, that iframe navigation is silently blocked by CSP —
+    /// frame-src has no fallback to form-action, only to default-src 'self', so the two
+    /// directives need widening independently even though they share the same host list.
     /// </summary>
     private Dictionary<string, string> BuildEffectiveCspSources(PrismTenant? tenant)
     {
@@ -147,6 +159,9 @@ internal sealed class PrismSecurityHeadersMiddleware(
             var formatted = string.Join(' ', oidcHosts.Select(host => $"https://{host}"));
             sources["form-action"] = sources.TryGetValue("form-action", out var existing) && existing.Length > 0
                 ? $"{existing} {formatted}"
+                : formatted;
+            sources["frame-src"] = sources.TryGetValue("frame-src", out var existingFrame) && existingFrame.Length > 0
+                ? $"{existingFrame} {formatted}"
                 : formatted;
         }
 
