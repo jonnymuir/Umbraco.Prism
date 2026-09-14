@@ -55,7 +55,7 @@
     "@umbraco-ui/uui-css": "^1.18.1",
     "@umbraco-ui/uui-icon": "^1.18.1",
     "@umbraco-ui/uui-icon-registry-essential": "^1.18.1",
-    "@vitest/browser-playwright": "^4.1.11",
+    "@vitest/browser-playwright": "^5.0.0",
     "eslint": "^10.9.1",
     "playwright": "^1.58.2",
     "storybook": "^10.6.0",
