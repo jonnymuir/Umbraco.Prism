@@ -84,7 +84,22 @@ internal sealed class PrismSecurityHeadersMiddleware(
     {
         var headers = context.Response.Headers;
 
-        if (_options.ContentTypeOptions is not null)
+        // Found live: the OIDC sign-in/sign-out redirect chain (AccountController.Login/Logout's
+        // SignOut()/Challenge() calls) issues plain 3xx responses with no Content-Type at all
+        // (a redirect has no body to describe) — verified directly: `curl -D-` against
+        // /auth/login returns "HTTP/2 302", "content-length: 0", no content-type header, and
+        // this middleware's own X-Content-Type-Options: nosniff sitting alongside it regardless.
+        // On a real device, WKWebView treats that combination — nosniff, on a response with no
+        // declared type to trust — as an undeterminable resource and offers it as a phantom
+        // zero-byte "download" instead of just following the Location header, breaking sign-in
+        // and sign-out on mobile (silently fine on desktop browsers, and invisible to the
+        // Playwright-driven tests that verified the sign-out flow earlier, since neither
+        // reproduces this specific real-WKWebView fallback). nosniff exists to stop a browser
+        // misinterpreting *rendered content* as something other than its declared type — a
+        // redirect has no rendered content, so skipping it here loses no real protection.
+        var isRedirect = context.Response.StatusCode is >= 300 and < 400;
+
+        if (_options.ContentTypeOptions is not null && !isRedirect)
             headers["X-Content-Type-Options"] = _options.ContentTypeOptions;
 
         if (_options.FrameOptions is not null)

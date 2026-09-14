@@ -84,6 +84,36 @@ public class PrismSecurityHeadersMiddlewareTests
     }
 
     [Fact]
+    public async Task ContentTypeOptions_IsOmitted_OnARedirectResponse()
+    {
+        // Found live: the OIDC sign-in/sign-out redirect chain issues plain 3xx responses with
+        // no Content-Type at all (a redirect has no body). Confirmed via a direct network
+        // capture against the real deployed app: HTTP/2 302, content-length: 0, no content-type
+        // header, X-Content-Type-Options: nosniff present regardless — and on a real device,
+        // WKWebView treats that combination as an undeterminable resource and offers it as a
+        // phantom zero-byte "download" instead of following the Location header, breaking
+        // sign-in/sign-out on mobile (invisible to desktop browsers and to the Playwright tests
+        // that verified sign-out earlier, since neither reproduces this WKWebView fallback).
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/auth/login");
+        ctx.Response.StatusCode = StatusCodes.Status302Found;
+        ctx.Response.Headers.Location = "https://tenant.ciamlogin.com/authorize";
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().NotContainKey("X-Content-Type-Options",
+            "nosniff protects against misinterpreting *rendered content* — a redirect has none, " +
+            "and the header combined with a missing Content-Type is what triggers WKWebView's " +
+            "phantom-download fallback on a real device");
+        // The fix is scoped to X-Content-Type-Options specifically, not a blanket skip for
+        // redirects — every other header this middleware owns still has real value on a 3xx
+        // (e.g. HSTS forces the upgrade before the redirect target is even fetched).
+        ctx.Response.Headers.Should().ContainKey("X-Frame-Options");
+        ctx.Response.Headers.Should().ContainKey("Strict-Transport-Security");
+    }
+
+    [Fact]
     public async Task NoStoreCacheControl_IsApplied_OnAuthenticatedRequest()
     {
         var middleware = BuildMiddleware();

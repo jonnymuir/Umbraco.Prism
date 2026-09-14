@@ -45,6 +45,13 @@ var __prismDebug = (function() {
   var TOKEN_KEY = SS_PFX + 'prism_biometric_token_' + TENANT_HOST;
   var ENROLL_KEY = 'prism_biometric_enrollment_state_' + TENANT_HOST;
   var DEV_ID_KEY = 'prism_device_id';
+  // "Not now" previously had no memory at all — its handler was just banner.remove(), so the
+  // banner reappeared on every single page load where biometry is available and no token is
+  // enrolled, found live: "every time you go back to the home page, it keeps asking". A snooze
+  // rather than "never ask again" — the user might only be declining in the moment, not
+  // permanently, and a fresh sign-in later is a reasonable point to re-offer.
+  var DECLINED_KEY = 'prism_biometric_declined_at_' + TENANT_HOST;
+  var DECLINE_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
 
   __prismDebug.log('[Prism Enroll] enrollment script running for tenant: ' + TENANT_HOST);
 
@@ -84,6 +91,12 @@ var __prismDebug = (function() {
         return;
       }
 
+      var declinedAt = Number(localStorage.getItem(DECLINED_KEY));
+      if (declinedAt && (Date.now() - declinedAt) < DECLINE_SNOOZE_MS) {
+        __prismDebug.log('[Prism Enroll] recently declined — skipping banner (snoozed)');
+        return;
+      }
+
       __prismDebug.log('[Prism Enroll] biometry available — showing enrollment banner');
       showEnrollBanner();
     } catch (e) {
@@ -114,8 +127,27 @@ var __prismDebug = (function() {
           '<button id="prism-bio-no" style="flex:1;min-height:52px;padding:14px 16px;background:var(--prism-surface-alt,#f3f4f6);color:var(--prism-text,#374151);border:none;border-radius:10px;font-size:1.0625rem;font-weight:600;cursor:pointer;">Not now</button>' +
         '</div>';
       document.body.appendChild(banner);
-      document.getElementById('prism-bio-no').addEventListener('click', function () { banner.remove(); });
+      document.getElementById('prism-bio-no').addEventListener('click', function () {
+        localStorage.setItem(DECLINED_KEY, String(Date.now()));
+        banner.remove();
+      });
       document.getElementById('prism-bio-yes').addEventListener('click', handleEnroll);
+
+      // TEMPORARY diagnostic (2026-09-14): a real device reported these buttons looking tiny
+      // even though this exact min-height:52px CSS is confirmed served (no-store header rules
+      // out caching) and confirmed rendering at 52px in an isolated simulator repro (with and
+      // without the WKWebView zoom-fix script's viewport override — identical either way).
+      // Shows the ACTUAL measured size in the real page context, on the real device, so the
+      // next report is a number, not a visual impression. Remove once resolved.
+      setTimeout(function () {
+        var rect = document.getElementById('prism-bio-yes').getBoundingClientRect();
+        var diag = document.createElement('p');
+        diag.id = 'prism-bio-diag';
+        diag.style.cssText = 'margin:8px 0 0;font-size:.7rem;font-family:monospace;color:#dc2626;background:#fef2f2;padding:4px 6px;border-radius:4px;';
+        diag.textContent = 'DIAG build=2026-09-14-c btn=' + rect.width.toFixed(0) + 'x' + rect.height.toFixed(0) +
+          ' dPR=' + window.devicePixelRatio + ' vw=' + window.innerWidth;
+        banner.appendChild(diag);
+      }, 50);
     }
 
   async function handleEnroll() {
