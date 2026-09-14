@@ -348,7 +348,12 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate");
         iosBootstrap.Should().Contain("webView.navigationDelegate = hold");
         iosBootstrap.Should().Contain("func forwardingTarget(for aSelector: Selector!) -> Any?");
-        iosBootstrap.Should().Contain("webView.snapshotView(afterScreenUpdates: false)");
+        // Reported live: a synchronous UIView snapshot (tried first, for zero-gap timing)
+        // produced a blank/black cover instead of a frozen frame — evidently unreliable for
+        // WKWebView's out-of-process content. Solid cover first (never black), opportunistically
+        // upgraded via WKWebView's own dedicated (async) snapshot API if it resolves in time.
+        iosBootstrap.Should().Contain("cover.backgroundColor = .white");
+        iosBootstrap.Should().Contain("webView.takeSnapshot(with: nil)");
         iosBootstrap.Should().Contain("DispatchQueue.main.asyncAfter(deadline: .now() + 0.1");
 
         iosBootstrap.Should().Contain("customClass=\"PrismBridgeViewController\" customModule=\"App\"");
