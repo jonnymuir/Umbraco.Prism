@@ -6,6 +6,21 @@
  *   <link rel="stylesheet" href="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell.css" />
  * See docs/walkthroughs/building-a-mobile-app.md.
  */
+/* Opts every full-page (cross-document) navigation in the mobile app into the View
+ * Transitions API — a supporting WebView automatically cross-fades the outgoing page into the
+ * incoming one instead of a hard white-flash reload, the main thing that gives away that each
+ * bottom-nav tap is a real network round-trip to a web page rather than an instant native tab
+ * switch. Zero JS, and safe everywhere: an unsupporting engine just ignores the at-rule and
+ * falls back to a normal navigation, no broken behaviour either way. Deliberately placed here —
+ * this stylesheet is only ever referenced on a page already gated on isPrismMobileRequest (see
+ * Master.cshtml), so it never opts a plain desktop-web visit into this by accident; @view-
+ * transition has no element to scope itself to (it's document-level, not a normal style rule),
+ * so the file's own conditional inclusion is what does the gating, not a selector in here.
+ */
+@view-transition {
+    navigation: auto;
+}
+
 html.prism-mobile,
 html.prism-mobile body {
     width: 100%;
