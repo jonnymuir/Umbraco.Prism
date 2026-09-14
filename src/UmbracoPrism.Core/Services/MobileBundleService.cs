@@ -1135,12 +1135,131 @@ import WebKit
 // document start and again on DOMContentLoaded, so it wins regardless of whether the page's own
 // <meta name=viewport> tag exists yet.
 class PrismBridgeViewController: CAPBridgeViewController {
+    private var navigationHold: PrismNavigationHoldDelegate?
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        guard let webView = self.webView else { return }
+        // See PrismNavigationHoldDelegate's own remarks for why this exists and how it avoids
+        // reimplementing Capacitor's own navigation handling.
+        let hold = PrismNavigationHoldDelegate(forwardingTo: webView.navigationDelegate)
+        navigationHold = hold
+        webView.navigationDelegate = hold
+    }
+
     override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
         let configuration = super.webViewConfiguration(for: instanceConfiguration)
         let source = "(function(){function pin(){var meta=document.querySelector('meta[name=viewport]');if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}meta.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
         let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         configuration.userContentController.addUserScript(script)
         return configuration
+    }
+}
+
+// Approximates browser "paint holding" for full-page navigations. A normal Safari tab keeps the
+// outgoing page's last frame on screen until the incoming page has something to paint, so there's
+// never a blank gap between pages — WKWebView, embedded the way Capacitor uses it here, doesn't do
+// this on its own (confirmed live: a real blank white gap between every navigation; confirmed by
+// reading Capacitor's own vendored iOS source: no snapshot/hold mechanism anywhere in it, this is
+// a genuine gap in what it provides, not something misconfigured). Freezes the outgoing page as a
+// plain snapshot image the instant a navigation starts, and — only if the real navigation is slow
+// enough to actually notice (100ms) — layers a spinner on top of that frozen frame too, rather
+// than leaving a static image up indefinitely with no sign anything is still happening.
+//
+// Works for every navigation regardless of origin, including the federated redirect chain through
+// a hosted IdP (Entra) and back — a page this app doesn't control obviously can't run any JS of
+// ours, so a DOM-level fix (a click-triggered spinner, tried first) can only ever cover taps on
+// this app's own pages, not that whole chain. This covers all of it, because it hooks the WebView
+// itself, not any one page's content.
+//
+// WKWebView.navigationDelegate is a single slot Capacitor already fills with its own
+// WebViewDelegationHandler (real navigation policy/redirect/auth-challenge handling the bridge
+// depends on to function) — replacing it outright, or reimplementing everything it does by hand,
+// is exactly the kind of blind reimplementation that already broke this app twice this session (on
+// the safe-area fix, before landing on the AppDelegate approach actually shipped). So this
+// implements only the two methods it needs (didStartProvisionalNavigation/didFinish/didFail) and
+// forwards every other WKNavigationDelegate call straight through to Capacitor's own delegate
+// unchanged, via the standard Cocoa message-forwarding decorator pattern
+// (responds(to:)/forwardingTarget(for:)) — Capacitor's own handling of everything else is
+// untouched, not reimplemented.
+private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate {
+    private let target: WKNavigationDelegate?
+    private var freezeView: UIView?
+    private var spinnerRevealWorkItem: DispatchWorkItem?
+
+    init(forwardingTo target: WKNavigationDelegate?) {
+        self.target = target
+    }
+
+    override func responds(to aSelector: Selector!) -> Bool {
+        if super.responds(to: aSelector) { return true }
+        return target?.responds(to: aSelector) ?? false
+    }
+
+    override func forwardingTarget(for aSelector: Selector!) -> Any? {
+        if super.responds(to: aSelector) { return nil }
+        return target
+    }
+
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        freeze(webView)
+        target?.webView?(webView, didStartProvisionalNavigation: navigation)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        target?.webView?(webView, didFinish: navigation)
+        // One extra runloop turn so the new page has actually painted before the freeze lifts —
+        // didFinish fires on load completion, not first paint.
+        DispatchQueue.main.async { [weak self] in self?.unfreeze() }
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        target?.webView?(webView, didFail: navigation, withError: error)
+        unfreeze()
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        target?.webView?(webView, didFailProvisionalNavigation: navigation, withError: error)
+        unfreeze()
+    }
+
+    private func freeze(_ webView: WKWebView) {
+        // The webview's own superview (AppDelegate's safe-area-pinned container — see its own
+        // remarks), not the webview itself: adding a plain UIView as a WKWebView's own direct
+        // subview risks interfering with WKWebView's own internal view hierarchy, which it
+        // manages itself. Read fresh here rather than captured once at init — the view hierarchy
+        // may not be fully attached yet at viewDidLoad time.
+        guard let hostView = webView.superview, freezeView == nil else { return }
+        // Synchronous, not WKWebView's own async takeSnapshot(with:completionHandler:): the
+        // entire point is zero gap between "navigation started" and "frozen frame in place" — an
+        // async round trip would reintroduce exactly the blank window this exists to close, even
+        // if only for a few milliseconds. WKWebView's content composites into the standard UIKit
+        // layer tree, so the plain synchronous UIView snapshot API used by every other app
+        // solving this same problem this way works correctly for it.
+        guard let snapshot = webView.snapshotView(afterScreenUpdates: false) else { return }
+        snapshot.frame = webView.frame
+        hostView.addSubview(snapshot)
+        freezeView = snapshot
+
+        let spinner = UIActivityIndicatorView(style: .medium)
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.hidesWhenStopped = true
+        snapshot.addSubview(spinner)
+        NSLayoutConstraint.activate([
+            spinner.centerXAnchor.constraint(equalTo: snapshot.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: snapshot.centerYAnchor)
+        ])
+
+        let reveal = DispatchWorkItem { spinner.startAnimating() }
+        spinnerRevealWorkItem = reveal
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: reveal)
+    }
+
+    private func unfreeze() {
+        spinnerRevealWorkItem?.cancel()
+        spinnerRevealWorkItem = nil
+        freezeView?.removeFromSuperview()
+        freezeView = nil
     }
 }
 PRISM_SWIFT_EOF

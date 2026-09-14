@@ -336,6 +336,21 @@ public class MobileBundleServiceTests
         // longer overlaps the status bar/Dynamic Island, and renders with its full text intact.
         iosBootstrap.Should().Contain("bridgeViewController.view.topAnchor.constraint(equalTo: container.view.safeAreaLayoutGuide.topAnchor)");
         iosBootstrap.Should().Contain("window?.rootViewController = container");
+
+        // A normal browser tab avoids a blank flash between pages via "paint holding" — WKWebView,
+        // embedded the way Capacitor uses it, doesn't do this on its own (confirmed by reading
+        // Capacitor's own vendored iOS source: no snapshot/hold mechanism anywhere in it). This
+        // approximates it: freezes the outgoing page as a snapshot the instant a navigation
+        // starts, only revealing a spinner on top of it if the real navigation is slow enough to
+        // notice. Forwards every other WKNavigationDelegate call straight through to Capacitor's
+        // own delegate (the standard Cocoa decorator pattern) rather than reimplementing its own
+        // navigation policy/redirect/auth-challenge handling by hand.
+        iosBootstrap.Should().Contain("class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate");
+        iosBootstrap.Should().Contain("webView.navigationDelegate = hold");
+        iosBootstrap.Should().Contain("func forwardingTarget(for aSelector: Selector!) -> Any?");
+        iosBootstrap.Should().Contain("webView.snapshotView(afterScreenUpdates: false)");
+        iosBootstrap.Should().Contain("DispatchQueue.main.asyncAfter(deadline: .now() + 0.1");
+
         iosBootstrap.Should().Contain("customClass=\"PrismBridgeViewController\" customModule=\"App\"");
         iosBootstrap.Should().Contain("Main.storyboard");
         iosBootstrap.Should().Contain("import xcode from 'xcode'");
