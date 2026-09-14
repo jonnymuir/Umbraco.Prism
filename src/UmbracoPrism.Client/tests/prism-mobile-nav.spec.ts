@@ -354,6 +354,58 @@ test.describe('prism-mobile-nav — Structure & Layout', () => {
   });
 });
 
+test.describe('prism-mobile-nav — Tap Feedback', () => {
+  test('Nav items carry ontouchstart so :active reliably fires on tap', async ({ page }) => {
+    await page.goto(defaultStoryUrl);
+
+    const frame = page.frameLocator('#storybook-preview-iframe');
+    const nav = frame.locator('prism-mobile-nav');
+    await expect(nav).toBeVisible();
+
+    const hasTouchStart = await nav.evaluate((el) => {
+      const item = el.shadowRoot?.querySelector('.nav-item');
+      return item?.hasAttribute('ontouchstart') ?? false;
+    });
+
+    expect(hasTouchStart).toBe(true);
+  });
+
+  test('Pressing an item visibly changes its background and scale', async ({ page }) => {
+    await page.goto(defaultStoryUrl);
+
+    const frame = page.frameLocator('#storybook-preview-iframe');
+    const nav = frame.locator('prism-mobile-nav');
+    await expect(nav).toBeVisible();
+
+    const before = await nav.evaluate((el) => {
+      const item = el.shadowRoot?.querySelector('.nav-item') as HTMLElement;
+      const styles = window.getComputedStyle(item);
+      return { background: styles.backgroundColor, transform: styles.transform };
+    });
+
+    const item = frame.locator('prism-mobile-nav').locator('css=.nav-item').first();
+    const box = await item.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.mouse.down();
+    // The :active press transition is deliberately fast (80ms) rather than instant — give the
+    // engine a moment to actually apply and repaint it before reading computed style back, or
+    // this reads a pre-repaint snapshot and looks like nothing changed.
+    await page.waitForTimeout(150);
+
+    const during = await nav.evaluate((el) => {
+      const el2 = el.shadowRoot?.querySelector('.nav-item') as HTMLElement;
+      const styles = window.getComputedStyle(el2);
+      return { background: styles.backgroundColor, transform: styles.transform };
+    });
+
+    await page.mouse.up();
+
+    expect(during.background).not.toBe(before.background);
+    expect(during.transform).not.toBe(before.transform);
+  });
+});
+
 test.describe('prism-mobile-nav — Edge Cases', () => {
   test('Handles empty items array gracefully', async ({ page }) => {
     await page.goto(defaultStoryUrl);
