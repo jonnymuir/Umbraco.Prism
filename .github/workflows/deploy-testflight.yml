@@ -89,6 +89,88 @@ jobs:
         working-directory: mobile-app
         run: npm run bootstrap:ios
 
+      # Guards against exactly the regression found live 2026-09-14: a native-shell change
+      # (fix/webkit-zoom-and-xcode-project-registration) shipped dead-on-arrival on a real
+      # device — a blank black screen, no crash — despite `xcodebuild build` succeeding cleanly.
+      # The root cause (a source file written to disk but never registered in project.pbxproj,
+      # so silently excluded from compilation) has no build-time signal at all; only a real
+      # simulator install+launch surfaces it. This step is that check, running before the
+      # archive/sign/upload steps so a broken build never wastes a TestFlight upload attempt.
+      #
+      # A plain "did the process survive" check would NOT have caught this specific bug (the app
+      # never crashed, it just rendered nothing) — so this compares the actual screenshot's pixel
+      # variance against a near-zero threshold instead. The status bar (clock/wifi/battery icons)
+      # is present even on a fully broken screen and has enough of its own contrast to mask a
+      # blank body if measured across the whole image (confirmed live: a synthetic blank+status-
+      # bar image scored 0.055, only mildly below a synthetic real-content image's 0.24) — so the
+      # top slice is cropped away first, leaving only the content area the app itself renders.
+      - name: Simulator smoke test (build, install, launch, verify real content renders)
+        run: |
+          set -euo pipefail
+
+          echo "Building for iOS Simulator (no signing needed)..."
+          xcodebuild \
+            -workspace mobile-app/ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -derivedDataPath build/sim-dd \
+            build
+
+          APP_PATH=$(find build/sim-dd -maxdepth 6 -iname "App.app" -path "*iphonesimulator*" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::Could not find built App.app under build/sim-dd for the simulator."
+            exit 1
+          fi
+
+          SIM_UDID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.isAvailable and (.name | startswith("iPhone")))][0].udid')
+          if [ -z "$SIM_UDID" ] || [ "$SIM_UDID" == "null" ]; then
+            echo "::error::No available iPhone simulator found on this runner."
+            exit 1
+          fi
+          echo "Using simulator: $SIM_UDID"
+          xcrun simctl boot "$SIM_UDID"
+          xcrun simctl bootstatus "$SIM_UDID" -b
+
+          BUNDLE_ID="${PRISM_APP_ID:-com.jonnymuir.prismreference}"
+          xcrun simctl install "$SIM_UDID" "$APP_PATH"
+          xcrun simctl launch "$SIM_UDID" "$BUNDLE_ID"
+          sleep 10
+
+          if ! xcrun simctl spawn "$SIM_UDID" launchctl list | grep -q "$BUNDLE_ID"; then
+            echo "::error::App process is not running after launch (crashed or failed to start). See the uploaded screenshot artifact."
+            xcrun simctl io "$SIM_UDID" screenshot build/simulator-smoke-test.png || true
+            exit 1
+          fi
+
+          mkdir -p build
+          xcrun simctl io "$SIM_UDID" screenshot build/simulator-smoke-test.png
+          xcrun simctl shutdown "$SIM_UDID" || true
+
+          command -v magick >/dev/null 2>&1 || brew install imagemagick
+
+          # Crop away the top 12% (status bar + any app header, generous margin) so its own
+          # icon/text contrast can't mask a blank body underneath — see the rationale above.
+          magick build/simulator-smoke-test.png -gravity South -crop 100%x88%+0+0 +repage build/simulator-smoke-test-content.png
+          SPREAD=$(magick identify -format "%[fx:standard_deviation]" build/simulator-smoke-test-content.png)
+          echo "Content-area colour standard deviation: $SPREAD"
+
+          if (( $(echo "$SPREAD < 0.03" | bc -l) )); then
+            echo "::error::The app's content area looks near-solid-colour (stddev=$SPREAD) — it likely rendered a blank/broken screen instead of real content. See the uploaded screenshot artifact."
+            exit 1
+          fi
+
+          echo "✓ Simulator smoke test passed — app launched and rendered real content."
+
+      - name: Upload simulator smoke test screenshot (always, for inspection)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: simulator-smoke-test-screenshot
+          path: build/simulator-smoke-test*.png
+          retention-days: 14
+          if-no-files-found: ignore
+
       - name: Write App Store Connect API key
         env:
           APP_STORE_CONNECT_API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}

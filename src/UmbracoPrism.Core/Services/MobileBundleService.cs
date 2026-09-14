@@ -190,7 +190,8 @@ public class MobileBundleService : IMobileBundleService
     "@capacitor/android": "^7.0.0",
     "@capacitor/ios": "^7.0.0",
     "@capacitor/assets": "^3.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "xcode": "^3.0.1"
   }
 }
 """;
@@ -1082,6 +1083,100 @@ fi
 """
             : string.Empty;
 
+        // Capacitor's own `zoomEnabled: false` (already the framework default we rely on — see
+        // capacitor.config.ts's absence of the key) only disables the user's pinch-zoom gesture.
+        // It does NOT stop WKWebView's own "zoom into a focused text input" behaviour, which
+        // fires independently whenever a page's own viewport doesn't cap maximum-scale — reported
+        // live on the Entra/ciamlogin.com sign-in page (hosted content we don't control and can't
+        // add page-level CSS/viewport-meta to, same constraint as the contentInset fix above): the
+        // password field triggered a zoomed-in, left-clipped layout. The only lever that reaches
+        // hosted content is a native WKUserScript, injected via the documented Capacitor extension
+        // point (CAPBridgeViewController.webViewConfiguration(for:), "recommended to call super's
+        // implementation and modify the result") — so this subclasses it and rewires
+        // Main.storyboard to use the subclass, the sanctioned way to add custom native iOS code to
+        // a generated Capacitor project. Unconditional (not gated on biometricAuthEnabled) since
+        // it's a general WebKit fix, not biometric-specific.
+        //
+        // CONFIRMED LIVE (a prior version of this fix shipped without the pbxproj step below and
+        // was dead on arrival on a real device — blank black screen, no crash): Xcode does NOT
+        // auto-discover new files dropped into a project folder (this generated project has no
+        // fileSystemSynchronizedGroups). A .swift file written to disk but never added to
+        // project.pbxproj's Sources build phase is silently excluded from compilation — with NO
+        // build error, `xcodebuild ... build` succeeds regardless — and the storyboard's
+        // customClass reference then fails to resolve at RUNTIME (NSClassFromString returns nil),
+        // leaving a blank window with nothing rendered. Only a real simulator install+launch
+        // caught this; a build-only check did not. The `xcode` npm package (see package.json)
+        // programmatically adds the correct PBXBuildFile/PBXFileReference/Sources-phase entries —
+        // proven end-to-end afterward via a real `xcrun simctl` install+launch+screenshot showing
+        // the app's actual home screen, not just a successful compile.
+        var zoomFixInjection = """
+
+echo "Disabling WebKit's zoom-into-focused-input behaviour on hosted content..."
+if [ -d ios/App/App ]; then
+  cat > ios/App/App/PrismBridgeViewController.swift << 'PRISM_SWIFT_EOF'
+import Capacitor
+import WebKit
+
+// Force-pins every page's own viewport meta tag to maximum-scale=1 at the WebKit level, so it
+// applies even to cross-origin hosted content (forMainFrameOnly: false) that this app has no
+// CSS/markup control over — see bootstrap-ios.sh's own comment for the full rationale. Runs at
+// document start and again on DOMContentLoaded, so it wins regardless of whether the page's own
+// <meta name=viewport> tag exists yet.
+class PrismBridgeViewController: CAPBridgeViewController {
+    override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
+        let configuration = super.webViewConfiguration(for: instanceConfiguration)
+        let source = "(function(){function pin(){var meta=document.querySelector('meta[name=viewport]');if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}meta.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
+        let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        configuration.userContentController.addUserScript(script)
+        return configuration
+    }
+}
+PRISM_SWIFT_EOF
+  echo "✓ PrismBridgeViewController.swift written"
+
+  STORYBOARD="ios/App/App/Base.lproj/Main.storyboard"
+  if [ -f "$STORYBOARD" ]; then
+    if grep -q 'customClass="CAPBridgeViewController"' "$STORYBOARD"; then
+      sed -i.bak 's/customClass="CAPBridgeViewController" customModule="Capacitor"/customClass="PrismBridgeViewController" customModule="App"/' "$STORYBOARD"
+      rm -f "$STORYBOARD.bak"
+      echo "✓ Main.storyboard wired to PrismBridgeViewController"
+    else
+      echo "✓ Main.storyboard already wired to PrismBridgeViewController"
+    fi
+  else
+    echo "⚠️ Main.storyboard not found. Run 'npx cap add ios' first."
+  fi
+
+  cat > .prism-add-swift-file.mjs << 'PRISM_NODE_EOF'
+import xcode from 'xcode';
+import fs from 'node:fs';
+
+const pbxprojPath = 'ios/App/App.xcodeproj/project.pbxproj';
+const project = xcode.project(pbxprojPath);
+project.parseSync();
+
+const refs = project.hash.project.objects.PBXFileReference || {};
+const alreadyPresent = Object.values(refs).some(
+  ref => ref && typeof ref === 'object' && typeof ref.path === 'string' && ref.path.includes('PrismBridgeViewController.swift')
+);
+
+if (!alreadyPresent) {
+  const target = project.getFirstTarget().uuid;
+  project.addSourceFile('App/PrismBridgeViewController.swift', { target }, 'App');
+  fs.writeFileSync(pbxprojPath, project.writeSync());
+  console.log('✓ PrismBridgeViewController.swift registered in project.pbxproj');
+} else {
+  console.log('✓ PrismBridgeViewController.swift already registered in project.pbxproj');
+}
+PRISM_NODE_EOF
+  node .prism-add-swift-file.mjs
+  rm -f .prism-add-swift-file.mjs
+else
+  echo "⚠️ ios/App/App not found. Run 'npx cap add ios' first."
+fi
+
+""";
+
         return $$"""
 #!/usr/bin/env bash
 set -euo pipefail
@@ -1100,7 +1195,7 @@ npx cap sync ios
 
 echo "Generating app icon and splash screen from resources/icon.svg..."
 npx capacitor-assets generate --ios
-{{infoPlistInjection}}
+{{infoPlistInjection}}{{zoomFixInjection}}
 echo "Applying localhost cert trust (if needed)..."
 if ! bash scripts/trust-ios-localhost-cert.sh; then
   echo "⚠️ Cert trust step did not complete. Continuing..."
