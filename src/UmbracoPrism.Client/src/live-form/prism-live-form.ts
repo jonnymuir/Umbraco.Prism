@@ -175,6 +175,18 @@ function boot(): void {
       update();
     }
   });
+
+  // Run once on load, not just after the first interaction. The chart in particular needs
+  // this: the server renders its bars/legend with literal style="height:...;background:..."
+  // attributes (per-datapoint values computed from real data, not a fixed set of classes CSP
+  // could allow-list), which a strict style-src with no unsafe-inline blocks outright — found
+  // live, a real chart rendering fully blank until the user touched a slider. rebuildChart's
+  // own DOM writes (element.style.height = ..., not a "style" attribute string) aren't inline
+  // style="" attributes at all as far as CSP is concerned, so running the exact same update()
+  // this handler already runs on every change once immediately here repaints the chart (and
+  // re-confirms every other bound value) through that same safe path before the user does
+  // anything, rather than leaving the page relying on the server's blocked markup until they do.
+  update();
 }
 
 function rebuildChart(figure: HTMLElement, series: Record<string, Array<Record<string, CalcValue>>>): void {
