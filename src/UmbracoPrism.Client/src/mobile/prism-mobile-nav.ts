@@ -70,6 +70,8 @@ const ICONS: Record<string, string> = {
  *   --prism-mobile-nav-item-color       Item text/icon colour         (default: rgba(60,60,67,0.6))
  *   --prism-mobile-nav-item-hover-bg    Item hover background         (default: rgba(0,0,0,0.05))
  *   --prism-mobile-nav-item-hover-color Item hover colour             (default: rgba(60,60,67,0.85))
+ *   --prism-mobile-nav-item-pressed-bg  Background while being tapped (default: rgba(0,0,0,0.08))
+ *   --prism-mobile-nav-item-pressed-scale Scale factor while tapped   (default: 0.96)
  *   --prism-mobile-nav-item-active-bg   Active item background        (default: transparent)
  *   --prism-mobile-nav-item-active-border Active item border colour   (default: transparent)
  *   --prism-mobile-nav-item-active-color  Active item text/icon color (default: var(--prism-primary,#007aff))
@@ -141,6 +143,9 @@ export class PrismMobileNavElement extends LitElement {
       <nav role="navigation" aria-label="${this.navLabel}">
         ${items.map(item => {
           const active = this._isActive(item.href);
+          // ontouchstart="" (empty, no handler) is the long-standing WebKit trick for getting
+          // :active to reliably apply on tap for an anchor at all, not just mouse clicks —
+          // cheap enough to keep even if the current WKWebView no longer strictly needs it.
           return html`
             <a
               class="nav-item${active ? ' nav-item--active' : ''}"
@@ -148,6 +153,7 @@ export class PrismMobileNavElement extends LitElement {
               aria-current="${ifDefined(active ? 'page' : undefined)}"
               target="${ifDefined(item.target === '_blank' ? '_blank' : undefined)}"
               rel="${ifDefined(item.target === '_blank' ? 'noopener noreferrer' : undefined)}"
+              ontouchstart=""
             >
               ${this._renderIcon(item.icon)}
               <span class="nav-label">${item.label}</span>
@@ -202,7 +208,8 @@ export class PrismMobileNavElement extends LitElement {
       transition:
         color var(--prism-mobile-nav-transition, 200ms ease),
         background var(--prism-mobile-nav-transition, 200ms ease),
-        border-color var(--prism-mobile-nav-transition, 200ms ease);
+        border-color var(--prism-mobile-nav-transition, 200ms ease),
+        transform 150ms ease;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
       outline-offset: 2px;
@@ -211,6 +218,21 @@ export class PrismMobileNavElement extends LitElement {
     .nav-item:hover {
       color: var(--prism-mobile-nav-item-hover-color, rgba(60, 60, 67, 0.85));
       background: var(--prism-mobile-nav-item-hover-bg, rgba(0, 0, 0, 0.05));
+    }
+
+    /* Tap feedback — distinct from .nav-item--active (the currently-selected tab, which
+       persists) and from :hover (which barely fires on a touchscreen at all). Without this
+       there was no acknowledgment of a tap whatsoever until the new page finished loading,
+       which — since each tap is a real navigation, not an in-page state change — could be
+       long enough to read as "did that register?". A fast, near-instant press-in (its own
+       short transition, overriding the base one below) with a slower release matches iOS's
+       own button/cell press convention. */
+    .nav-item:active {
+      background: var(--prism-mobile-nav-item-pressed-bg, rgba(0, 0, 0, 0.08));
+      transform: scale(var(--prism-mobile-nav-item-pressed-scale, 0.96));
+      transition:
+        background 80ms ease,
+        transform 80ms ease;
     }
 
     .nav-item:focus-visible {
