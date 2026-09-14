@@ -443,13 +443,6 @@
       ],
       "routes": [
         {
-          "id": "model--recalculate--recalculate-loop",
-          "target": "recalculate-loop",
-          "trigger": "recalculate",
-          "label": "Recalculate",
-          "style": "secondary"
-        },
-        {
           "id": "model--request-quote--fan-out-quote-request",
           "target": "fan-out-quote-request",
           "trigger": "request-quote",
@@ -592,19 +585,6 @@
       "routes": [
         {
           "id": "to-model-from-quote--continue--model",
-          "target": "model",
-          "trigger": "continue"
-        }
-      ]
-    },
-    {
-      "key": "recalculate-loop",
-      "displayName": "Recalculate",
-      "gatewayType": "Split",
-      "queueKey": "web-user",
-      "routes": [
-        {
-          "id": "recalculate-loop--continue--model",
           "target": "model",
           "trigger": "continue"
         }

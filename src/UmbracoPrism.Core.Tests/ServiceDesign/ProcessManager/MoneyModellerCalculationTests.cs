@@ -192,6 +192,29 @@ public class MoneyModellerCalculationTests
     }
 
     [Fact]
+    public void IncomeSeries_InQuoteMode_StillProjectsAcrossAges()
+    {
+        // Reported live: the graph renders axis labels and legend but no bars specifically on
+        // the "I have a quote" path. QuoteMode_UsesQuoteFiguresWithoutRetirementFactors already
+        // covers the scalar fields (resultPension etc.) and IncomeSeries_Covers... already covers
+        // the series in the non-quote (retireAge) path — nothing combines quote-mode inputs with
+        // a series assertion, which is exactly the gap that symptom points at.
+        var result = Evaluate(ActiveWithDc, new()
+        {
+            ["qPension"] = "18500",
+            ["qLump"] = "55500",
+            ["qDC"] = "48000",
+            ["qAge"] = "60"
+        });
+
+        result.Series.Should().ContainKey("incomeByAge");
+        var rows = result.Series["incomeByAge"];
+        rows.Should().HaveCount(31, "ages 60 to 90 inclusive, same range shape as the non-quote path");
+        rows.Should().Contain(r => (decimal)r["db"]! > 0, "the quoted Guaranteed Award should appear as db income somewhere in the series");
+        rows.Should().Contain(r => (decimal)r["dc"]! > 0, "the quoted Flexible Pot should appear as dc income somewhere in the series");
+    }
+
+    [Fact]
     public void EvaluateCollectingErrors_OnARealSetWithADeliberatelyBrokenField_ReportsRatherThanThrows()
     {
         var serviceInputs = new Dictionary<string, object?>
