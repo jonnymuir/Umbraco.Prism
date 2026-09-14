@@ -214,18 +214,25 @@ const config: CapacitorConfig = {
   webDir: 'www',
   bundledWebRuntime: false,
   ios: {
-    // 'automatic' is Capacitor's own default and a documented source of horizontal content-
-    // shift/touch-offset bugs in WKWebView's UIScrollView content-inset adjustment on the OIDC
-    // login screen (Entra/ciamlogin.com) — hosted content this app can't add safe-area CSS to.
-    // A prior fix (#219) switched to 'never', which stops that shift but does so by disabling
-    // safe-area inset adjustment ENTIRELY — confirmed live (screenshot + a matching simulator
-    // repro: the exact same page, at the exact same auto-focused-input state, compared side by
-    // side) that this left the page's own header rendering under the status bar/notch, since
-    // hosted content has no safe-area CSS of its own to fall back on either. 'always'
-    // unconditionally reserves safe-area space regardless of scrollability — confirmed live it
-    // clears the status-bar overlap AND does not reintroduce the original horizontal shift (the
-    // full title renders intact, "PRISM TENANT A" not "RISM TENANT A", in the same repro).
-    contentInset: 'always'
+    // History: 'automatic' (Capacitor's own default) caused a horizontal content-shift/touch-
+    // offset bug in WKWebView's UIScrollView content-inset adjustment on the OIDC login screen
+    // (Entra/ciamlogin.com) — hosted content this app can't add safe-area CSS to. 'never' (#219)
+    // stopped that shift but disabled safe-area adjustment entirely, leaving hosted content
+    // under the status bar/notch. 'always' (#248) reserved safe-area space unconditionally —
+    // but confirmed live it STILL left hosted content (the same Entra page) rendering under the
+    // status bar on a real device: contentInset only offsets a WKWebView's *scroll position*, it
+    // doesn't move anything for content that doesn't scroll, or that a page positions outside
+    // the normal flow — which a page this app doesn't control is free to do regardless of what
+    // native inset is set.
+    //
+    // The actual fix is native, not a WKWebView content setting at all: PrismBridgeViewController
+    // now pins the WKWebView's own frame to the safe-area layout guide (see bootstrap-ios.sh),
+    // so the unsafe strip at the top/bottom is never part of the WebView's drawable area in the
+    // first place, regardless of what any page — ours or a hosted IdP's — does with scroll or
+    // positioning. contentInset goes back to 'never' here so the two mechanisms don't double up
+    // (the frame already excludes the unsafe area; an inset on top of that would reserve it
+    // twice).
+    contentInset: 'never'
   },
   appendUserAgent: '{{EscapeSingleQuotes(marker)}}',
   server: {
@@ -1138,6 +1145,86 @@ class PrismBridgeViewController: CAPBridgeViewController {
 }
 PRISM_SWIFT_EOF
   echo "✓ PrismBridgeViewController.swift written"
+
+  echo "Pinning the app's root view to the safe area layout guide..."
+  cat > ios/App/App/AppDelegate.swift << 'PRISM_APPDELEGATE_EOF'
+import UIKit
+import Capacitor
+
+@UIApplicationMain
+class AppDelegate: UIResponder, UIApplicationDelegate {
+
+    var window: UIWindow?
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // Pins the storyboard's own root view controller (PrismBridgeViewController — see its
+        // own remarks) inside a plain wrapper whose view is safe-area-pinned, via standard view
+        // controller containment. Not done inside PrismBridgeViewController itself: Capacitor's
+        // own loadView() is `final` and unconditionally does `view = webView` — the view
+        // controller's `view` and its `webView` are literally the same object, not a webview
+        // nested inside some container Prism could re-constrain. Confirmed live (reading
+        // Capacitor's own vendored source, and by two failed attempts guided by the wrong
+        // assumption): trying to reconstrain "the webview" from inside that view controller is
+        // trying to reconstrain a view relative to itself. Wrapping from the outside — one
+        // level up, in the window's own root view controller — sidesteps that entirely and
+        // needs nothing Capacitor doesn't already fully support (its bridge view controller
+        // works the same as a child VC as it does as the window's direct root).
+        if let bridgeViewController = window?.rootViewController {
+            let container = UIViewController()
+            container.view.backgroundColor = .white
+            container.addChild(bridgeViewController)
+            container.view.addSubview(bridgeViewController.view)
+            bridgeViewController.view.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                bridgeViewController.view.topAnchor.constraint(equalTo: container.view.safeAreaLayoutGuide.topAnchor),
+                bridgeViewController.view.bottomAnchor.constraint(equalTo: container.view.safeAreaLayoutGuide.bottomAnchor),
+                bridgeViewController.view.leadingAnchor.constraint(equalTo: container.view.leadingAnchor),
+                bridgeViewController.view.trailingAnchor.constraint(equalTo: container.view.trailingAnchor)
+            ])
+            bridgeViewController.didMove(toParent: container)
+            window?.rootViewController = container
+        }
+        return true
+    }
+
+    func applicationWillResignActive(_ application: UIApplication) {
+        // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
+        // Use this method to pause ongoing tasks, disable timers, and invalidate graphics rendering callbacks. Games should use this method to pause the game.
+    }
+
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
+        // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
+    }
+
+    func applicationWillEnterForeground(_ application: UIApplication) {
+        // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
+    }
+
+    func applicationDidBecomeActive(_ application: UIApplication) {
+        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+    }
+
+    func applicationWillTerminate(_ application: UIApplication) {
+        // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+    }
+
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        // Called when the app was launched with a url. Feel free to add additional processing here,
+        // but if you want the App API to support tracking app url opens, make sure to keep this call
+        return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+    }
+
+    func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+        // Called when the app was launched with an activity, including Universal Links.
+        // Feel free to add additional processing here, but if you want the App API to support
+        // tracking app url opens, make sure to keep this call
+        return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
+    }
+
+}
+PRISM_APPDELEGATE_EOF
+  echo "✓ AppDelegate.swift written"
 
   STORYBOARD="ios/App/App/Base.lproj/Main.storyboard"
   if [ -f "$STORYBOARD" ]; then

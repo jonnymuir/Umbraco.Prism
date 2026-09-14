@@ -84,22 +84,32 @@ internal sealed class PrismSecurityHeadersMiddleware(
     {
         var headers = context.Response.Headers;
 
-        // Found live: the OIDC sign-in/sign-out redirect chain (AccountController.Login/Logout's
-        // SignOut()/Challenge() calls) issues plain 3xx responses with no Content-Type at all
-        // (a redirect has no body to describe) — verified directly: `curl -D-` against
-        // /auth/login returns "HTTP/2 302", "content-length: 0", no content-type header, and
-        // this middleware's own X-Content-Type-Options: nosniff sitting alongside it regardless.
-        // On a real device, WKWebView treats that combination — nosniff, on a response with no
-        // declared type to trust — as an undeterminable resource and offers it as a phantom
-        // zero-byte "download" instead of just following the Location header, breaking sign-in
-        // and sign-out on mobile (silently fine on desktop browsers, and invisible to the
-        // Playwright-driven tests that verified the sign-out flow earlier, since neither
-        // reproduces this specific real-WKWebView fallback). nosniff exists to stop a browser
-        // misinterpreting *rendered content* as something other than its declared type — a
-        // redirect has no rendered content, so skipping it here loses no real protection.
-        var isRedirect = context.Response.StatusCode is >= 300 and < 400;
+        // Found live (round 1): the OIDC sign-in/sign-out redirect chain (AccountController
+        // .Login/Logout's SignOut()/Challenge() calls) issues plain 3xx responses with no
+        // Content-Type at all (a redirect has no body to describe) — verified directly:
+        // `curl -D-` against /auth/login returns "HTTP/2 302", "content-length: 0", no
+        // content-type header, and this middleware's own X-Content-Type-Options: nosniff
+        // sitting alongside it regardless. On a real device, WKWebView treats that combination
+        // — nosniff, on a response with no declared type to trust — as an undeterminable
+        // resource and offers it as a phantom zero-byte "download" instead of just rendering
+        // (or, for a redirect, following the Location header), breaking sign-in/out on mobile
+        // (silently fine on desktop browsers, and invisible to Playwright, since neither
+        // reproduces this specific real-WKWebView fallback).
+        //
+        // Found live (round 2): scoping the fix to 3xx alone wasn't enough — sign-out still
+        // triggered the phantom download after the above shipped. The sign-out chain (see
+        // prism-biometric-signout.js's own remarks) ends by loading /signout-callback-oidc,
+        // ASP.NET Core's own OIDC SignedOutCallbackPath handler — verified directly: `curl -D-`
+        // against it returns "HTTP/2 200", "content-length: 0", no content-type header, nosniff
+        // present regardless, the exact same trigger signature as the 3xx case, just on a 200.
+        // The real condition was never "is this a redirect", it's "does this response have any
+        // actual content whose type nosniff could even apply to" — nosniff on an empty,
+        // typeless body gives WebKit nothing to trust and nothing to render, so it falls back to
+        // treating it as a download either way, regardless of status code.
+        var hasNoRenderableBody = context.Response.ContentLength is null or 0
+            && string.IsNullOrEmpty(context.Response.ContentType);
 
-        if (_options.ContentTypeOptions is not null && !isRedirect)
+        if (_options.ContentTypeOptions is not null && !hasNoRenderableBody)
             headers["X-Content-Type-Options"] = _options.ContentTypeOptions;
 
         if (_options.FrameOptions is not null)

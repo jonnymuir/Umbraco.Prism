@@ -69,6 +69,10 @@ public class PrismSecurityHeadersMiddlewareTests
     {
         var middleware = BuildMiddleware();
         var (ctx, feature) = BuildHttpsContext("/dashboard");
+        // A real rendered page always sets Content-Type by the time OnStarting fires — set here
+        // so this exercises "a normal page response", not the empty/typeless case that
+        // ContentTypeOptions_IsOmitted_OnAnEmptyTypelessOkResponse below covers separately.
+        ctx.Response.ContentType = "text/html; charset=utf-8";
 
         await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
@@ -111,6 +115,53 @@ public class PrismSecurityHeadersMiddlewareTests
         // (e.g. HSTS forces the upgrade before the redirect target is even fetched).
         ctx.Response.Headers.Should().ContainKey("X-Frame-Options");
         ctx.Response.Headers.Should().ContainKey("Strict-Transport-Security");
+    }
+
+    [Fact]
+    public async Task ContentTypeOptions_IsOmitted_OnAnEmptyTypelessOkResponse()
+    {
+        // Found live: scoping the fix above to 3xx alone wasn't enough — sign-out still showed
+        // the phantom download on a real device after it shipped. The sign-out chain (see
+        // prism-biometric-signout.js) ends by loading /signout-callback-oidc, ASP.NET Core's own
+        // OIDC SignedOutCallbackPath handler — confirmed via a direct network capture against the
+        // real deployed app: HTTP/2 200, content-length: 0, no content-type header, nosniff
+        // present regardless. Same trigger signature as the redirect case, just on a 200 — the
+        // real condition was never "is this a redirect", it's "does this response have any
+        // content whose type nosniff could even apply to".
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/signout-callback-oidc");
+        ctx.Response.StatusCode = StatusCodes.Status200OK;
+        // Deliberately NOT setting ContentType/ContentLength — matches the real captured
+        // response exactly (a genuine empty body, not just a test that forgot to set them).
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().NotContainKey("X-Content-Type-Options",
+            "an empty, typeless 200 gives WebKit nothing to render and nothing to trust — " +
+            "nosniff on it is what triggers the same phantom-download fallback as the redirect case");
+        ctx.Response.Headers.Should().ContainKey("X-Frame-Options");
+        ctx.Response.Headers.Should().ContainKey("Strict-Transport-Security");
+    }
+
+    [Fact]
+    public async Task ContentTypeOptions_IsStillApplied_OnANormalHtmlResponse()
+    {
+        // Regression guard for the fix above: broadening the exemption from "is this a redirect"
+        // to "does this response have no body/content-type" must not accidentally exempt a real
+        // rendered page just because it happens to use chunked transfer (no Content-Length) —
+        // only the co-occurrence of NO Content-Type AND no/zero Content-Length should exempt,
+        // and a real page response always sets Content-Type even when chunked.
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/dashboard");
+        ctx.Response.StatusCode = StatusCodes.Status200OK;
+        ctx.Response.ContentType = "text/html; charset=utf-8";
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().ContainKey("X-Content-Type-Options");
+        ctx.Response.Headers["X-Content-Type-Options"].ToString().Should().Be("nosniff");
     }
 
     [Fact]
@@ -267,6 +318,7 @@ public class PrismSecurityHeadersMiddlewareTests
         var options = new PrismSecurityHeadersOptions { ExcludeBackoffice = false };
         var middleware = BuildMiddleware(options);
         var (ctx, feature) = BuildHttpsContext("/umbraco/backoffice/api/something");
+        ctx.Response.ContentType = "application/json";
 
         await middleware.InvokeAsync(ctx, BuildPrismContext());
         await feature.FireOnStartingAsync();
@@ -343,6 +395,10 @@ public class PrismSecurityHeadersMiddlewareTests
 
         await middleware.InvokeAsync(ctx, BuildPrismContext());
         ctx.Response.Headers.Clear(); // simulates the downstream reset
+        // ...then the branded 404 page itself sets a real Content-Type as it writes its body —
+        // same as the reset in production, which clears headers but always ends in real
+        // rendered HTML, never an empty/typeless response.
+        ctx.Response.ContentType = "text/html; charset=utf-8";
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("X-Content-Type-Options",

@@ -49,7 +49,7 @@ public class MobileBundleServiceTests
         config.Should().Contain("appId: 'com.example.northwind'");
         config.Should().Contain("appName: 'Northwind Mobile'");
         config.Should().Contain("appendUserAgent: 'PrismMobile'");
-        config.Should().Contain("contentInset: 'always'");
+        config.Should().Contain("contentInset: 'never'");
         config.Should().Contain("url: 'https://northwind.example/?prismMobile=1'");
         config.Should().Contain("allowNavigation:");
         config.Should().Contain("'northwind.example'");
@@ -321,6 +321,21 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("maximum-scale=1, user-scalable=no");
         iosBootstrap.Should().Contain("forMainFrameOnly: false");
         iosBootstrap.Should().Contain("ios/App/App/PrismBridgeViewController.swift");
+
+        // Reported live on the same Entra password screen: contentInset:'always' (a scroll-offset
+        // setting) did NOT stop hosted content rendering under the status bar/notch — it only
+        // offsets scroll position, which does nothing for content that doesn't scroll or that a
+        // page positions outside normal flow. The real fix is one level up, in AppDelegate: wraps
+        // the storyboard's own root view controller in a plain container via standard view
+        // controller containment, safe-area-pinned. Not done inside PrismBridgeViewController
+        // itself — confirmed via Capacitor's own vendored source that its loadView() is `final`
+        // and unconditionally does `view = webView`, so the view controller's `view` and its
+        // `webView` are the same object; there's no separate webview-inside-a-container to
+        // reconstrain from in there. Verified end-to-end via a real simulator install+launch
+        // against the actual Entra page (not just this generator's own output): the title no
+        // longer overlaps the status bar/Dynamic Island, and renders with its full text intact.
+        iosBootstrap.Should().Contain("bridgeViewController.view.topAnchor.constraint(equalTo: container.view.safeAreaLayoutGuide.topAnchor)");
+        iosBootstrap.Should().Contain("window?.rootViewController = container");
         iosBootstrap.Should().Contain("customClass=\"PrismBridgeViewController\" customModule=\"App\"");
         iosBootstrap.Should().Contain("Main.storyboard");
         iosBootstrap.Should().Contain("import xcode from 'xcode'");

@@ -120,11 +120,21 @@ var __prismDebug = (function() {
         'font-family:var(--prism-font-body,-apple-system,BlinkMacSystemFont,sans-serif);';
       // min-height:52px (not just padding) guarantees a proper touch target regardless of
       // font rendering — 13px padding + text alone measured visibly small/cramped live.
+      // -webkit-appearance:none/appearance:none is load-bearing, not decorative: iOS WebKit
+      // gives <button> native OS chrome by default, and that native chrome can silently override
+      // CSS sizing (min-height included) with the platform's own intrinsic control height —
+      // a well-documented WKWebView quirk. Found live: the diagnostic below measured these
+      // buttons at 20px tall on a real device despite min-height:52px being confirmed served
+      // and rendering correctly in an isolated (non-native-chrome) simulator repro — the
+      // isolated repro never exercised real native button chrome, which only WebKit itself
+      // applies, so it couldn't have caught this.
+      var btnStyle = 'flex:1;min-height:52px;padding:14px 16px;border:none;border-radius:10px;' +
+        'font-size:1.0625rem;font-weight:600;cursor:pointer;-webkit-appearance:none;appearance:none;';
       banner.innerHTML = '<p style="margin:0 0 6px;font-size:1.0625rem;font-weight:600;color:var(--prism-text,#111827);">Enable Face ID / Touch ID?</p>' +
         '<p style="margin:0 0 18px;font-size:.9rem;color:var(--prism-muted,#6b7280);">Sign in faster next time without entering your password.</p>' +
         '<div style="display:flex;gap:12px;">' +
-          '<button id="prism-bio-yes" style="flex:1;min-height:52px;padding:14px 16px;background:var(--prism-primary,#2563eb);color:var(--prism-primary-contrast,#fff);border:none;border-radius:10px;font-size:1.0625rem;font-weight:600;cursor:pointer;">Enable</button>' +
-          '<button id="prism-bio-no" style="flex:1;min-height:52px;padding:14px 16px;background:var(--prism-surface-alt,#f3f4f6);color:var(--prism-text,#374151);border:none;border-radius:10px;font-size:1.0625rem;font-weight:600;cursor:pointer;">Not now</button>' +
+          '<button id="prism-bio-yes" style="' + btnStyle + 'background:var(--prism-primary,#2563eb);color:var(--prism-primary-contrast,#fff);">Enable</button>' +
+          '<button id="prism-bio-no" style="' + btnStyle + 'background:var(--prism-surface-alt,#f3f4f6);color:var(--prism-text,#374151);">Not now</button>' +
         '</div>';
       document.body.appendChild(banner);
       document.getElementById('prism-bio-no').addEventListener('click', function () {
