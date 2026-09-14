@@ -90,13 +90,20 @@
             <p>Use Face ID or fingerprint to sign in securely from the mobile app — no password needed.</p>
 
             <div class="dash-bio-card">
-                <div class="dash-bio-status">
-                    <div class="dash-bio-status__dot dash-bio-status__dot--inactive"></div>
-                    <strong>Not configured</strong>
-                    <span style="color: var(--prism-muted); font-size: var(--prism-text-size-sm, 13px);">Set up via mobile app</span>
+                <!-- Static "Not configured" is the correct default — it's what a desktop web
+                     visitor genuinely sees (there's no biometric hardware to check). On the
+                     actual mobile app, prism-biometric-status.js below rewrites this in place
+                     to reflect this device's real enrollment state; found live: this previously
+                     said "Not configured" unconditionally, even moments after a real, successful
+                     Face ID enrollment and sign-in, because nothing had ever wired it up to an
+                     actual check. -->
+                <div class="dash-bio-status" data-prism-biometric-status>
+                    <div class="dash-bio-status__dot dash-bio-status__dot--inactive" data-prism-biometric-dot></div>
+                    <strong data-prism-biometric-label>Not configured</strong>
+                    <span style="color: var(--prism-muted); font-size: var(--prism-text-size-sm, 13px);" data-prism-biometric-hint>Set up via mobile app</span>
                 </div>
 
-                <div class="dash-bio-steps">
+                <div class="dash-bio-steps" data-prism-biometric-steps>
                     <div class="dash-bio-step">
                         <div class="dash-bio-step__num">1</div>
                         <div>
@@ -200,6 +207,11 @@
         <!-- Downstream API demo script (SEC-PT2-004: externalized, not spliced inline; the
              call/reset buttons above are wired by id in the script itself, not onclick="..."). -->
         <script src="/js/member-dashboard-downstream-demo.js"></script>
+
+        <!-- Rewrites the Biometric Authentication card above to this device's real enrollment
+             state — a no-op outside the native app, where the static "Not configured" markup
+             is already the right message. -->
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-status.js"></script>
 
 
         <div style="margin-top: 24px;">
