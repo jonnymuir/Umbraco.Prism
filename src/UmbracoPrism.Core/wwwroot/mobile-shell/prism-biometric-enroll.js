@@ -112,11 +112,13 @@ var __prismDebug = (function() {
         'background:var(--prism-surface,#fff);border-top:1px solid var(--prism-border,#e5e7eb);' +
         'border-radius:16px 16px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.15);' +
         'font-family:var(--prism-font-body,-apple-system,BlinkMacSystemFont,sans-serif);';
+      // min-height:52px (not just padding) guarantees a proper touch target regardless of
+      // font rendering — 13px padding + text alone measured visibly small/cramped live.
       banner.innerHTML = '<p style="margin:0 0 6px;font-size:1.0625rem;font-weight:600;color:var(--prism-text,#111827);">Enable Face ID / Touch ID?</p>' +
-        '<p style="margin:0 0 16px;font-size:.9rem;color:var(--prism-muted,#6b7280);">Sign in faster next time without entering your password.</p>' +
-        '<div style="display:flex;gap:10px;">' +
-          '<button id="prism-bio-yes" style="flex:1;padding:13px;background:var(--prism-primary,#2563eb);color:var(--prism-primary-contrast,#fff);border:none;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;">Enable</button>' +
-          '<button id="prism-bio-no" style="flex:1;padding:13px;background:var(--prism-surface-alt,#f3f4f6);color:var(--prism-text,#374151);border:none;border-radius:10px;font-size:.9rem;font-weight:600;cursor:pointer;">Not now</button>' +
+        '<p style="margin:0 0 18px;font-size:.9rem;color:var(--prism-muted,#6b7280);">Sign in faster next time without entering your password.</p>' +
+        '<div style="display:flex;gap:12px;">' +
+          '<button id="prism-bio-yes" style="flex:1;min-height:52px;padding:14px 16px;background:var(--prism-primary,#2563eb);color:var(--prism-primary-contrast,#fff);border:none;border-radius:10px;font-size:1.0625rem;font-weight:600;cursor:pointer;">Enable</button>' +
+          '<button id="prism-bio-no" style="flex:1;min-height:52px;padding:14px 16px;background:var(--prism-surface-alt,#f3f4f6);color:var(--prism-text,#374151);border:none;border-radius:10px;font-size:1.0625rem;font-weight:600;cursor:pointer;">Not now</button>' +
         '</div>';
       document.body.appendChild(banner);
       document.getElementById('prism-bio-no').addEventListener('click', function () { banner.remove(); });
