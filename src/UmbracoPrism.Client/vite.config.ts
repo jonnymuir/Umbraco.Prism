@@ -16,13 +16,14 @@ export default defineConfig({
         // Standalone frontend web component — no Umbraco dependencies,
         // safe to load in the public-facing test site shell
         'prism-mobile-nav': 'src/mobile/prism-mobile-nav.ts',
-        // Generic live-form runtime: re-evaluates a service request's declarative
-        // calculations client-side and updates bound components in place
-        'prism-live-form': 'src/live-form/prism-live-form.ts',
         // Generic file-upload runtime: uploads a chosen file immediately with a real progress
-        // bar, independent of prism-live-form (a stage can have file-upload fields with no
-        // calculations block at all) — see Wayfinder.Umbraco's ServiceRequestPageViewModel.HasFileUploadField
-        // for the matching server-side gate on whether this script is even included.
+        // bar — a genuine host extension point, unlike the live-form runtime, which this package
+        // no longer ships its own copy of (see Wayfinder.Umbraco's ServiceRequestPageViewModel.HasFileUploadField
+        // for the matching server-side gate on whether this script is even included). Blueprint
+        // stages now load Wayfinder.Rendering.GovUk's own wayfinder-live-form.js directly for
+        // declarative-calculation recalculation, instead of this package's former
+        // prism-live-form.ts (deleted — it duplicated that script's logic, drifting from
+        // Wayfinder's own fixes until this).
         'prism-file-upload': 'src/file-upload/prism-file-upload.ts',
       },
       output: {

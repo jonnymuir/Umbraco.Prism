@@ -1,10 +1,11 @@
 // ⚠️ MOBILE BOUNDARY: No @umbraco-cms imports allowed in this directory.
 //
-// Generic progressive enhancement for any file-upload field. Independent of prism-live-form.ts
-// (which only boots when a stage declares a calculations block) — a stage can have
-// file-upload fields with no calculations at all, so this boots on its own, gated purely on
-// whether [data-wayfinder-file-upload] exists on the page (see Wayfinder.Umbraco's
-// ServiceRequestPageViewModel.HasFileUploadField for the server-side half of that gate).
+// Generic progressive enhancement for any file-upload field. Independent of
+// Wayfinder.Rendering.GovUk's wayfinder-live-form.js (which only boots when a stage declares a
+// calculations block) — a stage can have file-upload fields with no calculations at all, so this
+// boots on its own, gated purely on whether [data-wayfinder-file-upload] exists on the page (see
+// Wayfinder.Umbraco's ServiceRequestPageViewModel.HasFileUploadField for the server-side half of
+// that gate).
 //
 // On choosing a file, uploads it immediately via XMLHttpRequest (not fetch — upload.onprogress
 // is what makes a real, accessible progress bar possible) to a host's own file-upload endpoint
