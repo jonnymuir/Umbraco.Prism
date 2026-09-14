@@ -1734,13 +1734,13 @@ html.prism-mobile .dash-welcome h1 {
  * shell's own page background (~#f3f2f1, intentional — a deliberate off-white surface, not a
  * bug) lands almost exactly on GOV.UK Frontend's own govuk-button--secondary background
  * (#f3f3f3, a difference of 1-2 RGB units), while the web layout's white background gives the
- * same button plenty of contrast — hence "fine on web, broken on mobile" specifically. GDS's
- * own secondary button relies on background contrast alone for its edge (govuk-frontend.min.css
- * gives it no border color of its own, only the default fully-transparent one every
- * .govuk-button gets) — fine against GDS's own typical white page, not guaranteed against
- * an arbitrary surface color. A visible border makes the edge legible regardless of what a
- * tenant's own background happens to be.
+ * same button plenty of contrast — hence "fine on web, broken on mobile" specifically.
+ *
+ * A first attempt added a border instead (keeping the same grey fill everywhere) but read as
+ * clumsy in practice. This is more direct: the button's own grey fill is only actually needed
+ * for contrast against a white page — on mobile's own off-white surface, white is what
+ * contrasts, so swap the fill itself there instead of decorating around the problem.
  */
-.govuk-button--secondary {
-    border-color: var(--prism-border, #b1b4b6);
+html.prism-mobile .govuk-button--secondary {
+    background-color: var(--prism-surface, #ffffff);
 }
