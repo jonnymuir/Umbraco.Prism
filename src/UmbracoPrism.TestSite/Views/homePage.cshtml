@@ -36,7 +36,7 @@
                 <p>Your secure portal is ready. Head to your dashboard to manage your account.</p>
                 <div class="hero-actions">
                     <a href="@dashboardUrl" class="btn btn-primary">Go to Dashboard</a>
-                    <form method="post" action="/auth/logout" style="display:inline;">
+                    <form method="post" action="/auth/logout" class="form-inline">
                         @Html.AntiForgeryToken()
                         <button type="submit" class="btn btn-ghost">Sign Out</button>
                     </form>
@@ -109,43 +109,43 @@
                     <p class="ds-card__subtitle">Full palette of brand colours</p>
                     <div class="token-palette">
                         <div class="token-swatch">
-                            <div class="token-swatch__color" style="background: var(--prism-primary);"></div>
+                            <div class="token-swatch__color u-swatch-bg--primary"></div>
                             <div class="token-swatch__label">
                                 <span class="token-chip">--prism-primary</span>
                             </div>
                         </div>
                         <div class="token-swatch">
-                            <div class="token-swatch__color" style="background: var(--prism-accent);"></div>
+                            <div class="token-swatch__color u-swatch-bg--accent"></div>
                             <div class="token-swatch__label">
                                 <span class="token-chip">--prism-accent</span>
                             </div>
                         </div>
                         <div class="token-swatch">
-                            <div class="token-swatch__color" style="background: var(--prism-surface);"></div>
+                            <div class="token-swatch__color u-swatch-bg--surface"></div>
                             <div class="token-swatch__label">
                                 <span class="token-chip">--prism-surface</span>
                             </div>
                         </div>
                         <div class="token-swatch">
-                            <div class="token-swatch__color" style="background: var(--prism-surface-alt);"></div>
+                            <div class="token-swatch__color u-swatch-bg--surface-alt"></div>
                             <div class="token-swatch__label">
                                 <span class="token-chip">--prism-surface-alt</span>
                             </div>
                         </div>
                         <div class="token-swatch">
-                            <div class="token-swatch__color" style="background: var(--prism-text);"></div>
+                            <div class="token-swatch__color u-swatch-bg--text"></div>
                             <div class="token-swatch__label">
                                 <span class="token-chip">--prism-text</span>
                             </div>
                         </div>
                         <div class="token-swatch">
-                            <div class="token-swatch__color" style="background: var(--prism-muted);"></div>
+                            <div class="token-swatch__color u-swatch-bg--muted"></div>
                             <div class="token-swatch__label">
                                 <span class="token-chip">--prism-muted</span>
                             </div>
                         </div>
                         <div class="token-swatch">
-                            <div class="token-swatch__color" style="background: var(--prism-border);"></div>
+                            <div class="token-swatch__color u-swatch-bg--border"></div>
                             <div class="token-swatch__label">
                                 <span class="token-chip">--prism-border</span>
                             </div>
@@ -158,19 +158,19 @@
                     <p class="ds-card__subtitle">Type scale and font families</p>
                     <div class="type-scale">
                         <div class="type-scale__sample">
-                            <div class="type-scale__text" style="font-family: var(--prism-font-display); font-size: var(--prism-text-size-xl); font-weight: var(--prism-heading-weight);">Display Heading</div>
+                            <div class="type-scale__text u-font-display u-text-xl u-weight-heading">Display Heading</div>
                             <span class="token-chip">--prism-font-display / --prism-text-size-xl</span>
                         </div>
                         <div class="type-scale__sample">
-                            <div class="type-scale__text" style="font-family: var(--prism-font-body); font-size: var(--prism-text-size-md); font-weight: var(--prism-body-weight);">Body copy using the primary font family</div>
+                            <div class="type-scale__text u-font-body u-text-md u-weight-body">Body copy using the primary font family</div>
                             <span class="token-chip">--prism-font-body / --prism-text-size-md</span>
                         </div>
                         <div class="type-scale__sample">
-                            <div class="type-scale__text" style="font-size: var(--prism-text-size-sm); letter-spacing: var(--prism-letter-spacing-caps); text-transform: uppercase;">Small Label</div>
+                            <div class="type-scale__text u-text-sm u-caps">Small Label</div>
                             <span class="token-chip">--prism-text-size-sm</span>
                         </div>
                         <div class="type-scale__sample">
-                            <div class="type-scale__text" style="font-family: var(--prism-font-mono); font-size: var(--prism-text-size-sm);">const token = "monospace";</div>
+                            <div class="type-scale__text u-font-mono u-text-sm">const token = "monospace";</div>
                             <span class="token-chip">--prism-font-mono</span>
                         </div>
                     </div>
@@ -252,27 +252,27 @@
                     <h4 class="ds-color-group-label">Brand</h4>
                     <div class="ds-color-grid">
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-primary);"></div>
+                            <div class="ds-swatch u-swatch-bg--primary"></div>
                             <div class="ds-swatch-label">Primary</div>
                             <code class="ds-var-name">--prism-primary</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-accent);"></div>
+                            <div class="ds-swatch u-swatch-bg--accent"></div>
                             <div class="ds-swatch-label">Accent</div>
                             <code class="ds-var-name">--prism-accent</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-button-bg);"></div>
+                            <div class="ds-swatch u-swatch-bg--button-bg"></div>
                             <div class="ds-swatch-label">Button</div>
                             <code class="ds-var-name">--prism-button-bg</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-button-hover);"></div>
+                            <div class="ds-swatch u-swatch-bg--button-hover"></div>
                             <div class="ds-swatch-label">Button Hover</div>
                             <code class="ds-var-name">--prism-button-hover</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-focus);"></div>
+                            <div class="ds-swatch u-swatch-bg--focus"></div>
                             <div class="ds-swatch-label">Focus</div>
                             <code class="ds-var-name">--prism-focus</code>
                         </div>
@@ -283,22 +283,22 @@
                     <h4 class="ds-color-group-label">Surfaces</h4>
                     <div class="ds-color-grid">
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-surface); border: 1px solid var(--prism-border);"></div>
+                            <div class="ds-swatch u-swatch-bg--surface u-swatch-bordered"></div>
                             <div class="ds-swatch-label">Surface</div>
                             <code class="ds-var-name">--prism-surface</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-surface-alt); border: 1px solid var(--prism-border);"></div>
+                            <div class="ds-swatch u-swatch-bg--surface-alt u-swatch-bordered"></div>
                             <div class="ds-swatch-label">Surface Alt</div>
                             <code class="ds-var-name">--prism-surface-alt</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-border);"></div>
+                            <div class="ds-swatch u-swatch-bg--border"></div>
                             <div class="ds-swatch-label">Border</div>
                             <code class="ds-var-name">--prism-border</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-chip-bg);"></div>
+                            <div class="ds-swatch u-swatch-bg--chip-bg"></div>
                             <div class="ds-swatch-label">Chip</div>
                             <code class="ds-var-name">--prism-chip-bg</code>
                         </div>
@@ -309,17 +309,17 @@
                     <h4 class="ds-color-group-label">Semantic</h4>
                     <div class="ds-color-grid">
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-success);"></div>
+                            <div class="ds-swatch u-swatch-bg--success"></div>
                             <div class="ds-swatch-label">Success</div>
                             <code class="ds-var-name">--prism-success</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-warning);"></div>
+                            <div class="ds-swatch u-swatch-bg--warning"></div>
                             <div class="ds-swatch-label">Warning</div>
                             <code class="ds-var-name">--prism-warning</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-danger);"></div>
+                            <div class="ds-swatch u-swatch-bg--danger"></div>
                             <div class="ds-swatch-label">Danger</div>
                             <code class="ds-var-name">--prism-danger</code>
                         </div>
@@ -330,22 +330,22 @@
                     <h4 class="ds-color-group-label">Text</h4>
                     <div class="ds-color-grid">
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-text);"></div>
+                            <div class="ds-swatch u-swatch-bg--text"></div>
                             <div class="ds-swatch-label">Text</div>
                             <code class="ds-var-name">--prism-text</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-muted);"></div>
+                            <div class="ds-swatch u-swatch-bg--muted"></div>
                             <div class="ds-swatch-label">Muted</div>
                             <code class="ds-var-name">--prism-muted</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-link);"></div>
+                            <div class="ds-swatch u-swatch-bg--link"></div>
                             <div class="ds-swatch-label">Link</div>
                             <code class="ds-var-name">--prism-link</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-button-text);"></div>
+                            <div class="ds-swatch u-swatch-bg--button-text"></div>
                             <div class="ds-swatch-label">Button Text</div>
                             <code class="ds-var-name">--prism-button-text</code>
                         </div>
@@ -356,17 +356,17 @@
                     <h4 class="ds-color-group-label">Data Visualisation</h4>
                     <div class="ds-color-grid">
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-graph-1);"></div>
+                            <div class="ds-swatch u-swatch-bg--graph-1"></div>
                             <div class="ds-swatch-label">Graph 1</div>
                             <code class="ds-var-name">--prism-graph-1</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-graph-2);"></div>
+                            <div class="ds-swatch u-swatch-bg--graph-2"></div>
                             <div class="ds-swatch-label">Graph 2</div>
                             <code class="ds-var-name">--prism-graph-2</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-graph-3);"></div>
+                            <div class="ds-swatch u-swatch-bg--graph-3"></div>
                             <div class="ds-swatch-label">Graph 3</div>
                             <code class="ds-var-name">--prism-graph-3</code>
                         </div>
@@ -377,17 +377,17 @@
                     <h4 class="ds-color-group-label">Hero</h4>
                     <div class="ds-color-grid">
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-hero-bg);"></div>
+                            <div class="ds-swatch u-swatch-bg--hero-bg"></div>
                             <div class="ds-swatch-label">Hero BG</div>
                             <code class="ds-var-name">--prism-hero-bg</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-hero-text);"></div>
+                            <div class="ds-swatch u-swatch-bg--hero-text"></div>
                             <div class="ds-swatch-label">Hero Text</div>
                             <code class="ds-var-name">--prism-hero-text</code>
                         </div>
                         <div class="ds-color-swatch">
-                            <div class="ds-swatch" style="background: var(--prism-hero-badge);"></div>
+                            <div class="ds-swatch u-swatch-bg--hero-badge"></div>
                             <div class="ds-swatch-label">Hero Badge</div>
                             <code class="ds-var-name">--prism-hero-badge</code>
                         </div>
@@ -401,17 +401,17 @@
                 
                 <div class="ds-type-demo">
                     <h4 class="ds-type-group-label">Font Families</h4>
-                    <div class="ds-type-sample" style="font-family: var(--prism-font-display);">
+                    <div class="ds-type-sample u-font-display">
                         <div class="ds-type-label">Display Font</div>
                         <div class="ds-type-specimen">The quick brown fox jumps over the lazy dog</div>
                         <code class="ds-var-name">--prism-font-display</code>
                     </div>
-                    <div class="ds-type-sample" style="font-family: var(--prism-font-body);">
+                    <div class="ds-type-sample u-font-body">
                         <div class="ds-type-label">Body Font</div>
                         <div class="ds-type-specimen">The quick brown fox jumps over the lazy dog</div>
                         <code class="ds-var-name">--prism-font-body</code>
                     </div>
-                    <div class="ds-type-sample" style="font-family: var(--prism-font-mono);">
+                    <div class="ds-type-sample u-font-mono">
                         <div class="ds-type-label">Mono Font</div>
                         <div class="ds-type-specimen">--prism-primary: #4f46e5;</div>
                         <code class="ds-var-name">--prism-font-mono</code>
@@ -422,22 +422,22 @@
                     <h4 class="ds-type-group-label">Type Scale</h4>
                     <div class="ds-type-sample">
                         <div class="ds-type-label">Small</div>
-                        <div class="ds-type-specimen" style="font-size: var(--prism-text-size-sm);">The five boxing wizards jump quickly.</div>
+                        <div class="ds-type-specimen u-text-sm">The five boxing wizards jump quickly.</div>
                         <code class="ds-var-name">--prism-text-size-sm</code>
                     </div>
                     <div class="ds-type-sample">
                         <div class="ds-type-label">Medium</div>
-                        <div class="ds-type-specimen" style="font-size: var(--prism-text-size-md);">The five boxing wizards jump quickly.</div>
+                        <div class="ds-type-specimen u-text-md">The five boxing wizards jump quickly.</div>
                         <code class="ds-var-name">--prism-text-size-md</code>
                     </div>
                     <div class="ds-type-sample">
                         <div class="ds-type-label">Large</div>
-                        <div class="ds-type-specimen" style="font-size: var(--prism-text-size-lg);">The five boxing wizards jump quickly.</div>
+                        <div class="ds-type-specimen u-text-lg">The five boxing wizards jump quickly.</div>
                         <code class="ds-var-name">--prism-text-size-lg</code>
                     </div>
                     <div class="ds-type-sample">
                         <div class="ds-type-label">Extra Large</div>
-                        <div class="ds-type-specimen" style="font-size: var(--prism-text-size-xl); font-family: var(--prism-font-display); font-weight: var(--prism-heading-weight);">The five boxing wizards jump quickly.</div>
+                        <div class="ds-type-specimen u-text-xl u-font-display u-weight-heading">The five boxing wizards jump quickly.</div>
                         <code class="ds-var-name">--prism-text-size-xl</code>
                     </div>
                 </div>
@@ -446,12 +446,12 @@
                     <h4 class="ds-type-group-label">Font Weights</h4>
                     <div class="ds-type-sample">
                         <div class="ds-type-label">Body Weight</div>
-                        <div class="ds-type-specimen" style="font-weight: var(--prism-body-weight);">The quick brown fox jumps over the lazy dog</div>
+                        <div class="ds-type-specimen u-weight-body">The quick brown fox jumps over the lazy dog</div>
                         <code class="ds-var-name">--prism-body-weight</code>
                     </div>
                     <div class="ds-type-sample">
                         <div class="ds-type-label">Heading Weight</div>
-                        <div class="ds-type-specimen" style="font-weight: var(--prism-heading-weight);">The quick brown fox jumps over the lazy dog</div>
+                        <div class="ds-type-specimen u-weight-heading">The quick brown fox jumps over the lazy dog</div>
                         <code class="ds-var-name">--prism-heading-weight</code>
                     </div>
                 </div>
@@ -464,21 +464,21 @@
                 <div class="ds-layout-demos">
                     <div class="ds-layout-item">
                         <div class="ds-layout-label">Border Radius</div>
-                        <div class="ds-radius-demo" style="border-radius: var(--prism-radius); background: var(--prism-primary);"></div>
+                        <div class="ds-radius-demo"></div>
                         <code class="ds-var-name">--prism-radius</code>
                     </div>
-                    
+
                     <div class="ds-layout-item">
                         <div class="ds-layout-label">Card Shadow</div>
-                        <div class="ds-shadow-demo" style="box-shadow: var(--prism-card-shadow); background: var(--prism-surface);"></div>
+                        <div class="ds-shadow-demo"></div>
                         <code class="ds-var-name">--prism-card-shadow</code>
                     </div>
 
                     <div class="ds-layout-item">
                         <div class="ds-layout-label">Section Gap</div>
                         <div class="ds-gap-demo">
-                            <div style="background: var(--prism-accent); height: 20px; border-radius: 4px;"></div>
-                            <div style="margin-top: var(--prism-section-gap); background: var(--prism-accent); height: 20px; border-radius: 4px;"></div>
+                            <div class="ds-gap-demo__bar"></div>
+                            <div class="ds-gap-demo__bar ds-gap-demo__bar--spaced"></div>
                         </div>
                         <code class="ds-var-name">--prism-section-gap</code>
                     </div>
@@ -487,9 +487,9 @@
                 <div class="ds-layout-item ds-layout-item--full">
                     <div class="ds-layout-label">Grid System</div>
                     <div class="ds-grid-demo">
-                        <div style="background: var(--prism-graph-1); padding: 12px; border-radius: 8px; color: white; text-align: center;">Column</div>
-                        <div style="background: var(--prism-graph-2); padding: 12px; border-radius: 8px; color: white; text-align: center;">Column</div>
-                        <div style="background: var(--prism-graph-3); padding: 12px; border-radius: 8px; color: white; text-align: center;">Column</div>
+                        <div class="ds-grid-demo__col u-swatch-bg--graph-1">Column</div>
+                        <div class="ds-grid-demo__col u-swatch-bg--graph-2">Column</div>
+                        <div class="ds-grid-demo__col u-swatch-bg--graph-3">Column</div>
                     </div>
                     <code class="ds-var-name">grid-template-columns: repeat(auto-fit, minmax(var(--prism-grid-min), 1fr))</code>
                 </div>
@@ -499,15 +499,15 @@
                     <div class="ds-spacing-list">
                         <div class="ds-spacing-row">
                             <code class="ds-var-name">--prism-page-max</code>
-                            <span class="ds-spacing-value" style="font-family: var(--prism-font-mono); color: var(--prism-muted);">Max content width</span>
+                            <span class="ds-spacing-value u-font-mono u-text-muted">Max content width</span>
                         </div>
                         <div class="ds-spacing-row">
                             <code class="ds-var-name">--prism-page-gutter</code>
-                            <span class="ds-spacing-value" style="font-family: var(--prism-font-mono); color: var(--prism-muted);">Horizontal page padding</span>
+                            <span class="ds-spacing-value u-font-mono u-text-muted">Horizontal page padding</span>
                         </div>
                         <div class="ds-spacing-row">
                             <code class="ds-var-name">--prism-nav-height</code>
-                            <span class="ds-spacing-value" style="font-family: var(--prism-font-mono); color: var(--prism-muted);">Header nav height</span>
+                            <span class="ds-spacing-value u-font-mono u-text-muted">Header nav height</span>
                         </div>
                     </div>
                 </div>
@@ -521,7 +521,7 @@
                 <div class="ds-imagery-demos">
                     <div class="ds-imagery-item">
                         <div class="ds-imagery-label">Hero Image</div>
-                        <div class="ds-hero-image-demo" style="background-image: var(--prism-hero-image); background-size: cover; background-position: center;">
+                        <div class="ds-hero-image-demo">
                             @if (string.IsNullOrWhiteSpace(heroImageUrl))
                             {
                                 <div class="ds-image-placeholder">No image set</div>
@@ -532,7 +532,7 @@
 
                     <div class="ds-imagery-item">
                         <div class="ds-imagery-label">Card Image</div>
-                        <div class="ds-card-image-demo" style="background-image: var(--prism-card-image); background-size: cover; background-position: center;">
+                        <div class="ds-card-image-demo">
                             @if (string.IsNullOrWhiteSpace(cardImageUrl))
                             {
                                 <div class="ds-image-placeholder">No image set</div>
@@ -543,7 +543,7 @@
 
                     <div class="ds-imagery-item">
                         <div class="ds-imagery-label">Image Radius</div>
-                        <div class="ds-image-radius-demo" style="border-radius: var(--prism-image-radius); background: linear-gradient(135deg, var(--prism-primary), var(--prism-accent));">
+                        <div class="ds-image-radius-demo">
                         </div>
                         <code class="ds-var-name">--prism-image-radius</code>
                     </div>
@@ -551,14 +551,14 @@
 
                 <div class="ds-imagery-item ds-imagery-item--full">
                     <div class="ds-imagery-label">Blend Mode</div>
-                    <div class="ds-blend-demo" style="background-image: var(--prism-hero-image); background-blend-mode: var(--prism-hero-image-blend); background-color: var(--prism-primary);">
+                    <div class="ds-blend-demo">
                         @if (string.IsNullOrWhiteSpace(heroImageUrl))
                         {
                             <div class="ds-image-placeholder">Set hero image to see blend mode in action</div>
                         }
                         else
                         {
-                            <div style="color: white; font-weight: 600;">Hero image with blend mode applied</div>
+                            <div class="u-text-white u-weight-600">Hero image with blend mode applied</div>
                         }
                     </div>
                     <code class="ds-var-name">background-blend-mode: var(--prism-hero-image-blend)</code>

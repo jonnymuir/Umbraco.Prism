@@ -13,3 +13,21 @@ html.prism-mobile .prism-debug-root {
 html.prism-mobile prism-mobile-nav {
     display: block;
 }
+
+/* Plain layout utilities (SEC-PT2-004 follow-up: replace one-off style="" attributes that
+   didn't reference any --prism-* token at all, just a fixed layout value). */
+.form-inline {
+    display: inline;
+}
+
+.u-mt-12 {
+    margin-top: 12px;
+}
+
+.u-mt-16 {
+    margin-top: 16px;
+}
+
+.u-mt-24 {
+    margin-top: 24px;
+}
