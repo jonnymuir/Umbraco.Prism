@@ -1727,3 +1727,52 @@ html.prism-mobile .dash-welcome h1 {
     white-space: nowrap;
     border: 0;
 }
+
+/* Reported live: a Wayfinder "Continue" button (govuk-button--secondary) looked like a plain
+ * underlined text link on mobile — no visible box at all, just its bottom drop-shadow line.
+ * Root-caused via a real screenshot + exact computed-style comparison, not guessed: the mobile
+ * shell's own page background (~#f3f2f1, intentional — a deliberate off-white surface, not a
+ * bug) lands almost exactly on GOV.UK Frontend's own govuk-button--secondary background
+ * (#f3f3f3, a difference of 1-2 RGB units), while the web layout's white background gives the
+ * same button plenty of contrast — hence "fine on web, broken on mobile" specifically.
+ *
+ * A first attempt added a border instead (keeping the same grey fill everywhere) but read as
+ * clumsy in practice. This is more direct: the button's own grey fill is only actually needed
+ * for contrast against a white page — on mobile's own off-white surface, white is what
+ * contrasts, so swap the fill itself there instead of decorating around the problem.
+ */
+html.prism-mobile .govuk-button--secondary {
+    background-color: var(--prism-surface, #ffffff);
+}
+
+/* Reported live, on both web and mobile: "Change" links on a Wayfinder "Check your answers"
+ * summary rendered as a solid grey 3D-outset button, not a plain GDS text link. Root-caused via
+ * the actual rendered markup, not guessed: these are genuinely <button type="submit"> elements
+ * (need to POST form state on click, not just navigate, so an <a> won't do), styled to look
+ * like a link via class="govuk-link" plus an inline style resetting background/border/padding —
+ * but appearance is left at its browser default of "auto", so WKWebView/Safari paints its own
+ * native button chrome regardless of those resets; only explicit appearance:none stops that
+ * (the exact native rendering this produces varies by platform — a grey 3D outset locally, a
+ * blue system-tinted one reported live on a real device — but the fix is the same either way).
+ * Also: .govuk-link's own text-colour rules key off the :link/:visited pseudo-classes, which by
+ * spec only ever match real <a href> elements, never a <button> — so nothing else gives this
+ * element real GOV.UK link-blue text at all; set explicitly here via the same design token
+ * govuk-frontend itself uses; genuine link elements are untouched (:link already wins there on
+ * specificity).
+ *
+ * Reinforces (doesn't just duplicate) Wayfinder's own inline reset as a safety net — the actual
+ * markup lives in the separate Wayfinder.Rendering.GovUk package, not this repo, so a rule here
+ * stays correct even if that inline style ever changes without a matching update landing here
+ * too.
+ */
+button.govuk-link {
+    appearance: none;
+    -webkit-appearance: none;
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    color: var(--govuk-link-colour, #1a65a6);
+    text-decoration: underline;
+    cursor: pointer;
+}
