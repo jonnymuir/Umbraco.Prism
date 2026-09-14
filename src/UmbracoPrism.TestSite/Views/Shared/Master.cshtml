@@ -127,11 +127,6 @@
     @if (isPrismMobileRequest)
     {
         <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell-guard.js"></script>
-        @* Native-gated inside its own script (see its own remarks) — a full-page navigation is
-           a real HTTP round trip in this thin native shell, and WKWebView doesn't reliably hold
-           the outgoing page's last frame on screen the way a normal browser tab does, so this
-           shows a spinner instead of a blank gap while the next page loads. *@
-        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-nav-progress.js"></script>
     }
 
     @if (biometricLoginEnabled)
