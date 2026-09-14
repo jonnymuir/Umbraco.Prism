@@ -116,6 +116,21 @@ var __prismDebug = (function() {
       document.body.appendChild(banner);
       document.getElementById('prism-bio-no').addEventListener('click', function () { banner.remove(); });
       document.getElementById('prism-bio-yes').addEventListener('click', handleEnroll);
+
+      // TEMPORARY diagnostic (2026-09-14): a real device reported these buttons still looking
+      // tiny after this exact min-height:52px CSS was confirmed served (no-store header rules
+      // out caching) and confirmed rendering at 52px in an isolated simulator repro — this
+      // shows the ACTUAL measured size in the real page context, on the real device, so the
+      // next report is a number, not a visual impression. Remove once resolved.
+      setTimeout(function () {
+        var rect = document.getElementById('prism-bio-yes').getBoundingClientRect();
+        var diag = document.createElement('p');
+        diag.id = 'prism-bio-diag';
+        diag.style.cssText = 'margin:8px 0 0;font-size:.7rem;font-family:monospace;color:#dc2626;background:#fef2f2;padding:4px 6px;border-radius:4px;';
+        diag.textContent = 'DIAG build=' + '2026-09-14-b' + ' btn=' + rect.width.toFixed(0) + 'x' + rect.height.toFixed(0) +
+          ' dPR=' + window.devicePixelRatio + ' vw=' + window.innerWidth;
+        banner.appendChild(diag);
+      }, 50);
     }
 
   async function handleEnroll() {
