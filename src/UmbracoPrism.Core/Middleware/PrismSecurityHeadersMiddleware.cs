@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using UmbracoPrism.Core.Configuration;
+using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Middleware;
 
@@ -14,6 +15,18 @@ namespace UmbracoPrism.Core.Middleware;
 /// Cache-Control: no-store on any authenticated response (see
 /// <see cref="PrismSecurityHeadersOptions.NoCacheAuthenticated"/>) and on any CSS/JS response
 /// (see <see cref="PrismSecurityHeadersOptions.NoCacheStaticAssets"/>).
+///
+/// form-action also widens itself automatically to the current tenant's own OIDC provider
+/// host(s) (Entra or a generic authority) — found live: sign-out silently did nothing, on both
+/// web and mobile. AccountController.Logout's SignOut() correctly redirects through the
+/// provider's own end-session endpoint (a real security requirement — the local Prism cookie
+/// isn't the only session that needs killing), confirmed live via a direct network capture: the
+/// server issues the redirect correctly, and navigating to that exact URL directly works fine,
+/// but the *browser itself* cancels it (net::ERR_ABORTED) specifically because it results from
+/// a form submission. CSP's form-action directive governs not just a form's own submit target
+/// but any redirect chain that results from it — 'self' alone can never be enough for any tenant
+/// using external OIDC, since signing out of it is definitionally cross-origin. Derived per
+/// request from IPrismContext.CurrentTenant, not hardcoded — see BuildOidcFormActionSources.
 ///
 /// Headers are set via <see cref="HttpResponse.OnStarting"/>, not inline before
 /// <c>next(context)</c>. Found live: a genuine 404 — Umbraco's own "no content matches this
@@ -41,13 +54,17 @@ internal sealed class PrismSecurityHeadersMiddleware(
 {
     private readonly PrismSecurityHeadersOptions _options = options.Value;
 
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context, IPrismContext prismContext)
     {
         if (_options.Enabled && !IsExcluded(context))
         {
+            // Resolved now (IPrismContext is request-scoped — the same instance
+            // PrismTenantMiddleware, further down the pipeline, populates CurrentTenant on),
+            // but not read until the OnStarting callback below actually fires, by which point
+            // next(context) — and so tenant resolution — has already completed.
             context.Response.OnStarting(() =>
             {
-                SetSecurityHeaders(context);
+                SetSecurityHeaders(context, prismContext.CurrentTenant);
                 return Task.CompletedTask;
             });
         }
@@ -63,7 +80,7 @@ internal sealed class PrismSecurityHeadersMiddleware(
         return context.Request.Path.StartsWithSegments("/umbraco", StringComparison.OrdinalIgnoreCase);
     }
 
-    private void SetSecurityHeaders(HttpContext context)
+    private void SetSecurityHeaders(HttpContext context, PrismTenant? tenant)
     {
         var headers = context.Response.Headers;
 
@@ -82,13 +99,15 @@ internal sealed class PrismSecurityHeadersMiddleware(
         if (_options.HstsValue is not null && context.Request.IsHttps)
             headers["Strict-Transport-Security"] = _options.HstsValue;
 
+        var effectiveSources = BuildEffectiveCspSources(tenant);
+
         if (_options.ContentSecurityPolicy is not null)
             headers["Content-Security-Policy"] = CspPolicyBuilder.WithAdditionalSources(
-                _options.ContentSecurityPolicy, _options.AdditionalContentSecurityPolicySources);
+                _options.ContentSecurityPolicy, effectiveSources);
 
         if (_options.ContentSecurityPolicyReportOnly is not null)
             headers["Content-Security-Policy-Report-Only"] = CspPolicyBuilder.WithAdditionalSources(
-                _options.ContentSecurityPolicyReportOnly, _options.AdditionalContentSecurityPolicySources);
+                _options.ContentSecurityPolicyReportOnly, effectiveSources);
 
         // Checked here (inside the OnStarting callback, not up front in InvokeAsync) so it sees
         // the authentication middleware's final verdict on context.User, not whatever it was
@@ -108,6 +127,73 @@ internal sealed class PrismSecurityHeadersMiddleware(
         {
             headers["Cache-Control"] = "no-store, must-revalidate";
             headers["Pragma"] = "no-cache";
+        }
+    }
+
+    /// <summary>
+    /// Merges the host's own configured <see cref="PrismSecurityHeadersOptions
+    /// .AdditionalContentSecurityPolicySources"/> with the current tenant's own OIDC provider
+    /// host(s), appended to <c>form-action</c> specifically (never replacing a host's own
+    /// configured value for that directive — both apply).
+    /// </summary>
+    private Dictionary<string, string> BuildEffectiveCspSources(PrismTenant? tenant)
+    {
+        var sources = new Dictionary<string, string>(
+            _options.AdditionalContentSecurityPolicySources, StringComparer.OrdinalIgnoreCase);
+
+        var oidcHosts = BuildOidcFormActionSources(tenant);
+        if (oidcHosts.Count > 0)
+        {
+            var formatted = string.Join(' ', oidcHosts.Select(host => $"https://{host}"));
+            sources["form-action"] = sources.TryGetValue("form-action", out var existing) && existing.Length > 0
+                ? $"{existing} {formatted}"
+                : formatted;
+        }
+
+        return sources;
+    }
+
+    /// <summary>
+    /// The OIDC provider host(s) a tenant's own sign-in/sign-out flow can redirect through —
+    /// derived from the tenant's own EntraTenantId/OidcAuthority, nothing hardcoded per
+    /// deployment. Entra hosts are only added when EntraTenantId is actually set (precise, not
+    /// the broader always-on set MobileBundleService's own allowNavigation list uses for the
+    /// generated app — a CSP directive is a security boundary, worth being exact about, where a
+    /// native app's navigation allow-list is more about functional connectivity than strict
+    /// enforcement).
+    /// </summary>
+    private static IReadOnlyList<string> BuildOidcFormActionSources(PrismTenant? tenant)
+    {
+        if (tenant is null) return [];
+
+        var hosts = new List<string>();
+
+        var oidcAuthority = tenant.OidcAuthority?.Trim();
+        if (!string.IsNullOrWhiteSpace(oidcAuthority) &&
+            Uri.TryCreate(oidcAuthority, UriKind.Absolute, out var authorityUri))
+        {
+            AddHost(hosts, authorityUri.Authority);
+        }
+
+        var entraTenantId = tenant.EntraTenantId?.Trim();
+        if (!string.IsNullOrWhiteSpace(entraTenantId))
+        {
+            AddHost(hosts, "login.microsoftonline.com");
+            AddHost(hosts, "*.ciamlogin.com");
+            AddHost(hosts, "*.b2clogin.com");
+            AddHost(hosts, $"{entraTenantId}.ciamlogin.com");
+            AddHost(hosts, $"{entraTenantId}.b2clogin.com");
+        }
+
+        return hosts;
+    }
+
+    private static void AddHost(List<string> hosts, string? host)
+    {
+        if (string.IsNullOrWhiteSpace(host)) return;
+        if (!hosts.Contains(host, StringComparer.OrdinalIgnoreCase))
+        {
+            hosts.Add(host);
         }
     }
 

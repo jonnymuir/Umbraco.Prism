@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Middleware;
+using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Tests;
 
@@ -61,6 +62,11 @@ public class PrismAntiforgeryXFrameOptionsTests
                     }
 
                     services.Configure<PrismSecurityHeadersOptions>(_ => { });
+                    // PrismSecurityHeadersMiddleware.InvokeAsync now takes IPrismContext via
+                    // per-request method injection (for its tenant-derived form-action
+                    // widening) — the real pipeline resolves it from PrismComposer's own
+                    // AddScoped registration; this minimal host needs its own stand-in.
+                    services.AddScoped<IPrismContext, NoTenantPrismContext>();
                 });
                 webBuilder.Configure(app =>
                 {
@@ -172,5 +178,20 @@ public class PrismAntiforgeryXFrameOptionsTests
             c.StartsWith(".AspNetCore.Antiforgery.", StringComparison.Ordinal));
         antiforgeryCookie.Should().NotBeNull("the pipeline always mints one via GetAndStoreTokens");
         return antiforgeryCookie!;
+    }
+
+    /// <summary>
+    /// This test's own minimal stand-in for the real (Umbraco-backed) IPrismContext — no tenant
+    /// is ever resolved in this bare TestServer pipeline (there's no PrismTenantMiddleware here),
+    /// which is fine: it only needs to exist so PrismSecurityHeadersMiddleware's per-request
+    /// IPrismContext parameter resolves at all. GetAuthorizationHeaderAsync is never reached by
+    /// anything in this test.
+    /// </summary>
+    private sealed class NoTenantPrismContext : IPrismContext
+    {
+        public PrismTenant? CurrentTenant { get; set; }
+        public string? LastAuthorizationFailureReason => null;
+        public Task<System.Net.Http.Headers.AuthenticationHeaderValue?> GetAuthorizationHeaderAsync(bool forceRefresh = false)
+            => throw new NotSupportedException("Not needed by these tests.");
     }
 }
