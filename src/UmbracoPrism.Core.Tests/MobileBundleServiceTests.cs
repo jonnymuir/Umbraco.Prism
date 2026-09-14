@@ -294,6 +294,44 @@ public class MobileBundleServiceTests
     }
 
     [Fact]
+    public async Task BuildBundleAsync_BootstrapIos_InjectsZoomFixRegardlessOfBiometricSetting()
+    {
+        // Reported live on the Entra sign-in page's password screen (a WKWebView-level
+        // zoom-into-focused-input bug on hosted content Prism has no CSS/viewport control over —
+        // see bootstrap-ios.sh's own comment for the full rationale). Unlike the biometric
+        // Info.plist injection, this fix is unconditional — it isn't specific to biometric auth —
+        // so it must be present with BiometricAuthEnabled left at its default (false/unset) too.
+        //
+        // Also asserts the project.pbxproj registration step: a prior version of this fix wrote
+        // PrismBridgeViewController.swift to disk but never added it to the Xcode project, which
+        // built clean (xcodebuild has no way to notice an unreferenced file) but was dead on
+        // arrival on a real device — the storyboard's customClass reference couldn't resolve at
+        // runtime, leaving a blank screen with no crash. Only a real simulator install+launch
+        // caught that; this test guards the registration step exists, not just the Swift file.
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest { AppName = "Test App", AppId = "com.example.test" };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        iosBootstrap.Should().Contain("class PrismBridgeViewController: CAPBridgeViewController");
+        iosBootstrap.Should().Contain("maximum-scale=1, user-scalable=no");
+        iosBootstrap.Should().Contain("forMainFrameOnly: false");
+        iosBootstrap.Should().Contain("ios/App/App/PrismBridgeViewController.swift");
+        iosBootstrap.Should().Contain("customClass=\"PrismBridgeViewController\" customModule=\"App\"");
+        iosBootstrap.Should().Contain("Main.storyboard");
+        iosBootstrap.Should().Contain("import xcode from 'xcode'");
+        iosBootstrap.Should().Contain("project.addSourceFile('App/PrismBridgeViewController.swift'");
+        iosBootstrap.Should().Contain("registered in project.pbxproj");
+
+        var packageJson = ReadEntry(archive, "package.json");
+        packageJson.Should().Contain("\"xcode\": \"^3.0.1\"");
+    }
+
+    [Fact]
     public async Task BuildBundleAsync_IncludesADefaultAppIcon_AndWiresUpAssetGeneration()
     {
         // Found live on the first real TestFlight build: every generated app shipped Capacitor's
