@@ -38,6 +38,12 @@
   var TOKEN_KEY = SS_PFX + 'prism_biometric_token_' + TENANT_HOST;
   var ENROLL_KEY = 'prism_biometric_enrollment_state_' + TENANT_HOST;
   var DEV_ID_KEY = 'prism_device_id';
+  // Same key prism-biometric-enroll.js snoozes "Not now" under. Cleared on sign-out (not just
+  // left to the 7-day snooze) so a decline doesn't outlive the session it was made in — found
+  // live: the snooze alone meant the same decline kept suppressing the banner across a sign-out/
+  // sign-in as a different-feeling "session", which read as the app permanently ignoring the
+  // user's choice rather than a bounded 7-day snooze.
+  var DECLINED_KEY = 'prism_biometric_declined_at_' + TENANT_HOST;
   // Generous but bounded: the redirect chain is a handful of fast server-to-server hops, not
   // anything a real network round-trip should ever approach — this is a safety net for a
   // load event that never fires (e.g. Entra's own page refusing to render inside a frame,
@@ -53,6 +59,7 @@
     }
     localStorage.removeItem(ENROLL_KEY);
     localStorage.removeItem(DEV_ID_KEY);
+    localStorage.removeItem(DECLINED_KEY);
   }
 
   async function revokeServerSideCredential() {
