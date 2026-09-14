@@ -16,7 +16,7 @@ namespace UmbracoPrism.TestSite;
 
 /// <summary>
 /// Seeds the TestSite Settings node with the stable auth-flow mobile nav items
-/// (Home, Dashboard, Caseworker queue),
+/// (Home, Dashboard, Money Modeller),
 /// each backed by an SVG icon written to /media/prism-nav-icons/ and registered in the
 /// Umbraco media library under a "Prism Navigation Icons" folder.
 ///
@@ -39,7 +39,12 @@ public class DemoMobileNavSeeder(
     private static readonly Guid MediaFolderKey = new("b5c6d7e8-f9a0-1234-efab-345678901234");
     private static readonly Guid HomeElementKey = new("f3a4b5c6-d7e8-4012-cdef-123456789012");
     private static readonly Guid DashElementKey = new("a4b5c6d7-e8f9-4123-defa-234567890123");
-    private static readonly Guid ServiceRequestsElementKey = new("b5c6d7e8-f9a0-4234-efab-456789012345");
+    // Was "Caseworker queue" (a caseworker-only worklist a plain member/mobile visitor would
+    // never have a real reason to open — the app is only ever used signed in as a member) —
+    // swapped for Money Modeller, a citizen-facing, calculation/graph-heavy journey that's a
+    // genuinely good showcase of complex UI working well on a mobile app. Caseworker queue stays
+    // on the web nav (see WebCaseworkerQueueElementKey below) where it still makes sense.
+    private static readonly Guid ModellerElementKey = new("b5c6d7e8-f9a0-4234-efab-456789012345");
 
     // Web nav uses its own element keys — distinct Block List instances from the mobile items above,
     // even though both point at the same mobileNavItem element type.
@@ -47,6 +52,7 @@ public class DemoMobileNavSeeder(
     private static readonly Guid WebContributionsElementKey = new("d7e8f9a0-b1c2-4456-abcd-678901234567");
     private static readonly Guid WebCaseworkerQueueElementKey = new("e8f9a0b1-c2d3-4567-bcde-789012345678");
     private static readonly Guid WebJugglingLicenceElementKey = new("f9a0b1c2-d3e4-4678-cdef-890123456789");
+    private static readonly Guid WebModellerElementKey = new("a0b1c2d3-e4f5-4789-defa-901234567890");
 
     // Must match MobileNavSchemaSetup.MobileNavItemTypeKey.
     private static readonly Guid MobileNavItemTypeKey = new("a9f4b2c1-3d5e-6f70-8912-34abc5678def");
@@ -66,9 +72,11 @@ public class DemoMobileNavSeeder(
         </svg>
         """;
 
-    private const string ServiceRequestsSvg = """
+    // A rising line-graph glyph — Money Modeller's whole point is showing off graph/calculation
+    // UI on mobile, so the nav icon itself should read as "modelling", not a generic document.
+    private const string ModellerSvg = """
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+          <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
         </svg>
         """;
 
@@ -104,15 +112,16 @@ public class DemoMobileNavSeeder(
         var folderId = EnsureIconsFolder();
         var homeKey = EnsureIconMedia("Nav Icon - Home",      folderId, "home.svg");
         var dashKey = EnsureIconMedia("Nav Icon - Dashboard", folderId, "dashboard.svg");
-        var serviceRequestsKey = EnsureIconMedia("Nav Icon - Service Requests", folderId, "service-requests.svg");
+        var modellerKey = EnsureIconMedia("Nav Icon - Money Modeller", folderId, "modeller.svg");
 
         var needsMobileUpdate = NeedsBlockListSeed(
             settings.GetValue<string>("mobileNavLinks"),
-            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.DashboardUrl, TestSiteSeedContract.CaseworkerQueuePageUrl);
+            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.DashboardUrl, TestSiteSeedContract.MoneyModellerPageUrl);
         var needsWebUpdate = settings.HasProperty("webNavLinks") && NeedsBlockListSeed(
             settings.GetValue<string>("webNavLinks"),
             TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.JugglingLicencePageUrl,
-            TestSiteSeedContract.ContributionsPageUrl, TestSiteSeedContract.CaseworkerQueuePageUrl);
+            TestSiteSeedContract.ContributionsPageUrl, TestSiteSeedContract.CaseworkerQueuePageUrl,
+            TestSiteSeedContract.MoneyModellerPageUrl);
 
         if (!needsMobileUpdate && !needsWebUpdate)
         {
@@ -123,13 +132,13 @@ public class DemoMobileNavSeeder(
         if (needsMobileUpdate)
         {
             logger.LogInformation("DEMO SEEDER: Replacing mobileNavLinks to restore the seeded auth-flow contract.");
-            var mobileBlockListJson = BuildBlockListJson(homeKey, dashKey, serviceRequestsKey);
+            var mobileBlockListJson = BuildBlockListJson(homeKey, dashKey, modellerKey);
             settings.SetValue("mobileNavLinks", mobileBlockListJson);
         }
 
         if (needsWebUpdate)
         {
-            logger.LogInformation("DEMO SEEDER: Seeding webNavLinks with Home, Apply for a juggling licence, Submit contributions file, and Caseworker queue items.");
+            logger.LogInformation("DEMO SEEDER: Seeding webNavLinks with Home, Apply for a juggling licence, Submit contributions file, Caseworker queue, and Money Modeller items.");
             var webBlockListJson = BuildWebNavBlockListJson();
             settings.SetValue("webNavLinks", webBlockListJson);
         }
@@ -207,8 +216,8 @@ public class DemoMobileNavSeeder(
         if (!System.IO.File.Exists(homePath))  System.IO.File.WriteAllText(homePath,  HomeSvg,       Encoding.UTF8);
         if (!System.IO.File.Exists(dashPath))  System.IO.File.WriteAllText(dashPath,  DashboardSvg,  Encoding.UTF8);
 
-        var serviceRequestsPath = Path.Combine(iconDir, "service-requests.svg");
-        if (!System.IO.File.Exists(serviceRequestsPath)) System.IO.File.WriteAllText(serviceRequestsPath, ServiceRequestsSvg, Encoding.UTF8);
+        var modellerPath = Path.Combine(iconDir, "modeller.svg");
+        if (!System.IO.File.Exists(modellerPath)) System.IO.File.WriteAllText(modellerPath, ModellerSvg, Encoding.UTF8);
 
         logger.LogDebug("DEMO SEEDER: SVG icon files written to {Path}.", iconDir);
     }
@@ -310,11 +319,11 @@ public class DemoMobileNavSeeder(
     /// instead of flat properties. This allows the backoffice label template (e.g. <c>{{ navLabel }}</c>)
     /// to resolve correctly, since the TypeScript interpolation reads from the <c>values</c> array.
     /// </summary>
-    private static string BuildBlockListJson(Guid? homeMediaKey, Guid? dashMediaKey, Guid? serviceRequestsMediaKey)
+    private static string BuildBlockListJson(Guid? homeMediaKey, Guid? dashMediaKey, Guid? modellerMediaKey)
     {
         var homeKey      = HomeElementKey.ToString();
         var dashKey      = DashElementKey.ToString();
-        var serviceRequestsKey = ServiceRequestsElementKey.ToString();
+        var modellerKey  = ModellerElementKey.ToString();
 
         var root = new JsonObject
         {
@@ -323,19 +332,19 @@ public class DemoMobileNavSeeder(
                 ["Umbraco.BlockList"] = new JsonArray(
                     new JsonObject { ["contentKey"] = homeKey },
                     new JsonObject { ["contentKey"] = dashKey },
-                    new JsonObject { ["contentKey"] = serviceRequestsKey }
+                    new JsonObject { ["contentKey"] = modellerKey }
                 )
             },
             ["contentData"] = new JsonArray(
-                BuildBlockItem(homeKey,      "Home",         TestSiteSeedContract.HomePageUrl,   homeMediaKey),
-                BuildBlockItem(dashKey,      "Dashboard",    TestSiteSeedContract.DashboardUrl,  dashMediaKey),
-                BuildBlockItem(serviceRequestsKey, "Caseworker queue", TestSiteSeedContract.CaseworkerQueuePageUrl, serviceRequestsMediaKey)
+                BuildBlockItem(homeKey,      "Home",             TestSiteSeedContract.HomePageUrl,          homeMediaKey),
+                BuildBlockItem(dashKey,      "Dashboard",        TestSiteSeedContract.DashboardUrl,         dashMediaKey),
+                BuildBlockItem(modellerKey,  "Money Modeller",   TestSiteSeedContract.MoneyModellerPageUrl, modellerMediaKey)
             ),
             ["settingsData"] = new JsonArray(),
             ["expose"] = new JsonArray(
-                new JsonObject { ["contentKey"] = homeKey,      ["culture"] = null, ["segment"] = null },
-                new JsonObject { ["contentKey"] = dashKey,      ["culture"] = null, ["segment"] = null },
-                new JsonObject { ["contentKey"] = serviceRequestsKey, ["culture"] = null, ["segment"] = null }
+                new JsonObject { ["contentKey"] = homeKey,     ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = dashKey,     ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = modellerKey, ["culture"] = null, ["segment"] = null }
             )
         };
 
@@ -344,13 +353,16 @@ public class DemoMobileNavSeeder(
 
     /// <summary>
     /// Builds the desktop nav's Block List JSON — same shape and element type as
-    /// <see cref="BuildBlockListJson"/>, but its own four items (Home, Apply for a juggling
-    /// licence, Submit contributions file, Caseworker queue — genuinely different content from
-    /// the mobile bar's Home/Dashboard/Caseworker queue) and no icons, matching how the desktop
-    /// header nav has always rendered as plain text links. These are the only route into
-    /// Wayfinder.Umbraco's Block Grid-composed pages — unlike the MockBusinessApp-hosted support
-    /// system (reached only via a real downstream call, not browsed directly), each earns a
-    /// permanent nav entry since the whole point is a native, discoverable journey.
+    /// <see cref="BuildBlockListJson"/>, but its own five items (Home, Apply for a juggling
+    /// licence, Submit contributions file, Caseworker queue, Money Modeller — genuinely
+    /// different content from the mobile bar's Home/Dashboard/Money Modeller) and no icons,
+    /// matching how the desktop header nav has always rendered as plain text links. These are
+    /// the only route into Wayfinder.Umbraco's Block Grid-composed pages — unlike the
+    /// MockBusinessApp-hosted support system (reached only via a real downstream call, not
+    /// browsed directly), each earns a permanent nav entry since the whole point is a native,
+    /// discoverable journey. Caseworker queue stays on the web nav even though it dropped off
+    /// mobile — a caseworker signing in from a desktop browser is the realistic case, an app
+    /// user never is.
     /// </summary>
     private static string BuildWebNavBlockListJson()
     {
@@ -358,6 +370,7 @@ public class DemoMobileNavSeeder(
         var contributionsKey = WebContributionsElementKey.ToString();
         var caseworkerQueueKey = WebCaseworkerQueueElementKey.ToString();
         var jugglingLicenceKey = WebJugglingLicenceElementKey.ToString();
+        var modellerKey = WebModellerElementKey.ToString();
 
         var root = new JsonObject
         {
@@ -367,21 +380,24 @@ public class DemoMobileNavSeeder(
                     new JsonObject { ["contentKey"] = homeKey },
                     new JsonObject { ["contentKey"] = jugglingLicenceKey },
                     new JsonObject { ["contentKey"] = contributionsKey },
-                    new JsonObject { ["contentKey"] = caseworkerQueueKey }
+                    new JsonObject { ["contentKey"] = caseworkerQueueKey },
+                    new JsonObject { ["contentKey"] = modellerKey }
                 )
             },
             ["contentData"] = new JsonArray(
                 BuildBlockItem(homeKey, "Home", TestSiteSeedContract.HomePageUrl, mediaKey: null),
                 BuildBlockItem(jugglingLicenceKey, TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicencePageUrl, mediaKey: null),
                 BuildBlockItem(contributionsKey, TestSiteSeedContract.ContributionsPageName, TestSiteSeedContract.ContributionsPageUrl, mediaKey: null),
-                BuildBlockItem(caseworkerQueueKey, TestSiteSeedContract.CaseworkerQueuePageName, TestSiteSeedContract.CaseworkerQueuePageUrl, mediaKey: null)
+                BuildBlockItem(caseworkerQueueKey, TestSiteSeedContract.CaseworkerQueuePageName, TestSiteSeedContract.CaseworkerQueuePageUrl, mediaKey: null),
+                BuildBlockItem(modellerKey, TestSiteSeedContract.MoneyModellerPageName, TestSiteSeedContract.MoneyModellerPageUrl, mediaKey: null)
             ),
             ["settingsData"] = new JsonArray(),
             ["expose"] = new JsonArray(
                 new JsonObject { ["contentKey"] = homeKey, ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = jugglingLicenceKey, ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = contributionsKey, ["culture"] = null, ["segment"] = null },
-                new JsonObject { ["contentKey"] = caseworkerQueueKey, ["culture"] = null, ["segment"] = null }
+                new JsonObject { ["contentKey"] = caseworkerQueueKey, ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = modellerKey, ["culture"] = null, ["segment"] = null }
             )
         };
 

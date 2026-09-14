@@ -84,10 +84,19 @@ public class WayfinderServicePageSeeder(
         {
             await EnsureDefinitionSeededAsync(TestSiteSeedContract.JugglingLicenceBlueprintKey, "apply-for-a-juggling-licence.json", cancellationToken);
             await EnsureDefinitionSeededAsync(TestSiteSeedContract.ContributionsBlueprintKey, "bulk-contributions.json", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.MoneyModellerBlueprintKey, "money-modeller.json", cancellationToken);
 
             EnsureStagePage(TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicenceBlueprintKey);
             EnsureStagePage(TestSiteSeedContract.ContributionsPageName, TestSiteSeedContract.ContributionsBlueprintKey);
             EnsureWorklistPage(TestSiteSeedContract.CaseworkerQueuePageName);
+            // Money Modeller's own web-user queue is the citizen-facing part (model savings pot
+            // scenarios, hand a chosen one off as a quote request) — exactly what a stage page
+            // hosts. Its business-user queue (reviewing/issuing the formal quote) is a genuine
+            // second half of the blueprint, same shape as bulk-contributions' caseworker side,
+            // but nothing asked for that admin view yet — only the citizen-facing modeller was
+            // the point (showing off graph/calculation-heavy UI working well on mobile), so no
+            // worklist page for it here.
+            EnsureStagePage(TestSiteSeedContract.MoneyModellerPageName, TestSiteSeedContract.MoneyModellerBlueprintKey);
         }
         catch (Exception ex)
         {

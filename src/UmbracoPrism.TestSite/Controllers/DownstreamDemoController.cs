@@ -802,16 +802,21 @@ public class DownstreamDemoController(
             ?? [];
         var hasHome = navUrls.Contains(NormalizePath(TestSiteSeedContract.HomePageUrl));
         var hasDashboard = navUrls.Contains(NormalizePath(TestSiteSeedContract.DashboardUrl));
-        var hasCaseworkerQueue = navUrls.Contains(NormalizePath(TestSiteSeedContract.CaseworkerQueuePageUrl));
+        // Caseworker queue was swapped out of the mobile nav for Money Modeller (the app is only
+        // ever used signed in as a member, never a caseworker) — this readiness contract must
+        // track whichever URL is actually seeded there, or it waits forever for a mobile nav
+        // item that no longer exists. Found live: this exact staleness hung the DAST baseline
+        // and localhost-auth-playwright CI jobs for their full 480s timeout.
+        var hasMoneyModeller = navUrls.Contains(NormalizePath(TestSiteSeedContract.MoneyModellerPageUrl));
         var ready =
             settings != null &&
             mobileNavLinks != null &&
             mobileNavLinks.Any() &&
             hasHome &&
             hasDashboard &&
-            hasCaseworkerQueue;
+            hasMoneyModeller;
 
-        return new MobileNavStatus(settings != null, mobileNavLinks?.Count ?? 0, hasHome, hasDashboard, hasCaseworkerQueue, ready);
+        return new MobileNavStatus(settings != null, mobileNavLinks?.Count ?? 0, hasHome, hasDashboard, hasMoneyModeller, ready);
     }
 
     private sealed record SeedContractStatus(
@@ -840,7 +845,7 @@ public class DownstreamDemoController(
         int ItemCount,
         bool HasHome,
         bool HasDashboard,
-        bool HasCaseworkerQueue,
+        bool HasMoneyModeller,
         bool Ready);
 
     private static string NormalizePath(string? path)

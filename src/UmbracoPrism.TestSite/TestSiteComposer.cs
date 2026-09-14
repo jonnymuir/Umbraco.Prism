@@ -105,6 +105,11 @@ public class TestSiteComposer : IComposer
                     return PublicVisitorQueue.AccessProfile;
                 }
 
+                if (IsMoneyModellerContext(ctx))
+                {
+                    return MoneyModellerAccess.AccessProfile;
+                }
+
                 var email = ctx.RequestServices.GetRequiredService<IPrismUserContext>().Email;
                 return NjfContributionsTeam.IsMember(email)
                     ? NjfContributionsTeam.AccessProfile
@@ -142,7 +147,8 @@ public class TestSiteComposer : IComposer
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
             {
                 [PublicVisitorQueue.Key] = ComponentTypeRegistry.AllDiscriminators,
-                [NjfContributionsTeam.UploadKey] = ComponentTypeRegistry.AllDiscriminators
+                [NjfContributionsTeam.UploadKey] = ComponentTypeRegistry.AllDiscriminators,
+                [MoneyModellerAccess.MemberQueueKey] = ComponentTypeRegistry.AllDiscriminators
             }));
 
         // Demonstrates the service-sourced field extension point for a logged-in member.
@@ -151,6 +157,7 @@ public class TestSiteComposer : IComposer
         // for single-instance resolution, and IProcessManager's factory (also registered by
         // AddWayfinderUmbraco) resolves UmbracoProcessManagerEngine lazily, so it picks up this one.
         builder.Services.AddSingleton<IJugglingSocietyMembershipClient, JugglingSocietyMembershipClient>();
+        builder.Services.AddSingleton<IMemberSavingsRecordService, MemberSavingsRecordService>();
 
         // Freezes on first read — must run before anything reads SupportSystemRegistry, which
         // this composer's own registrations below never do, but a blueprint load/save does (see
@@ -171,6 +178,7 @@ public class TestSiteComposer : IComposer
         builder.Services.AddSingleton(sp =>
         {
             var membershipClient = sp.GetRequiredService<IJugglingSocietyMembershipClient>();
+            var memberRecordService = sp.GetRequiredService<IMemberSavingsRecordService>();
             return new UmbracoProcessManagerEngine(
                 sp.GetRequiredService<ILogger<UmbracoProcessManagerEngine>>(),
                 sp.GetRequiredService<IServiceBlueprintStore>(),
@@ -185,6 +193,24 @@ public class TestSiteComposer : IComposer
                         return new Dictionary<string, object?>
                         {
                             ["member"] = new Dictionary<string, object?> { ["tier"] = membership.Tier }
+                        };
+                    }
+
+                    if (string.Equals(definition.DefinitionKey, TestSiteSeedContract.MoneyModellerBlueprintKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var record = memberRecordService.GetForUser(instance.UserId);
+                        return new Dictionary<string, object?>
+                        {
+                            ["member"] = new Dictionary<string, object?>
+                            {
+                                ["name"] = record.Name,
+                                ["active"] = record.Active,
+                                ["age"] = record.Age,
+                                ["salary"] = record.Salary,
+                                ["accruedPension"] = record.AccruedPension,
+                                ["accruedLump"] = record.AccruedLump,
+                                ["dcPot"] = record.DcPot
+                            }
                         };
                     }
 
@@ -251,6 +277,30 @@ public class TestSiteComposer : IComposer
         return string.Equals(
             ctx.Request.Form["BlueprintKey"].ToString(),
             TestSiteSeedContract.JugglingLicenceBlueprintKey,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Same shape and same Referer-header caution as <see cref="IsJugglingLicenceContext"/> —
+    /// see that method's own remarks for why the advance POST's own form field is read instead.
+    /// </summary>
+    private static bool IsMoneyModellerContext(HttpContext ctx)
+    {
+        if (ctx.Request.Path.StartsWithSegments(TestSiteSeedContract.MoneyModellerPageUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!ctx.Request.Path.StartsWithSegments(
+                Wayfinder.Umbraco.Controllers.WayfinderStageSurfaceController.RoutePath, StringComparison.OrdinalIgnoreCase)
+            || !ctx.Request.HasFormContentType)
+        {
+            return false;
+        }
+
+        return string.Equals(
+            ctx.Request.Form["BlueprintKey"].ToString(),
+            TestSiteSeedContract.MoneyModellerBlueprintKey,
             StringComparison.OrdinalIgnoreCase);
     }
 }

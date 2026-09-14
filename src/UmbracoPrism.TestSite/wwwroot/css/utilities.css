@@ -9,6 +9,15 @@ html.prism-mobile .prism-debug-root {
     display: none;
 }
 
+/* The copyright footer reads as a plain webpage, not a native app screen, inside the mobile
+   shell — and since it sits in normal document flow below the fixed bottom nav bar (which
+   reserves no space for itself, see .prism-mobile .container in components.css), it was
+   entirely hidden behind that bar anyway: real height on the page, invisible content, which is
+   what let you scroll well past a page's own submit button into nothing. */
+html.prism-mobile .footer {
+    display: none;
+}
+
 /* Mobile web component visibility */
 html.prism-mobile prism-mobile-nav {
     display: block;
