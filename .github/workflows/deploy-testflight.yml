@@ -135,32 +135,65 @@ jobs:
           BUNDLE_ID="${PRISM_APP_ID:-com.jonnymuir.prismreference}"
           xcrun simctl install "$SIM_UDID" "$APP_PATH"
           xcrun simctl launch "$SIM_UDID" "$BUNDLE_ID"
-          sleep 10
 
-          if ! xcrun simctl spawn "$SIM_UDID" launchctl list | grep -q "$BUNDLE_ID"; then
-            echo "::error::App process is not running after launch (crashed or failed to start). See the uploaded screenshot artifact."
-            xcrun simctl io "$SIM_UDID" screenshot build/simulator-smoke-test.png || true
-            exit 1
-          fi
-
+          # No separate "is the process alive" gate here — confirmed live it's unreliable
+          # (xcrun simctl spawn ... launchctl list | grep "$BUNDLE_ID" returned a false
+          # negative for an app that was, per its own screenshot at that exact moment,
+          # rendering perfectly correctly) and redundant: a genuinely crashed app can't
+          # render real content either, so the content check below already covers it.
+          command -v magick >/dev/null 2>&1 || brew install imagemagick
           mkdir -p build
-          xcrun simctl io "$SIM_UDID" screenshot build/simulator-smoke-test.png
+
+          # Poll rather than a single fixed sleep: the app is loading a real page over a real
+          # network connection (the configured hostname, not localhost), and a CI runner's
+          # network/CPU headroom varies run to run — a fixed wait tuned against one fast, local
+          # run (confirmed live: passed comfortably after 10s on this Mac) still left the page
+          # mid-load on an actual runner (confirmed live: a real dispatch came back pure white,
+          # not the earlier bug's solid black — status bar rendered fine, page just hadn't
+          # painted yet). Retries the screenshot+check rather than guessing a bigger fixed number.
+          #
+          # Requires the check to pass on TWO CONSECUTIVE attempts before trusting it, not just
+          # one — the same "don't trust a single sample" pattern already used for exactly this
+          # kind of flakiness elsewhere in this estate (Wayfinder.Umbraco's tmux-terminal.ts
+          # waitForPaneStable(), which requires 3 consecutive stable reads because 2 "was NOT a
+          # strong enough signal on its own"). Confirmed live this matters here too: on a freshly
+          # erased-and-booted simulator (exactly the state every CI runner starts from), a
+          # screenshot taken moments after launch once captured what looks like a Simulator-level
+          # window-open transition frame — a device-silhouette-on-a-blurred-background image, not
+          # the app's own splash (confirmed separately: the app's real splash is plain white with
+          # a small centered icon) — with enough incidental variance to clear the threshold on
+          # its own despite the app not having rendered anything real yet. Not reliably
+          # reproducible on demand, but the fresh-erase condition that triggered it is exactly
+          # what every CI run starts from, so it can't be waved off as a one-off.
+          PASSED=false
+          CONSECUTIVE_PASSES=0
+          for attempt in $(seq 1 15); do
+            xcrun simctl io "$SIM_UDID" screenshot build/simulator-smoke-test.png
+            # Crop away the top 12% (status bar + any app header, generous margin) so its own
+            # icon/text contrast can't mask a blank body underneath — see the rationale above.
+            magick build/simulator-smoke-test.png -gravity South -crop 100%x88%+0+0 +repage build/simulator-smoke-test-content.png
+            SPREAD=$(magick identify -format "%[fx:standard_deviation]" build/simulator-smoke-test-content.png)
+            echo "Attempt $attempt/15 — content-area colour standard deviation: $SPREAD (consecutive passes: $CONSECUTIVE_PASSES)"
+            if (( $(echo "$SPREAD >= 0.03" | bc -l) )); then
+              CONSECUTIVE_PASSES=$((CONSECUTIVE_PASSES + 1))
+              if [ "$CONSECUTIVE_PASSES" -ge 2 ]; then
+                PASSED=true
+                break
+              fi
+            else
+              CONSECUTIVE_PASSES=0
+            fi
+            sleep 4
+          done
+
           xcrun simctl shutdown "$SIM_UDID" || true
 
-          command -v magick >/dev/null 2>&1 || brew install imagemagick
-
-          # Crop away the top 12% (status bar + any app header, generous margin) so its own
-          # icon/text contrast can't mask a blank body underneath — see the rationale above.
-          magick build/simulator-smoke-test.png -gravity South -crop 100%x88%+0+0 +repage build/simulator-smoke-test-content.png
-          SPREAD=$(magick identify -format "%[fx:standard_deviation]" build/simulator-smoke-test-content.png)
-          echo "Content-area colour standard deviation: $SPREAD"
-
-          if (( $(echo "$SPREAD < 0.03" | bc -l) )); then
-            echo "::error::The app's content area looks near-solid-colour (stddev=$SPREAD) — it likely rendered a blank/broken screen instead of real content. See the uploaded screenshot artifact."
+          if [ "$PASSED" != "true" ]; then
+            echo "::error::The app's content area still looks near-solid-colour (stddev=$SPREAD) after $((15 * 4))s, or never passed twice in a row — it likely rendered a blank/broken screen instead of real content. See the uploaded screenshot artifact."
             exit 1
           fi
 
-          echo "✓ Simulator smoke test passed — app launched and rendered real content."
+          echo "✓ Simulator smoke test passed — app launched and rendered real content (2 consecutive passes, ending attempt $attempt/15)."
 
       - name: Upload simulator smoke test screenshot (always, for inspection)
         if: always()
