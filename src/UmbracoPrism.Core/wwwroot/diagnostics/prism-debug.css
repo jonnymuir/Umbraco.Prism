@@ -8,3 +8,21 @@
 .prism-debug-root .btn { display: inline-block; padding: 0.6rem 1.2rem; border-radius: 6px; text-decoration: none; color: white; font-weight: 600; font-size: 0.9rem; }
 .prism-debug-root .btn-login { background: #007bff; }
 .prism-debug-root code { background: #f8f9fa; padding: 0.2rem 0.4rem; border-radius: 4px; border: 1px solid #dee2e6; font-size: 0.85rem; color: #d63384; }
+
+/* SEC-PT2-004 follow-up: replaces what used to be inline style="" attributes written directly
+   into PrismDebugTagHelper's C# string interpolation. Same CSP rationale as every other
+   formerly-inline asset in this repo, this panel is part of the publishable Core package
+   itself (renders whenever Prism:EnableDebugPanel=true, not only in Development), so it needs
+   the same zero-unsafe-inline treatment as the TestSite showcase pages. */
+.prism-debug-root .logout-form { margin-top: 10px; }
+.prism-debug-root .logout-btn { background: #495057; border: none; cursor: pointer; }
+.prism-debug-root .claims-box { max-height: 300px; overflow-y: auto; }
+.prism-debug-root .claims-table { width: 100%; font-size: 0.8rem; border-collapse: collapse; }
+.prism-debug-root .claims-row { border-bottom: 1px solid #eee; }
+.prism-debug-root .claims-cell { padding: 4px; }
+.prism-debug-root .diagnostics-card { font-size: 0.85rem; color: #495057; }
+.prism-debug-root .diagnostics-title { font-size: 1rem; }
+.prism-debug-root .status-ok { color: #0ca678; }
+.prism-debug-root .status-warn { color: #f08c00; }
+.prism-debug-root .status-muted { color: #868e96; }
+.prism-debug-root .error-card { color: red; }

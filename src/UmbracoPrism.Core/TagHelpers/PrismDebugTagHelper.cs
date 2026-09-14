@@ -99,9 +99,9 @@ public class PrismDebugTagHelper(
                             <p><strong>Email:</strong> {prismUser.Email}</p>
                             <p><strong>TID:</strong> <code>{prismUser.EntraTenantId}</code></p>
                         </div>
-                        <form method="post" action="/auth/logout" style="margin-top:10px;">
+                        <form method="post" action="/auth/logout" class="logout-form">
                             <input type="hidden" name="{antiforgeryTokens.FormFieldName}" value="{antiforgeryTokens.RequestToken}" />
-                            <button type="submit" class="btn" style="background:#495057; border:none; cursor:pointer;">Sign Out</button>
+                            <button type="submit" class="btn logout-btn">Sign Out</button>
                         </form>
                     </div>
                     """);
@@ -110,10 +110,10 @@ public class PrismDebugTagHelper(
                 sb.Append($"""
                     <div class="card">
                         <h2>Attributes & Claims <button class="copy-btn" data-action="copy-to-clipboard" data-copy-target="prism-claims-data">Copy</button></h2>
-                        <div id="prism-claims-data" style="max-height: 300px; overflow-y: auto;">
-                            <table style="width:100%; font-size: 0.8rem; border-collapse: collapse;">
+                        <div id="prism-claims-data" class="claims-box">
+                            <table class="claims-table">
                                 {string.Join("", ViewContext.HttpContext.User.Claims.Select(c =>
-                                    $"<tr style='border-bottom:1px solid #eee'><td style='padding:4px;'>{c.Type.Split('/').Last()}</td><td><code>{c.Value}</code></td></tr>"))}
+                                    $"<tr class='claims-row'><td class='claims-cell'>{c.Type.Split('/').Last()}</td><td><code>{c.Value}</code></td></tr>"))}
                             </table>
                         </div>
                     </div>
@@ -147,7 +147,7 @@ public class PrismDebugTagHelper(
                 """);
 
             // 3. System Diagnostics
-            var authMode = isPrismAuthGlobalEnabled ? "<b style=\"color:#0ca678;\">ACTIVE</b>" : "<b style=\"color:#f08c00;\">PASSIVE</b>";
+            var authMode = isPrismAuthGlobalEnabled ? "<b class=\"status-ok\">ACTIVE</b>" : "<b class=\"status-warn\">PASSIVE</b>";
             var schemesHtml = string.Join(" ", allSchemes.Select(s => $"<code>{s.Name}</code>"));
             var oidcOptions = ViewContext.HttpContext.RequestServices
                             .GetRequiredService<IOptionsSnapshot<OpenIdConnectOptions>>()
@@ -155,12 +155,12 @@ public class PrismDebugTagHelper(
 
 
             sb.Append($"""
-                <div class="card" style="font-size: 0.85rem; color: #495057;">
-                    <h2 style="font-size: 1rem;">🛠 System Diagnostics</h2>
+                <div class="card diagnostics-card">
+                    <h2 class="diagnostics-title">🛠 System Diagnostics</h2>
                     <ul>
                         <li><strong>Vault URI:</strong> {(isPrismAuthGlobalEnabled ? vaultUri : "❌ Not Configured")}</li>
                         <li><strong>Prism Auth Mode:</strong> {authMode} <em>(Login flow control)</em></li>
-                        <li><strong>Prism Mobile Request:</strong> {(isPrismMobileRequest ? "<b style=\"color:#0ca678;\">YES</b>" : "<b style=\"color:#868e96;\">NO</b>")}</li>
+                        <li><strong>Prism Mobile Request:</strong> {(isPrismMobileRequest ? "<b class=\"status-ok\">YES</b>" : "<b class=\"status-muted\">NO</b>")}</li>
                         <li><strong>Mobile Detection Source:</strong> <code>{mobileDetectionSource}</code></li>
                         <li><strong>Active Schemes:</strong> {schemesHtml}</li>
                         <li><strong>Request Path:</strong> <code>{path}</code></li>
@@ -175,7 +175,7 @@ public class PrismDebugTagHelper(
         }
         catch (Exception ex)
         {
-            sb.Append($"<div class='card' style='color:red;'>{ex.Message}</div>");
+            sb.Append($"<div class='card error-card'>{ex.Message}</div>");
         }
 
         output.Content.SetHtmlContent(sb.ToString());
