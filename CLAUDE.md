@@ -142,20 +142,17 @@ No longer part of this repo at all, the editor's TS source (`wayfinder-service-b
 Service Blueprints may carry a `calculations` block (tables + fields + series), the
 single source of any business maths. It is a total expression language (arithmetic,
 comparisons, boolean logic, `if/min/max/clamp/abs/floor/round/pow/lookup`; no eval, no
-loops, no side effects) with decimal semantics, evaluated by two conformant runtimes:
-
-- C#: `Wayfinder/Services/Calculations`, authoritative. The generic engine
-  evaluates the block on every render (typed scope built by `CalculationScopeBuilder`
-  from the definition's own input components + defaults; hosts supply `source: "service"`
-  inputs via the `ResolveServiceInputs` engine hook).
-- TypeScript: `src/UmbracoPrism.Client/src/calculations/calculation-engine.ts`,
-  indicative; the generic `prism-live-form` runtime re-evaluates the same definitions
-  between POSTs.
-
-The shared conformance suite is `Wayfinder/calculation-fixtures/calculation-golden.json`,
-executed by `CalculationGoldenTests` (C#) and `npm run test:calc` (TS). Change either
-evaluator only alongside those fixtures. Do NOT hand-write business maths in host services
-or client components, put it in the definition's `calculations` block (or declare a
+loops, no side effects) with decimal semantics. **This repo owns none of that engine or
+its runtimes any more** — both live in `Wayfinder`: the authoritative C# evaluator
+(`Wayfinder/Services/Calculations`, run by `ProcessManagerEngine` on every render) and its
+conformant TypeScript counterpart (`Wayfinder.Rendering.GovUk/wwwroot/js/wayfinder-calculations.js`,
+checked against the same `Wayfinder/calculation-fixtures/calculation-golden.json` suite via
+`CalculationGoldenTests` (C#) and that repo's own JS conformance script). `UmbracoPrism.Client`
+previously shipped its own parallel TypeScript evaluator
+(`src/calculations/calculation-engine.ts`) — deleted once `wayfinder-calculations.js` became
+the canonical shared source both runtimes are checked against, so it stopped being anything
+more than a second copy to keep in sync by hand. Do NOT hand-write business maths in host
+services or client components, put it in the definition's `calculations` block (or declare a
 `service` field when it lives in an external system of record).
 
 The UI is equally declarative: stages compose generic components only. Calculated fields
@@ -166,11 +163,13 @@ components declare `default` values that seed both the form and the calculation 
 "service"` field, dotted paths like `member.tier` resolve too) instead of a static literal,
 while a saved value is always absent, a genuine overridable default, never a lock, and it
 falls back to `default` when the name doesn't resolve (e.g. an anonymous visitor with no
-member data); calculated fields may declare `format` ("gbp"). The server renders everything (works
-without JavaScript; the Recalculate self-loop re-renders authoritatively) and
-`prism-live-form` (`src/UmbracoPrism.Client/src/live-form/`) upgrades the page in place,
-it contains no domain knowledge and no layout. There are no bespoke per-blueprint client
-components.
+member data); calculated fields may declare `format` ("gbp"). The server renders everything
+(works without JavaScript; the Recalculate self-loop re-renders authoritatively) and
+`Wayfinder.Rendering.GovUk`'s own `wayfinder-live-form.js` (loaded by `Wayfinder.Umbraco`'s
+`_Stage-Question.cshtml`, not anything in this repo) upgrades the page in place — Prism ships
+no live-form runtime of its own any more (`prism-live-form.ts` was deleted for the same reason
+as `calculation-engine.ts`: it duplicated, and had drifted from, Wayfinder's own script). There
+are no bespoke per-blueprint client components.
 
 ### AI-ready service blueprint authoring
 
