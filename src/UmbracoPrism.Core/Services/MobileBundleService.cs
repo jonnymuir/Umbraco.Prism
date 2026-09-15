@@ -1244,6 +1244,21 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
     private var pendingSnapshotCapture: DispatchWorkItem?
     private var isCaptureInFlight = false
     private var captureNeededAfterInFlight = false
+    private var pendingCaptureSource = "none"
+
+    // TEMPORARY — remove once real-device behaviour is confirmed (see e.g. #254 for the same
+    // pattern previously used for the biometric banner sizing bug). Tracks what's actually
+    // happening in this pipeline so it can be read directly off the device on a TestFlight build,
+    // where there's no attached debugger/console to check instead. A UILabel, not anything drawn
+    // into the web page itself — it can't ever trigger this class's own JS-side input/change/
+    // scroll listeners, so no risk of it feeding back into the very thing it's reporting on.
+    private var diagnosticLabel: UILabel?
+    private var diagnosticDismissWorkItem: DispatchWorkItem?
+    private var lastCaptureSource = "none"
+    private var lastCaptureAt: Date?
+    private var contentChangeSignalCount = 0
+    private var captureSuccessCount = 0
+    private var captureFailureCount = 0
 
     init(forwardingTo target: WKNavigationDelegate?) {
         self.target = target
@@ -1279,7 +1294,7 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         // One extra runloop turn so the new page has actually painted before the spinner is
         // hidden — didFinish fires on load completion, not first paint.
         DispatchQueue.main.async { [weak self] in self?.hideSpinner() }
-        scheduleSnapshotCapture(of: webView, delay: 0.3)
+        scheduleSnapshotCapture(of: webView, delay: 0.3, source: "settle")
     }
 
     // Called by PrismBridgeViewController's own WKScriptMessageHandler when injected JS detects
@@ -1288,7 +1303,8 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
     // is just refreshing a cached frame to match what's actually on screen now, not waiting out
     // trailing load-time rendering.
     fileprivate func contentDidChange(in webView: WKWebView) {
-        scheduleSnapshotCapture(of: webView, delay: 0.1)
+        contentChangeSignalCount += 1
+        scheduleSnapshotCapture(of: webView, delay: 0.1, source: "change")
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -1339,6 +1355,8 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         let reveal = DispatchWorkItem { spinner.startAnimating() }
         spinnerRevealWorkItem = reveal
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: reveal)
+
+        showDiagnosticLabel(over: hostView, webView: webView)
     }
 
     private func hideSpinner() {
@@ -1348,6 +1366,57 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         spinnerView = nil
         snapshotOverlayView?.removeFromSuperview()
         snapshotOverlayView = nil
+        // The diagnostic label outlives the spinner/snapshot by a couple of seconds (see its own
+        // remarks) rather than disappearing the instant the new page paints — it needs to still be
+        // readable after the transition it's describing has already finished.
+    }
+
+    // TEMPORARY — see this class's own remarks on the fields this reads. Reflects exactly what
+    // showSpinner() is about to show (or not show) for THIS navigation, not a live-updating log —
+    // simplest thing that answers "did this navigation have a cached frame, how did it get there,
+    // and how stale is it," which is the actual open question right now: paint-holding is visibly
+    // still showing each page's just-loaded state rather than its last-changed state, and this
+    // tells us whether that's because contentDidChange is never firing, or firing but never
+    // successfully producing a snapshot, or succeeding but somehow not being picked up here.
+    private func showDiagnosticLabel(over hostView: UIView, webView: WKWebView) {
+        diagnosticDismissWorkItem?.cancel()
+        diagnosticLabel?.removeFromSuperview()
+
+        let ageDescription: String
+        if let lastCaptureAt {
+            ageDescription = String(format: "%.1fs", Date().timeIntervalSince(lastCaptureAt))
+        } else {
+            ageDescription = "n/a"
+        }
+        // build/marketing-version included specifically so a stale-TestFlight-build question
+        // never has to be a guess: CFBundleVersion is CURRENT_PROJECT_VERSION at archive time,
+        // set to the CI run number in deploy-testflight.yml — a plain, always-unique, always-
+        // increasing per-deploy counter to compare against the workflow run that actually shipped
+        // whatever's being tested right now.
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
+
+        let label = UILabel()
+        label.text = text
+        label.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
+        label.textColor = .white
+        label.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        label.numberOfLines = 0
+        label.textAlignment = .center
+        label.isUserInteractionEnabled = false
+        label.translatesAutoresizingMaskIntoConstraints = false
+        hostView.addSubview(label)
+        diagnosticLabel = label
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: webView.leadingAnchor),
+            label.trailingAnchor.constraint(equalTo: webView.trailingAnchor),
+            label.bottomAnchor.constraint(equalTo: webView.bottomAnchor)
+        ])
+
+        let dismiss = DispatchWorkItem { [weak label] in label?.removeFromSuperview() }
+        diagnosticDismissWorkItem = dismiss
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: dismiss)
     }
 
     // 0.3s (didFinish, waiting out trailing load-time rendering) or 0.1s (contentDidChange,
@@ -1357,8 +1426,9 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
     // contentDidChange can each fire multiple times in quick succession (a fast navigation, or a
     // user still actively typing), and only the most recent trigger's delay should count, not a
     // pile-up of independently-scheduled timers.
-    private func scheduleSnapshotCapture(of webView: WKWebView, delay: TimeInterval) {
+    private func scheduleSnapshotCapture(of webView: WKWebView, delay: TimeInterval, source: String) {
         pendingSnapshotCapture?.cancel()
+        pendingCaptureSource = source
         let capture = DispatchWorkItem { [weak self, weak webView] in
             guard let self, let webView else { return }
             self.captureSnapshot(of: webView)
@@ -1384,10 +1454,16 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         // remarks) — but still validated before caching: a nil result (the API can still decline,
         // e.g. mid-memory-pressure) leaves the previous cached frame in place rather than being
         // treated as a valid "blank page" to show next time.
+        let source = pendingCaptureSource
         webView.takeSnapshot(with: nil) { [weak self, weak webView] image, _ in
             guard let self else { return }
             if let image {
                 self.lastGoodSnapshot = image
+                self.lastCaptureSource = source
+                self.lastCaptureAt = Date()
+                self.captureSuccessCount += 1
+            } else {
+                self.captureFailureCount += 1
             }
             self.isCaptureInFlight = false
             if self.captureNeededAfterInFlight {
