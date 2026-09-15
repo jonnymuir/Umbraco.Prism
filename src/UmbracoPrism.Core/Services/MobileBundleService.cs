@@ -1177,12 +1177,21 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         webView.navigationDelegate = hold
 
         // TEMPORARY (see PrismNavigationHoldDelegate's own remarks) — a no-op unless this specific
-        // build was produced with mobile diagnostics enabled. A long-press near the top of the
-        // screen toggles the on-screen paint-holding diagnostic label on/off; otherwise invisible.
+        // build was produced with mobile diagnostics enabled. A two-finger long-press anywhere on
+        // the page toggles the on-screen paint-holding diagnostic label on/off; otherwise
+        // invisible. Reported live: an earlier single-finger version, restricted to near the top
+        // of the screen to avoid colliding with normal page interaction, didn't work at all — the
+        // real status bar area isn't part of this app's own view hierarchy (it's drawn by iOS
+        // itself, and AppDelegate's own safe-area-pinned container deliberately sits below it, see
+        // its own remarks), so no gesture recognizer attached to anything in this app can ever see
+        // a touch that lands there. Attached directly to webView (not just its superview) so it
+        // works anywhere the page actually renders, not a strip that turned out to be unreachable.
         if PrismMobileDiagnosticsFlag.enabled {
             let diagnosticsGesture = UILongPressGestureRecognizer(target: hold, action: #selector(PrismNavigationHoldDelegate.handleDiagnosticsGesture(_:)))
-            diagnosticsGesture.minimumPressDuration = 2.0
-            webView.superview?.addGestureRecognizer(diagnosticsGesture)
+            diagnosticsGesture.numberOfTouchesRequired = 2
+            diagnosticsGesture.minimumPressDuration = 1.5
+            diagnosticsGesture.delegate = hold
+            webView.addGestureRecognizer(diagnosticsGesture)
         }
     }
 
@@ -1291,7 +1300,7 @@ private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 // unchanged, via the standard Cocoa message-forwarding decorator pattern
 // (responds(to:)/forwardingTarget(for:)) — Capacitor's own handling of everything else is
 // untouched, not reimplemented.
-private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate {
+private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate, UIGestureRecognizerDelegate {
     private let target: WKNavigationDelegate?
     private var spinnerView: UIActivityIndicatorView?
     private var spinnerRevealWorkItem: DispatchWorkItem?
@@ -1483,16 +1492,23 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
 
     // Only ever wired up (see viewDidLoad's own remarks) when PrismMobileDiagnosticsFlag.enabled —
     // a build that doesn't have diagnostics on never creates the gesture recognizer that could
-    // call this. minimumPressDuration (2s, set at the call site) already rules out an accidental
-    // trigger from an ordinary tap or WebKit's own ~0.5s long-press-for-link-preview gesture; the
-    // extra y-position check further limits it to near the top of the screen specifically, rather
-    // than anywhere on the page, so it can't be triggered by a long-press on the page's own content
-    // (e.g. WebKit's text-selection/copy gesture, which this deliberately doesn't interfere with).
+    // call this. Two fingers (numberOfTouchesRequired, set at the call site) plus a 1.5s hold
+    // together rule out an accidental trigger from ordinary scrolling/tapping/WebKit's own
+    // ~0.5s single-finger long-press-for-selection gesture — deliberately not interfering with
+    // that (see viewDidLoad's own remarks on why a different touch signature, not a screen
+    // region, is what actually keeps the two apart).
     @objc fileprivate func handleDiagnosticsGesture(_ recognizer: UILongPressGestureRecognizer) {
         guard recognizer.state == .began else { return }
-        guard recognizer.location(in: recognizer.view).y <= 60 else { return }
         isDiagnosticsRevealed.toggle()
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    // Lets this gesture recognize alongside WKWebView's own internal ones (its own single-finger
+    // long-press for text selection among them) rather than one silently blocking the other —
+    // they target different touch counts already, so this is defence in depth, not the primary
+    // fix (that's requiring two fingers at all — see viewDidLoad's own remarks).
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
     }
 
     // Gated on two independent things: PrismMobileDiagnosticsFlag.enabled (a build-time constant —

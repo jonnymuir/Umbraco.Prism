@@ -288,6 +288,15 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("fileprivate enum PrismMobileDiagnosticsFlag {");
         iosBootstrap.Should().Contain("static let enabled = true");
         iosBootstrap.Should().Contain("UILongPressGestureRecognizer(target: hold, action: #selector(PrismNavigationHoldDelegate.handleDiagnosticsGesture(_:)))");
+
+        // Reported live: a single-finger version, restricted to near the top of the screen, didn't
+        // work at all there (that area isn't part of the app's own view hierarchy) and triggered
+        // WebKit's own text-selection callout everywhere else. Two fingers, attached directly to
+        // webView (not a screen region), fixes both.
+        iosBootstrap.Should().Contain("diagnosticsGesture.numberOfTouchesRequired = 2");
+        iosBootstrap.Should().Contain("webView.addGestureRecognizer(diagnosticsGesture)");
+        iosBootstrap.Should().NotContain("webView.superview?.addGestureRecognizer(diagnosticsGesture)");
+        iosBootstrap.Should().Contain("func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool");
     }
 
     [Theory]
