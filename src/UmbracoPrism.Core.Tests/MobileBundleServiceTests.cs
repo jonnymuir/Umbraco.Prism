@@ -337,23 +337,17 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("bridgeViewController.view.topAnchor.constraint(equalTo: container.view.safeAreaLayoutGuide.topAnchor)");
         iosBootstrap.Should().Contain("window?.rootViewController = container");
 
-        // A normal browser tab avoids a blank flash between pages via "paint holding" — WKWebView,
-        // embedded the way Capacitor uses it, doesn't do this on its own (confirmed by reading
-        // Capacitor's own vendored iOS source: no snapshot/hold mechanism anywhere in it). This
-        // approximates it: freezes the outgoing page as a snapshot the instant a navigation
-        // starts, only revealing a spinner on top of it if the real navigation is slow enough to
-        // notice. Forwards every other WKNavigationDelegate call straight through to Capacitor's
-        // own delegate (the standard Cocoa decorator pattern) rather than reimplementing its own
-        // navigation policy/redirect/auth-challenge handling by hand.
+        // WKWebView shows a real blank gap between navigations that this doesn't attempt to
+        // cover — it leaves that default behaviour alone and only adds a spinner on top, revealed
+        // if the real navigation is slow enough to notice. Forwards every other
+        // WKNavigationDelegate call straight through to Capacitor's own delegate (the standard
+        // Cocoa decorator pattern) rather than reimplementing its own navigation policy/redirect/
+        // auth-challenge handling by hand.
         iosBootstrap.Should().Contain("class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate");
         iosBootstrap.Should().Contain("webView.navigationDelegate = hold");
         iosBootstrap.Should().Contain("func forwardingTarget(for aSelector: Selector!) -> Any?");
-        // Reported live: a synchronous UIView snapshot (tried first, for zero-gap timing)
-        // produced a blank/black cover instead of a frozen frame — evidently unreliable for
-        // WKWebView's out-of-process content. Solid cover first (never black), opportunistically
-        // upgraded via WKWebView's own dedicated (async) snapshot API if it resolves in time.
-        iosBootstrap.Should().Contain("cover.backgroundColor = .white");
-        iosBootstrap.Should().Contain("webView.takeSnapshot(with: nil)");
+        iosBootstrap.Should().Contain("let spinner = UIActivityIndicatorView(style: .medium)");
+        iosBootstrap.Should().Contain("spinner.centerXAnchor.constraint(equalTo: webView.centerXAnchor)");
         iosBootstrap.Should().Contain("DispatchQueue.main.asyncAfter(deadline: .now() + 0.1");
 
         iosBootstrap.Should().Contain("customClass=\"PrismBridgeViewController\" customModule=\"App\"");

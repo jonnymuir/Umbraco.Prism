@@ -1156,19 +1156,17 @@ class PrismBridgeViewController: CAPBridgeViewController {
     }
 }
 
-// Approximates browser "paint holding" for full-page navigations. A normal Safari tab keeps the
-// outgoing page's last frame on screen until the incoming page has something to paint, so there's
-// never a blank gap between pages — WKWebView, embedded the way Capacitor uses it here, doesn't do
-// this on its own (confirmed live: a real blank white gap between every navigation; confirmed by
-// reading Capacitor's own vendored iOS source: no snapshot/hold mechanism anywhere in it, this is
-// a genuine gap in what it provides, not something misconfigured). Covers the outgoing page with
-// a solid cover the instant a navigation starts — reported live: an earlier version tried a
-// synchronous UIView snapshot for a true zero-gap frozen frame, and instead produced a blank/
-// black cover, evidently an unreliable technique for WKWebView's out-of-process content despite
-// working for ordinary views; see freeze()'s own remarks — opportunistically upgrading to a real
-// frozen frame via WKWebView's own (async) snapshot API if it resolves in time, and — only if the
-// real navigation is slow enough to actually notice (100ms) — layering a spinner on top too,
-// rather than leaving a static cover up indefinitely with no sign anything is still happening.
+// WKWebView, embedded the way Capacitor uses it here, shows a real blank gap between full-page
+// navigations (confirmed live; confirmed by reading Capacitor's own vendored iOS source: no
+// snapshot/hold mechanism anywhere in it, this is a genuine gap in what it provides, not something
+// misconfigured). Two different attempts to paper over that gap with a frozen frame of the
+// outgoing page — a synchronous UIView snapshot, and WKWebView's own async takeSnapshot API called
+// at navigation start — were each tried live, in production, and each independently resolved to a
+// blank/black image instead (see showSpinner()'s own remarks for the full account of both). Rather
+// than risk a third snapshot technique on a guess, WKWebView's own default behaviour between
+// navigations is left entirely alone here: no cover, no snapshot, nothing placed over the webview
+// itself. The only thing this delegate adds is a small spinner, revealed on top after a short
+// delay (100ms) so a slow navigation still gets a visible sign something is happening.
 //
 // Works for every navigation regardless of origin, including the federated redirect chain through
 // a hosted IdP (Entra) and back — a page this app doesn't control obviously can't run any JS of
@@ -1188,7 +1186,7 @@ class PrismBridgeViewController: CAPBridgeViewController {
 // untouched, not reimplemented.
 private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate {
     private let target: WKNavigationDelegate?
-    private var freezeView: UIView?
+    private var spinnerView: UIActivityIndicatorView?
     private var spinnerRevealWorkItem: DispatchWorkItem?
 
     init(forwardingTo target: WKNavigationDelegate?) {
@@ -1206,91 +1204,60 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-        freeze(webView)
+        showSpinner(over: webView)
         target?.webView?(webView, didStartProvisionalNavigation: navigation)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         target?.webView?(webView, didFinish: navigation)
-        // One extra runloop turn so the new page has actually painted before the freeze lifts —
-        // didFinish fires on load completion, not first paint.
-        DispatchQueue.main.async { [weak self] in self?.unfreeze() }
+        // One extra runloop turn so the new page has actually painted before the spinner is
+        // hidden — didFinish fires on load completion, not first paint.
+        DispatchQueue.main.async { [weak self] in self?.hideSpinner() }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         target?.webView?(webView, didFail: navigation, withError: error)
-        unfreeze()
+        hideSpinner()
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         target?.webView?(webView, didFailProvisionalNavigation: navigation, withError: error)
-        unfreeze()
+        hideSpinner()
     }
 
-    private func freeze(_ webView: WKWebView) {
+    private func showSpinner(over webView: WKWebView) {
         // The webview's own superview (AppDelegate's safe-area-pinned container — see its own
         // remarks), not the webview itself: adding a plain UIView as a WKWebView's own direct
         // subview risks interfering with WKWebView's own internal view hierarchy, which it
         // manages itself. Read fresh here rather than captured once at init — the view hierarchy
         // may not be fully attached yet at viewDidLoad time.
-        guard let hostView = webView.superview, freezeView == nil else { return }
+        guard let hostView = webView.superview, spinnerView == nil else { return }
 
-        // A plain solid cover first, always, synchronously — never anything that can render as
-        // an uncontrolled black gap. Reported live: webView.snapshotView(afterScreenUpdates:
-        // false) (tried first, for zero-gap timing) produced exactly that — a blank/black cover
-        // with nothing else visible, not the frozen frame it was supposed to show. WKWebView's
-        // content composites out-of-process; a plain synchronous UIView snapshot evidently isn't
-        // reliable for it, contrary to what was assumed when this shipped. white matches the
-        // safe-area cover already used elsewhere in this file (AppDelegate's own container
-        // background) rather than risking an unstyled default.
-        let cover = UIView()
-        cover.backgroundColor = .white
-        cover.frame = webView.frame
-        hostView.addSubview(cover)
-        freezeView = cover
-
-        let imageView = UIImageView()
-        imageView.contentMode = .top
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        cover.addSubview(imageView)
-        NSLayoutConstraint.activate([
-            imageView.topAnchor.constraint(equalTo: cover.topAnchor),
-            imageView.leadingAnchor.constraint(equalTo: cover.leadingAnchor),
-            imageView.trailingAnchor.constraint(equalTo: cover.trailingAnchor),
-            imageView.bottomAnchor.constraint(equalTo: cover.bottomAnchor)
-        ])
-
+        // Two different attempts at a real frozen-frame cover — a synchronous UIView snapshot,
+        // then WKWebView's own async takeSnapshot API — each independently resolved to a blank/
+        // black image live, in production, so neither is used any more. No cover at all here:
+        // just a spinner, laid directly over the webview, so WKWebView's own default rendering
+        // between navigations is never obscured or replaced with anything of this delegate's own.
         let spinner = UIActivityIndicatorView(style: .medium)
         spinner.translatesAutoresizingMaskIntoConstraints = false
         spinner.hidesWhenStopped = true
-        cover.addSubview(spinner)
+        hostView.addSubview(spinner)
+        spinnerView = spinner
         NSLayoutConstraint.activate([
-            spinner.centerXAnchor.constraint(equalTo: cover.centerXAnchor),
-            spinner.centerYAnchor.constraint(equalTo: cover.centerYAnchor)
+            spinner.centerXAnchor.constraint(equalTo: webView.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: webView.centerYAnchor)
         ])
-
-        // Opportunistic upgrade: WKWebView's own dedicated snapshot API, the one actually
-        // documented to work reliably for its content (unlike the plain UIView one above) — but
-        // it's async, so it's a best-effort improvement over the solid cover, not the primary
-        // mechanism. If it resolves before this navigation finishes (freezeView is still this
-        // same cover, not yet cleared by unfreeze()), swap it in; if not, the solid cover plus
-        // the spinner below is what the user sees for this navigation, which is still correct,
-        // just not as polished as a real frozen frame.
-        webView.takeSnapshot(with: nil) { [weak self, weak cover] image, _ in
-            guard let self, let cover, self.freezeView === cover, let image else { return }
-            imageView.image = image
-        }
 
         let reveal = DispatchWorkItem { spinner.startAnimating() }
         spinnerRevealWorkItem = reveal
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: reveal)
     }
 
-    private func unfreeze() {
+    private func hideSpinner() {
         spinnerRevealWorkItem?.cancel()
         spinnerRevealWorkItem = nil
-        freezeView?.removeFromSuperview()
-        freezeView = nil
+        spinnerView?.removeFromSuperview()
+        spinnerView = nil
     }
 }
 PRISM_SWIFT_EOF
