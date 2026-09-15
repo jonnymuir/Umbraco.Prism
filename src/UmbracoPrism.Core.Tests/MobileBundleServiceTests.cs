@@ -445,6 +445,34 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("project.addSourceFile('App/PrismBridgeViewController.swift'");
         iosBootstrap.Should().Contain("registered in project.pbxproj");
 
+        // Apple's own App Store Connect warning (90068) on the reference app's own recent uploads:
+        // MinimumOSVersion 14.0 becomes unsubmittable from Spring 2027. Fixed generically here (not
+        // just for this reference app's own CI pipeline) so every "Produce Mobile" consumer gets it.
+        iosBootstrap.Should().Contain("project.updateBuildProperty('IPHONEOS_DEPLOYMENT_TARGET', '15.0')");
+
+        // Reported live: paint-holding still only ever shows each page's just-loaded frame, never
+        // one reflecting typing/scrolling since — despite the content-change pipeline (above)
+        // supposedly covering exactly that. rawInvalidationMessagesReceived (counted independently
+        // of whether navigationHold ends up processing the message) and the JS-side, DOM-visible
+        // rawEvt counter (independent of whether the native message bridge works at all) each rule
+        // a different link in that pipeline in or out, without depending on the other one working.
+        iosBootstrap.Should().Contain("fileprivate static var rawInvalidationMessagesReceived = 0");
+        iosBootstrap.Should().Contain("Self.rawInvalidationMessagesReceived += 1");
+        iosBootstrap.Should().Contain("raw=\\(PrismBridgeViewController.rawInvalidationMessagesReceived)");
+        iosBootstrap.Should().Contain("var diagEnabled=");
+        iosBootstrap.Should().Contain("var rawEvt=0");
+        iosBootstrap.Should().Contain("prism-js-event-diag");
+
+        // Reported live: Sign Out bounces the whole app out to system Safari, landing on this
+        // app's own /auth/logout, blank. Observes (never alters) Capacitor's own real
+        // decidePolicyFor decision, logging exactly which URL/method got cancelled — the one thing
+        // that can't be settled by reading Capacitor's source alone. UserDefaults, not an in-memory
+        // property, since sign-out leaves the app entirely and may be force-quit while away.
+        iosBootstrap.Should().Contain("func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void)");
+        iosBootstrap.Should().Contain("private static let navigationDecisionLogKey = \"prism.diag.navigationDecisionLog\"");
+        iosBootstrap.Should().Contain("private static func recordNavigationDecision(url: String, method: String, policy: WKNavigationActionPolicy)");
+        iosBootstrap.Should().Contain("UserDefaults.standard.stringArray(forKey: navigationDecisionLogKey)");
+
         var packageJson = ReadEntry(archive, "package.json");
         packageJson.Should().Contain("\"xcode\": \"^3.0.1\"");
     }

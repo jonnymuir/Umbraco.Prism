@@ -1158,6 +1158,13 @@ import WebKit
 class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler {
     private static let snapshotInvalidationMessageName = "prismInvalidateSnapshot"
 
+    // Diagnostic only — see userContentController(_:didReceive:)'s own remarks on what comparing
+    // this against PrismNavigationHoldDelegate's own contentChangeSignalCount is for. static
+    // rather than an instance property so PrismNavigationHoldDelegate's diagnostic label (a
+    // different type) can read it directly by name — both live in the same file/module, and there
+    // is only ever one PrismBridgeViewController instance in this app regardless.
+    fileprivate static var rawInvalidationMessagesReceived = 0
+
     private var navigationHold: PrismNavigationHoldDelegate?
 
     override func viewDidLoad() {
@@ -1191,7 +1198,17 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         // once per commit, not once per keystroke's own keydown, and scroll's continuous stream
         // during an active gesture is coalesced into the same single timer — either way, at most
         // one message crosses the JS/native bridge per 100ms of actual quiet, not one per event.
-        let invalidationSource = "(function(){var t=null;function n(){if(t){clearTimeout(t);}t=setTimeout(function(){t=null;if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName)){window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName).postMessage(null);}},100);}document.addEventListener('input',n,true);document.addEventListener('change',n,true);document.addEventListener('scroll',n,true);})();"
+        //
+        // The rawEvt counter and its on-page label (interpolated in as a literal JS true/false —
+        // this executes as JS, not Swift, so it can't just read PrismMobileDiagnosticsFlag.enabled
+        // directly) are a diagnostic aid only, independent of the native diagnostic label and its
+        // own reveal gesture — this is deliberately visible whenever the build has diagnostics on
+        // at all, with no separate reveal step, since what it's for is answering a more basic
+        // question than that label can: whether these DOM events are firing here at all, verifiable
+        // entirely on the JS/page side without depending on window.webkit.messageHandlers (the
+        // bridge to native) working — the two are meant to fail independently of each other so
+        // each can be ruled in or out on its own.
+        let invalidationSource = "(function(){var diagEnabled=\(PrismMobileDiagnosticsFlag.enabled);var rawEvt=0;var diagEl=null;function renderDiag(){if(!diagEnabled||!document.body)return;if(!diagEl||!document.body.contains(diagEl)){diagEl=document.createElement('div');diagEl.id='prism-js-event-diag';diagEl.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:rgba(0,100,0,0.55);color:#fff;font:9px monospace;padding:1px;text-align:center;pointer-events:none;';document.body.appendChild(diagEl);}diagEl.textContent='js-evt rawEvt='+rawEvt;}var t=null;function n(){rawEvt++;renderDiag();if(t){clearTimeout(t);}t=setTimeout(function(){t=null;if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName)){window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName).postMessage(null);}},100);}document.addEventListener('input',n,true);document.addEventListener('change',n,true);document.addEventListener('scroll',n,true);})();"
         let invalidationScript = WKUserScript(source: invalidationSource, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         configuration.userContentController.addUserScript(invalidationScript)
         // WKUserContentController retains whatever's added as a message handler for as long as
@@ -1204,7 +1221,16 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == Self.snapshotInvalidationMessageName, let webView = message.webView else { return }
+        guard message.name == Self.snapshotInvalidationMessageName else { return }
+        // Counted before the webView/navigationHold unwraps below, specifically so it stays
+        // meaningful even if either of those is ever nil here — comparing this (raw=, in the
+        // diagnostic label) against contentChangeSignalCount (chg=) tells apart "the message
+        // never reached native at all" (both stay at 0) from "it arrived here but never reached
+        // contentDidChange" (raw increases, chg doesn't — navigationHold or message.webView was
+        // nil at delivery time) from "everything downstream of this handler is fine" (both march
+        // together).
+        Self.rawInvalidationMessagesReceived += 1
+        guard let webView = message.webView else { return }
         navigationHold?.contentDidChange(in: webView)
     }
 }
@@ -1351,6 +1377,56 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         hideSpinner()
     }
 
+    // Observes, never alters, Capacitor's own real navigation-policy decision — reported live: a
+    // sign-out tap bounces the whole app out to system Safari, landing on this app's own
+    // /auth/logout URL, blank. Confirmed from Capacitor's vendored source that its decision here is
+    // purely host-allowlist-based with no method/navigationType distinction, and confirmed every
+    // Sign Out button submits a plain top-level POST form — so which exact URL, with which method,
+    // actually gets cancelled (bounced) is the one thing that can't be settled by reading source,
+    // only by watching a real decision happen. Manually forwards to target rather than relying on
+    // forwardingTarget(for:) (used for everything else this class doesn't implement) specifically
+    // because observing requires wrapping the completion handler, not just relaying the call
+    // unchanged — target?.webView?(...) still safely no-ops exactly like forwardingTarget would if
+    // target is nil or doesn't implement this, which the guard below detects and falls back to
+    // .allow for (WKWebView's own default with no navigationDelegate at all) so a navigation can
+    // never hang waiting for a decisionHandler that was never going to fire.
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        let urlString = navigationAction.request.url?.absoluteString ?? "nil"
+        let method = navigationAction.request.httpMethod ?? "GET"
+        // Explicit Void? annotation: deliberate here, not an accident this needs silencing —
+        // nil is exactly how "target is nil, or doesn't implement this optional method" is
+        // distinguished from "it does, and just called our wrapped completion".
+        let forwarded: Void? = target?.webView?(webView, decidePolicyFor: navigationAction, decisionHandler: { policy in
+            Self.recordNavigationDecision(url: urlString, method: method, policy: policy)
+            decisionHandler(policy)
+        })
+        if forwarded == nil {
+            Self.recordNavigationDecision(url: urlString, method: method, policy: .allow)
+            decisionHandler(.allow)
+        }
+    }
+
+    // TEMPORARY diagnostic aid, same spirit as the paint-holding counters above but for a
+    // different bug: sign-out leaves the app entirely, so there's no "next navigation's spinner"
+    // moment left in THIS app session to show a label at — UserDefaults, not an in-memory property,
+    // specifically so the log survives the round trip through Safari even if the user force-quits
+    // while there (reported as part of the same investigation) rather than just backgrounding.
+    // Recording is gated on PrismMobileDiagnosticsFlag.enabled (a build-time constant) but NOT on
+    // isDiagnosticsRevealed (a display-time toggle) — capturing what happened shouldn't depend on
+    // whether anyone happened to have the overlay open at that exact moment; only showing it does.
+    private static let navigationDecisionLogKey = "prism.diag.navigationDecisionLog"
+
+    private static func recordNavigationDecision(url: String, method: String, policy: WKNavigationActionPolicy) {
+        guard PrismMobileDiagnosticsFlag.enabled else { return }
+        let policyText = policy == .cancel ? "CANCEL" : "allow"
+        var log = UserDefaults.standard.stringArray(forKey: navigationDecisionLogKey) ?? []
+        log.append("\(policyText) \(method) \(url)")
+        if log.count > 10 {
+            log.removeFirst(log.count - 10)
+        }
+        UserDefaults.standard.set(log, forKey: navigationDecisionLogKey)
+    }
+
     private func showSpinner(over webView: WKWebView) {
         // The webview's own superview (AppDelegate's safe-area-pinned container — see its own
         // remarks), not the webview itself: adding a plain UIView as a WKWebView's own direct
@@ -1445,10 +1521,19 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         // whatever's being tested right now.
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
+        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) raw=\(PrismBridgeViewController.rawInvalidationMessagesReceived) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
+
+        // Piggybacks on the same label/reveal gesture rather than a separate view — see
+        // recordNavigationDecision's own remarks on why this is captured via UserDefaults
+        // regardless of whether anyone had this label open at the time. Shown here (a completely
+        // unrelated bug's diagnostics) rather than only right after a sign-out attempt because
+        // sign-out leaves the app entirely — this may be the first moment back in it with
+        // anywhere left to show a label at all.
+        let navLog = UserDefaults.standard.stringArray(forKey: Self.navigationDecisionLogKey) ?? []
+        let navLogText = navLog.isEmpty ? "" : "\nnav-log (last \(navLog.count)):\n" + navLog.joined(separator: "\n")
 
         let label = UILabel()
-        label.text = text
+        label.text = text + navLogText
         label.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
         label.textColor = .white
         label.backgroundColor = UIColor.black.withAlphaComponent(0.6)
@@ -1466,7 +1551,10 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
 
         let dismiss = DispatchWorkItem { [weak label] in label?.removeFromSuperview() }
         diagnosticDismissWorkItem = dismiss
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5, execute: dismiss)
+        // Longer when there's a navigation log to read too — that's several lines of URLs, not
+        // the usual one-liner, and needs real time to actually read rather than just glimpse.
+        let dismissDelay: TimeInterval = navLog.isEmpty ? 2.5 : 8.0
+        DispatchQueue.main.asyncAfter(deadline: .now() + dismissDelay, execute: dismiss)
     }
 
     // 0.3s (didFinish, waiting out trailing load-time rendering) or 0.1s (contentDidChange,
@@ -1634,13 +1722,29 @@ const alreadyPresent = Object.values(refs).some(
   ref => ref && typeof ref === 'object' && typeof ref.path === 'string' && ref.path.includes('PrismBridgeViewController.swift')
 );
 
+let pbxprojDirty = false;
+
 if (!alreadyPresent) {
   const target = project.getFirstTarget().uuid;
   project.addSourceFile('App/PrismBridgeViewController.swift', { target }, 'App');
-  fs.writeFileSync(pbxprojPath, project.writeSync());
+  pbxprojDirty = true;
   console.log('✓ PrismBridgeViewController.swift registered in project.pbxproj');
 } else {
   console.log('✓ PrismBridgeViewController.swift already registered in project.pbxproj');
+}
+
+// Capacitor's own iOS template defaults IPHONEOS_DEPLOYMENT_TARGET to 14.0. Not urgent today —
+// App Store Connect still accepts a 14.0 upload, just flagging it (warning 90068) — but Apple's
+// own notice on that warning states 15.0 becomes a hard floor for uploads/submissions starting
+// Spring 2027, so there's no reason to keep shipping a value already known to stop working.
+// updateBuildProperty with no build/targetName filter applies across every configuration and
+// every target, matching how a single Xcode "Deployment Target" field edit would behave.
+project.updateBuildProperty('IPHONEOS_DEPLOYMENT_TARGET', '15.0');
+pbxprojDirty = true;
+console.log('✓ IPHONEOS_DEPLOYMENT_TARGET set to 15.0 in project.pbxproj');
+
+if (pbxprojDirty) {
+  fs.writeFileSync(pbxprojPath, project.writeSync());
 }
 PRISM_NODE_EOF
   node .prism-add-swift-file.mjs
