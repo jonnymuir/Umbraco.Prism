@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Reflection;
 using System.Security.Claims;
 using UmbracoPrism.Core.Controllers;
@@ -78,7 +79,7 @@ public class AccountControllerTests
 
     private static AccountController BuildController(bool isAuthenticated)
     {
-        var controller = new AccountController();
+        var controller = new AccountController(NullLogger<AccountController>.Instance);
         var identity = isAuthenticated
             ? new ClaimsIdentity(authenticationType: "PrismMemberCookie")
             : new ClaimsIdentity();
