@@ -1134,7 +1134,9 @@ import WebKit
 // CSS/markup control over — see bootstrap-ios.sh's own comment for the full rationale. Runs at
 // document start and again on DOMContentLoaded, so it wins regardless of whether the page's own
 // <meta name=viewport> tag exists yet.
-class PrismBridgeViewController: CAPBridgeViewController {
+class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler {
+    private static let snapshotInvalidationMessageName = "prismInvalidateSnapshot"
+
     private var navigationHold: PrismNavigationHoldDelegate?
 
     override func viewDidLoad() {
@@ -1152,7 +1154,40 @@ class PrismBridgeViewController: CAPBridgeViewController {
         let source = "(function(){function pin(){var meta=document.querySelector('meta[name=viewport]');if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}meta.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
         let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         configuration.userContentController.addUserScript(script)
+
+        // Tells PrismNavigationHoldDelegate its cached frame for the current page is stale —
+        // see its own remarks on why a cached frame needs refreshing at all, and on why this is
+        // debounced here, in JS, rather than posting a message per raw event. input/change fire
+        // once per commit, not once per keystroke's own keydown, and scroll's continuous stream
+        // during an active gesture is coalesced into the same single timer — either way, at most
+        // one message crosses the JS/native bridge per 100ms of actual quiet, not one per event.
+        let invalidationSource = "(function(){var t=null;function n(){if(t){clearTimeout(t);}t=setTimeout(function(){t=null;if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName)){window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName).postMessage(null);}},100);}document.addEventListener('input',n,true);document.addEventListener('change',n,true);document.addEventListener('scroll',n,true);})();"
+        let invalidationScript = WKUserScript(source: invalidationSource, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        configuration.userContentController.addUserScript(invalidationScript)
+        // WKUserContentController retains whatever's added as a message handler for as long as
+        // this configuration exists — adding `self` directly here would be the textbook
+        // WKScriptMessageHandler retain cycle (this view controller owns the webview, which owns
+        // this very configuration, which would then own this view controller right back). The
+        // weak-referencing proxy below is the standard fix.
+        configuration.userContentController.add(WeakScriptMessageHandler(target: self), name: Self.snapshotInvalidationMessageName)
         return configuration
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == Self.snapshotInvalidationMessageName, let webView = message.webView else { return }
+        navigationHold?.contentDidChange(in: webView)
+    }
+}
+
+private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    private weak var target: WKScriptMessageHandler?
+
+    init(target: WKScriptMessageHandler) {
+        self.target = target
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(userContentController, didReceive: message)
     }
 }
 
@@ -1174,9 +1209,15 @@ class PrismBridgeViewController: CAPBridgeViewController {
 // frame of anything. Either way, a small spinner is layered on top too, revealed after a short
 // delay (100ms) so a slow navigation still gets a visible sign something is happening.
 //
-// The cached frame can be one navigation stale — it reflects the page as it looked when it last
-// settled, not any DOM/JS change or scroll/input the user made afterward — which is an accepted
-// tradeoff of this technique (the same one iOS's own app-switcher snapshots make), not a bug.
+// The cached frame is also refreshed while the user stays on a page — contentDidChange(in:) is
+// called from PrismBridgeViewController's own WKScriptMessageHandler whenever injected JS detects
+// input/change/scroll activity (debounced to one message per 100ms of quiet — see that script's
+// own remarks), so a page the user has actually typed into or scrolled since it loaded doesn't
+// keep showing the empty/unscrolled frame it had right after settling. It can still be briefly
+// behind the very latest keystroke or scroll position — that's an accepted tradeoff of capturing
+// only once things go quiet, the same one iOS's own app-switcher snapshots make — but it's no
+// longer pinned to "whatever the page looked like the moment it finished loading" for the whole
+// time the user stays on it.
 //
 // Works for every navigation regardless of origin, including the federated redirect chain through
 // a hosted IdP (Entra) and back — a page this app doesn't control obviously can't run any JS of
@@ -1201,6 +1242,8 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
     private var snapshotOverlayView: UIImageView?
     private var lastGoodSnapshot: UIImage?
     private var pendingSnapshotCapture: DispatchWorkItem?
+    private var isCaptureInFlight = false
+    private var captureNeededAfterInFlight = false
 
     init(forwardingTo target: WKNavigationDelegate?) {
         self.target = target
@@ -1219,10 +1262,14 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         // A capture scheduled for the page now being navigated away from — if it hasn't fired
         // yet, cancel it rather than let it run mid-navigation, which is the exact bad timing
-        // this whole scheme exists to avoid. lastGoodSnapshot just stays one navigation stale in
-        // that case; see the class-level remarks on why that's an accepted tradeoff, not a bug.
+        // this whole scheme exists to avoid. Also drops any catch-up already flagged for once an
+        // in-flight capture finishes — that capture started on the *old* page (its result is
+        // still valid and kept), but a follow-up triggered by it firing mid-navigation on the
+        // *new* page would not be. lastGoodSnapshot just stays one navigation stale in that case;
+        // see the class-level remarks on why that's an accepted tradeoff, not a bug.
         pendingSnapshotCapture?.cancel()
         pendingSnapshotCapture = nil
+        captureNeededAfterInFlight = false
         showSpinner(over: webView)
         target?.webView?(webView, didStartProvisionalNavigation: navigation)
     }
@@ -1232,7 +1279,16 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         // One extra runloop turn so the new page has actually painted before the spinner is
         // hidden — didFinish fires on load completion, not first paint.
         DispatchQueue.main.async { [weak self] in self?.hideSpinner() }
-        scheduleSnapshotCapture(of: webView)
+        scheduleSnapshotCapture(of: webView, delay: 0.3)
+    }
+
+    // Called by PrismBridgeViewController's own WKScriptMessageHandler when injected JS detects
+    // the page has been typed into, changed, or scrolled — see the class-level remarks. A much
+    // shorter delay than the post-didFinish capture: the page is already loaded and settled, this
+    // is just refreshing a cached frame to match what's actually on screen now, not waiting out
+    // trailing load-time rendering.
+    fileprivate func contentDidChange(in webView: WKWebView) {
+        scheduleSnapshotCapture(of: webView, delay: 0.1)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -1294,28 +1350,53 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         snapshotOverlayView = nil
     }
 
-    private func scheduleSnapshotCapture(of webView: WKWebView) {
-        // A short buffer after didFinish, not immediately — didFinish fires on load completion,
-        // not on the page having actually settled visually (trailing layout, webfonts, images).
-        // 300ms is a reasonable buffer, not a device-measured constant; worth revisiting with
-        // real measurements once this can be tested live. Cancels any capture still pending from
-        // the previous navigation first — didStartProvisionalNavigation also cancels this, but a
-        // second didFinish arriving before the first capture fires (a very fast navigation)
-        // shouldn't leave two competing captures in flight.
+    // 0.3s (didFinish, waiting out trailing load-time rendering) or 0.1s (contentDidChange,
+    // waiting out a burst of typing/scrolling) — see each call site's own remarks. Neither is a
+    // device-measured constant; worth revisiting with real measurements once this can be tested
+    // live. Cancels any capture still pending from a previous trigger first — didFinish and
+    // contentDidChange can each fire multiple times in quick succession (a fast navigation, or a
+    // user still actively typing), and only the most recent trigger's delay should count, not a
+    // pile-up of independently-scheduled timers.
+    private func scheduleSnapshotCapture(of webView: WKWebView, delay: TimeInterval) {
         pendingSnapshotCapture?.cancel()
         let capture = DispatchWorkItem { [weak self, weak webView] in
-            guard let webView else { return }
-            // Confirmed reliable at this timing, unlike at navigation start (see the class-level
-            // remarks) — but still validated before caching: a nil result (the API can still
-            // decline, e.g. mid-memory-pressure) leaves the previous cached frame in place rather
-            // than being treated as a valid "blank page" to show next time.
-            webView.takeSnapshot(with: nil) { [weak self] image, _ in
-                guard let self, let image else { return }
-                self.lastGoodSnapshot = image
-            }
+            guard let self, let webView else { return }
+            self.captureSnapshot(of: webView)
         }
         pendingSnapshotCapture = capture
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: capture)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: capture)
+    }
+
+    // Cancelling the DispatchWorkItem above only stops a capture that hasn't started yet — once
+    // takeSnapshot itself has actually been called, that async call is in flight and isn't
+    // something a cancelled DispatchWorkItem can stop. isCaptureInFlight guards against a second
+    // trigger starting an overlapping takeSnapshot call while one's already running: it's deferred
+    // instead (captureNeededAfterInFlight), so a change that arrives mid-capture still eventually
+    // gets its own fresh snapshot rather than being silently dropped — just delayed until right
+    // after the current one finishes, never running two at once.
+    private func captureSnapshot(of webView: WKWebView) {
+        guard !isCaptureInFlight else {
+            captureNeededAfterInFlight = true
+            return
+        }
+        isCaptureInFlight = true
+        // Confirmed reliable at this timing, unlike at navigation start (see the class-level
+        // remarks) — but still validated before caching: a nil result (the API can still decline,
+        // e.g. mid-memory-pressure) leaves the previous cached frame in place rather than being
+        // treated as a valid "blank page" to show next time.
+        webView.takeSnapshot(with: nil) { [weak self, weak webView] image, _ in
+            guard let self else { return }
+            if let image {
+                self.lastGoodSnapshot = image
+            }
+            self.isCaptureInFlight = false
+            if self.captureNeededAfterInFlight {
+                self.captureNeededAfterInFlight = false
+                if let webView {
+                    self.captureSnapshot(of: webView)
+                }
+            }
+        }
     }
 }
 PRISM_SWIFT_EOF
