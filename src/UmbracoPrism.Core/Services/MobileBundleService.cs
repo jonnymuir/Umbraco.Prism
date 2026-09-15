@@ -1160,13 +1160,23 @@ class PrismBridgeViewController: CAPBridgeViewController {
 // navigations (confirmed live; confirmed by reading Capacitor's own vendored iOS source: no
 // snapshot/hold mechanism anywhere in it, this is a genuine gap in what it provides, not something
 // misconfigured). Two different attempts to paper over that gap with a frozen frame of the
-// outgoing page — a synchronous UIView snapshot, and WKWebView's own async takeSnapshot API called
-// at navigation start — were each tried live, in production, and each independently resolved to a
-// blank/black image instead (see showSpinner()'s own remarks for the full account of both). Rather
-// than risk a third snapshot technique on a guess, WKWebView's own default behaviour between
-// navigations is left entirely alone here: no cover, no snapshot, nothing placed over the webview
-// itself. The only thing this delegate adds is a small spinner, revealed on top after a short
+// outgoing page failed live, in production, in the same way — a synchronous UIView snapshot, and
+// WKWebView's own async takeSnapshot API, each independently resolved to a blank/black image —
+// and both share the same root cause: both were captured at the instant a navigation starts,
+// which is exactly the timing WebKit's own documentation and outside reports call out as
+// unreliable, because the outgoing page hasn't settled yet. Neither is captured at that moment any
+// more. Instead, scheduleSnapshotCapture() takes a fresh snapshot a short delay *after* each
+// navigation finishes — the one timing this API is documented to actually work at — and caches it;
+// showSpinner() for the *next* navigation just hands over whatever's already cached, synchronously,
+// with no async call happening at the moment it's needed and so no timing race left to get wrong
+// there. If nothing has been cached yet (the very first navigation after launch), WKWebView's own
+// default rendering is left alone rather than covering it with a placeholder that isn't actually a
+// frame of anything. Either way, a small spinner is layered on top too, revealed after a short
 // delay (100ms) so a slow navigation still gets a visible sign something is happening.
+//
+// The cached frame can be one navigation stale — it reflects the page as it looked when it last
+// settled, not any DOM/JS change or scroll/input the user made afterward — which is an accepted
+// tradeoff of this technique (the same one iOS's own app-switcher snapshots make), not a bug.
 //
 // Works for every navigation regardless of origin, including the federated redirect chain through
 // a hosted IdP (Entra) and back — a page this app doesn't control obviously can't run any JS of
@@ -1188,6 +1198,9 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
     private let target: WKNavigationDelegate?
     private var spinnerView: UIActivityIndicatorView?
     private var spinnerRevealWorkItem: DispatchWorkItem?
+    private var snapshotOverlayView: UIImageView?
+    private var lastGoodSnapshot: UIImage?
+    private var pendingSnapshotCapture: DispatchWorkItem?
 
     init(forwardingTo target: WKNavigationDelegate?) {
         self.target = target
@@ -1204,6 +1217,12 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        // A capture scheduled for the page now being navigated away from — if it hasn't fired
+        // yet, cancel it rather than let it run mid-navigation, which is the exact bad timing
+        // this whole scheme exists to avoid. lastGoodSnapshot just stays one navigation stale in
+        // that case; see the class-level remarks on why that's an accepted tradeoff, not a bug.
+        pendingSnapshotCapture?.cancel()
+        pendingSnapshotCapture = nil
         showSpinner(over: webView)
         target?.webView?(webView, didStartProvisionalNavigation: navigation)
     }
@@ -1213,6 +1232,7 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         // One extra runloop turn so the new page has actually painted before the spinner is
         // hidden — didFinish fires on load completion, not first paint.
         DispatchQueue.main.async { [weak self] in self?.hideSpinner() }
+        scheduleSnapshotCapture(of: webView)
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -1233,11 +1253,23 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         // may not be fully attached yet at viewDidLoad time.
         guard let hostView = webView.superview, spinnerView == nil else { return }
 
-        // Two different attempts at a real frozen-frame cover — a synchronous UIView snapshot,
-        // then WKWebView's own async takeSnapshot API — each independently resolved to a blank/
-        // black image live, in production, so neither is used any more. No cover at all here:
-        // just a spinner, laid directly over the webview, so WKWebView's own default rendering
-        // between navigations is never obscured or replaced with anything of this delegate's own.
+        // A real frame of the outgoing page, if one's on hand — captured proactively, after the
+        // previous navigation settled (see scheduleSnapshotCapture()'s own remarks for why that
+        // timing, and not this one, is the only one this API is documented to work reliably at).
+        // Shown synchronously: no async call happens here, so there's no timing race left to get
+        // wrong at the point it matters. With nothing cached yet (the very first navigation after
+        // launch), only the spinner below appears — WKWebView's own default rendering is left
+        // alone rather than covering it with a placeholder that isn't actually a frame of
+        // anything.
+        if let snapshot = lastGoodSnapshot {
+            let imageView = UIImageView(image: snapshot)
+            imageView.contentMode = .top
+            imageView.clipsToBounds = true
+            imageView.frame = webView.frame
+            hostView.addSubview(imageView)
+            snapshotOverlayView = imageView
+        }
+
         let spinner = UIActivityIndicatorView(style: .medium)
         spinner.translatesAutoresizingMaskIntoConstraints = false
         spinner.hidesWhenStopped = true
@@ -1258,6 +1290,32 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         spinnerRevealWorkItem = nil
         spinnerView?.removeFromSuperview()
         spinnerView = nil
+        snapshotOverlayView?.removeFromSuperview()
+        snapshotOverlayView = nil
+    }
+
+    private func scheduleSnapshotCapture(of webView: WKWebView) {
+        // A short buffer after didFinish, not immediately — didFinish fires on load completion,
+        // not on the page having actually settled visually (trailing layout, webfonts, images).
+        // 300ms is a reasonable buffer, not a device-measured constant; worth revisiting with
+        // real measurements once this can be tested live. Cancels any capture still pending from
+        // the previous navigation first — didStartProvisionalNavigation also cancels this, but a
+        // second didFinish arriving before the first capture fires (a very fast navigation)
+        // shouldn't leave two competing captures in flight.
+        pendingSnapshotCapture?.cancel()
+        let capture = DispatchWorkItem { [weak self, weak webView] in
+            guard let webView else { return }
+            // Confirmed reliable at this timing, unlike at navigation start (see the class-level
+            // remarks) — but still validated before caching: a nil result (the API can still
+            // decline, e.g. mid-memory-pressure) leaves the previous cached frame in place rather
+            // than being treated as a valid "blank page" to show next time.
+            webView.takeSnapshot(with: nil) { [weak self] image, _ in
+                guard let self, let image else { return }
+                self.lastGoodSnapshot = image
+            }
+        }
+        pendingSnapshotCapture = capture
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: capture)
     }
 }
 PRISM_SWIFT_EOF
