@@ -1165,6 +1165,13 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
     // is only ever one PrismBridgeViewController instance in this app regardless.
     fileprivate static var rawInvalidationMessagesReceived = 0
 
+    // Counts the injected script's own immediate, undebounced 'init' ping (see its own remarks)
+    // separately from rawInvalidationMessagesReceived, which only counts real, debounced
+    // content-change signals — climbing roughly once per navigation proves script injection and
+    // the message bridge both work end-to-end, independent of whether any real interaction event
+    // ever fires on a given page.
+    fileprivate static var scriptLoadPingCount = 0
+
     private var navigationHold: PrismNavigationHoldDelegate?
 
     override func viewDidLoad() {
@@ -1178,7 +1185,19 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         // suspicious "allow GET about:blank" in that same log is the fingerprint of a window.open()
         // call, which WebKit routes through a completely different delegate method
         // (createWebViewWith, on WKUIDelegate) that this app was never observing.
-        let hold = PrismNavigationHoldDelegate(forwardingTo: webView.navigationDelegate, forwardingUIDelegateTo: webView.uiDelegate)
+        let hold = PrismNavigationHoldDelegate(
+            forwardingTo: webView.navigationDelegate,
+            forwardingUIDelegateTo: webView.uiDelegate,
+            // Reported live: a window.open()-style popup request for this app's own
+            // /auth/logout — the exact URL a plain top-level navigation was already handling
+            // correctly — got sent straight to system Safari by Capacitor's own createWebViewWith,
+            // which (confirmed from its vendored source) has no allowlist logic at all, unlike
+            // decidePolicyFor. Reuses the SAME allowlist Capacitor's own regular navigation
+            // handling already trusts (bridge.config.shouldAllowNavigation, the exact call
+            // decidePolicyFor itself makes) rather than inventing a second one, so a popup
+            // targeting this app's own trusted hosts stays in-app regardless of what triggered it.
+            isHostTrustedInApp: { [weak self] host in self?.bridge?.config.shouldAllowNavigation(to: host) ?? false }
+        )
         navigationHold = hold
         webView.navigationDelegate = hold
         webView.uiDelegate = hold
@@ -1225,16 +1244,24 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         // bridge to native) working — the two are meant to fail independently of each other so
         // each can be ruled in or out on its own.
         //
-        // Reported live: on a page whose interactive controls are custom components (sliders,
-        // radio groups), genuine interaction plus scrolling produced neither a native raw= increase
-        // nor even this JS-side counter appearing at all — meaning input/change/scroll themselves
-        // never fired here, not that they fired but the bridge dropped them. Widened the net rather
-        // than assuming why: pointerup/touchend/click fire for drag- or tap-driven custom controls
-        // regardless of whether they also dispatch standard input/change, and scroll is now also
-        // listened for on window, not just document, since WKWebView's own native momentum-scroll
-        // handling of the main page doesn't reliably surface a document-level scroll event the way
-        // desktop Safari does. lastEvt records which of these actually fired, once one does.
-        let invalidationSource = "(function(){var diagEnabled=\(PrismMobileDiagnosticsFlag.enabled);var rawEvt=0;var lastEvt='';var diagEl=null;function renderDiag(){if(!diagEnabled||!document.body)return;if(!diagEl||!document.body.contains(diagEl)){diagEl=document.createElement('div');diagEl.id='prism-js-event-diag';diagEl.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:rgba(0,100,0,0.55);color:#fff;font:9px monospace;padding:1px;text-align:center;pointer-events:none;';document.body.appendChild(diagEl);}diagEl.textContent='js-evt rawEvt='+rawEvt+' last='+lastEvt;}var t=null;function n(e){rawEvt++;lastEvt=e.type;renderDiag();if(t){clearTimeout(t);}t=setTimeout(function(){t=null;if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName)){window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName).postMessage(null);}},100);}document.addEventListener('input',n,true);document.addEventListener('change',n,true);document.addEventListener('scroll',n,true);document.addEventListener('pointerup',n,true);document.addEventListener('touchend',n,true);document.addEventListener('click',n,true);window.addEventListener('scroll',n,true);})();"
+        // Reported live, across four separate builds now: every signal specific to this injected
+        // script (raw=, chg=, and this JS-side counter) has stayed at zero, while everything on
+        // the pure-native side (settle captures, navigation tracking) has worked throughout. That
+        // split matters: it means none of the evidence so far actually confirms this script is
+        // even running at all — the JS-side counter div was only ever created lazily, the first
+        // time an event fired, so its absence couldn't be told apart from "ran fine, nothing fired
+        // yet." Two changes close that gap: the div now renders immediately on execution (as soon
+        // as document.body exists — atDocumentStart injection can run before it does, hence the
+        // readyState check, the same pattern bootstrap-ios.sh's own viewport-fix script already
+        // uses), so its mere presence at rawEvt=0 proves the script ran; and an immediate, un-
+        // debounced 'init' ping crosses the native bridge the same moment, surfaced there as a
+        // separate init= counter — climbing roughly once per navigation proves the injection AND
+        // the bridge both work end-to-end, narrowing what's left to genuinely investigate. Real
+        // content-change pings are now 'changed', not null, so init and real signals are never
+        // ambiguous on the native side either. pointerup/touchend/click/window-scroll (added
+        // previously, widening the net for custom drag/tap-driven controls and WKWebView's own
+        // momentum-scroll not reliably surfacing a document-level scroll event) are unchanged.
+        let invalidationSource = "(function(){var diagEnabled=\(PrismMobileDiagnosticsFlag.enabled);var rawEvt=0;var lastEvt='(none)';var diagEl=null;function renderDiag(){if(!diagEnabled||!document.body)return;if(!diagEl||!document.body.contains(diagEl)){diagEl=document.createElement('div');diagEl.id='prism-js-event-diag';diagEl.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:rgba(0,100,0,0.55);color:#fff;font:9px monospace;padding:1px;text-align:center;pointer-events:none;';document.body.appendChild(diagEl);}diagEl.textContent='js-evt rawEvt='+rawEvt+' last='+lastEvt;}function sendPing(body){if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName)){window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName).postMessage(body);}}function ready(){renderDiag();sendPing('init');}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',ready);}else{ready();}var t=null;function n(e){rawEvt++;lastEvt=e.type;renderDiag();if(t){clearTimeout(t);}t=setTimeout(function(){t=null;sendPing('changed');},100);}document.addEventListener('input',n,true);document.addEventListener('change',n,true);document.addEventListener('scroll',n,true);document.addEventListener('pointerup',n,true);document.addEventListener('touchend',n,true);document.addEventListener('click',n,true);window.addEventListener('scroll',n,true);})();"
         let invalidationScript = WKUserScript(source: invalidationSource, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         configuration.userContentController.addUserScript(invalidationScript)
         // WKUserContentController retains whatever's added as a message handler for as long as
@@ -1248,6 +1275,14 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == Self.snapshotInvalidationMessageName else { return }
+        // The injected script's immediate, undebounced ping on every page load — see its own
+        // remarks. Counted separately (scriptLoadPingCount, not rawInvalidationMessagesReceived)
+        // and never treated as a real content change: it fires unconditionally, not because
+        // anything actually changed.
+        if let body = message.body as? String, body == "init" {
+            Self.scriptLoadPingCount += 1
+            return
+        }
         // Counted before the webView/navigationHold unwraps below, specifically so it stays
         // meaningful even if either of those is ever nil here — comparing this (raw=, in the
         // diagnostic label) against contentChangeSignalCount (chg=) tells apart "the message
@@ -1323,6 +1358,7 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
     // of Capacitor-owned delegate object. No retain cycle risk: neither this object nor `target`
     // holds any reference back to the webview/view controller that in turn retains `hold`.
     private let uiTarget: WKUIDelegate?
+    private let isHostTrustedInApp: (String) -> Bool
     private var spinnerView: UIActivityIndicatorView?
     private var spinnerRevealWorkItem: DispatchWorkItem?
     private var snapshotOverlayView: UIImageView?
@@ -1350,9 +1386,10 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
     private var captureSuccessCount = 0
     private var captureFailureCount = 0
 
-    init(forwardingTo target: WKNavigationDelegate?, forwardingUIDelegateTo uiTarget: WKUIDelegate?) {
+    init(forwardingTo target: WKNavigationDelegate?, forwardingUIDelegateTo uiTarget: WKUIDelegate?, isHostTrustedInApp: @escaping (String) -> Bool) {
         self.target = target
         self.uiTarget = uiTarget
+        self.isHostTrustedInApp = isHostTrustedInApp
     }
 
     override func responds(to aSelector: Selector!) -> Bool {
@@ -1444,19 +1481,27 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
         }
     }
 
-    // Observes, never alters, Capacitor's own real behaviour here — createWebViewWith
-    // (WKUIDelegate) is a completely separate delegate method from decidePolicyFor
-    // (WKNavigationDelegate) above, and reported live: decidePolicyFor showed nothing but "allow"
-    // during a sign-out attempt that still ended up in system Safari, including for the logout
-    // POST itself — a suspicious "allow GET about:blank" in that same log is the fingerprint of a
-    // window.open() call, which never goes through decidePolicyFor at all. Capacitor's own
-    // implementation of this method (confirmed from its vendored source) unconditionally opens the
-    // popup's own target URL in system Safari and returns nil — no in-app popup webview, no
-    // allowlist check of any kind — logged here as WINDOW.OPEN so it's told apart from an ordinary
-    // top-level navigation in the same log. Forwards to uiTarget for the same reason
-    // decidePolicyFor forwards to target: this only observes, it doesn't change what happens.
+    // createWebViewWith (WKUIDelegate) is a completely separate delegate method from
+    // decidePolicyFor (WKNavigationDelegate) above — reported live: decidePolicyFor showed nothing
+    // but "allow" during a sign-out attempt that still ended up in system Safari, including for
+    // the logout POST itself, immediately followed by "allow GET about:blank" and then this
+    // method firing for that exact same /auth/logout URL. Something in that chain issues a
+    // window.open()-style request for a URL a plain top-level navigation was already handling
+    // correctly — Capacitor's own implementation of this method (confirmed from its vendored
+    // source) has no allowlist check of any kind, unlike decidePolicyFor: it unconditionally opens
+    // the popup's target URL in system Safari regardless of host. Rather than alter that
+    // wholesale, this checks the target host against the SAME allowlist Capacitor's own
+    // decidePolicyFor already trusts for ordinary navigation (bridge.config.shouldAllowNavigation,
+    // via isHostTrustedInApp — see viewDidLoad's own remarks) — a popup targeting one of this
+    // app's own trusted hosts loads in the same webview instead, regardless of what triggered it;
+    // anything else still goes to Capacitor's own real uiDelegate exactly as before, unchanged.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         let urlString = navigationAction.request.url?.absoluteString ?? "nil"
+        if let host = navigationAction.request.url?.host, isHostTrustedInApp(host) {
+            Self.recordNavigationDecision(url: urlString, method: "WINDOW.OPEN", decision: "IN-APP")
+            webView.load(navigationAction.request)
+            return nil
+        }
         Self.recordNavigationDecision(url: urlString, method: "WINDOW.OPEN", decision: "EXTERNAL")
         return uiTarget?.webView?(webView, createWebViewWith: configuration, for: navigationAction, windowFeatures: windowFeatures) ?? nil
     }
@@ -1582,7 +1627,7 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
         // whatever's being tested right now.
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) raw=\(PrismBridgeViewController.rawInvalidationMessagesReceived) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
+        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) init=\(PrismBridgeViewController.scriptLoadPingCount) raw=\(PrismBridgeViewController.rawInvalidationMessagesReceived) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
 
         // Piggybacks on the same label/reveal gesture rather than a separate view — see
         // recordNavigationDecision's own remarks on why this is captured via UserDefaults
