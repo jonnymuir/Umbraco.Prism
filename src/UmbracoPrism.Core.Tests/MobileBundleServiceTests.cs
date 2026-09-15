@@ -337,18 +337,25 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("bridgeViewController.view.topAnchor.constraint(equalTo: container.view.safeAreaLayoutGuide.topAnchor)");
         iosBootstrap.Should().Contain("window?.rootViewController = container");
 
-        // WKWebView shows a real blank gap between navigations that this doesn't attempt to
-        // cover — it leaves that default behaviour alone and only adds a spinner on top, revealed
-        // if the real navigation is slow enough to notice. Forwards every other
-        // WKNavigationDelegate call straight through to Capacitor's own delegate (the standard
-        // Cocoa decorator pattern) rather than reimplementing its own navigation policy/redirect/
-        // auth-challenge handling by hand.
+        // WKWebView shows a real blank gap between navigations. This closes it by caching a
+        // snapshot of each page once it settles, then handing that already-resolved image over
+        // synchronously the next time a navigation starts — no async snapshot call happens at the
+        // moment it's needed, only when the previous page had time to settle first. A spinner is
+        // layered on top regardless, revealed if the real navigation is slow enough to notice.
+        // Forwards every other WKNavigationDelegate call straight through to Capacitor's own
+        // delegate (the standard Cocoa decorator pattern) rather than reimplementing its own
+        // navigation policy/redirect/auth-challenge handling by hand.
         iosBootstrap.Should().Contain("class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate");
         iosBootstrap.Should().Contain("webView.navigationDelegate = hold");
         iosBootstrap.Should().Contain("func forwardingTarget(for aSelector: Selector!) -> Any?");
+        iosBootstrap.Should().Contain("private var lastGoodSnapshot: UIImage?");
+        iosBootstrap.Should().Contain("private func scheduleSnapshotCapture(of webView: WKWebView)");
+        iosBootstrap.Should().Contain("webView.takeSnapshot(with: nil)");
+        iosBootstrap.Should().Contain("if let snapshot = lastGoodSnapshot {");
         iosBootstrap.Should().Contain("let spinner = UIActivityIndicatorView(style: .medium)");
         iosBootstrap.Should().Contain("spinner.centerXAnchor.constraint(equalTo: webView.centerXAnchor)");
         iosBootstrap.Should().Contain("DispatchQueue.main.asyncAfter(deadline: .now() + 0.1");
+        iosBootstrap.Should().Contain("DispatchQueue.main.asyncAfter(deadline: .now() + 0.3");
 
         iosBootstrap.Should().Contain("customClass=\"PrismBridgeViewController\" customModule=\"App\"");
         iosBootstrap.Should().Contain("Main.storyboard");
