@@ -70,7 +70,8 @@ public static class Program
             UserAgentMarker = flags.GetValueOrDefault("user-agent-marker"),
             IconUrl = flags.GetValueOrDefault("icon-url"),
             SplashUrl = flags.GetValueOrDefault("splash-url"),
-            BiometricAuthEnabled = ParseOptionalBool(flags.GetValueOrDefault("biometric-auth"))
+            BiometricAuthEnabled = ParseOptionalBool(flags.GetValueOrDefault("biometric-auth")),
+            MobileDiagnosticsEnabled = ParseOptionalBool(flags.GetValueOrDefault("mobile-diagnostics"))
         };
 
         try
@@ -145,6 +146,10 @@ public static class Program
               --splash-url <url>
               --entra-tenant-id <guid>     Widens Capacitor's allowNavigation for that Entra tenant
               --biometric-auth <true|false>
+              --mobile-diagnostics <true|false>
+                                            Compiles in the on-screen paint-holding diagnostic
+                                            label — still hidden on-device until a long-press
+                                            reveal gesture; see bootstrap-ios.sh's own remarks
             """);
     }
 }
