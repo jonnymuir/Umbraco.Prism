@@ -479,7 +479,18 @@ public class MobileBundleServiceTests
         // property, since sign-out leaves the app entirely and may be force-quit while away.
         iosBootstrap.Should().Contain("func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void)");
         iosBootstrap.Should().Contain("private static let navigationDecisionLogKey = \"prism.diag.navigationDecisionLog\"");
-        iosBootstrap.Should().Contain("private static func recordNavigationDecision(url: String, method: String, policy: WKNavigationActionPolicy)");
+        iosBootstrap.Should().Contain("private static func recordNavigationDecision(url: String, method: String, decision: String)");
+
+        // Reported live: decidePolicyFor's own log showed nothing but "allow" during a sign-out
+        // attempt that still ended up in system Safari, including for the logout POST itself — a
+        // suspicious "allow GET about:blank" was the fingerprint of a window.open() call, which
+        // goes through a completely different WebKit delegate method this app wasn't observing.
+        iosBootstrap.Should().Contain("class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, UIGestureRecognizerDelegate");
+        iosBootstrap.Should().Contain("private let uiTarget: WKUIDelegate?");
+        iosBootstrap.Should().Contain("init(forwardingTo target: WKNavigationDelegate?, forwardingUIDelegateTo uiTarget: WKUIDelegate?)");
+        iosBootstrap.Should().Contain("func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView?");
+        iosBootstrap.Should().Contain("Self.recordNavigationDecision(url: urlString, method: \"WINDOW.OPEN\", decision: \"EXTERNAL\")");
+        iosBootstrap.Should().Contain("webView.uiDelegate = hold");
         iosBootstrap.Should().Contain("UserDefaults.standard.stringArray(forKey: navigationDecisionLogKey)");
 
         var packageJson = ReadEntry(archive, "package.json");

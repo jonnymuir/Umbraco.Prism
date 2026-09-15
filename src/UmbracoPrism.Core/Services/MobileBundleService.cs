@@ -1171,10 +1171,17 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         super.viewDidLoad()
         guard let webView = self.webView else { return }
         // See PrismNavigationHoldDelegate's own remarks for why this exists and how it avoids
-        // reimplementing Capacitor's own navigation handling.
-        let hold = PrismNavigationHoldDelegate(forwardingTo: webView.navigationDelegate)
+        // reimplementing Capacitor's own navigation handling. Also wraps webView.uiDelegate, not
+        // just navigationDelegate — reported live: every decidePolicyFor decision during a sign-out
+        // attempt came back "allow", including for the logout POST itself, so whatever's actually
+        // bouncing the app to system Safari isn't happening through navigationDelegate at all. A
+        // suspicious "allow GET about:blank" in that same log is the fingerprint of a window.open()
+        // call, which WebKit routes through a completely different delegate method
+        // (createWebViewWith, on WKUIDelegate) that this app was never observing.
+        let hold = PrismNavigationHoldDelegate(forwardingTo: webView.navigationDelegate, forwardingUIDelegateTo: webView.uiDelegate)
         navigationHold = hold
         webView.navigationDelegate = hold
+        webView.uiDelegate = hold
 
         // TEMPORARY (see PrismNavigationHoldDelegate's own remarks) — a no-op unless this specific
         // build was produced with mobile diagnostics enabled. A two-finger long-press anywhere on
@@ -1217,7 +1224,17 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         // entirely on the JS/page side without depending on window.webkit.messageHandlers (the
         // bridge to native) working — the two are meant to fail independently of each other so
         // each can be ruled in or out on its own.
-        let invalidationSource = "(function(){var diagEnabled=\(PrismMobileDiagnosticsFlag.enabled);var rawEvt=0;var diagEl=null;function renderDiag(){if(!diagEnabled||!document.body)return;if(!diagEl||!document.body.contains(diagEl)){diagEl=document.createElement('div');diagEl.id='prism-js-event-diag';diagEl.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:rgba(0,100,0,0.55);color:#fff;font:9px monospace;padding:1px;text-align:center;pointer-events:none;';document.body.appendChild(diagEl);}diagEl.textContent='js-evt rawEvt='+rawEvt;}var t=null;function n(){rawEvt++;renderDiag();if(t){clearTimeout(t);}t=setTimeout(function(){t=null;if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName)){window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName).postMessage(null);}},100);}document.addEventListener('input',n,true);document.addEventListener('change',n,true);document.addEventListener('scroll',n,true);})();"
+        //
+        // Reported live: on a page whose interactive controls are custom components (sliders,
+        // radio groups), genuine interaction plus scrolling produced neither a native raw= increase
+        // nor even this JS-side counter appearing at all — meaning input/change/scroll themselves
+        // never fired here, not that they fired but the bridge dropped them. Widened the net rather
+        // than assuming why: pointerup/touchend/click fire for drag- or tap-driven custom controls
+        // regardless of whether they also dispatch standard input/change, and scroll is now also
+        // listened for on window, not just document, since WKWebView's own native momentum-scroll
+        // handling of the main page doesn't reliably surface a document-level scroll event the way
+        // desktop Safari does. lastEvt records which of these actually fired, once one does.
+        let invalidationSource = "(function(){var diagEnabled=\(PrismMobileDiagnosticsFlag.enabled);var rawEvt=0;var lastEvt='';var diagEl=null;function renderDiag(){if(!diagEnabled||!document.body)return;if(!diagEl||!document.body.contains(diagEl)){diagEl=document.createElement('div');diagEl.id='prism-js-event-diag';diagEl.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:rgba(0,100,0,0.55);color:#fff;font:9px monospace;padding:1px;text-align:center;pointer-events:none;';document.body.appendChild(diagEl);}diagEl.textContent='js-evt rawEvt='+rawEvt+' last='+lastEvt;}var t=null;function n(e){rawEvt++;lastEvt=e.type;renderDiag();if(t){clearTimeout(t);}t=setTimeout(function(){t=null;if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName)){window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName).postMessage(null);}},100);}document.addEventListener('input',n,true);document.addEventListener('change',n,true);document.addEventListener('scroll',n,true);document.addEventListener('pointerup',n,true);document.addEventListener('touchend',n,true);document.addEventListener('click',n,true);window.addEventListener('scroll',n,true);})();"
         let invalidationScript = WKUserScript(source: invalidationSource, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         configuration.userContentController.addUserScript(invalidationScript)
         // WKUserContentController retains whatever's added as a message handler for as long as
@@ -1300,8 +1317,12 @@ private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 // unchanged, via the standard Cocoa message-forwarding decorator pattern
 // (responds(to:)/forwardingTarget(for:)) — Capacitor's own handling of everything else is
 // untouched, not reimplemented.
-private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate, UIGestureRecognizerDelegate {
+private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, UIGestureRecognizerDelegate {
     private let target: WKNavigationDelegate?
+    // Not weak — matches `target` above, which is also a plain strong reference to the same kind
+    // of Capacitor-owned delegate object. No retain cycle risk: neither this object nor `target`
+    // holds any reference back to the webview/view controller that in turn retains `hold`.
+    private let uiTarget: WKUIDelegate?
     private var spinnerView: UIActivityIndicatorView?
     private var spinnerRevealWorkItem: DispatchWorkItem?
     private var snapshotOverlayView: UIImageView?
@@ -1329,18 +1350,26 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
     private var captureSuccessCount = 0
     private var captureFailureCount = 0
 
-    init(forwardingTo target: WKNavigationDelegate?) {
+    init(forwardingTo target: WKNavigationDelegate?, forwardingUIDelegateTo uiTarget: WKUIDelegate?) {
         self.target = target
+        self.uiTarget = uiTarget
     }
 
     override func responds(to aSelector: Selector!) -> Bool {
         if super.responds(to: aSelector) { return true }
-        return target?.responds(to: aSelector) ?? false
+        if target?.responds(to: aSelector) ?? false { return true }
+        return uiTarget?.responds(to: aSelector) ?? false
     }
 
     override func forwardingTarget(for aSelector: Selector!) -> Any? {
         if super.responds(to: aSelector) { return nil }
-        return target
+        if target?.responds(to: aSelector) ?? false { return target }
+        // Anything neither this class nor `target` implements falls through to `uiTarget` —
+        // needed because this is now also installed as webView.uiDelegate (see viewDidLoad's own
+        // remarks), and Capacitor's own uiDelegate may implement WKUIDelegate methods beyond
+        // createWebViewWith (JS alert/confirm panels, for instance) that this class doesn't
+        // reimplement and must not silently drop just by having taken over the delegate slot.
+        return uiTarget
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
@@ -1406,13 +1435,30 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
         // nil is exactly how "target is nil, or doesn't implement this optional method" is
         // distinguished from "it does, and just called our wrapped completion".
         let forwarded: Void? = target?.webView?(webView, decidePolicyFor: navigationAction, decisionHandler: { policy in
-            Self.recordNavigationDecision(url: urlString, method: method, policy: policy)
+            Self.recordNavigationDecision(url: urlString, method: method, decision: policy == .cancel ? "CANCEL" : "allow")
             decisionHandler(policy)
         })
         if forwarded == nil {
-            Self.recordNavigationDecision(url: urlString, method: method, policy: .allow)
+            Self.recordNavigationDecision(url: urlString, method: method, decision: "allow")
             decisionHandler(.allow)
         }
+    }
+
+    // Observes, never alters, Capacitor's own real behaviour here — createWebViewWith
+    // (WKUIDelegate) is a completely separate delegate method from decidePolicyFor
+    // (WKNavigationDelegate) above, and reported live: decidePolicyFor showed nothing but "allow"
+    // during a sign-out attempt that still ended up in system Safari, including for the logout
+    // POST itself — a suspicious "allow GET about:blank" in that same log is the fingerprint of a
+    // window.open() call, which never goes through decidePolicyFor at all. Capacitor's own
+    // implementation of this method (confirmed from its vendored source) unconditionally opens the
+    // popup's own target URL in system Safari and returns nil — no in-app popup webview, no
+    // allowlist check of any kind — logged here as WINDOW.OPEN so it's told apart from an ordinary
+    // top-level navigation in the same log. Forwards to uiTarget for the same reason
+    // decidePolicyFor forwards to target: this only observes, it doesn't change what happens.
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        let urlString = navigationAction.request.url?.absoluteString ?? "nil"
+        Self.recordNavigationDecision(url: urlString, method: "WINDOW.OPEN", decision: "EXTERNAL")
+        return uiTarget?.webView?(webView, createWebViewWith: configuration, for: navigationAction, windowFeatures: windowFeatures) ?? nil
     }
 
     // TEMPORARY diagnostic aid, same spirit as the paint-holding counters above but for a
@@ -1425,11 +1471,10 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
     // whether anyone happened to have the overlay open at that exact moment; only showing it does.
     private static let navigationDecisionLogKey = "prism.diag.navigationDecisionLog"
 
-    private static func recordNavigationDecision(url: String, method: String, policy: WKNavigationActionPolicy) {
+    private static func recordNavigationDecision(url: String, method: String, decision: String) {
         guard PrismMobileDiagnosticsFlag.enabled else { return }
-        let policyText = policy == .cancel ? "CANCEL" : "allow"
         var log = UserDefaults.standard.stringArray(forKey: navigationDecisionLogKey) ?? []
-        log.append("\(policyText) \(method) \(url)")
+        log.append("\(decision) \(method) \(url)")
         if log.count > 10 {
             log.removeFirst(log.count - 10)
         }
