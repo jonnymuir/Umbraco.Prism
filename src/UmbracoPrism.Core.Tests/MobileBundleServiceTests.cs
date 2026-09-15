@@ -340,22 +340,53 @@ public class MobileBundleServiceTests
         // WKWebView shows a real blank gap between navigations. This closes it by caching a
         // snapshot of each page once it settles, then handing that already-resolved image over
         // synchronously the next time a navigation starts — no async snapshot call happens at the
-        // moment it's needed, only when the previous page had time to settle first. A spinner is
-        // layered on top regardless, revealed if the real navigation is slow enough to notice.
-        // Forwards every other WKNavigationDelegate call straight through to Capacitor's own
-        // delegate (the standard Cocoa decorator pattern) rather than reimplementing its own
-        // navigation policy/redirect/auth-challenge handling by hand.
+        // moment it's needed, only when the previous page had time to settle first. The cached
+        // frame is also refreshed while the user stays on a page: injected JS detects
+        // input/change/scroll activity, debounced to one message per 100ms of quiet, and tells
+        // the delegate to recapture — so a page the user has typed into or scrolled doesn't keep
+        // showing its just-loaded frame for as long as they stay on it. A spinner is layered on
+        // top regardless, revealed if the real navigation is slow enough to notice. Forwards every
+        // other WKNavigationDelegate call straight through to Capacitor's own delegate (the
+        // standard Cocoa decorator pattern) rather than reimplementing its own navigation
+        // policy/redirect/auth-challenge handling by hand.
         iosBootstrap.Should().Contain("class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate");
         iosBootstrap.Should().Contain("webView.navigationDelegate = hold");
         iosBootstrap.Should().Contain("func forwardingTarget(for aSelector: Selector!) -> Any?");
         iosBootstrap.Should().Contain("private var lastGoodSnapshot: UIImage?");
-        iosBootstrap.Should().Contain("private func scheduleSnapshotCapture(of webView: WKWebView)");
+        iosBootstrap.Should().Contain("private func scheduleSnapshotCapture(of webView: WKWebView, delay: TimeInterval)");
         iosBootstrap.Should().Contain("webView.takeSnapshot(with: nil)");
         iosBootstrap.Should().Contain("if let snapshot = lastGoodSnapshot {");
         iosBootstrap.Should().Contain("let spinner = UIActivityIndicatorView(style: .medium)");
         iosBootstrap.Should().Contain("spinner.centerXAnchor.constraint(equalTo: webView.centerXAnchor)");
-        iosBootstrap.Should().Contain("DispatchQueue.main.asyncAfter(deadline: .now() + 0.1");
-        iosBootstrap.Should().Contain("DispatchQueue.main.asyncAfter(deadline: .now() + 0.3");
+        iosBootstrap.Should().Contain("DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: capture)");
+        iosBootstrap.Should().Contain("scheduleSnapshotCapture(of: webView, delay: 0.3)");
+        iosBootstrap.Should().Contain("fileprivate func contentDidChange(in webView: WKWebView)");
+        iosBootstrap.Should().Contain("scheduleSnapshotCapture(of: webView, delay: 0.1)");
+
+        // Cancelling the scheduled timer above doesn't stop a takeSnapshot call that's already in
+        // flight — isCaptureInFlight guards against two overlapping captures; a trigger that
+        // arrives mid-capture is deferred (captureNeededAfterInFlight) rather than starting a
+        // second one or being silently dropped.
+        iosBootstrap.Should().Contain("private var isCaptureInFlight = false");
+        iosBootstrap.Should().Contain("private var captureNeededAfterInFlight = false");
+        iosBootstrap.Should().Contain("guard !isCaptureInFlight else {");
+
+        // The JS side does its own debouncing (one message per 100ms of quiet) before ever
+        // crossing the JS/native bridge — cheaper than letting every raw scroll tick or keystroke
+        // reach native only to be debounced there. WKUserContentController retains whatever's
+        // registered as a message handler, so `self` (the view controller that owns this very
+        // webview/configuration) goes through a weak-referencing proxy rather than being added
+        // directly — the standard fix for that well-known retain-cycle trap.
+        iosBootstrap.Should().Contain("class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler");
+        iosBootstrap.Should().Contain("private static let snapshotInvalidationMessageName = \"prismInvalidateSnapshot\"");
+        iosBootstrap.Should().Contain("document.addEventListener('input',n,true)");
+        iosBootstrap.Should().Contain("document.addEventListener('change',n,true)");
+        iosBootstrap.Should().Contain("document.addEventListener('scroll',n,true)");
+        iosBootstrap.Should().Contain("setTimeout(function(){t=null;");
+        iosBootstrap.Should().Contain("configuration.userContentController.add(WeakScriptMessageHandler(target: self)");
+        iosBootstrap.Should().Contain("class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler");
+        iosBootstrap.Should().Contain("private weak var target: WKScriptMessageHandler?");
+        iosBootstrap.Should().Contain("navigationHold?.contentDidChange(in: webView)");
 
         iosBootstrap.Should().Contain("customClass=\"PrismBridgeViewController\" customModule=\"App\"");
         iosBootstrap.Should().Contain("Main.storyboard");
