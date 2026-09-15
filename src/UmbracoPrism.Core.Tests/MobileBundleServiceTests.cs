@@ -507,6 +507,16 @@ public class MobileBundleServiceTests
         // meaning the evidence never actually proved the script was running at all. An immediate,
         // undebounced 'init' ping (distinct from a real 'changed' signal) closes that gap.
         iosBootstrap.Should().Contain("fileprivate static var scriptLoadPingCount = 0");
+
+        // Reported live: init= (an immediate ping independent of any DOM event) and the JS-side,
+        // DOM-only counter (independent of the message bridge too) have both stayed silent across
+        // every build and page tested — narrowing this to whether webViewConfiguration(for:)
+        // itself is even being called by Capacitor at all. Counted first, before anything else in
+        // the method, so it's visible in the diagnostic label regardless of whether anything
+        // downstream of it (script injection, message handler registration) ever works.
+        iosBootstrap.Should().Contain("fileprivate static var webViewConfigurationCallCount = 0");
+        iosBootstrap.Should().Contain("Self.webViewConfigurationCallCount += 1");
+        iosBootstrap.Should().Contain("cfg=\\(PrismBridgeViewController.webViewConfigurationCallCount)");
         iosBootstrap.Should().Contain("if let body = message.body as? String, body == \"init\" {");
         iosBootstrap.Should().Contain("sendPing('init')");
         iosBootstrap.Should().Contain("sendPing('changed')");

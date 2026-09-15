@@ -1221,7 +1221,17 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         }
     }
 
+    // Reported live: init= (an immediate, undebounced ping the injected script below sends on
+    // every page load, independent of any DOM event) has stayed at zero across every build and
+    // page tested — and the JS-side, DOM-only counter (independent of the message bridge too) has
+    // never even appeared on screen. Both channels being silent narrows this to one remaining
+    // open question neither of them can answer: is this override even being called by Capacitor
+    // at all. cfgCallCount is incremented here, first, before anything else — a native counter,
+    // so it's visible in the diagnostic label regardless of whether anything JS-side ever works.
+    fileprivate static var webViewConfigurationCallCount = 0
+
     override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
+        Self.webViewConfigurationCallCount += 1
         let configuration = super.webViewConfiguration(for: instanceConfiguration)
         let source = "(function(){function pin(){var meta=document.querySelector('meta[name=viewport]');if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}meta.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
         let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
@@ -1627,7 +1637,7 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
         // whatever's being tested right now.
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) init=\(PrismBridgeViewController.scriptLoadPingCount) raw=\(PrismBridgeViewController.rawInvalidationMessagesReceived) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
+        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) cfg=\(PrismBridgeViewController.webViewConfigurationCallCount) init=\(PrismBridgeViewController.scriptLoadPingCount) raw=\(PrismBridgeViewController.rawInvalidationMessagesReceived) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
 
         // Piggybacks on the same label/reveal gesture rather than a separate view — see
         // recordNavigationDecision's own remarks on why this is captured via UserDefaults
