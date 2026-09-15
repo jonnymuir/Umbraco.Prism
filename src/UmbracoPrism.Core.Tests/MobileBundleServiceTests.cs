@@ -353,15 +353,15 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("webView.navigationDelegate = hold");
         iosBootstrap.Should().Contain("func forwardingTarget(for aSelector: Selector!) -> Any?");
         iosBootstrap.Should().Contain("private var lastGoodSnapshot: UIImage?");
-        iosBootstrap.Should().Contain("private func scheduleSnapshotCapture(of webView: WKWebView, delay: TimeInterval)");
+        iosBootstrap.Should().Contain("private func scheduleSnapshotCapture(of webView: WKWebView, delay: TimeInterval, source: String)");
         iosBootstrap.Should().Contain("webView.takeSnapshot(with: nil)");
         iosBootstrap.Should().Contain("if let snapshot = lastGoodSnapshot {");
         iosBootstrap.Should().Contain("let spinner = UIActivityIndicatorView(style: .medium)");
         iosBootstrap.Should().Contain("spinner.centerXAnchor.constraint(equalTo: webView.centerXAnchor)");
         iosBootstrap.Should().Contain("DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: capture)");
-        iosBootstrap.Should().Contain("scheduleSnapshotCapture(of: webView, delay: 0.3)");
+        iosBootstrap.Should().Contain("scheduleSnapshotCapture(of: webView, delay: 0.3, source: \"settle\")");
         iosBootstrap.Should().Contain("fileprivate func contentDidChange(in webView: WKWebView)");
-        iosBootstrap.Should().Contain("scheduleSnapshotCapture(of: webView, delay: 0.1)");
+        iosBootstrap.Should().Contain("scheduleSnapshotCapture(of: webView, delay: 0.1, source: \"change\")");
 
         // Cancelling the scheduled timer above doesn't stop a takeSnapshot call that's already in
         // flight — isCaptureInFlight guards against two overlapping captures; a trigger that
