@@ -269,6 +269,57 @@ public class MobileBundleServiceTests
     }
 
     [Fact]
+    public async Task BuildBundleAsync_MobileDiagnosticsEnabled_BootstrapIosCompilesInDiagnosticsFlagTrue()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            MobileDiagnosticsEnabled = true
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        iosBootstrap.Should().Contain("fileprivate enum PrismMobileDiagnosticsFlag {");
+        iosBootstrap.Should().Contain("static let enabled = true");
+        iosBootstrap.Should().Contain("UILongPressGestureRecognizer(target: hold, action: #selector(PrismNavigationHoldDelegate.handleDiagnosticsGesture(_:)))");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(null)]
+    public async Task BuildBundleAsync_MobileDiagnosticsNotEnabled_BootstrapIosCompilesInDiagnosticsFlagFalse(bool? mobileDiagnosticsEnabled)
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            MobileDiagnosticsEnabled = mobileDiagnosticsEnabled
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        // The gating code itself is still always present — PrismMobileDiagnosticsFlag.enabled is a
+        // plain build-time constant this reads, not code that's stripped out at the C# generation
+        // level (see BuildBootstrapIosScript's own remarks on why: the alternative, splicing the
+        // conditional straight into the middle of the surrounding raw string, risks colliding with
+        // that string's own embedded JS, which already contains literal "}}" sequences). What must
+        // differ is only the constant's value.
+        iosBootstrap.Should().Contain("static let enabled = false");
+        iosBootstrap.Should().NotContain("static let enabled = true");
+    }
+
+    [Fact]
     public async Task BuildBundleAsync_BootstrapScripts_SkipSimulatorAndEmulatorLaunchInCi()
     {
         // A CI runner has no booted simulator/emulator, so the scripts' normal "run app, or open

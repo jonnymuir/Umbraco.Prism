@@ -35,6 +35,7 @@ public class MobileBundleService : IMobileBundleService
         var errorMessage = string.IsNullOrWhiteSpace(request.ErrorMessage) ? "Please check your connection and try again." : request.ErrorMessage.Trim();
         var showErrorDiagnostics = request.ShowErrorDiagnostics ?? true;
         var biometricAuthEnabled = request.BiometricAuthEnabled ?? false;
+        var mobileDiagnosticsEnabled = request.MobileDiagnosticsEnabled ?? false;
 
         if (!IsValidAppId(appId))
         {
@@ -57,7 +58,7 @@ public class MobileBundleService : IMobileBundleService
             AddEntry(archive, "www/index.html", BuildPlaceholderIndex(appName, startUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics, biometricAuthEnabled));
             AddEntry(archive, "www/mobile-overrides.css", BuildMobileOverrideTemplate());
             AddEntry(archive, "scripts/doctor-mobile.sh", BuildDoctorScript(startUrl));
-            AddEntry(archive, "scripts/bootstrap-ios.sh", BuildBootstrapIosScript(startUrl, biometricAuthEnabled));
+            AddEntry(archive, "scripts/bootstrap-ios.sh", BuildBootstrapIosScript(startUrl, biometricAuthEnabled, mobileDiagnosticsEnabled));
             AddEntry(archive, "scripts/bootstrap-android.sh", BuildBootstrapAndroidScript(biometricAuthEnabled));
             AddEntry(archive, "scripts/trust-ios-localhost-cert.sh", BuildTrustIosLocalhostCertScript(startUrl));
           AddEntry(archive, "resources/mobile-assets.json", BuildAssetsManifest(iconUrl, splashUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics));
@@ -1075,8 +1076,26 @@ echo "Doctor complete."
 """;
     }
 
-    private static string BuildBootstrapIosScript(string startUrl, bool biometricAuthEnabled)
+    private static string BuildBootstrapIosScript(string startUrl, bool biometricAuthEnabled, bool mobileDiagnosticsEnabled)
     {
+        // A separate small file-scope declaration, prepended whole rather than spliced into the
+        // middle of zoomFixInjection below — that big literal's own content (embedded JS closures)
+        // contains stray "}}" sequences that would collide with C# raw-string interpolation syntax
+        // if that literal were made interpolated itself. Kept as a plain build-time Swift constant
+        // (referenced by name from a few small, unconditional insertions inside zoomFixInjection),
+        // not a runtime toggle — see PrismNavigationHoldDelegate's own remarks for why the on-
+        // screen diagnostic label needs a separate reveal gesture on top of this, and why this
+        // flag exists as a distinct, deliberate opt-in at bundle-generation time (the
+        // --mobile-diagnostics CLI flag / MobileDiagnosticsEnabled request field) rather than
+        // always being compiled in: this determines whether ANY of that code is compiled into
+        // this specific build at all, not just whether it's currently visible.
+        var mobileDiagnosticsFlagDeclaration = $$"""
+fileprivate enum PrismMobileDiagnosticsFlag {
+    static let enabled = {{(mobileDiagnosticsEnabled ? "true" : "false")}}
+}
+
+""";
+
         var infoPlistInjection = biometricAuthEnabled
             ? """
 
@@ -1129,6 +1148,8 @@ if [ -d ios/App/App ]; then
 import Capacitor
 import WebKit
 
+""" + mobileDiagnosticsFlagDeclaration + """
+
 // Force-pins every page's own viewport meta tag to maximum-scale=1 at the WebKit level, so it
 // applies even to cross-origin hosted content (forMainFrameOnly: false) that this app has no
 // CSS/markup control over — see bootstrap-ios.sh's own comment for the full rationale. Runs at
@@ -1147,6 +1168,15 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         let hold = PrismNavigationHoldDelegate(forwardingTo: webView.navigationDelegate)
         navigationHold = hold
         webView.navigationDelegate = hold
+
+        // TEMPORARY (see PrismNavigationHoldDelegate's own remarks) — a no-op unless this specific
+        // build was produced with mobile diagnostics enabled. A long-press near the top of the
+        // screen toggles the on-screen paint-holding diagnostic label on/off; otherwise invisible.
+        if PrismMobileDiagnosticsFlag.enabled {
+            let diagnosticsGesture = UILongPressGestureRecognizer(target: hold, action: #selector(PrismNavigationHoldDelegate.handleDiagnosticsGesture(_:)))
+            diagnosticsGesture.minimumPressDuration = 2.0
+            webView.superview?.addGestureRecognizer(diagnosticsGesture)
+        }
     }
 
     override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
@@ -1246,14 +1276,18 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
     private var captureNeededAfterInFlight = false
     private var pendingCaptureSource = "none"
 
-    // TEMPORARY — remove once real-device behaviour is confirmed (see e.g. #254 for the same
-    // pattern previously used for the biometric banner sizing bug). Tracks what's actually
-    // happening in this pipeline so it can be read directly off the device on a TestFlight build,
-    // where there's no attached debugger/console to check instead. A UILabel, not anything drawn
-    // into the web page itself — it can't ever trigger this class's own JS-side input/change/
-    // scroll listeners, so no risk of it feeding back into the very thing it's reporting on.
+    // Permanent, but never present at all unless this exact bundle was produced with mobile
+    // diagnostics deliberately enabled (PrismMobileDiagnosticsFlag.enabled, a build-time constant
+    // — see BuildBootstrapIosScript's own remarks), and never visible even then unless the reveal
+    // gesture (see handleDiagnosticsGesture) has been used. Tracks what's actually happening in
+    // this pipeline so it can be read directly off a device, where there's no attached debugger/
+    // console to check instead. A UILabel, not anything drawn into the web page itself — it can't
+    // ever trigger this class's own JS-side input/change/scroll listeners, so no risk of it
+    // feeding back into the very thing it's reporting on. Shows only build/version, cache hit/
+    // miss counters, and timing — nothing from the page's own content, and nothing a user typed.
     private var diagnosticLabel: UILabel?
     private var diagnosticDismissWorkItem: DispatchWorkItem?
+    private var isDiagnosticsRevealed = false
     private var lastCaptureSource = "none"
     private var lastCaptureAt: Date?
     private var contentChangeSignalCount = 0
@@ -1371,14 +1405,30 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate 
         // readable after the transition it's describing has already finished.
     }
 
-    // TEMPORARY — see this class's own remarks on the fields this reads. Reflects exactly what
-    // showSpinner() is about to show (or not show) for THIS navigation, not a live-updating log —
-    // simplest thing that answers "did this navigation have a cached frame, how did it get there,
-    // and how stale is it," which is the actual open question right now: paint-holding is visibly
-    // still showing each page's just-loaded state rather than its last-changed state, and this
-    // tells us whether that's because contentDidChange is never firing, or firing but never
-    // successfully producing a snapshot, or succeeding but somehow not being picked up here.
+    // Only ever wired up (see viewDidLoad's own remarks) when PrismMobileDiagnosticsFlag.enabled —
+    // a build that doesn't have diagnostics on never creates the gesture recognizer that could
+    // call this. minimumPressDuration (2s, set at the call site) already rules out an accidental
+    // trigger from an ordinary tap or WebKit's own ~0.5s long-press-for-link-preview gesture; the
+    // extra y-position check further limits it to near the top of the screen specifically, rather
+    // than anywhere on the page, so it can't be triggered by a long-press on the page's own content
+    // (e.g. WebKit's text-selection/copy gesture, which this deliberately doesn't interfere with).
+    @objc fileprivate func handleDiagnosticsGesture(_ recognizer: UILongPressGestureRecognizer) {
+        guard recognizer.state == .began else { return }
+        guard recognizer.location(in: recognizer.view).y <= 60 else { return }
+        isDiagnosticsRevealed.toggle()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    // Gated on two independent things: PrismMobileDiagnosticsFlag.enabled (a build-time constant —
+    // this bundle either was or wasn't produced with diagnostics on, and if not, nothing below
+    // this guard is reachable at all) and isDiagnosticsRevealed (a per-session runtime toggle via
+    // the long-press gesture — so a diagnostics-enabled build still shows nothing until someone
+    // deliberately asks for it). Reflects exactly what showSpinner() is about to show (or not
+    // show) for THIS navigation, not a live-updating log — simplest thing that answers "did this
+    // navigation have a cached frame, how did it get there, and how stale is it."
     private func showDiagnosticLabel(over hostView: UIView, webView: WKWebView) {
+        guard PrismMobileDiagnosticsFlag.enabled, isDiagnosticsRevealed else { return }
+
         diagnosticDismissWorkItem?.cancel()
         diagnosticLabel?.removeFromSuperview()
 
