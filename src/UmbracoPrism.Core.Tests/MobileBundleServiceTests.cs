@@ -487,7 +487,30 @@ public class MobileBundleServiceTests
         // goes through a completely different WebKit delegate method this app wasn't observing.
         iosBootstrap.Should().Contain("class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, UIGestureRecognizerDelegate");
         iosBootstrap.Should().Contain("private let uiTarget: WKUIDelegate?");
-        iosBootstrap.Should().Contain("init(forwardingTo target: WKNavigationDelegate?, forwardingUIDelegateTo uiTarget: WKUIDelegate?)");
+        iosBootstrap.Should().Contain("init(forwardingTo target: WKNavigationDelegate?, forwardingUIDelegateTo uiTarget: WKUIDelegate?, isHostTrustedInApp: @escaping (String) -> Bool)");
+
+        // Reported live: a window.open()-style popup for this app's OWN /auth/logout — a URL a
+        // plain top-level navigation was already handling correctly — still got sent to system
+        // Safari, because Capacitor's own createWebViewWith has no allowlist check at all, unlike
+        // decidePolicyFor. Reuses the SAME allowlist decidePolicyFor already trusts (bridge.config.
+        // shouldAllowNavigation) rather than inventing a second one: a popup targeting one of this
+        // app's own trusted hosts now loads in the same webview instead, regardless of what
+        // triggered it; anything else still goes to Capacitor's own real uiDelegate unchanged.
+        iosBootstrap.Should().Contain("isHostTrustedInApp: { [weak self] host in self?.bridge?.config.shouldAllowNavigation(to: host) ?? false }");
+        iosBootstrap.Should().Contain("if let host = navigationAction.request.url?.host, isHostTrustedInApp(host) {");
+        iosBootstrap.Should().Contain("Self.recordNavigationDecision(url: urlString, method: \"WINDOW.OPEN\", decision: \"IN-APP\")");
+        iosBootstrap.Should().Contain("webView.load(navigationAction.request)");
+        iosBootstrap.Should().Contain("Self.recordNavigationDecision(url: urlString, method: \"WINDOW.OPEN\", decision: \"EXTERNAL\")");
+
+        // Reported live: every signal specific to the injected script (raw=, chg=, the on-page
+        // counter) stayed at zero across four builds while everything native-only kept working —
+        // meaning the evidence never actually proved the script was running at all. An immediate,
+        // undebounced 'init' ping (distinct from a real 'changed' signal) closes that gap.
+        iosBootstrap.Should().Contain("fileprivate static var scriptLoadPingCount = 0");
+        iosBootstrap.Should().Contain("if let body = message.body as? String, body == \"init\" {");
+        iosBootstrap.Should().Contain("sendPing('init')");
+        iosBootstrap.Should().Contain("sendPing('changed')");
+        iosBootstrap.Should().Contain("init=\\(PrismBridgeViewController.scriptLoadPingCount)");
         iosBootstrap.Should().Contain("func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView?");
         iosBootstrap.Should().Contain("Self.recordNavigationDecision(url: urlString, method: \"WINDOW.OPEN\", decision: \"EXTERNAL\")");
         iosBootstrap.Should().Contain("webView.uiDelegate = hold");
