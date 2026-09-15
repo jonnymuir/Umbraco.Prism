@@ -542,6 +542,20 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
 
+            // TEMPORARY diagnostic — see AccountController.Logout()'s own remarks for the full
+            // context. This handler is what's actually supposed to build the redirect to Entra's
+            // (or a generic provider's) end-session endpoint; client-side navigation logs have
+            // never once shown that host being reached, on any live test so far, so this logs
+            // server-side ground truth: was a tenant resolved at all here, and — after both
+            // branches below have had their chance to run — what IssuerAddress/
+            // PostLogoutRedirectUri did this request actually end up with.
+            logger.LogInformation(
+                "Prism OIDC sign-out: authenticated={IsAuthenticated}, tenant={Tenant}, oidcAuthority={OidcAuthority}, entraTenantId={EntraTenantId}",
+                context.HttpContext.User.Identity?.IsAuthenticated == true,
+                tenant?.Name ?? "(null)",
+                tenant?.OidcAuthority ?? "(none)",
+                tenant?.EntraTenantId ?? "(none)");
+
             if (tenant != null)
             {
                 if (!string.IsNullOrEmpty(tenant.OidcAuthority))
@@ -590,6 +604,14 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                     }
                 }
             }
+
+            // TEMPORARY diagnostic — the actual answer to "does this redirect to Entra at all":
+            // whatever IssuerAddress ends up here (or doesn't) is what the client is about to be
+            // sent to, regardless of which branch above ran or whether tenant was null.
+            logger.LogInformation(
+                "Prism OIDC sign-out: final IssuerAddress={IssuerAddress}, PostLogoutRedirectUri={PostLogoutRedirectUri}",
+                context.ProtocolMessage.IssuerAddress ?? "(none)",
+                context.ProtocolMessage.PostLogoutRedirectUri ?? "(none)");
         };
 
     }

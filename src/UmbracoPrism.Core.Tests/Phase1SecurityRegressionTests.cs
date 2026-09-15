@@ -543,7 +543,7 @@ public class Phase1SecurityRegressionTests : IDisposable
             ? new ClaimsIdentity([new Claim(ClaimTypes.Name, "Tangy")], authenticationType: "PrismMemberCookie")
             : new ClaimsIdentity();
 
-        var controller = new UmbracoPrism.Core.Controllers.AccountController
+        var controller = new UmbracoPrism.Core.Controllers.AccountController(NullLogger<UmbracoPrism.Core.Controllers.AccountController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
