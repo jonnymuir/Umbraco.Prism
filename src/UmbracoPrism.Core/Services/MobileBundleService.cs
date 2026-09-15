@@ -1221,19 +1221,28 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         }
     }
 
-    // Reported live: init= (an immediate, undebounced ping the injected script below sends on
-    // every page load, independent of any DOM event) has stayed at zero across every build and
-    // page tested — and the JS-side, DOM-only counter (independent of the message bridge too) has
-    // never even appeared on screen. Both channels being silent narrows this to one remaining
-    // open question neither of them can answer: is this override even being called by Capacitor
-    // at all. cfgCallCount is incremented here, first, before anything else — a native counter,
-    // so it's visible in the diagnostic label regardless of whether anything JS-side ever works.
+    // Reported live: cfg= confirms this override IS called — but exactly once, which is actually
+    // correct, expected behaviour (there's one persistent webview for the app's whole lifetime,
+    // not one per navigation), so it doesn't explain anything on its own: a WKUserScript added
+    // here is documented to auto-reinject on every subsequent page load in that same webview,
+    // with no further help needed from this method. Yet init= (the invalidation script's own
+    // immediate ping, independent of any DOM event) and its JS-side, DOM-only counter (independent
+    // of the message bridge too) have both stayed silent across every build and page tested. The
+    // one thing that comparison can't rule in or out on its own: whether this is a bug specific to
+    // that new script, or whether the whole injection mechanism has stopped reinjecting at all,
+    // for a reason unrelated to anything in this investigation. viewportScriptPingCount below adds
+    // the same two signals (a DOM marker, a native ping) to THIS script — the pre-existing,
+    // previously-relied-upon viewport-zoom-fix, untouched by anything else in this file — as a
+    // direct, controlled comparison in the same build: if this one also stays silent, the
+    // mechanism itself is broken; if it succeeds while the other doesn't, the bug is specific to
+    // that script.
     fileprivate static var webViewConfigurationCallCount = 0
+    fileprivate static var viewportScriptPingCount = 0
 
     override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
         Self.webViewConfigurationCallCount += 1
         let configuration = super.webViewConfiguration(for: instanceConfiguration)
-        let source = "(function(){function pin(){var meta=document.querySelector('meta[name=viewport]');if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}meta.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
+        let source = "(function(){var diagEnabled=\(PrismMobileDiagnosticsFlag.enabled);function pin(){var meta=document.querySelector('meta[name=viewport]');if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}meta.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';if(diagEnabled&&document.body){var el=document.createElement('div');el.id='prism-viewport-script-diag';el.style.cssText='position:fixed;bottom:0;left:0;z-index:2147483647;background:rgba(0,0,150,0.55);color:#fff;font:9px monospace;padding:1px;pointer-events:none;';el.textContent='viewport-script-ran';document.body.appendChild(el);}if(diagEnabled&&window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName)){window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName).postMessage('viewport-ready');}}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
         let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         configuration.userContentController.addUserScript(script)
 
@@ -1291,6 +1300,12 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         // anything actually changed.
         if let body = message.body as? String, body == "init" {
             Self.scriptLoadPingCount += 1
+            return
+        }
+        // The pre-existing viewport-fix script's own ping — see webViewConfiguration(for:)'s own
+        // remarks on why this exists as a controlled comparison against scriptLoadPingCount above.
+        if let body = message.body as? String, body == "viewport-ready" {
+            Self.viewportScriptPingCount += 1
             return
         }
         // Counted before the webView/navigationHold unwraps below, specifically so it stays
@@ -1637,7 +1652,7 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
         // whatever's being tested right now.
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) cfg=\(PrismBridgeViewController.webViewConfigurationCallCount) init=\(PrismBridgeViewController.scriptLoadPingCount) raw=\(PrismBridgeViewController.rawInvalidationMessagesReceived) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
+        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) cfg=\(PrismBridgeViewController.webViewConfigurationCallCount) vp=\(PrismBridgeViewController.viewportScriptPingCount) init=\(PrismBridgeViewController.scriptLoadPingCount) raw=\(PrismBridgeViewController.rawInvalidationMessagesReceived) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
 
         // Piggybacks on the same label/reveal gesture rather than a separate view — see
         // recordNavigationDecision's own remarks on why this is captured via UserDefaults

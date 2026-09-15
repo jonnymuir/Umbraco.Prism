@@ -517,6 +517,19 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("fileprivate static var webViewConfigurationCallCount = 0");
         iosBootstrap.Should().Contain("Self.webViewConfigurationCallCount += 1");
         iosBootstrap.Should().Contain("cfg=\\(PrismBridgeViewController.webViewConfigurationCallCount)");
+
+        // Reported live: cfg=1 confirms webViewConfiguration(for:) IS called — but that's actually
+        // correct, expected behaviour (one persistent webview, not one per navigation), so it
+        // doesn't explain why init=/raw=/the invalidation script's own JS-side counter have all
+        // stayed silent. A controlled comparison: the SAME two signals (a DOM marker, a native
+        // ping), added to the pre-existing viewport-fix script instead — untouched by anything
+        // else in this investigation — to tell apart "bug specific to the new script" from "the
+        // whole injection mechanism has stopped reinjecting, for a reason unrelated to any of it."
+        iosBootstrap.Should().Contain("fileprivate static var viewportScriptPingCount = 0");
+        iosBootstrap.Should().Contain("prism-viewport-script-diag");
+        iosBootstrap.Should().Contain("postMessage('viewport-ready')");
+        iosBootstrap.Should().Contain("if let body = message.body as? String, body == \"viewport-ready\" {");
+        iosBootstrap.Should().Contain("vp=\\(PrismBridgeViewController.viewportScriptPingCount)");
         iosBootstrap.Should().Contain("if let body = message.body as? String, body == \"init\" {");
         iosBootstrap.Should().Contain("sendPing('init')");
         iosBootstrap.Should().Contain("sendPing('changed')");
