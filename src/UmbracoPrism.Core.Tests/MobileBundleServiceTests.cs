@@ -481,6 +481,28 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("PrismContentWatcherPlugin.activeHold = hold");
         iosBootstrap.Should().Contain("plugin=\\(PrismContentWatcherPlugin.callCount)");
 
+        // TEMPORARY — reported live: plugin= stayed at 0 despite genuine on-page interaction, even
+        // though every step of the registration/JS-export/message-routing path was independently
+        // confirmed correct against Capacitor's own vendored source. These pings isolate each
+        // stage of prism-mobile-content-watcher.js's own execution through the same
+        // already-proven-reliable WKScriptMessageHandler channel vp= uses, deliberately bypassing
+        // the still-unproven plugin bridge itself, the same isolation technique that found the
+        // capacitorDidLoad() root cause.
+        iosBootstrap.Should().Contain("private static let contentWatcherDiagnosticMessageName = \"prismContentWatcherDiag\"");
+        iosBootstrap.Should().Contain("fileprivate static var contentWatcherScriptStartedPingCount = 0");
+        iosBootstrap.Should().Contain("fileprivate static var contentWatcherReadyPingCount = 0");
+        iosBootstrap.Should().Contain("fileprivate static var contentWatcherMutationPingCount = 0");
+        iosBootstrap.Should().Contain("fileprivate static var contentWatcherErrorPingCount = 0");
+        iosBootstrap.Should().Contain("contentController.add(WeakScriptMessageHandler(target: self), name: Self.contentWatcherDiagnosticMessageName)");
+        iosBootstrap.Should().Contain("case \"script-started\": Self.contentWatcherScriptStartedPingCount += 1");
+        iosBootstrap.Should().Contain("case \"ready\": Self.contentWatcherReadyPingCount += 1");
+        iosBootstrap.Should().Contain("case \"mutation\": Self.contentWatcherMutationPingCount += 1");
+        iosBootstrap.Should().Contain("case \"error\": Self.contentWatcherErrorPingCount += 1");
+        iosBootstrap.Should().Contain("ws=\\(PrismBridgeViewController.contentWatcherScriptStartedPingCount)");
+        iosBootstrap.Should().Contain("wr=\\(PrismBridgeViewController.contentWatcherReadyPingCount)");
+        iosBootstrap.Should().Contain("wm=\\(PrismBridgeViewController.contentWatcherMutationPingCount)");
+        iosBootstrap.Should().Contain("we=\\(PrismBridgeViewController.contentWatcherErrorPingCount)");
+
         // Reported live: Sign Out bounces the whole app out to system Safari, landing on this
         // app's own /auth/logout, blank. Observes (never alters) Capacitor's own real
         // decidePolicyFor decision, logging exactly which URL/method got cancelled — the one thing

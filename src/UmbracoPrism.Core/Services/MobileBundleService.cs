@@ -1164,6 +1164,25 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
     // once confirmed.
     fileprivate static var viewportScriptPingCount = 0
 
+    // TEMPORARY — reported live: plugin= (PrismContentWatcherPlugin.callCount) stays at 0 despite
+    // interacting with pages that definitely mutate the DOM, even though every step of the
+    // registration/JS-export/message-routing path was independently confirmed correct against
+    // Capacitor's own vendored source. A completely separate, already-proven-reliable
+    // WKScriptMessageHandler channel (the same mechanism vp= uses) reports each stage of
+    // prism-mobile-content-watcher.js's own execution directly, without depending on the
+    // still-unproven plugin bridge to report progress — the same isolation technique that found
+    // the capacitorDidLoad() root cause in the first place. ws= (script executed at all, pinged
+    // unconditionally at the top of the file) / wr= (Cap.isNativePlatform()/nativePromise guard
+    // passed and the MutationObserver was actually attached) / wm= (the observer fired and a
+    // native call was about to be attempted) / we= (that native call's promise rejected) — reading
+    // which of these four climbs and which doesn't pinpoints exactly which link is broken, the
+    // same way raw=/init=/cfg= did previously. Remove once root-caused.
+    private static let contentWatcherDiagnosticMessageName = "prismContentWatcherDiag"
+    fileprivate static var contentWatcherScriptStartedPingCount = 0
+    fileprivate static var contentWatcherReadyPingCount = 0
+    fileprivate static var contentWatcherMutationPingCount = 0
+    fileprivate static var contentWatcherErrorPingCount = 0
+
     private var navigationHold: PrismNavigationHoldDelegate?
 
     // Root-caused from Capacitor's own vendored iOS source (CAPBridgeViewController.prepareWebView):
@@ -1202,6 +1221,7 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
             // controller, which would then own this view controller right back). The
             // weak-referencing proxy below is the standard fix.
             contentController.add(WeakScriptMessageHandler(target: self), name: Self.viewportFixDiagnosticMessageName)
+            contentController.add(WeakScriptMessageHandler(target: self), name: Self.contentWatcherDiagnosticMessageName)
         }
 
         // Capacitor's own canonical JS-to-native bridge, replacing an earlier
@@ -1267,8 +1287,22 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == Self.viewportFixDiagnosticMessageName, message.body as? String == "viewport-ready" else { return }
-        Self.viewportScriptPingCount += 1
+        switch message.name {
+        case Self.viewportFixDiagnosticMessageName:
+            if message.body as? String == "viewport-ready" {
+                Self.viewportScriptPingCount += 1
+            }
+        case Self.contentWatcherDiagnosticMessageName:
+            switch message.body as? String {
+            case "script-started": Self.contentWatcherScriptStartedPingCount += 1
+            case "ready": Self.contentWatcherReadyPingCount += 1
+            case "mutation": Self.contentWatcherMutationPingCount += 1
+            case "error": Self.contentWatcherErrorPingCount += 1
+            default: break
+            }
+        default:
+            break
+        }
     }
 }
 
@@ -1645,7 +1679,7 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
         // whatever's being tested right now.
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) vp=\(PrismBridgeViewController.viewportScriptPingCount) plugin=\(PrismContentWatcherPlugin.callCount) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
+        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) vp=\(PrismBridgeViewController.viewportScriptPingCount) plugin=\(PrismContentWatcherPlugin.callCount) ws=\(PrismBridgeViewController.contentWatcherScriptStartedPingCount) wr=\(PrismBridgeViewController.contentWatcherReadyPingCount) wm=\(PrismBridgeViewController.contentWatcherMutationPingCount) we=\(PrismBridgeViewController.contentWatcherErrorPingCount) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
 
         // Piggybacks on the same label/reveal gesture rather than a separate view — see
         // recordNavigationDecision's own remarks on why this is captured via UserDefaults
