@@ -378,23 +378,49 @@ public class MobileBundleServiceTests
 
         var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
         iosBootstrap.Should().Contain("class PrismBridgeViewController: CAPBridgeViewController");
-        iosBootstrap.Should().Contain("maximum-scale=1, user-scalable=no");
+        iosBootstrap.Should().Contain("maximum-scale=1, user-scalable=no, viewport-fit=cover");
         iosBootstrap.Should().Contain("forMainFrameOnly: false");
         iosBootstrap.Should().Contain("ios/App/App/PrismBridgeViewController.swift");
+
+        // Reported live: once the webview's own top edge was pinned to the screen's true top
+        // (see AppDelegate's own remarks) rather than the safe-area guide, hosted content (which
+        // doesn't know to compensate for that itself) needed a safe-area top-padding fix applied
+        // on its behalf — but this app's own pages must NOT get it too, since their own header
+        // already sizes itself with env(safe-area-inset-top) (TestSite's layout.css) and adding
+        // this on top would double the inset, stacking into an oversized empty gap, the same
+        // double-counting bug prism-mobile-shell.css's own body-padding comment already guards
+        // against for the other three edges. PrismOwnHost.value (baked from tenant.Hostname, the
+        // same host BuildAllowNavigationHosts treats as trusted) is how the script tells the two
+        // apart. viewport-fit=cover is what makes env(safe-area-inset-top) resolve to anything
+        // but 0 in the first place — needed unconditionally, not just for hosted content, since
+        // this same script's own meta-tag overwrite was silently stripping the viewport-fit=cover
+        // Master.cshtml already sets, on every page including this app's own.
+        iosBootstrap.Should().Contain("fileprivate enum PrismOwnHost");
+        iosBootstrap.Should().Contain("static let value = \"test.example\"");
+        iosBootstrap.Should().Contain("if(window.location.hostname!=='\\(PrismOwnHost.value)')");
+        iosBootstrap.Should().Contain("padding-top:env(safe-area-inset-top,0px) !important;");
 
         // Reported live on the same Entra password screen: contentInset:'always' (a scroll-offset
         // setting) did NOT stop hosted content rendering under the status bar/notch — it only
         // offsets scroll position, which does nothing for content that doesn't scroll or that a
         // page positions outside normal flow. The real fix is one level up, in AppDelegate: wraps
         // the storyboard's own root view controller in a plain container via standard view
-        // controller containment, safe-area-pinned. Not done inside PrismBridgeViewController
-        // itself — confirmed via Capacitor's own vendored source that its loadView() is `final`
-        // and unconditionally does `view = webView`, so the view controller's `view` and its
-        // `webView` are the same object; there's no separate webview-inside-a-container to
-        // reconstrain from in there. Verified end-to-end via a real simulator install+launch
-        // against the actual Entra page (not just this generator's own output): the title no
-        // longer overlaps the status bar/Dynamic Island, and renders with its full text intact.
-        iosBootstrap.Should().Contain("bridgeViewController.view.topAnchor.constraint(equalTo: container.view.safeAreaLayoutGuide.topAnchor)");
+        // controller containment. Not done inside PrismBridgeViewController itself — confirmed
+        // via Capacitor's own vendored source that its loadView() is `final` and unconditionally
+        // does `view = webView`, so the view controller's `view` and its `webView` are the same
+        // object; there's no separate webview-inside-a-container to reconstrain from in there.
+        // Verified end-to-end via a real simulator install+launch against the actual Entra page
+        // (not just this generator's own output): the title no longer overlaps the status
+        // bar/Dynamic Island, and renders with its full text intact.
+        //
+        // Reported live afterward, once the viewport-fix script (below) could be trusted to keep
+        // hosted content itself clear of the status bar/notch: with the top permanently
+        // safe-area-reserved regardless, this app's own header rendered detached from the true
+        // top of the screen with a plain blank gap above it. topAnchor now pins to the
+        // container's own top instead, reclaiming that strip for pages that can use it — bottom
+        // stays safe-area-pinned, since nothing here was ever about the home-indicator area.
+        iosBootstrap.Should().Contain("bridgeViewController.view.topAnchor.constraint(equalTo: container.view.topAnchor)");
+        iosBootstrap.Should().Contain("bridgeViewController.view.bottomAnchor.constraint(equalTo: container.view.safeAreaLayoutGuide.bottomAnchor)");
         iosBootstrap.Should().Contain("window?.rootViewController = container");
 
         // WKWebView shows a real blank gap between navigations. This closes it by caching a
