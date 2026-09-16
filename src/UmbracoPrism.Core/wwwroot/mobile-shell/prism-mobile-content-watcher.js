@@ -1,0 +1,57 @@
+// Prism mobile content-change watcher: tells the native paint-holding pipeline whenever the
+// current page's DOM changes, so its cached "frozen frame" for the next navigation reflects what
+// the user actually left on screen (typed values, scroll position, a selected option) rather than
+// the page's just-loaded state.
+//
+// History: an earlier version tried to detect this via document-level input/change/scroll
+// listeners injected as a native WKUserScript. Reported live: it never fired at all, on any page,
+// across many builds. Root-caused by reading Capacitor's own vendored iOS source
+// (CAPBridgeViewController.prepareWebView): the WKWebViewConfiguration.userContentController a
+// host app's own webViewConfiguration(for:) override modifies gets discarded and replaced
+// wholesale with Capacitor's own internal WKUserContentController one line later, before the real
+// webview is ever built — so nothing added there was ever actually live, regardless of how
+// correctly it was written or which events it listened for.
+//
+// This sidesteps that mechanism entirely: it's delivered as an ordinary server-rendered <script>
+// tag (guaranteed to execute, exactly like prism-biometric-signout.js already does), and reports
+// changes through Capacitor's own native plugin bridge (Cap.nativePromise — the same low-level
+// call prism-biometric-signout.js already uses for SecureStorage) rather than a hand-rolled
+// WKScriptMessageHandler.
+//
+// A MutationObserver, not just discrete event listeners, specifically because the earlier
+// approach's raw event list (input/change/scroll/pointerup/touchend/click, widened repeatedly
+// without success) still never explained the actual live symptom: pages whose interactive
+// controls are custom components (sliders, radio groups) may update the DOM — position, an
+// aria-* state, a displayed calculated value — without dispatching any of those standard events
+// at all. Observing childList/attributes/characterData on the whole body catches the visible
+// result of any such update, regardless of what triggered it.
+(function () {
+  var Cap = window.Capacitor;
+  if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform() || !Cap.nativePromise) return;
+
+  var pending = null;
+
+  function notify() {
+    if (pending) {
+      clearTimeout(pending);
+    }
+    pending = setTimeout(function () {
+      pending = null;
+      Cap.nativePromise('PrismContentWatcher', 'contentChanged', {}).catch(function () {});
+    }, 100);
+  }
+
+  new MutationObserver(notify).observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    characterData: true
+  });
+
+  // Scrolling doesn't mutate the DOM, so the observer above never sees it on its own — kept as a
+  // supplementary signal alongside it, on both document and window since WKWebView's own native
+  // momentum-scroll handling of the main page doesn't reliably surface a document-level scroll
+  // event the way desktop Safari does.
+  document.addEventListener('scroll', notify, true);
+  window.addEventListener('scroll', notify, true);
+})();

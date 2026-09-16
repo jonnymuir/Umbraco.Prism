@@ -1156,23 +1156,65 @@ import WebKit
 // document start and again on DOMContentLoaded, so it wins regardless of whether the page's own
 // <meta name=viewport> tag exists yet.
 class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler {
-    private static let snapshotInvalidationMessageName = "prismInvalidateSnapshot"
+    private static let viewportFixDiagnosticMessageName = "prismViewportFixDiag"
 
-    // Diagnostic only — see userContentController(_:didReceive:)'s own remarks on what comparing
-    // this against PrismNavigationHoldDelegate's own contentChangeSignalCount is for. static
-    // rather than an instance property so PrismNavigationHoldDelegate's diagnostic label (a
-    // different type) can read it directly by name — both live in the same file/module, and there
-    // is only ever one PrismBridgeViewController instance in this app regardless.
-    fileprivate static var rawInvalidationMessagesReceived = 0
-
-    // Counts the injected script's own immediate, undebounced 'init' ping (see its own remarks)
-    // separately from rawInvalidationMessagesReceived, which only counts real, debounced
-    // content-change signals — climbing roughly once per navigation proves script injection and
-    // the message bridge both work end-to-end, independent of whether any real interaction event
-    // ever fires on a given page.
-    fileprivate static var scriptLoadPingCount = 0
+    // TEMPORARY — confirms live that moving script injection to capacitorDidLoad() (see its own
+    // remarks) actually reaches the real webview, the same way an earlier version of this exact
+    // counter proved the previous injection point (webViewConfiguration(for:)) never did. Remove
+    // once confirmed.
+    fileprivate static var viewportScriptPingCount = 0
 
     private var navigationHold: PrismNavigationHoldDelegate?
+
+    // Root-caused from Capacitor's own vendored iOS source (CAPBridgeViewController.prepareWebView):
+    // a webViewConfiguration(for:) override's returned WKWebViewConfiguration.userContentController
+    // gets discarded and replaced wholesale with Capacitor's own internal one, one line later,
+    // before the real webview is ever built — confirmed live, previously, by a counter proving
+    // that override WAS being called while everything added to its content controller (a
+    // paint-holding content-change script, and — a real product bug, not just a diagnostic gap —
+    // this app's own viewport-zoom-fix for Entra's hosted login page) never actually ran.
+    // capacitorDidLoad() is called from inside loadView() — documented: webView/bridge are already
+    // set by this point, but no navigation has started yet — and webView.configuration
+    // .userContentController here IS the real, live one Capacitor itself keeps (the same one its
+    // own plugin bridge JS gets added to), so anything added here actually takes effect.
+    override func capacitorDidLoad() {
+        super.capacitorDidLoad()
+        guard let webView = self.webView else { return }
+        let contentController = webView.configuration.userContentController
+
+        // Capacitor's own `zoomEnabled: false` only disables the user's own pinch-zoom gesture —
+        // it does not stop WKWebView's own "zoom into a focused text input" behaviour, which fires
+        // independently whenever a page's own viewport doesn't cap maximum-scale. Reported live on
+        // the Entra/ciamlogin.com sign-in page (hosted content this app doesn't control and can't
+        // add page-level CSS/viewport-meta to): the password field triggered a zoomed-in,
+        // left-clipped layout. forMainFrameOnly: false specifically because this needs to reach
+        // that cross-origin hosted content — a server-rendered <script> tag (the approach used for
+        // this app's own pages' paint-holding detection, see PrismContentWatcherPlugin's own
+        // remarks) fundamentally cannot reach a page a different server renders; only native
+        // injection at the WebView level can.
+        let viewportFixSource = "(function(){function pin(){var meta=document.querySelector('meta[name=viewport]');if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}meta.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';if(\(PrismMobileDiagnosticsFlag.enabled)&&window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.viewportFixDiagnosticMessageName)){window.webkit.messageHandlers.\(Self.viewportFixDiagnosticMessageName).postMessage('viewport-ready');}}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
+        let viewportFixScript = WKUserScript(source: viewportFixSource, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        contentController.addUserScript(viewportFixScript)
+        if PrismMobileDiagnosticsFlag.enabled {
+            // WKUserContentController retains whatever's added as a message handler for as long
+            // as it exists — adding `self` directly here would be the textbook WKScriptMessageHandler
+            // retain cycle (this view controller owns the webview, which owns this very content
+            // controller, which would then own this view controller right back). The
+            // weak-referencing proxy below is the standard fix.
+            contentController.add(WeakScriptMessageHandler(target: self), name: Self.viewportFixDiagnosticMessageName)
+        }
+
+        // Capacitor's own canonical JS-to-native bridge, replacing an earlier
+        // WKScriptMessageHandler-based attempt for paint-holding's own content-change detection —
+        // see PrismContentWatcherPlugin's own remarks. registerPluginInstance (not
+        // registerPluginType, which silently no-ops when autoRegisterPlugins is true — confirmed
+        // from Capacitor's own vendored source, and true by default here since this app never
+        // overrides it) is what actually wires this into Capacitor's real, live content
+        // controller via its own JSExport mechanism — the exact mechanism
+        // @aparajita/capacitor-biometric-auth's own plugin (already proven working in this app)
+        // uses too.
+        bridge?.registerPluginInstance(PrismContentWatcherPlugin())
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -1199,6 +1241,9 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
             isHostTrustedInApp: { [weak self] host in self?.bridge?.config.shouldAllowNavigation(to: host) ?? false }
         )
         navigationHold = hold
+        // Read by PrismContentWatcherPlugin — see its own remarks on why a plain direct reference,
+        // set here, rather than reached via bridge.viewController.
+        PrismContentWatcherPlugin.activeHold = hold
         webView.navigationDelegate = hold
         webView.uiDelegate = hold
 
@@ -1221,103 +1266,9 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         }
     }
 
-    // Reported live: cfg= confirms this override IS called — but exactly once, which is actually
-    // correct, expected behaviour (there's one persistent webview for the app's whole lifetime,
-    // not one per navigation), so it doesn't explain anything on its own: a WKUserScript added
-    // here is documented to auto-reinject on every subsequent page load in that same webview,
-    // with no further help needed from this method. Yet init= (the invalidation script's own
-    // immediate ping, independent of any DOM event) and its JS-side, DOM-only counter (independent
-    // of the message bridge too) have both stayed silent across every build and page tested. The
-    // one thing that comparison can't rule in or out on its own: whether this is a bug specific to
-    // that new script, or whether the whole injection mechanism has stopped reinjecting at all,
-    // for a reason unrelated to anything in this investigation. viewportScriptPingCount below adds
-    // the same two signals (a DOM marker, a native ping) to THIS script — the pre-existing,
-    // previously-relied-upon viewport-zoom-fix, untouched by anything else in this file — as a
-    // direct, controlled comparison in the same build: if this one also stays silent, the
-    // mechanism itself is broken; if it succeeds while the other doesn't, the bug is specific to
-    // that script.
-    fileprivate static var webViewConfigurationCallCount = 0
-    fileprivate static var viewportScriptPingCount = 0
-
-    override func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
-        Self.webViewConfigurationCallCount += 1
-        let configuration = super.webViewConfiguration(for: instanceConfiguration)
-        let source = "(function(){var diagEnabled=\(PrismMobileDiagnosticsFlag.enabled);function pin(){var meta=document.querySelector('meta[name=viewport]');if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}meta.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';if(diagEnabled&&document.body){var el=document.createElement('div');el.id='prism-viewport-script-diag';el.style.cssText='position:fixed;bottom:0;left:0;z-index:2147483647;background:rgba(0,0,150,0.55);color:#fff;font:9px monospace;padding:1px;pointer-events:none;';el.textContent='viewport-script-ran';document.body.appendChild(el);}if(diagEnabled&&window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName)){window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName).postMessage('viewport-ready');}}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
-        let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: false)
-        configuration.userContentController.addUserScript(script)
-
-        // Tells PrismNavigationHoldDelegate its cached frame for the current page is stale —
-        // see its own remarks on why a cached frame needs refreshing at all, and on why this is
-        // debounced here, in JS, rather than posting a message per raw event. input/change fire
-        // once per commit, not once per keystroke's own keydown, and scroll's continuous stream
-        // during an active gesture is coalesced into the same single timer — either way, at most
-        // one message crosses the JS/native bridge per 100ms of actual quiet, not one per event.
-        //
-        // The rawEvt counter and its on-page label (interpolated in as a literal JS true/false —
-        // this executes as JS, not Swift, so it can't just read PrismMobileDiagnosticsFlag.enabled
-        // directly) are a diagnostic aid only, independent of the native diagnostic label and its
-        // own reveal gesture — this is deliberately visible whenever the build has diagnostics on
-        // at all, with no separate reveal step, since what it's for is answering a more basic
-        // question than that label can: whether these DOM events are firing here at all, verifiable
-        // entirely on the JS/page side without depending on window.webkit.messageHandlers (the
-        // bridge to native) working — the two are meant to fail independently of each other so
-        // each can be ruled in or out on its own.
-        //
-        // Reported live, across four separate builds now: every signal specific to this injected
-        // script (raw=, chg=, and this JS-side counter) has stayed at zero, while everything on
-        // the pure-native side (settle captures, navigation tracking) has worked throughout. That
-        // split matters: it means none of the evidence so far actually confirms this script is
-        // even running at all — the JS-side counter div was only ever created lazily, the first
-        // time an event fired, so its absence couldn't be told apart from "ran fine, nothing fired
-        // yet." Two changes close that gap: the div now renders immediately on execution (as soon
-        // as document.body exists — atDocumentStart injection can run before it does, hence the
-        // readyState check, the same pattern bootstrap-ios.sh's own viewport-fix script already
-        // uses), so its mere presence at rawEvt=0 proves the script ran; and an immediate, un-
-        // debounced 'init' ping crosses the native bridge the same moment, surfaced there as a
-        // separate init= counter — climbing roughly once per navigation proves the injection AND
-        // the bridge both work end-to-end, narrowing what's left to genuinely investigate. Real
-        // content-change pings are now 'changed', not null, so init and real signals are never
-        // ambiguous on the native side either. pointerup/touchend/click/window-scroll (added
-        // previously, widening the net for custom drag/tap-driven controls and WKWebView's own
-        // momentum-scroll not reliably surfacing a document-level scroll event) are unchanged.
-        let invalidationSource = "(function(){var diagEnabled=\(PrismMobileDiagnosticsFlag.enabled);var rawEvt=0;var lastEvt='(none)';var diagEl=null;function renderDiag(){if(!diagEnabled||!document.body)return;if(!diagEl||!document.body.contains(diagEl)){diagEl=document.createElement('div');diagEl.id='prism-js-event-diag';diagEl.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;background:rgba(0,100,0,0.55);color:#fff;font:9px monospace;padding:1px;text-align:center;pointer-events:none;';document.body.appendChild(diagEl);}diagEl.textContent='js-evt rawEvt='+rawEvt+' last='+lastEvt;}function sendPing(body){if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName)){window.webkit.messageHandlers.\(Self.snapshotInvalidationMessageName).postMessage(body);}}function ready(){renderDiag();sendPing('init');}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',ready);}else{ready();}var t=null;function n(e){rawEvt++;lastEvt=e.type;renderDiag();if(t){clearTimeout(t);}t=setTimeout(function(){t=null;sendPing('changed');},100);}document.addEventListener('input',n,true);document.addEventListener('change',n,true);document.addEventListener('scroll',n,true);document.addEventListener('pointerup',n,true);document.addEventListener('touchend',n,true);document.addEventListener('click',n,true);window.addEventListener('scroll',n,true);})();"
-        let invalidationScript = WKUserScript(source: invalidationSource, injectionTime: .atDocumentStart, forMainFrameOnly: false)
-        configuration.userContentController.addUserScript(invalidationScript)
-        // WKUserContentController retains whatever's added as a message handler for as long as
-        // this configuration exists — adding `self` directly here would be the textbook
-        // WKScriptMessageHandler retain cycle (this view controller owns the webview, which owns
-        // this very configuration, which would then own this view controller right back). The
-        // weak-referencing proxy below is the standard fix.
-        configuration.userContentController.add(WeakScriptMessageHandler(target: self), name: Self.snapshotInvalidationMessageName)
-        return configuration
-    }
-
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == Self.snapshotInvalidationMessageName else { return }
-        // The injected script's immediate, undebounced ping on every page load — see its own
-        // remarks. Counted separately (scriptLoadPingCount, not rawInvalidationMessagesReceived)
-        // and never treated as a real content change: it fires unconditionally, not because
-        // anything actually changed.
-        if let body = message.body as? String, body == "init" {
-            Self.scriptLoadPingCount += 1
-            return
-        }
-        // The pre-existing viewport-fix script's own ping — see webViewConfiguration(for:)'s own
-        // remarks on why this exists as a controlled comparison against scriptLoadPingCount above.
-        if let body = message.body as? String, body == "viewport-ready" {
-            Self.viewportScriptPingCount += 1
-            return
-        }
-        // Counted before the webView/navigationHold unwraps below, specifically so it stays
-        // meaningful even if either of those is ever nil here — comparing this (raw=, in the
-        // diagnostic label) against contentChangeSignalCount (chg=) tells apart "the message
-        // never reached native at all" (both stay at 0) from "it arrived here but never reached
-        // contentDidChange" (raw increases, chg doesn't — navigationHold or message.webView was
-        // nil at delivery time) from "everything downstream of this handler is fine" (both march
-        // together).
-        Self.rawInvalidationMessagesReceived += 1
-        guard let webView = message.webView else { return }
-        navigationHold?.contentDidChange(in: webView)
+        guard message.name == Self.viewportFixDiagnosticMessageName, message.body as? String == "viewport-ready" else { return }
+        Self.viewportScriptPingCount += 1
     }
 }
 
@@ -1330,6 +1281,48 @@ private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         target?.userContentController(userContentController, didReceive: message)
+    }
+}
+
+// Capacitor's own canonical JS-to-native bridge for content Prism itself serves (see
+// prism-mobile-content-watcher.js's own remarks for the full history of why this replaced a
+// native WKUserScript/WKScriptMessageHandler-based attempt entirely: that mechanism's
+// WKWebViewConfiguration.userContentController was confirmed, from Capacitor's own vendored
+// source, to be discarded before the real webview is ever built, so nothing added there was ever
+// actually live). registerPluginInstance (in PrismBridgeViewController.capacitorDidLoad()) wires
+// this into Capacitor's real, live content controller via its own JSExport mechanism — the exact
+// mechanism @aparajita/capacitor-biometric-auth's own plugin already uses successfully in this
+// app. jsName ("PrismContentWatcher") must exactly match the string prism-mobile-content-watcher.js
+// passes to Cap.nativePromise — that's the only key Capacitor's own JS-side plugin-header lookup
+// matches on.
+@objc(PrismContentWatcherPlugin)
+public class PrismContentWatcherPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "PrismContentWatcherPlugin"
+    public let jsName = "PrismContentWatcher"
+    public let pluginMethods: [CAPPluginMethod] = [
+        .init(#selector(contentChanged))
+    ]
+
+    // Set by PrismBridgeViewController.viewDidLoad() once PrismNavigationHoldDelegate exists — not
+    // reached via bridge.viewController, since whether that resolves to the SAME
+    // PrismBridgeViewController instance that registered this plugin isn't something confirmed
+    // from Capacitor's own source the way registerPluginInstance itself is; a plain direct
+    // reference avoids depending on it. weak since PrismBridgeViewController (not this plugin) owns
+    // the delegate's lifetime.
+    fileprivate static weak var activeHold: PrismNavigationHoldDelegate?
+
+    // Diagnostic: distinguishes "the JS bridge never reached this method at all" (stays at 0) from
+    // "it did, but activeHold was nil" (this climbs, contentChangeSignalCount on the label doesn't)
+    // from "everything downstream works" (both climb together) — the same reasoning the mechanism
+    // this replaces used its own raw-message counter for.
+    fileprivate static var callCount = 0
+
+    @objc func contentChanged(_ call: CAPPluginCall) {
+        Self.callCount += 1
+        if let webView = self.bridge?.webView {
+            Self.activeHold?.contentDidChange(in: webView)
+        }
+        call.resolve()
     }
 }
 
@@ -1652,7 +1645,7 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
         // whatever's being tested right now.
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) cfg=\(PrismBridgeViewController.webViewConfigurationCallCount) vp=\(PrismBridgeViewController.viewportScriptPingCount) init=\(PrismBridgeViewController.scriptLoadPingCount) raw=\(PrismBridgeViewController.rawInvalidationMessagesReceived) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
+        let text = "paint-diag v\(version)(\(build)) snap=\(lastGoodSnapshot != nil ? "yes" : "no") src=\(lastCaptureSource) age=\(ageDescription) vp=\(PrismBridgeViewController.viewportScriptPingCount) plugin=\(PrismContentWatcherPlugin.callCount) chg=\(contentChangeSignalCount) ok=\(captureSuccessCount) fail=\(captureFailureCount)"
 
         // Piggybacks on the same label/reveal gesture rather than a separate view — see
         // recordNavigationDecision's own remarks on why this is captured via UserDefaults

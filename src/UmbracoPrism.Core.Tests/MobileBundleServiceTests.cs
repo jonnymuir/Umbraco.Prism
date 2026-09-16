@@ -431,23 +431,6 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("private var captureNeededAfterInFlight = false");
         iosBootstrap.Should().Contain("guard !isCaptureInFlight else {");
 
-        // The JS side does its own debouncing (one message per 100ms of quiet) before ever
-        // crossing the JS/native bridge — cheaper than letting every raw scroll tick or keystroke
-        // reach native only to be debounced there. WKUserContentController retains whatever's
-        // registered as a message handler, so `self` (the view controller that owns this very
-        // webview/configuration) goes through a weak-referencing proxy rather than being added
-        // directly — the standard fix for that well-known retain-cycle trap.
-        iosBootstrap.Should().Contain("class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler");
-        iosBootstrap.Should().Contain("private static let snapshotInvalidationMessageName = \"prismInvalidateSnapshot\"");
-        iosBootstrap.Should().Contain("document.addEventListener('input',n,true)");
-        iosBootstrap.Should().Contain("document.addEventListener('change',n,true)");
-        iosBootstrap.Should().Contain("document.addEventListener('scroll',n,true)");
-        iosBootstrap.Should().Contain("setTimeout(function(){t=null;");
-        iosBootstrap.Should().Contain("configuration.userContentController.add(WeakScriptMessageHandler(target: self)");
-        iosBootstrap.Should().Contain("class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler");
-        iosBootstrap.Should().Contain("private weak var target: WKScriptMessageHandler?");
-        iosBootstrap.Should().Contain("navigationHold?.contentDidChange(in: webView)");
-
         iosBootstrap.Should().Contain("customClass=\"PrismBridgeViewController\" customModule=\"App\"");
         iosBootstrap.Should().Contain("Main.storyboard");
         iosBootstrap.Should().Contain("import xcode from 'xcode'");
@@ -459,18 +442,44 @@ public class MobileBundleServiceTests
         // just for this reference app's own CI pipeline) so every "Produce Mobile" consumer gets it.
         iosBootstrap.Should().Contain("project.updateBuildProperty('IPHONEOS_DEPLOYMENT_TARGET', '15.0')");
 
-        // Reported live: paint-holding still only ever shows each page's just-loaded frame, never
-        // one reflecting typing/scrolling since — despite the content-change pipeline (above)
-        // supposedly covering exactly that. rawInvalidationMessagesReceived (counted independently
-        // of whether navigationHold ends up processing the message) and the JS-side, DOM-visible
-        // rawEvt counter (independent of whether the native message bridge works at all) each rule
-        // a different link in that pipeline in or out, without depending on the other one working.
-        iosBootstrap.Should().Contain("fileprivate static var rawInvalidationMessagesReceived = 0");
-        iosBootstrap.Should().Contain("Self.rawInvalidationMessagesReceived += 1");
-        iosBootstrap.Should().Contain("raw=\\(PrismBridgeViewController.rawInvalidationMessagesReceived)");
-        iosBootstrap.Should().Contain("var diagEnabled=");
-        iosBootstrap.Should().Contain("var rawEvt=0");
-        iosBootstrap.Should().Contain("prism-js-event-diag");
+        // Root-caused from Capacitor's own vendored iOS source: a webViewConfiguration(for:)
+        // override's returned WKWebViewConfiguration.userContentController gets discarded and
+        // replaced wholesale with Capacitor's own internal one before the real webview is ever
+        // built — confirmed live, previously, by a counter proving that override WAS called while
+        // everything added to its content controller (this app's own viewport-zoom-fix for Entra's
+        // hosted login page — a real product bug, not just a diagnostic gap — and paint-holding's
+        // content-change detection) never actually ran. capacitorDidLoad() targets the real, live
+        // controller directly instead.
+        iosBootstrap.Should().Contain("class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler");
+        iosBootstrap.Should().Contain("override func capacitorDidLoad()");
+        iosBootstrap.Should().Contain("let contentController = webView.configuration.userContentController");
+        iosBootstrap.Should().Contain("contentController.addUserScript(viewportFixScript)");
+        iosBootstrap.Should().Contain("contentController.add(WeakScriptMessageHandler(target: self), name: Self.viewportFixDiagnosticMessageName)");
+        iosBootstrap.Should().Contain("class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler");
+        iosBootstrap.Should().Contain("private weak var target: WKScriptMessageHandler?");
+
+        // TEMPORARY — confirms live that this fix actually reaches the real webview, the same way
+        // an earlier version of this exact counter proved the previous injection point never did.
+        iosBootstrap.Should().Contain("fileprivate static var viewportScriptPingCount = 0");
+        iosBootstrap.Should().Contain("postMessage('viewport-ready')");
+        iosBootstrap.Should().Contain("message.body as? String == \"viewport-ready\"");
+        iosBootstrap.Should().Contain("vp=\\(PrismBridgeViewController.viewportScriptPingCount)");
+
+        // Capacitor's own canonical JS-to-native bridge, replacing an earlier
+        // WKScriptMessageHandler-based attempt for paint-holding's own content-change detection —
+        // confirmed working via the exact same registerPluginInstance mechanism
+        // @aparajita/capacitor-biometric-auth's own plugin already uses successfully in this app.
+        // registerPluginType would silently no-op here (autoRegisterPlugins defaults to true and
+        // is never overridden in this app) — registerPluginInstance always registers unconditionally.
+        iosBootstrap.Should().Contain("bridge?.registerPluginInstance(PrismContentWatcherPlugin())");
+        iosBootstrap.Should().Contain("class PrismContentWatcherPlugin: CAPPlugin, CAPBridgedPlugin");
+        iosBootstrap.Should().Contain("public let jsName = \"PrismContentWatcher\"");
+        iosBootstrap.Should().Contain("fileprivate static weak var activeHold: PrismNavigationHoldDelegate?");
+        iosBootstrap.Should().Contain("fileprivate static var callCount = 0");
+        iosBootstrap.Should().Contain("@objc func contentChanged(_ call: CAPPluginCall)");
+        iosBootstrap.Should().Contain("Self.activeHold?.contentDidChange(in: webView)");
+        iosBootstrap.Should().Contain("PrismContentWatcherPlugin.activeHold = hold");
+        iosBootstrap.Should().Contain("plugin=\\(PrismContentWatcherPlugin.callCount)");
 
         // Reported live: Sign Out bounces the whole app out to system Safari, landing on this
         // app's own /auth/logout, blank. Observes (never alters) Capacitor's own real
@@ -488,6 +497,7 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate, WKUIDelegate, UIGestureRecognizerDelegate");
         iosBootstrap.Should().Contain("private let uiTarget: WKUIDelegate?");
         iosBootstrap.Should().Contain("init(forwardingTo target: WKNavigationDelegate?, forwardingUIDelegateTo uiTarget: WKUIDelegate?, isHostTrustedInApp: @escaping (String) -> Bool)");
+        iosBootstrap.Should().Contain("webView.uiDelegate = hold");
 
         // Reported live: a window.open()-style popup for this app's OWN /auth/logout — a URL a
         // plain top-level navigation was already handling correctly — still got sent to system
@@ -501,42 +511,7 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("Self.recordNavigationDecision(url: urlString, method: \"WINDOW.OPEN\", decision: \"IN-APP\")");
         iosBootstrap.Should().Contain("webView.load(navigationAction.request)");
         iosBootstrap.Should().Contain("Self.recordNavigationDecision(url: urlString, method: \"WINDOW.OPEN\", decision: \"EXTERNAL\")");
-
-        // Reported live: every signal specific to the injected script (raw=, chg=, the on-page
-        // counter) stayed at zero across four builds while everything native-only kept working —
-        // meaning the evidence never actually proved the script was running at all. An immediate,
-        // undebounced 'init' ping (distinct from a real 'changed' signal) closes that gap.
-        iosBootstrap.Should().Contain("fileprivate static var scriptLoadPingCount = 0");
-
-        // Reported live: init= (an immediate ping independent of any DOM event) and the JS-side,
-        // DOM-only counter (independent of the message bridge too) have both stayed silent across
-        // every build and page tested — narrowing this to whether webViewConfiguration(for:)
-        // itself is even being called by Capacitor at all. Counted first, before anything else in
-        // the method, so it's visible in the diagnostic label regardless of whether anything
-        // downstream of it (script injection, message handler registration) ever works.
-        iosBootstrap.Should().Contain("fileprivate static var webViewConfigurationCallCount = 0");
-        iosBootstrap.Should().Contain("Self.webViewConfigurationCallCount += 1");
-        iosBootstrap.Should().Contain("cfg=\\(PrismBridgeViewController.webViewConfigurationCallCount)");
-
-        // Reported live: cfg=1 confirms webViewConfiguration(for:) IS called — but that's actually
-        // correct, expected behaviour (one persistent webview, not one per navigation), so it
-        // doesn't explain why init=/raw=/the invalidation script's own JS-side counter have all
-        // stayed silent. A controlled comparison: the SAME two signals (a DOM marker, a native
-        // ping), added to the pre-existing viewport-fix script instead — untouched by anything
-        // else in this investigation — to tell apart "bug specific to the new script" from "the
-        // whole injection mechanism has stopped reinjecting, for a reason unrelated to any of it."
-        iosBootstrap.Should().Contain("fileprivate static var viewportScriptPingCount = 0");
-        iosBootstrap.Should().Contain("prism-viewport-script-diag");
-        iosBootstrap.Should().Contain("postMessage('viewport-ready')");
-        iosBootstrap.Should().Contain("if let body = message.body as? String, body == \"viewport-ready\" {");
-        iosBootstrap.Should().Contain("vp=\\(PrismBridgeViewController.viewportScriptPingCount)");
-        iosBootstrap.Should().Contain("if let body = message.body as? String, body == \"init\" {");
-        iosBootstrap.Should().Contain("sendPing('init')");
-        iosBootstrap.Should().Contain("sendPing('changed')");
-        iosBootstrap.Should().Contain("init=\\(PrismBridgeViewController.scriptLoadPingCount)");
         iosBootstrap.Should().Contain("func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView?");
-        iosBootstrap.Should().Contain("Self.recordNavigationDecision(url: urlString, method: \"WINDOW.OPEN\", decision: \"EXTERNAL\")");
-        iosBootstrap.Should().Contain("webView.uiDelegate = hold");
         iosBootstrap.Should().Contain("UserDefaults.standard.stringArray(forKey: navigationDecisionLogKey)");
 
         var packageJson = ReadEntry(archive, "package.json");
