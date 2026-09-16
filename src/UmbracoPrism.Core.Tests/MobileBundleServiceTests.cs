@@ -417,7 +417,19 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("webView.takeSnapshot(with: nil)");
         iosBootstrap.Should().Contain("if let snapshot = lastGoodSnapshot {");
         iosBootstrap.Should().Contain("let spinner = UIActivityIndicatorView(style: .medium)");
-        iosBootstrap.Should().Contain("spinner.centerXAnchor.constraint(equalTo: webView.centerXAnchor)");
+
+        // Reported live: a dead-center spinner is easy to miss on a slow connection, because the
+        // user's eyes are already on wherever they just tapped, not the screen's center. An
+        // unconditional (not diagnostics-gated) tap-tracking gesture records where to anchor it
+        // instead, falling back to dead-center when there's no recent-enough tap on record.
+        iosBootstrap.Should().Contain("private var lastTapLocation: (point: CGPoint, at: Date)?");
+        iosBootstrap.Should().Contain("let tapTracker = UITapGestureRecognizer(target: hold, action: #selector(PrismNavigationHoldDelegate.handleTapForSpinnerPositioning(_:)))");
+        iosBootstrap.Should().Contain("tapTracker.cancelsTouchesInView = false");
+        iosBootstrap.Should().Contain("@objc fileprivate func handleTapForSpinnerPositioning(_ recognizer: UITapGestureRecognizer)");
+        iosBootstrap.Should().Contain("lastTapLocation = (recognizer.location(in: view), Date())");
+        iosBootstrap.Should().Contain("if let tap = lastTapLocation, Date().timeIntervalSince(tap.at) < 2.0 {");
+        iosBootstrap.Should().Contain("center = webView.convert(tap.point, to: hostView)");
+        iosBootstrap.Should().Contain("spinner.center = center");
         iosBootstrap.Should().Contain("DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: capture)");
         iosBootstrap.Should().Contain("scheduleSnapshotCapture(of: webView, delay: 0.3, source: \"settle\")");
         iosBootstrap.Should().Contain("fileprivate func contentDidChange(in webView: WKWebView)");
