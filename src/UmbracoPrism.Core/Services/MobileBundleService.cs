@@ -226,13 +226,18 @@ const config: CapacitorConfig = {
     // the normal flow — which a page this app doesn't control is free to do regardless of what
     // native inset is set.
     //
-    // The actual fix is native, not a WKWebView content setting at all: PrismBridgeViewController
-    // now pins the WKWebView's own frame to the safe-area layout guide (see bootstrap-ios.sh),
-    // so the unsafe strip at the top/bottom is never part of the WebView's drawable area in the
-    // first place, regardless of what any page — ours or a hosted IdP's — does with scroll or
-    // positioning. contentInset goes back to 'never' here so the two mechanisms don't double up
-    // (the frame already excludes the unsafe area; an inset on top of that would reserve it
-    // twice).
+    // The actual fix is native, not a WKWebView content setting at all: AppDelegate pins the
+    // WKWebView's own frame to the safe-area layout guide at the bottom (see bootstrap-ios.sh),
+    // so the home-indicator strip is never part of the WebView's drawable area in the first
+    // place, regardless of what any page — ours or a hosted IdP's — does with scroll or
+    // positioning. The top is handled differently now that the viewport-fix script (see
+    // PrismBridgeViewController's own remarks) can push hosted content itself clear of the
+    // status bar/notch: the webview's top edge is pinned to the screen's true top instead, so
+    // this app's own pages (whose own header is tall enough to clear that area unaided) can fill
+    // all the way under it rather than have it permanently reserved and left blank for every
+    // page regardless of whether that page needs it. contentInset stays 'never' either way so it
+    // doesn't double up with either native mechanism (both already exclude/compensate for their
+    // own unsafe area; an inset on top of that would reserve it twice).
     contentInset: 'never'
   },
   appendUserAgent: '{{EscapeSingleQuotes(marker)}}',
@@ -1078,6 +1083,12 @@ echo "Doctor complete."
 
     private static string BuildBootstrapIosScript(string startUrl, bool biometricAuthEnabled, bool mobileDiagnosticsEnabled)
     {
+        // Same host BuildAllowNavigationHosts treats as this app's own (startUri.Host there,
+        // startUrl's own host here — both derived from the same tenant.Hostname). Uri.Host can
+        // never contain a quote/backslash (DNS syntax forbids both), so no escaping is needed to
+        // embed it safely in the Swift string literal below.
+        var ownHost = new Uri(startUrl).Host;
+
         // A separate small file-scope declaration, prepended whole rather than spliced into the
         // middle of zoomFixInjection below — that big literal's own content (embedded JS closures)
         // contains stray "}}" sequences that would collide with C# raw-string interpolation syntax
@@ -1092,6 +1103,15 @@ echo "Doctor complete."
         var mobileDiagnosticsFlagDeclaration = $$"""
 fileprivate enum PrismMobileDiagnosticsFlag {
     static let enabled = {{(mobileDiagnosticsEnabled ? "true" : "false")}}
+}
+
+fileprivate enum PrismOwnHost {
+    // Read by the viewport-fix script (see its own remarks) to tell this app's own pages —
+    // which size their own header tall enough to clear the status bar/notch now that the
+    // webview extends under it — apart from hosted content (Entra's sign-in pages, or any
+    // other host in allowNavigation) that doesn't know to do that and needs a safe-area
+    // top-padding fix applied on its behalf instead.
+    static let value = "{{ownHost}}"
 }
 
 """;
@@ -1211,7 +1231,19 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         // this app's own pages' paint-holding detection, see PrismContentWatcherPlugin's own
         // remarks) fundamentally cannot reach a page a different server renders; only native
         // injection at the WebView level can.
-        let viewportFixSource = "(function(){function pin(){var meta=document.querySelector('meta[name=viewport]');if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}meta.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';if(\(PrismMobileDiagnosticsFlag.enabled)&&window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.viewportFixDiagnosticMessageName)){window.webkit.messageHandlers.\(Self.viewportFixDiagnosticMessageName).postMessage('viewport-ready');}}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
+        //
+        // viewport-fit=cover, plus AppDelegate now pinning the webview's own top edge to the
+        // screen's true top (not the safe-area guide) rather than reserving that strip
+        // unconditionally for every page — see AppDelegate.swift's own remarks — together let
+        // this app's own pages fill all the way under the status bar/notch/Dynamic Island (this
+        // app's own header is tall enough to clear that area on its own, so it no longer needs to
+        // be permanently reserved and left blank for pages that don't). Hosted content can't be
+        // trusted to make the same allowance for itself, so PrismOwnHost.value (this app's own
+        // host — the same one BuildAllowNavigationHosts treats as trusted) tells this script which
+        // pages need a safe-area top-padding fix applied on their behalf instead: an env()
+        // safe-area value only resolves to non-zero once viewport-fit=cover is set, which is
+        // exactly why this must be set unconditionally, not just for this app's own pages.
+        let viewportFixSource = "(function(){function pin(){var meta=document.querySelector('meta[name=viewport]');if(!meta){meta=document.createElement('meta');meta.name='viewport';document.head.appendChild(meta);}meta.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';if(window.location.hostname!=='\(PrismOwnHost.value)'){var safeAreaStyle=document.createElement('style');safeAreaStyle.textContent='html{padding-top:env(safe-area-inset-top,0px) !important;}';document.head.appendChild(safeAreaStyle);}if(\(PrismMobileDiagnosticsFlag.enabled)&&window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.\(Self.viewportFixDiagnosticMessageName)){window.webkit.messageHandlers.\(Self.viewportFixDiagnosticMessageName).postMessage('viewport-ready');}}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
         let viewportFixScript = WKUserScript(source: viewportFixSource, injectionTime: .atDocumentStart, forMainFrameOnly: false)
         contentController.addUserScript(viewportFixScript)
         if PrismMobileDiagnosticsFlag.enabled {
@@ -1815,7 +1847,7 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
 PRISM_SWIFT_EOF
   echo "✓ PrismBridgeViewController.swift written"
 
-  echo "Pinning the app's root view to the safe area layout guide..."
+  echo "Pinning the app's root view to the screen, safe-area-pinned only at the bottom..."
   cat > ios/App/App/AppDelegate.swift << 'PRISM_APPDELEGATE_EOF'
 import UIKit
 import Capacitor
@@ -1838,6 +1870,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // level up, in the window's own root view controller — sidesteps that entirely and
         // needs nothing Capacitor doesn't already fully support (its bridge view controller
         // works the same as a child VC as it does as the window's direct root).
+        //
+        // topAnchor now pins to the container's own top, not its safe-area guide — reclaiming the
+        // status bar/notch/Dynamic Island strip for the webview itself, rather than reserving it
+        // unconditionally (as #250 first shipped, when the viewport couldn't be fixed for hosted
+        // content at all) for every page regardless of whether that page's own layout could use
+        // it. Reported live: with the strip reserved, this app's own header rendered detached
+        // from the top of the screen with a plain blank gap above it — worse, not safer, once the
+        // viewport-fix script (see PrismBridgeViewController's own remarks) could be trusted to
+        // keep hosted content clear of that same strip on its own behalf. bottomAnchor stays
+        // safe-area-pinned — only the status-bar-area overlap this was ever about is at the top;
+        // nothing here was ever about the home-indicator area at the bottom.
         if let bridgeViewController = window?.rootViewController {
             let container = UIViewController()
             container.view.backgroundColor = .white
@@ -1845,7 +1888,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             container.view.addSubview(bridgeViewController.view)
             bridgeViewController.view.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
-                bridgeViewController.view.topAnchor.constraint(equalTo: container.view.safeAreaLayoutGuide.topAnchor),
+                bridgeViewController.view.topAnchor.constraint(equalTo: container.view.topAnchor),
                 bridgeViewController.view.bottomAnchor.constraint(equalTo: container.view.safeAreaLayoutGuide.bottomAnchor),
                 bridgeViewController.view.leadingAnchor.constraint(equalTo: container.view.leadingAnchor),
                 bridgeViewController.view.trailingAnchor.constraint(equalTo: container.view.trailingAnchor)
