@@ -382,23 +382,14 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("forMainFrameOnly: false");
         iosBootstrap.Should().Contain("ios/App/App/PrismBridgeViewController.swift");
 
-        // Reported live: once the webview's own top edge was pinned to the screen's true top
-        // (see AppDelegate's own remarks) rather than the safe-area guide, hosted content (which
-        // doesn't know to compensate for that itself) needed a safe-area top-padding fix applied
-        // on its behalf — but this app's own pages must NOT get it too, since their own header
-        // already sizes itself with env(safe-area-inset-top) (TestSite's layout.css) and adding
-        // this on top would double the inset, stacking into an oversized empty gap, the same
-        // double-counting bug prism-mobile-shell.css's own body-padding comment already guards
-        // against for the other three edges. PrismOwnHost.value (baked from tenant.Hostname, the
-        // same host BuildAllowNavigationHosts treats as trusted) is how the script tells the two
-        // apart. viewport-fit=cover is what makes env(safe-area-inset-top) resolve to anything
-        // but 0 in the first place — needed unconditionally, not just for hosted content, since
-        // this same script's own meta-tag overwrite was silently stripping the viewport-fit=cover
-        // Master.cshtml already sets, on every page including this app's own.
+        // viewport-fit=cover is what makes env(safe-area-inset-top) resolve to anything but 0 in
+        // the first place — needed unconditionally (not just for hosted content) because this
+        // same script's own meta-tag overwrite was silently stripping the viewport-fit=cover
+        // Master.cshtml already sets, on every page including this app's own, which is why
+        // TestSite's own layout.css (env(safe-area-inset-top) on .portal-header/.dash-header)
+        // hadn't actually been doing anything.
         iosBootstrap.Should().Contain("fileprivate enum PrismOwnHost");
         iosBootstrap.Should().Contain("static let value = \"test.example\"");
-        iosBootstrap.Should().Contain("if(window.location.hostname!=='\\(PrismOwnHost.value)')");
-        iosBootstrap.Should().Contain("padding-top:env(safe-area-inset-top,0px) !important;");
 
         // Reported live on the same Entra password screen: contentInset:'always' (a scroll-offset
         // setting) did NOT stop hosted content rendering under the status bar/notch — it only
@@ -413,15 +404,42 @@ public class MobileBundleServiceTests
         // (not just this generator's own output): the title no longer overlaps the status
         // bar/Dynamic Island, and renders with its full text intact.
         //
-        // Reported live afterward, once the viewport-fix script (below) could be trusted to keep
-        // hosted content itself clear of the status bar/notch: with the top permanently
-        // safe-area-reserved regardless, this app's own header rendered detached from the true
-        // top of the screen with a plain blank gap above it. topAnchor now pins to the
-        // container's own top instead, reclaiming that strip for pages that can use it — bottom
-        // stays safe-area-pinned, since nothing here was ever about the home-indicator area.
-        iosBootstrap.Should().Contain("bridgeViewController.view.topAnchor.constraint(equalTo: container.view.topAnchor)");
+        // Reported live afterward: with the top permanently safe-area-reserved regardless of
+        // page, this app's own header rendered detached from the true top of the screen with a
+        // plain blank gap above it. topAnchor now pins to the container's own top by default, and
+        // a mutable constant (not the fixed 0 that alone would imply) is handed to
+        // PrismSafeAreaTopCoordinator: reported live AGAIN afterward that a static top-or-not
+        // choice, made once for whichever page happens to load first, isn't enough either — some
+        // Entra screens (password entry, "pick an account", create-account, username entry)
+        // still overlapped the status bar while others ("stay signed in") didn't, because those
+        // are different client-side view states within ONE hosted page, not separate navigations.
+        // PrismNavigationHoldDelegate is what actually toggles this constant, per real navigation
+        // — see its own remarks for why that's reliable where a CSS fix pushed into hosted
+        // content wasn't. bottomAnchor stays safe-area-pinned; nothing here was ever about the
+        // home-indicator area.
+        iosBootstrap.Should().Contain("let topConstraint = bridgeViewController.view.topAnchor.constraint(equalTo: container.view.topAnchor)");
         iosBootstrap.Should().Contain("bridgeViewController.view.bottomAnchor.constraint(equalTo: container.view.safeAreaLayoutGuide.bottomAnchor)");
+        iosBootstrap.Should().Contain("PrismSafeAreaTopCoordinator.topConstraint = topConstraint");
+        iosBootstrap.Should().Contain("PrismSafeAreaTopCoordinator.containerView = container.view");
         iosBootstrap.Should().Contain("window?.rootViewController = container");
+
+        // Reported live: neither a CSS fix injected into hosted content, nor a safe-area choice
+        // fixed once per page load, survives however many internal view-state changes a hosted
+        // SPA-like flow (Entra's own sign-in screens) goes through afterward — this does, because
+        // it's a property of the whole webview's own frame for that page's entire lifetime,
+        // completely independent of the page's own DOM/CSS. Toggled on both didStartProvisional
+        // Navigation AND didReceiveServerRedirectForProvisionalNavigation — the latter because a
+        // server-side redirect (Entra hopping between its own subdomains) keeps the SAME
+        // provisional-navigation lifecycle, so without it the reservation would stay stuck on
+        // whichever host the ORIGINAL request targeted even after redirecting elsewhere.
+        iosBootstrap.Should().Contain("enum PrismSafeAreaTopCoordinator");
+        iosBootstrap.Should().Contain("static weak var topConstraint: NSLayoutConstraint?");
+        iosBootstrap.Should().Contain("static weak var containerView: UIView?");
+        iosBootstrap.Should().Contain("updateSafeAreaTopReservation(for: webView.url)");
+        iosBootstrap.Should().Contain("func webView(_ webView: WKWebView, didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!)");
+        iosBootstrap.Should().Contain("private func updateSafeAreaTopReservation(for url: URL?)");
+        iosBootstrap.Should().Contain("let isOwnHost = url?.host == PrismOwnHost.value");
+        iosBootstrap.Should().Contain("let target: CGFloat = isOwnHost ? 0 : containerView.safeAreaInsets.top");
 
         // WKWebView shows a real blank gap between navigations. This closes it by caching a
         // snapshot of each page once it settles, then handing that already-resolved image over
