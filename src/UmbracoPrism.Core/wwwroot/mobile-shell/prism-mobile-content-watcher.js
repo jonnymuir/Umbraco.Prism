@@ -25,7 +25,29 @@
 // aria-* state, a displayed calculated value — without dispatching any of those standard events
 // at all. Observing childList/attributes/characterData on the whole body catches the visible
 // result of any such update, regardless of what triggered it.
+//
+// TEMPORARY diagnostics (diagPing calls below): reported live that the native plugin= counter
+// this feeds stayed at 0 despite genuine on-page interaction, even though every step of the
+// registration/JS-export/message-routing path was independently confirmed correct against
+// Capacitor's own vendored iOS source. These pings report each stage of THIS script's own
+// execution through a completely separate, already-proven-reliable WKScriptMessageHandler channel
+// (the same one the pre-existing viewport-fix diagnostic uses) — deliberately not the still-
+// unproven Capacitor plugin bridge this script is trying to diagnose — so which of
+// ws=/wr=/wm=/we= climbs (or doesn't) on the native diagnostic label pinpoints exactly which link
+// is broken. No-op (and never throws) on a build without mobile diagnostics compiled in, since
+// window.webkit.messageHandlers.prismContentWatcherDiag simply won't exist there. Remove once
+// root-caused.
 (function () {
+  function diagPing(kind) {
+    try {
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.prismContentWatcherDiag) {
+        window.webkit.messageHandlers.prismContentWatcherDiag.postMessage(kind);
+      }
+    } catch (e) {}
+  }
+
+  diagPing('script-started');
+
   var Cap = window.Capacitor;
   if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform() || !Cap.nativePromise) return;
 
@@ -37,7 +59,10 @@
     }
     pending = setTimeout(function () {
       pending = null;
-      Cap.nativePromise('PrismContentWatcher', 'contentChanged', {}).catch(function () {});
+      diagPing('mutation');
+      Cap.nativePromise('PrismContentWatcher', 'contentChanged', {}).catch(function () {
+        diagPing('error');
+      });
     }, 100);
   }
 
@@ -54,4 +79,6 @@
   // event the way desktop Safari does.
   document.addEventListener('scroll', notify, true);
   window.addEventListener('scroll', notify, true);
+
+  diagPing('ready');
 })();
