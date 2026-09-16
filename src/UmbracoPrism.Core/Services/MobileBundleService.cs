@@ -1284,6 +1284,19 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
             diagnosticsGesture.delegate = hold
             webView.addGestureRecognizer(diagnosticsGesture)
         }
+
+        // Real product fix, unconditional on diagnostics — reported live: on a slow connection
+        // the navigation spinner sits dead-center, but a user's eyes are already on wherever they
+        // just tapped, not the screen's center, so a subtle spinner there goes unnoticed. Tracks
+        // the most recent tap's location so showSpinner() can appear right where attention already
+        // is instead. cancelsTouchesInView = false, plus shouldRecognizeSimultaneouslyWith
+        // (already true for every recognizer on this delegate — see its own remarks), mean this
+        // only observes taps, it never intercepts or delays them: ordinary page interaction (link
+        // taps, button presses, WKWebView's own tap handling) is completely unaffected.
+        let tapTracker = UITapGestureRecognizer(target: hold, action: #selector(PrismNavigationHoldDelegate.handleTapForSpinnerPositioning(_:)))
+        tapTracker.cancelsTouchesInView = false
+        tapTracker.delegate = hold
+        webView.addGestureRecognizer(tapTracker)
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -1415,6 +1428,10 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
     private var spinnerRevealWorkItem: DispatchWorkItem?
     private var snapshotOverlayView: UIImageView?
     private var lastGoodSnapshot: UIImage?
+    // Read by showSpinner() to position the spinner near where the user is actually looking —
+    // see viewDidLoad's own remarks on the tap-tracking gesture that sets this, and
+    // handleTapForSpinnerPositioning's own remarks on the recency window.
+    private var lastTapLocation: (point: CGPoint, at: Date)?
     private var pendingSnapshotCapture: DispatchWorkItem?
     private var isCaptureInFlight = false
     private var captureNeededAfterInFlight = false
@@ -1604,14 +1621,28 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
         }
 
         let spinner = UIActivityIndicatorView(style: .medium)
-        spinner.translatesAutoresizingMaskIntoConstraints = false
         spinner.hidesWhenStopped = true
         hostView.addSubview(spinner)
         spinnerView = spinner
-        NSLayoutConstraint.activate([
-            spinner.centerXAnchor.constraint(equalTo: webView.centerXAnchor),
-            spinner.centerYAnchor.constraint(equalTo: webView.centerYAnchor)
-        ])
+
+        // Reported live: a dead-center spinner is easy to miss on a slow connection, because the
+        // user's eyes are already on wherever they just tapped, not the screen's center. Anchored
+        // there instead when a recent-enough tap is on record — clamped inward so it's never
+        // clipped by the view's own edges — so it lands exactly where attention already is. Falls
+        // back to dead-center (the previous behaviour) otherwise: a navigation can also come from
+        // a redirect, a JS-driven navigation, or simply an old tap from well before this one
+        // started, none of which should place a spinner somewhere the user isn't looking any more.
+        var center = CGPoint(x: webView.frame.midX, y: webView.frame.midY)
+        if let tap = lastTapLocation, Date().timeIntervalSince(tap.at) < 2.0 {
+            center = webView.convert(tap.point, to: hostView)
+        }
+        let inset = max(spinner.bounds.width, spinner.bounds.height)
+        let clampBounds = hostView.bounds.insetBy(dx: inset, dy: inset)
+        if clampBounds.width > 0 && clampBounds.height > 0 {
+            center.x = min(max(center.x, clampBounds.minX), clampBounds.maxX)
+            center.y = min(max(center.y, clampBounds.minY), clampBounds.maxY)
+        }
+        spinner.center = center
 
         let reveal = DispatchWorkItem { spinner.startAnimating() }
         spinnerRevealWorkItem = reveal
@@ -1643,6 +1674,16 @@ private final class PrismNavigationHoldDelegate: NSObject, WKNavigationDelegate,
         guard recognizer.state == .began else { return }
         isDiagnosticsRevealed.toggle()
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    // Wired up unconditionally in viewDidLoad (not gated on PrismMobileDiagnosticsFlag — this is
+    // a real product fix, not a diagnostic aid). Records where showSpinner() should anchor its
+    // spinner for the *next* navigation this tap triggers. The recency check happens in
+    // showSpinner() itself, not here, since how stale a tap is allowed to be before falling back
+    // to dead-center is a property of when it's read, not when it's recorded.
+    @objc fileprivate func handleTapForSpinnerPositioning(_ recognizer: UITapGestureRecognizer) {
+        guard recognizer.state == .ended, let view = recognizer.view else { return }
+        lastTapLocation = (recognizer.location(in: view), Date())
     }
 
     // Lets this gesture recognize alongside WKWebView's own internal ones (its own single-finger
