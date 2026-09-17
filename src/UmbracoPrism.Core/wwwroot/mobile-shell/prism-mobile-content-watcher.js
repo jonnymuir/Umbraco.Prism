@@ -66,6 +66,7 @@
     }, 100);
   }
 
+  // 1. Structural DOM changes (custom components, rendered views)
   new MutationObserver(notify).observe(document.body, {
     childList: true,
     subtree: true,
@@ -73,12 +74,21 @@
     characterData: true
   });
 
-  // Scrolling doesn't mutate the DOM, so the observer above never sees it on its own — kept as a
-  // supplementary signal alongside it, on both document and window since WKWebView's own native
-  // momentum-scroll handling of the main page doesn't reliably surface a document-level scroll
-  // event the way desktop Safari does.
+  // 2. Scrolling
   document.addEventListener('scroll', notify, true);
   window.addEventListener('scroll', notify, true);
+
+  // 3. Live typing and text editing
+  document.addEventListener('input', notify, true);
+
+  // 4. Checkbox, radio, and select changes
+  document.addEventListener('change', notify, true);
+
+  // 5. Element blur (finishing edits)
+  document.addEventListener('blur', notify, true);
+
+  // 6. Text highlighting / cursor selection changes
+  document.addEventListener('selectionchange', notify, true);
 
   diagPing('ready');
 })();
