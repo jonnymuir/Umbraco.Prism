@@ -23,29 +23,38 @@ on the server, and what the generated bundle already does for you.
 3. Add your **Android app** to the same project: **Project settings → Add app → Android**.
    - **Package name** must exactly match the same `--app-id`.
    - Download the generated **`google-services.json`** — you'll need it in Part 3.
-4. **Upload your APNs key** so Firebase can deliver to iOS devices: **Project settings → Cloud
-   Messaging → Apple app configuration → APNs Authentication Key → Upload**.
-   - Get the key from [Apple Developer](https://developer.apple.com/account) →
-     **Certificates, Identifiers & Profiles → Keys → Create a key** with the
-     **Apple Push Notifications service (APNs)** capability enabled. Download the `.p8` file —
-     Apple only lets you download it once, so keep it safe.
-   - You'll also need the **Key ID** (shown when you create the key) and your **Team ID**
-     (**Membership details** on the Apple Developer site).
-5. Generate the backend credential: **Project settings → Service accounts → Generate new private
+4. **Create the APNs key on Apple Developer** (do this before the Firebase upload step below):
+   - Go to [developer.apple.com/account](https://developer.apple.com/account) →
+     **Certificates, Identifiers & Profiles → Keys → +** (create a new key).
+   - Name it anything, tick **Apple Push Notifications service (APNs)**, continue.
+   - **Environment: choose "Sandbox & Production"**, not either one alone — Firebase (and most
+     other senders) rejects a key scoped to only one environment. This is the whole point of the
+     newer key-based approach over the old certificates: one key covers both.
+   - Register, then **download the `.p8` file** — Apple only lets you download it once, so keep it
+     safe. Note the **Key ID** shown on this same screen.
+   - Find your **Team ID**: **Account** (top nav) → select your team top-right if you have more
+     than one → scroll down to **Membership details**.
+   - Full walkthrough: [OneSignal's guide to this exact flow](https://documentation.onesignal.com/docs/en/ios-p8-token-based-connection-to-apns).
+5. **Upload it to Firebase**: **Project settings → Cloud Messaging → Apple app configuration →
+   APNs Authentication Key → Upload**.
+   - You'll see two separate slots, "development" and "production" — these are leftovers from the
+     old certificate system, where you genuinely needed two files. With a single Sandbox &
+     Production key, upload the **same `.p8` file, Key ID, and Team ID into both slots**.
+6. Generate the backend credential: **Project settings → Service accounts → Generate new private
    key**. This downloads a JSON file — this is what `PrismNotificationService` authenticates with
    server-side. Keep it secret (unlike `GoogleService-Info.plist`/`google-services.json`, which
    are safe to ship inside a compiled app, this file grants send-as-your-project access).
 
 That's the whole Firebase-side setup. No separate iOS/Android tracks, no manual entitlements or
 Gradle edits — the generated bundle's bootstrap scripts (Part 3) handle the native wiring, and
-Firebase's own SDK bridges the APNs key you uploaded in step 4 automatically once a device
+Firebase's own SDK bridges the APNs key you uploaded in step 5 automatically once a device
 registers.
 
 ---
 
 ## Part 2 — Server-side configuration
 
-Set `Prism:Firebase:CredentialJson` to the full contents of the service-account JSON from step 5
+Set `Prism:Firebase:CredentialJson` to the full contents of the service-account JSON from step 6
 above (or a file path to it — `PrismNotificationService.TryInitFirebase` accepts either: a raw
 JSON string starting with `{`, or a path to a file containing it).
 
@@ -106,18 +115,13 @@ toggle could change after the fact.
 
 ### CI (TestFlight)
 
-`deploy-testflight.yml` reads a `GOOGLE_SERVICE_INFO_PLIST_BASE64` repo secret
-(**Settings → Secrets and variables → Actions → New repository secret**) — base64-encode your
-`GoogleService-Info.plist`:
-
-```bash
-base64 -i GoogleService-Info.plist | pbcopy   # macOS; use base64 -w0 on Linux
-```
-
-and paste the result as the secret value. When that secret is set, the workflow automatically
-passes `--push-notifications true` and writes the decoded file into the bundle's `resources/`
-folder before bootstrapping. When it's unset, the pipeline still runs — it just produces a build
-without push notifications compiled in, same as today.
+`deploy-testflight.yml` reads a `GOOGLE_SERVICE_INFO_PLIST` repo secret
+(**Settings → Secrets and variables → Actions → New repository secret**) — open your downloaded
+`GoogleService-Info.plist` in a text editor, copy its entire contents, and paste them as the
+secret value (it's plain XML text, no encoding needed). When that secret is set, the workflow
+automatically passes `--push-notifications true` and writes the file into the bundle's
+`resources/` folder before bootstrapping. When it's unset, the pipeline still runs — it just
+produces a build without push notifications compiled in, same as today.
 
 ---
 
