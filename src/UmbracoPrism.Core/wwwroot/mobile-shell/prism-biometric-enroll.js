@@ -129,19 +129,46 @@ var __prismDebug = (function() {
       return el;
     }
 
+    // Was a bottom-sheet banner that sat alongside the rest of the page — user-tested feedback
+    // was that people saw it, then ignored it and carried on navigating around the app without
+    // ever answering, all while it sat there obscuring the nav bar underneath. Now a true modal:
+    // a full-screen backdrop (id prism-bio-backdrop) captures every tap so nothing behind it is
+    // reachable, and — deliberately — the backdrop has no click-to-dismiss handler and there's no
+    // close button, so "Enable" or "Not now" are the only two ways out. closeModal() removes the
+    // whole backdrop (not just the card), used by every exit path below (decline, success,
+    // cancelled/failed enrollment) so the app is never left permanently blocked.
+    function closeModal() {
+      var backdrop = document.getElementById('prism-bio-backdrop');
+      if (backdrop) backdrop.remove();
+    }
+
     function showEnrollBanner() {
-      if (document.getElementById('prism-bio-banner')) return;
+      if (document.getElementById('prism-bio-backdrop')) return;
+
+      var backdrop = document.createElement('div');
+      backdrop.id = 'prism-bio-backdrop';
+      // z-index above prism-mobile-nav's own default (1000, see that component's own
+      // --prism-mobile-nav-z-index) so the modal sits above the nav bar it used to only obscure.
+      backdrop.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;' +
+        'align-items:center;justify-content:center;padding:20px;' +
+        'background:rgba(0,0,0,.5);';
+      backdrop.setAttribute('role', 'presentation');
+
       var banner = document.createElement('div');
       banner.id = 'prism-bio-banner';
-      banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;' +
-        'padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));' +
-        'background:var(--prism-surface,#fff);border-top:1px solid var(--prism-border,#e5e7eb);' +
-        'border-radius:16px 16px 0 0;box-shadow:0 -4px 20px rgba(0,0,0,.15);' +
+      banner.setAttribute('role', 'dialog');
+      banner.setAttribute('aria-modal', 'true');
+      banner.setAttribute('aria-labelledby', 'prism-bio-title');
+      banner.style.cssText = 'width:100%;max-width:360px;' +
+        'padding:24px;' +
+        'background:var(--prism-surface,#fff);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.25);' +
         'font-family:var(--prism-font-body,-apple-system,BlinkMacSystemFont,sans-serif);';
 
-      banner.appendChild(styledEl('p',
+      var title = styledEl('p',
         'margin:0 0 6px;font-size:1.0625rem;font-weight:600;color:var(--prism-text,#111827);',
-        'Enable Face ID / Touch ID?'));
+        'Enable Face ID / Touch ID?');
+      title.id = 'prism-bio-title';
+      banner.appendChild(title);
       banner.appendChild(styledEl('p',
         'margin:0 0 18px;font-size:.9rem;color:var(--prism-muted,#6b7280);',
         'Sign in faster next time without entering your password.'));
@@ -164,10 +191,14 @@ var __prismDebug = (function() {
       row.appendChild(noBtn);
       banner.appendChild(row);
 
-      document.body.appendChild(banner);
+      backdrop.appendChild(banner);
+      document.body.appendChild(backdrop);
+      // No backdrop click-to-dismiss listener — deliberate, see the comment above closeModal().
+      yesBtn.focus();
+
       noBtn.addEventListener('click', function () {
         localStorage.setItem(DECLINED_KEY, String(Date.now()));
-        banner.remove();
+        closeModal();
       });
       yesBtn.addEventListener('click', handleEnroll);
     }
@@ -232,7 +263,7 @@ var __prismDebug = (function() {
             'margin:0;font-size:.9rem;font-weight:600;color:var(--prism-accent,#16a34a);' +
             'text-align:center;padding:4px 0;',
             '✓ Biometric login enabled'));
-          setTimeout(function () { banner.remove(); }, 2000);
+          setTimeout(closeModal, 2000);
         }
       } catch (e) {
         __prismDebug.log('[Prism Enroll] enrollment error: ' + (e && (e.message || String(e))));
@@ -240,7 +271,7 @@ var __prismDebug = (function() {
         var banner = document.getElementById('prism-bio-banner');
         if (!banner) return;
         if (msg && (msg.toLowerCase().includes('cancel') || msg.toLowerCase().includes('usercancel'))) {
-          banner.remove();
+          closeModal();
           return;
         }
         var yesBtn2 = document.getElementById('prism-bio-yes');

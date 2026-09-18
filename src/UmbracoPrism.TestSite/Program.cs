@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.TestSite;
 using Wayfinder.Engine.Http;
@@ -86,6 +87,42 @@ app.Use(async (context, next) =>
         context.Response.ContentType = "text/plain";
         await context.Response.WriteAsync("ok");
         return;
+    }
+    await next();
+});
+
+// Money Modeller is deliberately reachable anonymously on the web (see CLAUDE.md's declarative-
+// calculations section — a calculated field's defaultFrom falls back to its plain default when
+// member data doesn't resolve, "e.g. an anonymous visitor with no member data" — an intentional
+// existing capability, not a gap). On the mobile app that same fallback just reads as broken:
+// there's no page furniture explaining why the numbers are generic placeholders, and the whole
+// point of showcasing it there is the personalised, signed-in experience. So mobile requests get
+// bounced to login first; the web page keeps its existing anonymous-preview behaviour untouched.
+//
+// Gated on IsPrismMobileRequest (the broad query/cookie/header/UA detection Master.cshtml's own
+// isPrismMobileRequest already uses), not the strict UA-only IsNativeMobileRequest — the desktop
+// mobile-UA demo toggle exists specifically so implementers can preview real mobile behaviour
+// from a browser, and a login gate that only fired inside the compiled app would silently not be
+// part of that preview.
+//
+// Authenticates against "PrismMemberCookie" directly (the same scheme AccountController/
+// PrismNotificationController use) rather than reading context.User — this middleware runs
+// before app.UseUmbraco()'s own authentication middleware populates it, but
+// HttpContext.AuthenticateAsync(scheme) invokes the registered handler directly regardless of
+// pipeline position, so it doesn't depend on running after that middleware.
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsGet(context.Request.Method)
+        && context.Request.Path.StartsWithSegments(TestSiteSeedContract.MoneyModellerPageUrl, StringComparison.OrdinalIgnoreCase)
+        && PrismMobileRequestDetection.IsPrismMobileRequest(context))
+    {
+        var authResult = await context.AuthenticateAsync("PrismMemberCookie");
+        if (!authResult.Succeeded)
+        {
+            var returnUrl = context.Request.Path + context.Request.QueryString;
+            context.Response.Redirect("/auth/login?returnUrl=" + Uri.EscapeDataString(returnUrl));
+            return;
+        }
     }
     await next();
 });

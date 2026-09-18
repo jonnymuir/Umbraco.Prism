@@ -45,6 +45,10 @@ public class DemoMobileNavSeeder(
     // genuinely good showcase of complex UI working well on a mobile app. Caseworker queue stays
     // on the web nav (see WebCaseworkerQueueElementKey below) where it still makes sense.
     private static readonly Guid ModellerElementKey = new("b5c6d7e8-f9a0-4234-efab-456789012345");
+    // Added so the juggling licence journey earns the same "pride of place" a home-screen tab
+    // gives it, not just a link buried on the Home page's own content — user-tested feedback was
+    // that it was too easy to miss entirely.
+    private static readonly Guid LicenceElementKey = new("c6d7e8f9-a0b1-4345-fabc-567890123457");
 
     // Web nav uses its own element keys — distinct Block List instances from the mobile items above,
     // even though both point at the same mobileNavItem element type.
@@ -77,6 +81,14 @@ public class DemoMobileNavSeeder(
     private const string ModellerSvg = """
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
           <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+        </svg>
+        """;
+
+    // A badge/ID-card glyph (Material Symbols "badge") — reads as "licence"/credential more
+    // clearly than a generic document icon, matching the other tabs' single-fill-path style.
+    private const string LicenceSvg = """
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20 6h-2.18c.11-.31.18-.65.18-1a2.996 2.996 0 0 0-5.5-1.65l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zM15 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm9 14H6v-1c0-2 4-3.1 6-3.1s6 1.1 6 3.1v1z"/>
         </svg>
         """;
 
@@ -113,10 +125,12 @@ public class DemoMobileNavSeeder(
         var homeKey = EnsureIconMedia("Nav Icon - Home",      folderId, "home.svg");
         var dashKey = EnsureIconMedia("Nav Icon - Dashboard", folderId, "dashboard.svg");
         var modellerKey = EnsureIconMedia("Nav Icon - Money Modeller", folderId, "modeller.svg");
+        var licenceKey = EnsureIconMedia("Nav Icon - Apply for a Juggling Licence", folderId, "licence.svg");
 
         var needsMobileUpdate = NeedsBlockListSeed(
             settings.GetValue<string>("mobileNavLinks"),
-            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.DashboardUrl, TestSiteSeedContract.MoneyModellerPageUrl);
+            TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.DashboardUrl, TestSiteSeedContract.MoneyModellerPageUrl,
+            TestSiteSeedContract.JugglingLicencePageUrl);
         var needsWebUpdate = settings.HasProperty("webNavLinks") && NeedsBlockListSeed(
             settings.GetValue<string>("webNavLinks"),
             TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.JugglingLicencePageUrl,
@@ -132,7 +146,7 @@ public class DemoMobileNavSeeder(
         if (needsMobileUpdate)
         {
             logger.LogInformation("DEMO SEEDER: Replacing mobileNavLinks to restore the seeded auth-flow contract.");
-            var mobileBlockListJson = BuildBlockListJson(homeKey, dashKey, modellerKey);
+            var mobileBlockListJson = BuildBlockListJson(homeKey, dashKey, modellerKey, licenceKey);
             settings.SetValue("mobileNavLinks", mobileBlockListJson);
         }
 
@@ -218,6 +232,9 @@ public class DemoMobileNavSeeder(
 
         var modellerPath = Path.Combine(iconDir, "modeller.svg");
         if (!System.IO.File.Exists(modellerPath)) System.IO.File.WriteAllText(modellerPath, ModellerSvg, Encoding.UTF8);
+
+        var licencePath = Path.Combine(iconDir, "licence.svg");
+        if (!System.IO.File.Exists(licencePath)) System.IO.File.WriteAllText(licencePath, LicenceSvg, Encoding.UTF8);
 
         logger.LogDebug("DEMO SEEDER: SVG icon files written to {Path}.", iconDir);
     }
@@ -319,11 +336,12 @@ public class DemoMobileNavSeeder(
     /// instead of flat properties. This allows the backoffice label template (e.g. <c>{{ navLabel }}</c>)
     /// to resolve correctly, since the TypeScript interpolation reads from the <c>values</c> array.
     /// </summary>
-    private static string BuildBlockListJson(Guid? homeMediaKey, Guid? dashMediaKey, Guid? modellerMediaKey)
+    private static string BuildBlockListJson(Guid? homeMediaKey, Guid? dashMediaKey, Guid? modellerMediaKey, Guid? licenceMediaKey)
     {
         var homeKey      = HomeElementKey.ToString();
         var dashKey      = DashElementKey.ToString();
         var modellerKey  = ModellerElementKey.ToString();
+        var licenceKey   = LicenceElementKey.ToString();
 
         var root = new JsonObject
         {
@@ -332,18 +350,24 @@ public class DemoMobileNavSeeder(
                 ["Umbraco.BlockList"] = new JsonArray(
                     new JsonObject { ["contentKey"] = homeKey },
                     new JsonObject { ["contentKey"] = dashKey },
+                    new JsonObject { ["contentKey"] = licenceKey },
                     new JsonObject { ["contentKey"] = modellerKey }
                 )
             },
             ["contentData"] = new JsonArray(
                 BuildBlockItem(homeKey,      "Home",             TestSiteSeedContract.HomePageUrl,          homeMediaKey),
                 BuildBlockItem(dashKey,      "Dashboard",        TestSiteSeedContract.DashboardUrl,         dashMediaKey),
+                // Short "Licence" label, not the full "Apply for a juggling licence" page name —
+                // a bottom-tab label needs to fit ~56-72px at 11px without wrapping, unlike the
+                // desktop text-link nav (BuildWebNavBlockListJson) which uses the full name.
+                BuildBlockItem(licenceKey,   "Licence",          TestSiteSeedContract.JugglingLicencePageUrl, licenceMediaKey),
                 BuildBlockItem(modellerKey,  "Money Modeller",   TestSiteSeedContract.MoneyModellerPageUrl, modellerMediaKey)
             ),
             ["settingsData"] = new JsonArray(),
             ["expose"] = new JsonArray(
                 new JsonObject { ["contentKey"] = homeKey,     ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = dashKey,     ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = licenceKey,  ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = modellerKey, ["culture"] = null, ["segment"] = null }
             )
         };
