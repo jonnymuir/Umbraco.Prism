@@ -16,4 +16,5 @@ public class PrismMobileBundleRequest
     public bool? ShowErrorDiagnostics { get; set; }
     public bool? BiometricAuthEnabled { get; set; }
     public bool? MobileDiagnosticsEnabled { get; set; }
+    public bool? PushNotificationsEnabled { get; set; }
 }

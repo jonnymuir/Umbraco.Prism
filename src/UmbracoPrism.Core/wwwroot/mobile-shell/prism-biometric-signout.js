@@ -42,6 +42,7 @@
   // sign-in as a different-feeling "session", which read as the app permanently ignoring the
   // user's choice rather than a bounded 7-day snooze.
   var DECLINED_KEY = 'prism_biometric_declined_at_' + TENANT_HOST;
+  var PUSH_TOKEN_KEY = 'prism_push_registered_token_' + TENANT_HOST;
 
   function clearLocalBiometricState() {
     // Best-effort and deliberately not awaited by the caller — the page is about to navigate
@@ -62,6 +63,17 @@
       .catch(function () {});
   }
 
+  function revokeServerSidePushToken() {
+    // Same reasoning as revokeServerSideCredential() above — a stale token left registered past
+    // sign-out would keep sending this device notifications addressed to whichever member signs
+    // in next, until it naturally expires or is overwritten. No-op on a build without push
+    // notifications wired in: PUSH_TOKEN_KEY is simply never set, so this DELETE just clears a
+    // token that was never registered, harmless either way.
+    localStorage.removeItem(PUSH_TOKEN_KEY);
+    fetch('/umbraco/prism/push/register', { method: 'DELETE', credentials: 'include' })
+      .catch(function () {});
+  }
+
   document.addEventListener('submit', function (event) {
     var form = event.target;
     if (!(form instanceof HTMLFormElement) || form.getAttribute('action') !== '/auth/logout') return;
@@ -70,5 +82,6 @@
     // top-level navigation. This just fires alongside it.
     clearLocalBiometricState();
     revokeServerSideCredential();
+    revokeServerSidePushToken();
   }, true);
 })();

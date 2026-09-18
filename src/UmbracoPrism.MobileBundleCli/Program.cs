@@ -71,7 +71,8 @@ public static class Program
             IconUrl = flags.GetValueOrDefault("icon-url"),
             SplashUrl = flags.GetValueOrDefault("splash-url"),
             BiometricAuthEnabled = ParseOptionalBool(flags.GetValueOrDefault("biometric-auth")),
-            MobileDiagnosticsEnabled = ParseOptionalBool(flags.GetValueOrDefault("mobile-diagnostics"))
+            MobileDiagnosticsEnabled = ParseOptionalBool(flags.GetValueOrDefault("mobile-diagnostics")),
+            PushNotificationsEnabled = ParseOptionalBool(flags.GetValueOrDefault("push-notifications"))
         };
 
         try
@@ -150,6 +151,14 @@ public static class Program
                                             Compiles in the on-screen paint-holding diagnostic
                                             label — still hidden on-device until a long-press
                                             reveal gesture; see bootstrap-ios.sh's own remarks
+              --push-notifications <true|false>
+                                            Wires @capacitor-firebase/messaging into the bundle
+                                            (iOS entitlements/AppDelegate/pbxproj + Android
+                                            google-services.json placement). Needs
+                                            resources/GoogleService-Info.plist and
+                                            resources/google-services.json placed before running
+                                            the bootstrap scripts — see README.md's own section
+                                            once the bundle is generated with this flag on.
             """);
     }
 }

@@ -26,6 +26,11 @@ jobs:
       # every .ipa's own embedded provisioning profile), not a credential. Find it at
       # developer.apple.com/account under Membership details.
       PRISM_APPLE_TEAM_ID: ${{ vars.PRISM_APPLE_TEAM_ID }}
+      # Soft-gated on secret presence, not a hard-required var like PRISM_APPLE_TEAM_ID above —
+      # push notifications are an optional feature layered onto an already-working pipeline, so a
+      # repo that hasn't done the Firebase Console setup yet (see docs/PUSH_SETUP.md) still gets a
+      # working, unsigned-for-push build rather than every TestFlight dispatch failing outright.
+      PUSH_NOTIFICATIONS_ENABLED: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -70,6 +75,12 @@ jobs:
       # near the top of the screen reveals it — this flag only controls whether the code exists in
       # this build at all, not whether it's currently showing. This reference app carries it always
       # so it's available whenever a live device investigation needs it, without a special build.
+      #
+      # --push-notifications: wires @capacitor-firebase/messaging into the bundle (iOS
+      # entitlements/AppDelegate/pbxproj wiring — see MobileBundleService.BuildBootstrapIosScript's
+      # own remarks). Only turned on when GOOGLE_SERVICE_INFO_PLIST_BASE64 is actually set (see
+      # PUSH_NOTIFICATIONS_ENABLED above) — compiling the plugin in with no real Firebase config to
+      # place would just produce a build that can't register a device token.
       - name: Generate mobile bundle
         run: >
           dotnet run --project src/UmbracoPrism.MobileBundleCli --
@@ -79,10 +90,25 @@ jobs:
           --version "${PRISM_APP_VERSION:-1.0.0}"
           --biometric-auth true
           --mobile-diagnostics true
+          --push-notifications "$PUSH_NOTIFICATIONS_ENABLED"
           --output mobile-bundle.zip
 
       - name: Unzip mobile bundle
         run: unzip -q mobile-bundle.zip -d mobile-app
+
+      # GoogleService-Info.plist is real Firebase project config, not a secret credential in
+      # itself (Google documents it as safe to ship inside a compiled app bundle), but it's still
+      # written from a secret rather than committed to the repo — it's per-environment
+      # (reference-app-specific), same reasoning as PRISM_APP_ID/PRISM_APPLE_TEAM_ID being repo
+      # variables rather than checked-in constants. Placed into resources/ (read by
+      # bootstrap-ios.sh, see its own remarks) before the bootstrap step below runs.
+      - name: Write Firebase config for push notifications
+        if: env.PUSH_NOTIFICATIONS_ENABLED == 'true'
+        env:
+          GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}
+        run: |
+          mkdir -p mobile-app/resources
+          printf '%s' "$GOOGLE_SERVICE_INFO_PLIST_BASE64" | base64 --decode > mobile-app/resources/GoogleService-Info.plist
 
       - name: Install bundle dependencies
         working-directory: mobile-app
