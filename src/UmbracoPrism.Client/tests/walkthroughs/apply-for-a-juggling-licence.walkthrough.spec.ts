@@ -127,7 +127,15 @@ test.describe('Apply for a juggling licence (CMS ServiceBlueprint) walkthrough',
     }, 'apply-for-a-juggling-licence');
 
     await page.getByRole('button', { name: 'Submit' }).click();
-    await expect(page.getByRole('heading', { name: 'Application submitted' })).toBeVisible({ timeout: 30_000 });
+    // Submitting leaps into the juggling-licence-decision Umbraco Automate automation
+    // (JugglingLicenceDecisionAutomationSeeder): a Recreational application fast-tracks and
+    // resolves instantly (see the anonymous-visitor test above), but Competitive/Professional
+    // — this member's own tier — goes through Automate's own built-in human-approval step, which
+    // genuinely never resolves without a human clicking approve/reject in the Automate backoffice.
+    // Reaching the applicant's own waiting screen, not "Application submitted", is this
+    // scenario's correct terminal state.
+    await expect(page.getByRole('heading', { name: 'Application decided' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("We're deciding your application", { exact: false })).toBeVisible();
   });
 
   test('backoffice Blueprints authoring API requires admin auth', async ({ request }) => {
