@@ -156,6 +156,14 @@
            biometric-revoke calls it also makes are harmless no-ops when nothing was ever
            enrolled. See the script's own remarks. *@
         <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-signout.js"></script>
+
+        @* Same reasoning as above, applied to push: whether the native FirebaseMessaging plugin
+           is actually compiled into this build is a bundle-generation-time decision
+           (--push-notifications, see MobileBundleService.cs), not a per-tenant runtime toggle
+           like AllowBiometricLogin, so there's no equivalent AllowPushNotifications tenant flag
+           to gate on here. On a build without the plugin, the nativePromise calls inside just
+           throw and are caught — a harmless no-op, same as the biometric-revoke calls above. *@
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-push-register.js"></script>
     }
 
 </body>

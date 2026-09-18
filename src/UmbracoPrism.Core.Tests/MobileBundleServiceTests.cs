@@ -624,4 +624,131 @@ public class MobileBundleServiceTests
         var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
         androidBootstrap.Should().Contain("npx capacitor-assets generate --android");
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(null)]
+    public async Task BuildBundleAsync_PushNotificationsDisabled_PackageJsonHasNoPushDeps(bool? pushNotificationsEnabled)
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            PushNotificationsEnabled = pushNotificationsEnabled
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var packageJson = ReadEntry(archive, "package.json");
+        packageJson.Should().NotContain("@capacitor-firebase/messaging");
+
+        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        iosBootstrap.Should().NotContain("UIBackgroundModes");
+        iosBootstrap.Should().NotContain("App.entitlements");
+
+        var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
+        androidBootstrap.Should().NotContain("google-services.json");
+
+        var readme = ReadEntry(archive, "README.md");
+        readme.Should().NotContain("## Push Notification Setup");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_PushNotificationsEnabled_PackageJsonIncludesPushDeps()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            PushNotificationsEnabled = true
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var packageJson = ReadEntry(archive, "package.json");
+        packageJson.Should().Contain("\"@capacitor-firebase/messaging\": \"^7.3.0\"");
+        packageJson.Should().Contain("\"firebase\": \"^11.0.0\"");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_PushNotificationsEnabled_ReadmeContainsPushSection()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            PushNotificationsEnabled = true
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var readme = ReadEntry(archive, "README.md");
+        readme.Should().Contain("## Push Notification Setup");
+        readme.Should().Contain("resources/GoogleService-Info.plist");
+        readme.Should().Contain("resources/google-services.json");
+        readme.Should().Contain("@capacitor-firebase/messaging");
+
+        var agentPrompt = ReadEntry(archive, "AGENT_PROMPT.md");
+        agentPrompt.Should().Contain("## Push notifications");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_PushNotificationsEnabled_BootstrapIosInjectsEntitlementsAndPbxprojWiring()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            PushNotificationsEnabled = true
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        iosBootstrap.Should().Contain("UIBackgroundModes");
+        iosBootstrap.Should().Contain("plutil -insert UIBackgroundModes -json '[\"remote-notification\"]'");
+        iosBootstrap.Should().Contain("aps-environment");
+        iosBootstrap.Should().Contain("<string>production</string>");
+        iosBootstrap.Should().Contain("cp resources/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist");
+        iosBootstrap.Should().Contain("project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements');");
+        iosBootstrap.Should().Contain("project.addResourceFile('App/GoogleService-Info.plist'");
+        iosBootstrap.Should().Contain("didRegisterForRemoteNotificationsWithDeviceToken");
+        iosBootstrap.Should().Contain("didFailToRegisterForRemoteNotificationsWithError");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_PushNotificationsEnabled_BootstrapAndroidPlacesGoogleServicesJson()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            PushNotificationsEnabled = true
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
+        androidBootstrap.Should().Contain("cp resources/google-services.json android/app/google-services.json");
+    }
 }

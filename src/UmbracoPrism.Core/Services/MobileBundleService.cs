@@ -36,6 +36,7 @@ public class MobileBundleService : IMobileBundleService
         var showErrorDiagnostics = request.ShowErrorDiagnostics ?? true;
         var biometricAuthEnabled = request.BiometricAuthEnabled ?? false;
         var mobileDiagnosticsEnabled = request.MobileDiagnosticsEnabled ?? false;
+        var pushNotificationsEnabled = request.PushNotificationsEnabled ?? false;
 
         if (!IsValidAppId(appId))
         {
@@ -50,16 +51,16 @@ public class MobileBundleService : IMobileBundleService
         using var memory = new MemoryStream();
         using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
         {
-          AddEntry(archive, "README.md", BuildReadme(appName, startUrl, iconUrl, splashUrl, biometricAuthEnabled));
-            AddEntry(archive, "package.json", BuildPackageJson(appName, biometricAuthEnabled));
-            AddEntry(archive, "AGENT_PROMPT.md", BuildAgentPrompt(appName, startUrl, biometricAuthEnabled));
+          AddEntry(archive, "README.md", BuildReadme(appName, startUrl, iconUrl, splashUrl, biometricAuthEnabled, pushNotificationsEnabled));
+            AddEntry(archive, "package.json", BuildPackageJson(appName, biometricAuthEnabled, pushNotificationsEnabled));
+            AddEntry(archive, "AGENT_PROMPT.md", BuildAgentPrompt(appName, startUrl, biometricAuthEnabled, pushNotificationsEnabled));
             AddEntry(archive, "capacitor.config.ts", BuildCapacitorConfig(tenant, appId, appName, version, startUrl, marker));
             AddEntry(archive, ".gitignore", "node_modules\nandroid\nios\n.DS_Store\n");
             AddEntry(archive, "www/index.html", BuildPlaceholderIndex(appName, startUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics, biometricAuthEnabled));
             AddEntry(archive, "www/mobile-overrides.css", BuildMobileOverrideTemplate());
             AddEntry(archive, "scripts/doctor-mobile.sh", BuildDoctorScript(startUrl));
-            AddEntry(archive, "scripts/bootstrap-ios.sh", BuildBootstrapIosScript(startUrl, biometricAuthEnabled, mobileDiagnosticsEnabled));
-            AddEntry(archive, "scripts/bootstrap-android.sh", BuildBootstrapAndroidScript(biometricAuthEnabled));
+            AddEntry(archive, "scripts/bootstrap-ios.sh", BuildBootstrapIosScript(startUrl, biometricAuthEnabled, mobileDiagnosticsEnabled, pushNotificationsEnabled));
+            AddEntry(archive, "scripts/bootstrap-android.sh", BuildBootstrapAndroidScript(biometricAuthEnabled, pushNotificationsEnabled));
             AddEntry(archive, "scripts/trust-ios-localhost-cert.sh", BuildTrustIosLocalhostCertScript(startUrl));
           AddEntry(archive, "resources/mobile-assets.json", BuildAssetsManifest(iconUrl, splashUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics));
 
@@ -157,13 +158,26 @@ public class MobileBundleService : IMobileBundleService
         writer.Write(content);
     }
 
-    private static string BuildPackageJson(string appName, bool biometricAuthEnabled)
+    private static string BuildPackageJson(string appName, bool biometricAuthEnabled, bool pushNotificationsEnabled)
     {
         var biometricDeps = biometricAuthEnabled
             ? """
 ,
     "@aparajita/capacitor-biometric-auth": "^7.0.0",
     "@aparajita/capacitor-secure-storage": "^7.0.0"
+"""
+            : string.Empty;
+
+        // @capacitor-firebase/messaging (not @capacitor/push-notifications) — it bridges iOS
+        // APNs tokens through Firebase's own SDK into FCM tokens, so both platforms hand the
+        // server a token type PrismNotificationService (FirebaseAdmin.Messaging, FCM-only) can
+        // actually send to. @capacitor/push-notifications alone would give iOS a raw APNs token
+        // FCM can't target directly.
+        var pushDeps = pushNotificationsEnabled
+            ? """
+,
+    "@capacitor-firebase/messaging": "^7.3.0",
+    "firebase": "^11.0.0"
 """
             : string.Empty;
 
@@ -184,7 +198,7 @@ public class MobileBundleService : IMobileBundleService
     "open:android": "npx cap open android"
   },
   "dependencies": {
-    "@capacitor/core": "^7.0.0"{{biometricDeps}}
+    "@capacitor/core": "^7.0.0"{{biometricDeps}}{{pushDeps}}
   },
   "devDependencies": {
     "@capacitor/cli": "^7.0.0",
@@ -319,7 +333,7 @@ export default config;
     return builder.Uri.ToString().TrimEnd('/');
   }
 
-    private static string BuildReadme(string appName, string startUrl, string? iconUrl, string? splashUrl, bool biometricAuthEnabled)
+    private static string BuildReadme(string appName, string startUrl, string? iconUrl, string? splashUrl, bool biometricAuthEnabled, bool pushNotificationsEnabled)
     {
       var iconLine = string.IsNullOrWhiteSpace(iconUrl) ? "(not provided)" : iconUrl;
       var splashLine = string.IsNullOrWhiteSpace(splashUrl) ? "(not provided)" : splashUrl;
@@ -355,6 +369,31 @@ The following Capacitor plugins are included in `package.json`:
 - `@aparajita/capacitor-secure-storage` — hardware-backed secure storage for tokens.
 
 Both plugins auto-register via Capacitor's plugin discovery; no `capacitor.config.ts` changes are needed.
+"""
+          : string.Empty;
+
+      var pushSection = pushNotificationsEnabled
+          ? """
+
+## Push Notification Setup
+
+This bundle was generated with **push notifications enabled**, using `@capacitor-firebase/messaging`
+(not `@capacitor/push-notifications`) so both iOS and Android hand the server an FCM-compatible token —
+the Prism backend sends via `FirebaseAdmin.Messaging`, which is FCM-only.
+
+**Before running the bootstrap scripts**, get your Firebase config files and place them here:
+
+- `resources/GoogleService-Info.plist` (Firebase Console → Project settings → your iOS app)
+- `resources/google-services.json` (Firebase Console → Project settings → your Android app)
+
+`bootstrap-ios.sh` then copies `GoogleService-Info.plist` into `ios/App/App/`, registers it as a Copy
+Bundle Resources entry, injects `UIBackgroundModes` (remote-notification) into `Info.plist`, writes
+`ios/App/App/App.entitlements` with `aps-environment: production`, and patches `AppDelegate.swift` with
+the delegate methods the plugin needs to bridge the APNs token into an FCM token. `bootstrap-android.sh`
+copies `google-services.json` into `android/app/` — the Firebase Gradle plugin picks it up automatically.
+
+Ask your Prism site administrator for step-by-step Firebase Console instructions if you don't have these
+files yet.
 """
           : string.Empty;
 
@@ -477,7 +516,7 @@ Choose this explicitly per tenant/security policy. If strict in-WebView is manda
 ## Customize mobile-specific UI
 
 Use `www/mobile-overrides.css` as your starting point for mobile-scoped styles.
-{{biometricSection}}
+{{biometricSection}}{{pushSection}}
 ## Icons & Splash
 
 - Icon source: {{iconLine}}
@@ -1081,7 +1120,7 @@ echo "Doctor complete."
 """;
     }
 
-    private static string BuildBootstrapIosScript(string startUrl, bool biometricAuthEnabled, bool mobileDiagnosticsEnabled)
+    private static string BuildBootstrapIosScript(string startUrl, bool biometricAuthEnabled, bool mobileDiagnosticsEnabled, bool pushNotificationsEnabled)
     {
         // Same host BuildAllowNavigationHosts treats as this app's own (startUri.Host there,
         // startUrl's own host here — both derived from the same tenant.Hostname). Uri.Host can
@@ -1130,6 +1169,100 @@ if [ -f ios/App/App/Info.plist ]; then
   fi
 else
   echo "⚠️ Info.plist not found. Run 'npx cap add ios' first."
+fi
+
+"""
+            : string.Empty;
+
+        // @capacitor-firebase/messaging needs: (1) UIBackgroundModes remote-notification so iOS
+        // wakes the app for background pushes, (2) an aps-environment entitlement — "production"
+        // is correct here, not "development", because this script feeds an App Store Connect
+        // (TestFlight/production) build, never a plain Xcode debug-signed run (see
+        // docs/PUSH_SETUP.md), (3) the entitlements file wired into CODE_SIGN_ENTITLEMENTS in
+        // project.pbxproj (done in the .prism-add-push-config.mjs script below, alongside
+        // GoogleService-Info.plist), and (4) an AppDelegate hook so the plugin can bridge the raw
+        // APNs token it receives into an FCM token — patched onto AppDelegate.swift AFTER
+        // zoomFixInjection (below) rewrites that file wholesale on every run, not spliced into
+        // this literal, since a plain (non-interpolated) """ string can't reference this method's
+        // own locals the way the infoPlistInjection/zoomFixInjection split already relies on.
+        var pushNotificationsInjection = pushNotificationsEnabled
+            ? """
+
+echo "Injecting UIBackgroundModes (remote-notification) into Info.plist..."
+if [ -f ios/App/App/Info.plist ]; then
+  if ! grep -q "UIBackgroundModes" ios/App/App/Info.plist; then
+    plutil -insert UIBackgroundModes -json '["remote-notification"]' ios/App/App/Info.plist
+    echo "✓ UIBackgroundModes added to Info.plist"
+  else
+    echo "✓ UIBackgroundModes already present in Info.plist"
+  fi
+else
+  echo "⚠️ Info.plist not found. Run 'npx cap add ios' first."
+fi
+
+echo "Writing ios/App/App/App.entitlements..."
+cat > ios/App/App/App.entitlements << 'PRISM_ENTITLEMENTS_EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>aps-environment</key>
+	<string>production</string>
+</dict>
+</plist>
+PRISM_ENTITLEMENTS_EOF
+echo "✓ App.entitlements written"
+
+if [ -f resources/GoogleService-Info.plist ]; then
+  cp resources/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist
+  echo "✓ GoogleService-Info.plist copied into ios/App/App/"
+else
+  echo "⚠️ resources/GoogleService-Info.plist not found — download it from Firebase Console"
+  echo "   (Project settings → your iOS app) and place it at resources/GoogleService-Info.plist"
+  echo "   before running this script, or push notifications will not work on a device."
+fi
+
+echo "Wiring App.entitlements and GoogleService-Info.plist into project.pbxproj..."
+cat > .prism-add-push-config.mjs << 'PRISM_PUSH_NODE_EOF'
+import xcode from 'xcode';
+import fs from 'node:fs';
+
+const pbxprojPath = 'ios/App/App.xcodeproj/project.pbxproj';
+const project = xcode.project(pbxprojPath);
+project.parseSync();
+
+project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements');
+console.log('✓ CODE_SIGN_ENTITLEMENTS set to App/App.entitlements in project.pbxproj');
+
+if (fs.existsSync('ios/App/App/GoogleService-Info.plist')) {
+  const refs = project.hash.project.objects.PBXFileReference || {};
+  const alreadyPresent = Object.values(refs).some(
+    ref => ref && typeof ref === 'object' && typeof ref.path === 'string' && ref.path.includes('GoogleService-Info.plist')
+  );
+  if (!alreadyPresent) {
+    const target = project.getFirstTarget().uuid;
+    project.addResourceFile('App/GoogleService-Info.plist', { target }, 'App');
+    console.log('✓ GoogleService-Info.plist registered in project.pbxproj (Copy Bundle Resources)');
+  } else {
+    console.log('✓ GoogleService-Info.plist already registered in project.pbxproj');
+  }
+}
+
+fs.writeFileSync(pbxprojPath, project.writeSync());
+PRISM_PUSH_NODE_EOF
+node .prism-add-push-config.mjs
+rm -f .prism-add-push-config.mjs
+
+echo "Patching AppDelegate.swift for APNs→FCM token bridging..."
+if [ -f ios/App/App/AppDelegate.swift ]; then
+  if ! grep -q "didRegisterForRemoteNotificationsWithDeviceToken" ios/App/App/AppDelegate.swift; then
+    perl -i -pe 's/(class AppDelegate: UIResponder, UIApplicationDelegate \{)/$1\n    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {\n        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)\n    }\n\n    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {\n        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)\n    }\n/' ios/App/App/AppDelegate.swift
+    echo "✓ AppDelegate.swift patched with remote-notification delegate methods"
+  else
+    echo "✓ AppDelegate.swift already patched with remote-notification delegate methods"
+  fi
+else
+  echo "⚠️ AppDelegate.swift not found. Run 'npx cap add ios' first."
 fi
 
 """
@@ -2097,7 +2230,7 @@ npx cap sync ios
 
 echo "Generating app icon and splash screen from resources/icon.svg..."
 npx capacitor-assets generate --ios
-{{infoPlistInjection}}{{zoomFixInjection}}
+{{infoPlistInjection}}{{zoomFixInjection}}{{pushNotificationsInjection}}
 echo "Applying localhost cert trust (if needed)..."
 if ! bash scripts/trust-ios-localhost-cert.sh; then
   echo "⚠️ Cert trust step did not complete. Continuing..."
@@ -2117,7 +2250,7 @@ fi
 """;
     }
 
-    private static string BuildBootstrapAndroidScript(bool biometricAuthEnabled)
+    private static string BuildBootstrapAndroidScript(bool biometricAuthEnabled, bool pushNotificationsEnabled)
     {
         var manifestInjection = biometricAuthEnabled
             ? """
@@ -2134,6 +2267,26 @@ if [ -f "$MANIFEST_PATH" ]; then
   fi
 else
   echo "⚠️ AndroidManifest.xml not found. Run 'npx cap add android' first."
+fi
+
+"""
+            : string.Empty;
+
+        // @capacitor-firebase/messaging's own Android gradle scripts apply the
+        // com.google.gms.google-services plugin automatically once google-services.json is
+        // present — no manual build.gradle edit needed here, unlike biometric's manifest
+        // permission. Only responsibility left to this script is getting the file into place.
+        var pushInjection = pushNotificationsEnabled
+            ? """
+
+echo "Placing google-services.json for Firebase Cloud Messaging..."
+if [ -f resources/google-services.json ]; then
+  cp resources/google-services.json android/app/google-services.json
+  echo "✓ google-services.json copied into android/app/"
+else
+  echo "⚠️ resources/google-services.json not found — download it from Firebase Console"
+  echo "   (Project settings → your Android app) and place it at resources/google-services.json"
+  echo "   before running this script, or push notifications will not work on a device."
 fi
 
 """
@@ -2166,7 +2319,7 @@ npx cap sync android
 
 echo "Generating app icon and splash screen from resources/icon.svg..."
 npx capacitor-assets generate --android
-{{manifestInjection}}
+{{manifestInjection}}{{pushInjection}}
 if [[ "${CI:-}" == "true" ]]; then
   echo "CI environment detected — skipping emulator run/open. The android/ project is synced and"
   echo "ready for a signing/build step (e.g. ./gradlew bundleRelease) to take over from here."
@@ -2181,7 +2334,7 @@ fi
 """;
     }
 
-    private static string BuildAgentPrompt(string appName, string startUrl, bool biometricAuthEnabled)
+    private static string BuildAgentPrompt(string appName, string startUrl, bool biometricAuthEnabled, bool pushNotificationsEnabled)
     {
         var biometricContext = biometricAuthEnabled
             ? """
@@ -2199,6 +2352,20 @@ and auto-register via Capacitor discovery.
 Simulator testing notes:
 - iOS Simulator: `BiometricAuth.checkBiometry()` returns `isAvailable: false`. Use *Features → Face ID → Enrolled* for simulated match.
 - Android Emulator: enroll a fingerprint with `adb emu finger touch 1`.
+"""
+            : string.Empty;
+
+        var pushContext = pushNotificationsEnabled
+            ? """
+
+## Push notifications
+
+This bundle has push notifications enabled via `@capacitor-firebase/messaging`. Before bootstrapping,
+`resources/GoogleService-Info.plist` and `resources/google-services.json` must be present (get them from
+Firebase Console). The bootstrap scripts then copy them into place, wire iOS entitlements/pbxproj/AppDelegate,
+and let Android's Firebase Gradle plugin pick up `google-services.json` automatically. Real device tokens
+only register once the app is signed with the `aps-environment: production` entitlement, so this cannot be
+fully verified on the iOS Simulator — test on a physical device or a TestFlight build.
 """
             : string.Empty;
 
@@ -2229,7 +2396,7 @@ Get this app running in an emulator as quickly as possible.
 - iOS: verify Xcode + CocoaPods installed and simulator booted.
 - Android: verify Android SDK/adb and an active emulator/device.
 - Re-run `npm run doctor` after each fix.
-{{biometricContext}}
+{{biometricContext}}{{pushContext}}
 """;
     }
 
