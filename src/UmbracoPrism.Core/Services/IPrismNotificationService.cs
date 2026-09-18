@@ -48,4 +48,17 @@ public interface IPrismNotificationService
         string title,
         string body,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Sends a push notification to a single user's registered device(s) within the tenant — the
+    /// targeted counterpart to <see cref="SendNotificationToGenreSubscribersAsync"/>/
+    /// <see cref="SendNotificationToAllMembersAsync"/>'s broadcast delivery. A no-op if the user
+    /// has no registered push token.
+    /// </summary>
+    Task SendNotificationToUserAsync(
+        string userId,
+        string tenantId,
+        string title,
+        string body,
+        CancellationToken ct = default);
 }

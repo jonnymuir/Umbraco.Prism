@@ -156,6 +156,21 @@ public class PrismNotificationService : IPrismNotificationService
         await FanOutAsync(db, tenantId, tokens, title, body, ct);
     }
 
+    /// <inheritdoc/>
+    public async Task SendNotificationToUserAsync(
+        string userId,
+        string tenantId,
+        string title,
+        string body,
+        CancellationToken ct = default)
+    {
+        using var db = _databaseFactory.CreateDatabase();
+
+        var tokens = GetPushTokensForUsers(db, tenantId, [userId]);
+
+        await FanOutAsync(db, tenantId, tokens, title, body, ct);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static List<string> GetPushTokensForUsers(

@@ -49,7 +49,15 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IPrismTenantBindingValidator, PrismTenantBindingValidator>();
         builder.Services.AddScoped<IPrismContext, PrismContext>();
         builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
-        builder.Services.AddScoped<IPrismNotificationService, PrismNotificationService>();
+        // Singleton, not scoped: PrismNotificationService holds no per-request state — its
+        // constructor deps (IUmbracoDatabaseFactory, IConfiguration, ILogger) are all
+        // singleton-safe, and every method opens its own short-lived IUmbracoDatabase via
+        // _databaseFactory.CreateDatabase() rather than holding one across calls. Needs to be a
+        // singleton specifically so UmbracoPrism.Automate's PrismSendPushNotificationAction (an
+        // Umbraco Automate [Action], singleton-lifetime by that package's own convention) can
+        // consume it directly — a scoped service consumed by a singleton fails ASP.NET Core's
+        // own ValidateOnBuild captive-dependency check at startup.
+        builder.Services.AddSingleton<IPrismNotificationService, PrismNotificationService>();
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
         // 3. Middleware Registration
