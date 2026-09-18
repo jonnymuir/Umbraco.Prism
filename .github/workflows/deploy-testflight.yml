@@ -30,7 +30,7 @@ jobs:
       # push notifications are an optional feature layered onto an already-working pipeline, so a
       # repo that hasn't done the Firebase Console setup yet (see docs/PUSH_SETUP.md) still gets a
       # working, unsigned-for-push build rather than every TestFlight dispatch failing outright.
-      PUSH_NOTIFICATIONS_ENABLED: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 != '' }}
+      PUSH_NOTIFICATIONS_ENABLED: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,7 +78,7 @@ jobs:
       #
       # --push-notifications: wires @capacitor-firebase/messaging into the bundle (iOS
       # entitlements/AppDelegate/pbxproj wiring — see MobileBundleService.BuildBootstrapIosScript's
-      # own remarks). Only turned on when GOOGLE_SERVICE_INFO_PLIST_BASE64 is actually set (see
+      # own remarks). Only turned on when GOOGLE_SERVICE_INFO_PLIST is actually set (see
       # PUSH_NOTIFICATIONS_ENABLED above) — compiling the plugin in with no real Firebase config to
       # place would just produce a build that can't register a device token.
       - name: Generate mobile bundle
@@ -102,13 +102,17 @@ jobs:
       # (reference-app-specific), same reasoning as PRISM_APP_ID/PRISM_APPLE_TEAM_ID being repo
       # variables rather than checked-in constants. Placed into resources/ (read by
       # bootstrap-ios.sh, see its own remarks) before the bootstrap step below runs.
+      #
+      # No base64 round-trip: it's a plain XML text file, and printf '%s' preserves the secret's
+      # content byte for byte regardless of what's in it — GOOGLE_SERVICE_INFO_PLIST is set to
+      # the file's own raw contents (pasted as-is).
       - name: Write Firebase config for push notifications
         if: env.PUSH_NOTIFICATIONS_ENABLED == 'true'
         env:
-          GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
         run: |
           mkdir -p mobile-app/resources
-          printf '%s' "$GOOGLE_SERVICE_INFO_PLIST_BASE64" | base64 --decode > mobile-app/resources/GoogleService-Info.plist
+          printf '%s' "$GOOGLE_SERVICE_INFO_PLIST" > mobile-app/resources/GoogleService-Info.plist
 
       - name: Install bundle dependencies
         working-directory: mobile-app

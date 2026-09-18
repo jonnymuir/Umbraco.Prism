@@ -115,18 +115,13 @@ toggle could change after the fact.
 
 ### CI (TestFlight)
 
-`deploy-testflight.yml` reads a `GOOGLE_SERVICE_INFO_PLIST_BASE64` repo secret
-(**Settings → Secrets and variables → Actions → New repository secret**) — base64-encode your
-`GoogleService-Info.plist`:
-
-```bash
-base64 -i GoogleService-Info.plist | pbcopy   # macOS; use base64 -w0 on Linux
-```
-
-and paste the result as the secret value. When that secret is set, the workflow automatically
-passes `--push-notifications true` and writes the decoded file into the bundle's `resources/`
-folder before bootstrapping. When it's unset, the pipeline still runs — it just produces a build
-without push notifications compiled in, same as today.
+`deploy-testflight.yml` reads a `GOOGLE_SERVICE_INFO_PLIST` repo secret
+(**Settings → Secrets and variables → Actions → New repository secret**) — open your downloaded
+`GoogleService-Info.plist` in a text editor, copy its entire contents, and paste them as the
+secret value (it's plain XML text, no encoding needed). When that secret is set, the workflow
+automatically passes `--push-notifications true` and writes the file into the bundle's
+`resources/` folder before bootstrapping. When it's unset, the pipeline still runs — it just
+produces a build without push notifications compiled in, same as today.
 
 ---
 
