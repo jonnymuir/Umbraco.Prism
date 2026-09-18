@@ -23,13 +23,23 @@
          composed together. -->
     <PackageReference Include="Wayfinder" Version="0.9.13" />
     <PackageReference Include="Wayfinder.Engine" Version="0.9.13" />
+    <PackageReference Include="Wayfinder.Engine.Http" Version="0.3.0" />
     <PackageReference Include="Wayfinder.Umbraco" Version="1.0.6" />
+    <!-- Umbraco Automate (MIT) — the juggling-licence demo's "processing-application" stage
+         calls out to a real Automate automation via Wayfinder's config-only webhook support
+         system (see appsettings.json's Wayfinder:SupportSystems and
+         JugglingLicenceDecisionAutomationSeeder). Registers itself through its own
+         UmbracoAutomateComposer, picked up automatically by Umbraco's own composer discovery —
+         a bare package reference is enough, no explicit AddUmbracoAutomate() call. -->
+    <PackageReference Include="Umbraco.Automate" Version="17.3.0" />
+    <PackageReference Include="Umbraco.Automate.Persistence.Sqlite" Version="17.3.0" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" Condition="$(RuntimeIdentifier.StartsWith('linux')) or $(RuntimeIdentifier.StartsWith('win')) or ('$(RuntimeIdentifier)' == '' and !$([MSBuild]::IsOSPlatform('osx')))" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\UmbracoPrism.Core\UmbracoPrism.Core.csproj" />
     <ProjectReference Include="..\UmbracoPrism.uSync\UmbracoPrism.uSync.csproj" />
+    <ProjectReference Include="..\UmbracoPrism.Automate\UmbracoPrism.Automate.csproj" />
   </ItemGroup>
 
   <ItemGroup>

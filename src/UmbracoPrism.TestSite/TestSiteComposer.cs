@@ -119,14 +119,22 @@ public class TestSiteComposer : IComposer
 
         // ServiceRequestPollController (the join-gateway waiting screen's own poll endpoint)
         // requires this policy but deliberately ships with it unregistered — see
-        // WayfinderUmbracoAuthorizationPolicies.ServiceRequestPolling's own remarks. Only the
-        // bulk-contributions demo's Join gateway ever shows a waiting screen, and that's always an
-        // authenticated NJF Contributions Team member (see NjfContributionsTeam), so a plain
-        // authenticated-user requirement is enough — no anonymous-visitor case to accommodate here.
+        // WayfinderUmbracoAuthorizationPolicies.ServiceRequestPolling's own remarks. Previously
+        // RequireAuthenticatedUser() here, correct while the bulk-contributions demo's Join
+        // gateway (always an authenticated NJF Contributions Team member, see
+        // NjfContributionsTeam) was the only one that ever showed a waiting screen. The juggling
+        // licence demo's own "application-decided" Join (apply-for-a-juggling-licence.json) can
+        // now be reached anonymously too — the same visitor PublicVisitorQueue.AccessProfile
+        // already lets read/act on their own instance everywhere else in this flow, so this
+        // endpoint must allow them as well. Not a broadened access surface: GetCurrent's own
+        // ActorProfile/RestrictToInstanceOwner scoping already restricts what an anonymous poll
+        // can actually see, the same protection the rest of this anonymous-first journey relies
+        // on — this policy was only ever an extra belt-and-braces layer for a case that no longer
+        // covers every caller.
         builder.Services.Configure<AuthorizationOptions>(options =>
         {
             options.AddPolicy(WayfinderUmbracoAuthorizationPolicies.ServiceRequestPolling, policy =>
-                policy.RequireAuthenticatedUser());
+                policy.RequireAssertion(_ => true));
 
             // Vinyl Vault demo: broadcasting a back-in-stock notification is a staff action,
             // not something every authenticated member should be able to trigger. The
@@ -233,6 +241,13 @@ public class TestSiteComposer : IComposer
 
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WayfinderServicePageContentType>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WayfinderServicePageSeeder>();
+
+        // Juggling licence "leap across" demo: an Umbraco Automate automation decides the
+        // application and pushes a Prism notification back — see JugglingLicenceDecisionAutomationSeeder
+        // and this method's own MockBusinessAppContributions.Register() call above for the
+        // equivalent bespoke-client pattern; this one is config-only (Wayfinder:SupportSystems),
+        // so there's no ISupportSystemClient to register here at all.
+        builder.Services.AddHostedService<JugglingLicenceDecisionAutomationSeeder>();
     }
 
     /// <summary>

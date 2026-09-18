@@ -1,5 +1,6 @@
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.TestSite;
+using Wayfinder.Engine.Http;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +17,14 @@ builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 
 // Local secrets override — gitignored. Place Prism:VaultUri and any other
 // environment-specific secrets here. See src/UmbracoPrism.TestSite/README.md.
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
+// A signed webhook when nothing else supplies the signing key; the same trusted-loopback-demo
+// fallback Wayfinder.Umbraco.ReferenceApp's own Program.cs uses for its NJF_STANDARDS_SIGNING_KEY
+// — a fresh random key every run is fine here, this only needs to agree with whatever value
+// JugglingLicenceDecisionAutomationSeeder signs the automation's own webhook trigger with, both
+// read this exact same config key at runtime.
+builder.Configuration["JUGGLING_LICENCE_SIGNING_KEY"] ??=
+    Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 
 var runtimeLayout = TestSiteRuntimeLayout.Apply(builder);
 
@@ -93,6 +102,16 @@ app.UseUmbraco()
         u.UseBackOfficeEndpoints();
         u.UseWebsiteEndpoints();
     });
+
+// Resolves the juggling-licence-decision support-system invocation once the Automate automation
+// (JugglingLicenceDecisionAutomationSeeder) calls back — same route shape as
+// Wayfinder.Umbraco.ReferenceApp's own Program.cs. Mapped directly on `app`, outside the Umbraco
+// endpoint groups above: only UseAuthorization() enforcement is pipeline-order-sensitive here, and
+// this endpoint is explicitly anonymous (the shared secret, not cookie/OIDC auth, is its guard).
+app.MapWebhookSupportSystemCallbacks(
+        () => app.Services.GetRequiredService<Wayfinder.Umbraco.Services.UmbracoProcessManagerEngine>(),
+        sharedSecret: builder.Configuration["JUGGLING_LICENCE_CALLBACK_SECRET"])
+    .AllowAnonymous();
 
 await app.RunAsync();
 

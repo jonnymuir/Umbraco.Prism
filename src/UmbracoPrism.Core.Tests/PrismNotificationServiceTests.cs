@@ -242,4 +242,37 @@ public class PrismNotificationServiceTests
             It.Is<string>(sql => sql.Contains("SELECT PushToken FROM prismDeviceCredentials")),
             "tenant-1"), Times.Once);
     }
+
+    [Fact]
+    public async Task SendToUser_NoToken_DoesNotThrow()
+    {
+        var (service, db) = BuildService();
+
+        db.Setup(d => d.Fetch<string>(It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns(new List<string>());
+
+        var act = async () => await service.SendNotificationToUserAsync(
+            "user-1", "tenant-1", "Title", "Body");
+
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task SendToUser_WithToken_QueriesDatabaseScopedToThatUser()
+    {
+        var (service, db) = BuildService();
+
+        db.Setup(d => d.Fetch<string>(
+                It.Is<string>(sql => sql.Contains("SELECT PushToken FROM prismDeviceCredentials") && sql.Contains("UserId")),
+                It.IsAny<object[]>()))
+            .Returns(new List<string> { "token-1" });
+
+        // FCM not initialised — service will log a warning and return early
+        await service.SendNotificationToUserAsync("user-1", "tenant-1", "Licence approved", "Your application was approved.");
+
+        db.Verify(d => d.Fetch<string>(
+            It.Is<string>(sql => sql.Contains("SELECT PushToken FROM prismDeviceCredentials") && sql.Contains("UserId")),
+            "tenant-1", "user-1"), Times.Once,
+            "a single-user send must scope the lookup to that user, not fan out to the whole tenant");
+    }
 }

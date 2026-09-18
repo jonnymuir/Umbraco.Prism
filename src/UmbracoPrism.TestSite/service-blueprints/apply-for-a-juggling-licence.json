@@ -23,6 +23,12 @@
       "displayName": "Site visitor touchpoints",
       "description": "The site visitor applying for a juggling licence — anonymous, or a logged-in Prism Member.",
       "actor": "applicant"
+    },
+    {
+      "key": "automation",
+      "displayName": "Automated decision",
+      "description": "Never human-visible — resolved entirely by the juggling-licence-decision Umbraco Automate automation calling back, not by anyone browsing a worklist.",
+      "actor": "system"
     }
   ],
   "stages": [
@@ -223,6 +229,38 @@
       ]
     },
     {
+      "stageKey": "processing-application",
+      "displayName": "Processing your application",
+      "description": "Never human-visible — the applicant waits at the application-decided join gateway instead, while this stage's onEnter action calls out to the juggling-licence-decision Umbraco Automate automation.",
+      "stageType": "Question",
+      "actor": "system",
+      "queueKey": "automation",
+      "components": [],
+      "actions": [
+        {
+          "type": "support-system-call",
+          "timing": "onEnter",
+          "params": {
+            "supportSystemKey": "juggling-licence-decision",
+            "capabilityKey": "decide-application",
+            "inputs": { "licenceType": "licence-type" }
+          }
+        }
+      ],
+      "routes": [
+        {
+          "id": "processing-application--approved--application-decided",
+          "target": "application-decided",
+          "trigger": "approved"
+        },
+        {
+          "id": "processing-application--referred--application-decided",
+          "target": "application-decided",
+          "trigger": "referred"
+        }
+      ]
+    },
+    {
       "stageKey": "confirmation",
       "displayName": "Application submitted",
       "stageType": "Confirmation",
@@ -237,6 +275,13 @@
           "type": "heading",
           "level": 2,
           "content": "What happens next"
+        },
+        {
+          "type": "stat-group",
+          "title": "Decision",
+          "items": [
+            { "label": "Outcome", "fieldKey": "applicationDecisionNote" }
+          ]
         },
         {
           "type": "body",
@@ -297,11 +342,38 @@
       "queueKey": "public-visitor",
       "routes": [
         {
-          "id": "route-from-check-answers--submit--confirmation",
-          "target": "confirmation",
+          "id": "route-from-check-answers--submit--application-decided",
+          "target": "application-decided",
+          "trigger": "submit"
+        },
+        {
+          "id": "route-from-check-answers--submit--processing-application",
+          "target": "processing-application",
           "trigger": "submit"
         }
       ]
+    },
+    {
+      "key": "application-decided",
+      "displayName": "Application decided",
+      "gatewayType": "Join",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "application-decided--approved--confirmation",
+          "target": "confirmation",
+          "trigger": "approved"
+        },
+        {
+          "id": "application-decided--referred--confirmation",
+          "target": "confirmation",
+          "trigger": "referred"
+        }
+      ],
+      "waitingContent": "We're deciding your application. This usually takes just a few seconds.",
+      "waitingExpectedSeconds": 10,
+      "waitingPollIntervalMs": 2000,
+      "requiredIncomingQueues": ["public-visitor", "automation"]
     }
   ]
 }

@@ -6,6 +6,7 @@
   </Configurations>
   <Folder Name="/src/">
     <Project Path="src/UmbracoPrism.AppHost/UmbracoPrism.AppHost.csproj" />
+    <Project Path="src/UmbracoPrism.Automate/UmbracoPrism.Automate.csproj" />
     <Project Path="src/UmbracoPrism.Core.Tests/UmbracoPrism.Core.Tests.csproj" />
     <Project Path="src/UmbracoPrism.Core.IntegrationTests/UmbracoPrism.Core.IntegrationTests.csproj" />
     <Project Path="src/UmbracoPrism.Core/UmbracoPrism.Core.csproj" />

@@ -2,6 +2,8 @@ using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Models.ServiceDesign.Components;
+using Wayfinder.Models.ServiceDesign.SupportSystems;
 using Wayfinder.Engine.Abstractions;
 using Wayfinder.Engine.Services;
 
@@ -14,9 +16,53 @@ namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 /// demo exists to prove: an anonymous visitor (no membership data resolved) and a logged-in
 /// Juggling Society member (membership tier resolved, fee discount applied) through the *same*
 /// declarative definition with no special-casing.
+/// <para/>
+/// Submitting the application now leaps into the juggling-licence-decision support system (see
+/// TestSite's own appsettings.json Wayfinder:SupportSystems and
+/// JugglingLicenceDecisionAutomationSeeder) rather than completing immediately — a real host
+/// resolves that via a real Umbraco Automate callback, which nothing in this process-isolated
+/// unit test can simulate, so every walkthrough here now ends mid-flight, not "complete".
+/// <see cref="ServiceBlueprintSimulationRunner"/> calls the engine's own unscoped
+/// Advance/GetCurrent overload (no ActorProfile), so its trace renders the automation queue's own
+/// "processing-application" stage rather than the public-visitor queue's "application-decided"
+/// wait screen a real, ActorProfile-scoped citizen would see — a simulation-harness quirk, not a
+/// claim about what an actual visitor sees (that's a live/E2E concern, not this unit test's job).
+/// This static constructor registers the same descriptor TestSite's own Wayfinder:SupportSystems
+/// config produces (via AddConfiguredSupportSystems), so ValidateSupportSystemActions() and the
+/// simulation runner's own engine both resolve the reference correctly — SupportSystemRegistry
+/// freezes on first read, so this must run before any test method in this class does, which a
+/// static constructor guarantees.
 /// </summary>
 public class JugglingLicenceCmsServiceBlueprintTests
 {
+    static JugglingLicenceCmsServiceBlueprintTests()
+    {
+        try
+        {
+            SupportSystemRegistry.Register(new SupportSystemDescriptor
+            {
+                Key = "juggling-licence-decision",
+                DisplayName = "Juggling Licence Decision",
+                Capabilities =
+                [
+                    new SupportSystemCapabilityDescriptor
+                    {
+                        Key = "decide-application",
+                        DisplayName = "Decide a juggling licence application",
+                        Inputs = [new() { Key = "licenceType", Title = "Licence type", ValueKind = ComponentPropertyValueKind.String, Format = "field-ref", Required = true }],
+                        Outputs = [new() { Key = "applicationDecisionNote", Title = "Decision note", ValueKind = ComponentPropertyValueKind.String }],
+                        SupportedCompletionModes = [SupportSystemCompletionMode.Webhook],
+                        Outcomes = [new() { Key = "approved", DisplayName = "Approved" }, new() { Key = "referred", DisplayName = "Referred" }],
+                    },
+                ],
+            });
+        }
+        catch (InvalidOperationException)
+        {
+            // Already registered (e.g. re-run in the same process) — harmless.
+        }
+    }
+
     [Fact]
     public void Definition_LoadsAndDeserializesCleanly()
     {
@@ -24,8 +70,10 @@ public class JugglingLicenceCmsServiceBlueprintTests
 
         definition.DefinitionKey.Should().Be("apply-for-a-juggling-licence");
         definition.Queues.Should().ContainSingle(q => q.Key == "public-visitor",
-            "a public service request definition runs on exactly the one well-known queue");
-        definition.Stages.Should().HaveCount(5);
+            "a public service request definition runs on exactly the one well-known queue a human ever browses");
+        definition.Queues.Should().ContainSingle(q => q.Key == "automation",
+            "the automated-decision queue exists purely for the support-system-call leap, never human-visible");
+        definition.Stages.Should().HaveCount(6);
     }
 
     [Fact]
@@ -47,7 +95,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
     }
 
     [Fact]
-    public void Simulate_AnonymousVisitor_ReachesConfirmation_WithUndiscountedFee()
+    public void Simulate_AnonymousVisitor_ReachesTheAutomatedDecisionWait_WithUndiscountedFee()
     {
         var definition = LoadDefinition();
         var mockServiceInputs = new Dictionary<string, object?>
@@ -57,8 +105,14 @@ public class JugglingLicenceCmsServiceBlueprintTests
 
         var result = new ServiceBlueprintSimulationRunner().Run(definition, BuildWalkthroughSteps(), mockServiceInputs);
 
-        result.Trace.Should().HaveCount(5, "initial GetCurrent plus four Advance steps to confirmation");
-        result.Trace[^1].ResponseState.Should().Be("complete");
+        result.Trace.Should().HaveCount(5, "initial GetCurrent plus four Advance steps to the automated-decision leap");
+        // Submitting leaps into the juggling-licence-decision support system — a real Umbraco
+        // Automate callback resolves it, which nothing in this process-isolated simulation can
+        // provide, so the trace correctly halts mid-flight, not "complete" (see this class's own
+        // remarks on why it's the automation queue's own stage rendering here, not the citizen's
+        // waiting screen).
+        result.Trace[^1].ResponseState.Should().Be("render");
+        result.Trace[^1].Render!.StateDisplayName.Should().Be("Processing your application");
         result.Calculations.Should().OnlyContain(c => c != null,
             "member is always resolved (with an empty tier sentinel for non-members), so calculations never fail");
         result.Calculations[^1]!.Fields["feeAmount"].Should().Be(25m, "no membership discount applies");
@@ -66,7 +120,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
     }
 
     [Fact]
-    public void Simulate_LoggedInCompetitiveMember_ReachesConfirmation_WithDiscountedFee()
+    public void Simulate_LoggedInCompetitiveMember_ReachesTheAutomatedDecisionWait_WithDiscountedFee()
     {
         var definition = LoadDefinition();
         var mockServiceInputs = new Dictionary<string, object?>
@@ -76,7 +130,8 @@ public class JugglingLicenceCmsServiceBlueprintTests
 
         var result = new ServiceBlueprintSimulationRunner().Run(definition, BuildWalkthroughSteps(), mockServiceInputs);
 
-        result.Trace[^1].ResponseState.Should().Be("complete");
+        result.Trace[^1].ResponseState.Should().Be("render");
+        result.Trace[^1].Render!.StateDisplayName.Should().Be("Processing your application");
         result.Calculations[^1]!.Fields["isMember"].Should().Be(true);
         result.Calculations[^1]!.Fields["membershipTier"].Should().Be("Competitive");
         result.Calculations[^1]!.Fields["feeAmount"].Should().Be(20m, "Competitive members receive the discounted fee");
@@ -131,7 +186,8 @@ public class JugglingLicenceCmsServiceBlueprintTests
         // defaultFrom is a genuine, overridable default, not a locked-in value.
         var result = new ServiceBlueprintSimulationRunner().Run(definition, BuildWalkthroughSteps(overrideLicenceType: "Recreational"), mockServiceInputs);
 
-        result.Trace[^1].ResponseState.Should().Be("complete");
+        result.Trace[^1].ResponseState.Should().Be("render");
+        result.Trace[^1].Render!.StateDisplayName.Should().Be("Processing your application");
 
         var checkAnswersEnvelope = result.Trace.First(e => e.Render?.StepType == "check-answers");
         var summaryValue = checkAnswersEnvelope.Render!.Components
