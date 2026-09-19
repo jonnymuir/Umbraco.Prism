@@ -2,8 +2,8 @@
 
 Automates the equivalent of the Umbraco backoffice's "Produce Mobile" action end-to-end: generate
 the Capacitor starter bundle, bootstrap the native iOS/Android project, sign it, and upload it to
-TestFlight (and, once added, the Play Store's internal testing track) — fully from GitHub Actions,
-with no human running a script by hand.
+TestFlight and the Play Store's internal testing track — fully from GitHub Actions, with no human
+running a script by hand.
 
 > **Prerequisite this pipeline does NOT set up for you:** the app is a thin Capacitor shell that
 > points at a live, reachable HTTPS URL (`server.url` in `capacitor.config.ts`) — it never bundles
@@ -105,27 +105,86 @@ never applied to the generated `capacitor.config.ts` or the iOS project once sca
 block this pipeline (which sidesteps it entirely via the build-number override above), but worth
 fixing so the flag isn't silently misleading for other consumers of the CLI.
 
-## Android (Play Store) — planned, not yet built
+## Android (Play Store — internal testing track)
 
-The same shape, as a second workflow (`.github/workflows/deploy-play-internal.yml`,
-`ubuntu-latest`, no macOS needed): the same bundle generation step (the bundle is
-platform-agnostic — it ships both `bootstrap-ios.sh` and `bootstrap-android.sh`), then
-`npm run bootstrap:android`, then `./gradlew bundleRelease` to produce a signed `.aab`, uploaded to
-the Play Console's internal testing track via the Google Play Developer Publishing API.
+The same shape as the iOS pipeline, as a second workflow
+(`.github/workflows/deploy-play-internal.yml`, `ubuntu-latest` — no macOS needed for Android):
 
-The one place Android genuinely can't mirror iOS: there's no "API key issues a fresh certificate
-every run" equivalent for Android's own app-signing key, so it needs a **persistent upload
-keystore** generated once, locally, via `keytool -genkeypair` — regenerating it would break every
-future update. Enrolling in **Play App Signing** (Play Console) lets Google hold the final signing
-key and re-sign what you upload, so losing the upload keystore later is recoverable (Google can
-issue a replacement) rather than fatal, which a bare self-managed keystore setup would not allow.
+1. Same bundle generation step (the bundle is platform-agnostic — it ships both
+   `bootstrap-ios.sh` and `bootstrap-android.sh`), then `npm run bootstrap:android`.
+2. Builds a debug APK (`./gradlew assembleDebug`, no signing needed) and runs it through an
+   emulator smoke test — the Android equivalent of the iOS pipeline's simulator smoke test, using
+   [`ReactiveCircus/android-emulator-runner`](https://github.com/ReactiveCircus/android-emulator-runner)
+   for hardware-accelerated (KVM) emulation on the Linux runner, with the same
+   screenshot-pixel-variance / two-consecutive-passes check as the iOS one.
+3. If a signing keystore secret is present, appends a `signingConfigs`/`versionCode` block to
+   `android/app/build.gradle` as a **second, separate `android { }` block** (not a regex edit
+   into Capacitor's own generated one — Gradle/Groovy layers each block's config onto the same
+   extension object top-to-bottom, so this is structurally safe regardless of the exact template
+   content, unlike a brace-matching regex would be — see PR #279 for why that distinction
+   mattered on the iOS side), then runs `./gradlew bundleRelease` to produce a signed `.aab`.
+4. If a Play Console service-account secret is also present, uploads that `.aab` to the
+   **internal testing** track via the Google Play Developer Publishing API
+   ([`r0adkll/upload-google-play`](https://github.com/r0adkll/upload-google-play)) — the direct
+   equivalent of TestFlight's internal testing: immediate distribution to up to 100 testers, no
+   Google review. (The 12-testers/14-consecutive-days requirement some newer personal Play
+   Console accounts face only applies when later *promoting* from closed testing to production —
+   not to internal testing itself.)
+5. Uploads the `.aab`/debug `.apk` as workflow artifacts regardless of whether signing/upload
+   ran, same "inspectable even if a later step is skipped or fails" reasoning as the iOS pipeline.
 
-Expected secrets, once built:
+Both the signing and Play-upload steps are soft-gated on their respective secrets being present
+(`SIGNING_ENABLED`/`PLAY_UPLOAD_ENABLED` in the workflow) — a repo that hasn't done the Play
+Console/keystore setup yet still gets a working, smoke-tested debug build rather than every
+dispatch failing outright, same pattern as push notifications' own soft gate on both pipelines.
+
+### One-time Google Play Console / Firebase setup
+
+- [ ] Register the app in **Play Console** with the same package name as `PRISM_REFERENCE_APP_ID`
+      (e.g. `com.jonnymuir.prismreference`) — must match exactly, same as the iOS Bundle ID.
+- [ ] Enroll in **Play App Signing** (Play Console → Setup → App signing). Unlike iOS's App Store
+      Connect API key (which mints a fresh signing identity every run), Android app-signing needs
+      a **persistent upload keystore** generated once, locally:
+      ```bash
+      keytool -genkeypair -v -keystore release-upload.keystore -alias prism-upload \
+        -keyalg RSA -keysize 2048 -validity 10000
+      ```
+      Regenerating this keystore later would break every future update — back it up somewhere
+      safe before it ever goes into GitHub Secrets. Play App Signing means Google holds the
+      *final* signing key and re-signs what you upload with your upload keystore, so losing the
+      upload keystore later is recoverable (Google can issue a replacement) rather than fatal,
+      which a bare self-managed keystore setup would not allow.
+- [ ] Create a **service account** (Google Cloud Console, in the same project Play Console is
+      linked to), grant it access under Play Console → Setup → API access, and generate its JSON
+      key.
+- [ ] Firebase: register the **Android app** in the same Firebase project the iOS setup already
+      uses (see `docs/PUSH_SETUP.md`) — same project, just add the Android app registration
+      (package name must match again) to get `google-services.json`.
+
+### GitHub repository configuration
+
+**Secrets** (Settings → Secrets and variables → Actions → Secrets):
 
 | Secret | Value |
 |---|---|
-| `ANDROID_UPLOAD_KEYSTORE` | Base64-encoded contents of the `.jks` upload keystore |
+| `GOOGLE_SERVICES_JSON` | Full contents of `google-services.json` (plain text, no base64 — same reasoning as iOS's `GOOGLE_SERVICE_INFO_PLIST`) |
+| `ANDROID_UPLOAD_KEYSTORE` | Base64-encoded contents of the `.keystore`/`.jks` upload keystore (binary — base64 *is* genuinely needed here, unlike the plain-text config files above) |
 | `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
-| `ANDROID_KEY_ALIAS` | Key alias inside the keystore |
+| `ANDROID_KEY_ALIAS` | Key alias inside the keystore (`prism-upload` if you used the `keytool` command above) |
 | `ANDROID_KEY_PASSWORD` | Key password |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Service account JSON key, granted access under Play Console → Setup → API access |
+
+Reuses the same `PRISM_REFERENCE_APP_HOSTNAME`/`PRISM_REFERENCE_APP_NAME`/`PRISM_REFERENCE_APP_ID`/
+`PRISM_REFERENCE_APP_VERSION` repo variables the iOS pipeline already reads — no separate
+Android-specific variables needed.
+
+### Running it
+
+Actions tab → **Deploy to Play Store (Internal Testing)** → **Run workflow**. Every run's release
+uses `github.run_number` as the Android `versionCode` — same "must be a strictly increasing
+integer, and a fresh `cap add android` has no persisted state between CI runs to increment from
+otherwise" reasoning as the iOS pipeline's own `CURRENT_PROJECT_VERSION` override.
+
+First run without any of the signing/upload secrets set: inspect the uploaded debug `.apk`
+artifact and the emulator smoke test screenshot to confirm the bundle itself builds and renders
+correctly, before doing the Play Console/keystore setup above.
