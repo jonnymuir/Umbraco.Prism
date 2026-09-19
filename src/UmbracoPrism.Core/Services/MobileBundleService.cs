@@ -1241,7 +1241,20 @@ if (fs.existsSync('ios/App/App/GoogleService-Info.plist')) {
   );
   if (!alreadyPresent) {
     const target = project.getFirstTarget().uuid;
-    project.addResourceFile('App/GoogleService-Info.plist', { target }, 'App');
+    // addResourceFile() internally calls correctForResourcesPath(), which does
+    // `project.pbxGroupByName('Resources').path` with NO null-check — throws
+    // "Cannot read properties of null (reading 'path')" on a project with no group literally
+    // named "Resources" yet, which a fresh Capacitor-generated App.xcodeproj is (confirmed
+    // against xcode@3.0.1's actual source, live in CI — not a guess). Pre-creating an empty
+    // one sidesteps the crash; addResourceFile's own fallback (addToResourcesPbxGroup) then
+    // finds it and nests the file there, same as it would for any other plain resource.
+    // No explicit group argument (was 'App', a group NAME) — addResourceFile's third
+    // parameter is actually a PBXGroup KEY (uuid), not a name, so that never resolved to
+    // anything anyway; omitting it takes the correct default path instead.
+    if (!project.pbxGroupByName('Resources')) {
+      project.addPbxGroup([], 'Resources');
+    }
+    project.addResourceFile('App/GoogleService-Info.plist', { target });
     console.log('✓ GoogleService-Info.plist registered in project.pbxproj (Copy Bundle Resources)');
   } else {
     console.log('✓ GoogleService-Info.plist already registered in project.pbxproj');
