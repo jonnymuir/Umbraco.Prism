@@ -6,6 +6,7 @@
   "description": "The NJF Contributions Team's monthly contributions file — Prism + Wayfinder.Umbraco's worked example of Wayfinder's bulk data review capability (see docs/guides/bulk-data-review.md in the core Wayfinder repo), backed by a real downstream support system (Mock Business App).",
   "initialStage": "upload",
   "requestPolicy": "single",
+  "allowManualRestart": true,
   "calculations": {
     "fields": {
       "contributionsErrorCount": { "source": "service" },

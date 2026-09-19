@@ -4,6 +4,7 @@
   "version": 1,
   "initialStage": "collecting-info",
   "requestPolicy": "single",
+  "allowManualRestart": true,
   "schemaVersion": "1.0",
   "queues": [
     {
