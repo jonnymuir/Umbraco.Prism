@@ -8,7 +8,10 @@
   "requestPolicy": "single",
   "calculations": {
     "fields": {
-      "member": { "source": "service" },
+      "member": {
+        "source": "service",
+        "shape": { "tier": { "valueKind": "string" } }
+      },
       "isMember": { "expr": "member.tier <> ''" },
       "membershipTier": { "expr": "member.tier" },
       "feeAmount": {
