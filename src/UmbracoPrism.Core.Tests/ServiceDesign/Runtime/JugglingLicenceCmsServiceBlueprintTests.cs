@@ -95,6 +95,28 @@ public class JugglingLicenceCmsServiceBlueprintTests
     }
 
     [Fact]
+    public void Definition_PassesAuthoringValidation_WithNoMockAtAll()
+    {
+        // The scenario the backoffice's own Validation tab actually exercises — no mockServiceInputs,
+        // since a real editor there has no way to supply one. Before member declared its own
+        // "shape" (Wayfinder.Models.ServiceDesign.Calculations.ServiceBlueprintCalculationField.Shape,
+        // added specifically for this), the object-shaped member field, and everything downstream of
+        // it (isMember, membershipTier, feeAmount), was permanently unverifiable here — six Warning
+        // diagnostics, confirmed live in the backoffice before this was fixed. With shape declared,
+        // static validation now has a real placeholder for member.tier and resolves all of them.
+        var definition = LoadDefinition();
+        var authoringService = new ServiceBlueprintAuthoringService(new Mock<IServiceBlueprintSourceStore>().Object);
+
+        var outcome = authoringService.Validate(definition);
+
+        outcome.Diagnostics.Should().BeEmpty(
+            outcome.Diagnostics.Count > 0
+                ? string.Join("; ", outcome.Diagnostics.Select(d => $"{d.Code} {d.Path}: {d.Message}"))
+                : "expected no diagnostics");
+        outcome.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
     public void Simulate_AnonymousVisitor_ReachesTheAutomatedDecisionWait_WithUndiscountedFee()
     {
         var definition = LoadDefinition();

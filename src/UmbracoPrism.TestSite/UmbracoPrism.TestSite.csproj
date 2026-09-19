@@ -21,10 +21,10 @@
          dependency at all (see docs/guides/support-systems.md in the core Wayfinder repo).
          TestSite installs Wayfinder.Umbraco directly to demonstrate Prism + Wayfinder.Umbraco
          composed together. -->
-    <PackageReference Include="Wayfinder" Version="0.9.13" />
-    <PackageReference Include="Wayfinder.Engine" Version="0.9.13" />
+    <PackageReference Include="Wayfinder" Version="0.10.0" />
+    <PackageReference Include="Wayfinder.Engine" Version="0.10.0" />
     <PackageReference Include="Wayfinder.Engine.Http" Version="0.3.0" />
-    <PackageReference Include="Wayfinder.Umbraco" Version="1.0.6" />
+    <PackageReference Include="Wayfinder.Umbraco" Version="1.0.7" />
     <!-- Umbraco Automate (MIT) — the juggling-licence demo's "processing-application" stage
          calls out to a real Automate automation via Wayfinder's config-only webhook support
          system (see appsettings.json's Wayfinder:SupportSystems and
