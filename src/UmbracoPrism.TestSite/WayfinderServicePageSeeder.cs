@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
@@ -104,15 +106,17 @@ public class WayfinderServicePageSeeder(
         }
     }
 
+    // Stamped into the saved blueprint's own Tags so a later boot can tell "the checked-in seed
+    // file changed since this was last synced" apart from "this was hand-edited live (via the
+    // backoffice or an MCP-driven walkthrough) since it was last synced" — only the former should
+    // ever silently overwrite what's in the database. Deliberately a hash of the FILE's raw
+    // content, not the deserialized-and-reserialized ServiceBlueprint (which would need every
+    // nested type to round-trip identically through JSON to compare reliably) — simpler and just
+    // as sufficient for "did the source of truth change at all".
+    private const string SeedSourceHashTagKey = "_prismSeedSourceHash";
+
     private async Task EnsureDefinitionSeededAsync(string definitionKey, string fileName, CancellationToken cancellationToken)
     {
-        var existing = await workflowSourceStore.LoadAsync(definitionKey, cancellationToken);
-        if (existing is not null)
-        {
-            logger.LogDebug("WAYFINDER SERVICE PAGE SEEDER: {Key} already present; leaving the existing (possibly edited) row untouched", definitionKey);
-            return;
-        }
-
         var path = Path.Combine(env.ContentRootPath, "service-blueprints", fileName);
         if (!File.Exists(path))
         {
@@ -121,12 +125,42 @@ public class WayfinderServicePageSeeder(
         }
 
         var json = await File.ReadAllTextAsync(path, cancellationToken);
-        var blueprint = JsonSerializer.Deserialize<ServiceBlueprint>(json, ReadOptions);
-        if (blueprint is null)
+        var fileHash = ComputeHash(json);
+
+        var existing = await workflowSourceStore.LoadAsync(definitionKey, cancellationToken);
+        if (existing is not null)
         {
-            logger.LogWarning("WAYFINDER SERVICE PAGE SEEDER: {File} failed to deserialize; skipping", fileName);
+            var storedHash = existing.Tags?.GetValueOrDefault(SeedSourceHashTagKey);
+            if (storedHash == fileHash)
+            {
+                logger.LogDebug("WAYFINDER SERVICE PAGE SEEDER: {Key} already up to date with its seed file; leaving as-is", definitionKey);
+                return;
+            }
+
+            // storedHash is null (a definition seeded before this hash-tracking existed) or
+            // differs from the file's current hash — either way the checked-in file is this
+            // reference app's source of truth for these three demo blueprints (see this class's
+            // own remarks), so re-sync it. A row that was instead hand-edited live keeps its
+            // stored hash matching whatever the FILE was last synced to, so it's left untouched
+            // here unless the file itself also changed.
+            var updatedBlueprint = DeserializeOrWarn(json, fileName);
+            if (updatedBlueprint is null) return;
+            updatedBlueprint = updatedBlueprint with { Tags = MergeTag(updatedBlueprint.Tags, SeedSourceHashTagKey, fileHash) };
+
+            var updateResult = await workflowSourceStore.SaveAsync(updatedBlueprint, existing.Version, cancellationToken);
+            if (!updateResult.Saved)
+            {
+                logger.LogWarning("WAYFINDER SERVICE PAGE SEEDER: Re-sync reported a conflict for {Key} (expected version {Version}); leaving the existing row untouched", definitionKey, existing.Version);
+                return;
+            }
+
+            logger.LogInformation("WAYFINDER SERVICE PAGE SEEDER: {Key} re-synced from its updated seed file and pushed to the live engine", definitionKey);
             return;
         }
+
+        var blueprint = DeserializeOrWarn(json, fileName);
+        if (blueprint is null) return;
+        blueprint = blueprint with { Tags = MergeTag(blueprint.Tags, SeedSourceHashTagKey, fileHash) };
 
         var result = await workflowSourceStore.SaveAsync(blueprint, expectedVersion: 0, cancellationToken);
         if (!result.Saved)
@@ -136,6 +170,32 @@ public class WayfinderServicePageSeeder(
         }
 
         logger.LogInformation("WAYFINDER SERVICE PAGE SEEDER: {Key} seeded and pushed to the live engine", definitionKey);
+    }
+
+    private ServiceBlueprint? DeserializeOrWarn(string json, string fileName)
+    {
+        var blueprint = JsonSerializer.Deserialize<ServiceBlueprint>(json, ReadOptions);
+        if (blueprint is null)
+        {
+            logger.LogWarning("WAYFINDER SERVICE PAGE SEEDER: {File} failed to deserialize; skipping", fileName);
+        }
+
+        return blueprint;
+    }
+
+    private static string ComputeHash(string content)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
+        return Convert.ToHexString(bytes)[..16];
+    }
+
+    private static IReadOnlyDictionary<string, string> MergeTag(IReadOnlyDictionary<string, string>? existingTags, string key, string value)
+    {
+        var merged = existingTags is null
+            ? new Dictionary<string, string>()
+            : new Dictionary<string, string>(existingTags);
+        merged[key] = value;
+        return merged;
     }
 
     private void EnsureStagePage(string name, string blueprintKey)
