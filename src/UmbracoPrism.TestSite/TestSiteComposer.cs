@@ -195,7 +195,7 @@ public class TestSiteComposer : IComposer
                 sp.GetRequiredService<IHttpContextAccessor>(),
                 (instance, definition, _) =>
                 {
-                    if (string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceBlueprintKey, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceBlueprintSlug, StringComparison.OrdinalIgnoreCase))
                     {
                         var membership = membershipClient.GetForUser(instance.UserId);
                         return new Dictionary<string, object?>
@@ -204,7 +204,7 @@ public class TestSiteComposer : IComposer
                         };
                     }
 
-                    if (string.Equals(definition.DefinitionKey, TestSiteSeedContract.MoneyModellerBlueprintKey, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(definition.DefinitionKey, TestSiteSeedContract.MoneyModellerBlueprintSlug, StringComparison.OrdinalIgnoreCase))
                     {
                         var record = memberRecordService.GetForUser(instance.UserId);
                         return new Dictionary<string, object?>
@@ -291,7 +291,7 @@ public class TestSiteComposer : IComposer
 
         return string.Equals(
             ctx.Request.Form["BlueprintKey"].ToString(),
-            TestSiteSeedContract.JugglingLicenceBlueprintKey,
+            TestSiteSeedContract.JugglingLicenceBlueprintSlug,
             StringComparison.OrdinalIgnoreCase);
     }
 
@@ -315,7 +315,7 @@ public class TestSiteComposer : IComposer
 
         return string.Equals(
             ctx.Request.Form["BlueprintKey"].ToString(),
-            TestSiteSeedContract.MoneyModellerBlueprintKey,
+            TestSiteSeedContract.MoneyModellerBlueprintSlug,
             StringComparison.OrdinalIgnoreCase);
     }
 }
