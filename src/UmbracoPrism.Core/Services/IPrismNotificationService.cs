@@ -55,7 +55,15 @@ public interface IPrismNotificationService
     /// <see cref="SendNotificationToAllMembersAsync"/>'s broadcast delivery. A no-op if the user
     /// has no registered push token.
     /// </summary>
-    Task SendNotificationToUserAsync(
+    /// <returns>
+    /// <see langword="true"/> only if at least one device was actually sent to — never throws for
+    /// "nothing to send to" (no registered device, Firebase not configured, every send rejected),
+    /// so a caller must check this to tell a real send from a silent no-op. Found live: an
+    /// automation action that only awaited this without checking the (previously <c>void</c>)
+    /// result logged "sent" and reported success regardless of whether anything was actually
+    /// delivered.
+    /// </returns>
+    Task<bool> SendNotificationToUserAsync(
         string userId,
         string tenantId,
         string title,

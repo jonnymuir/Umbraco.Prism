@@ -258,6 +258,23 @@ public class PrismNotificationServiceTests
     }
 
     [Fact]
+    public async Task SendToUser_NoToken_ReturnsFalse()
+    {
+        // The honest-outcome contract this whole method exists for: no registered device is not
+        // an exception, but it must not read as a successful send either — found live, an
+        // automation action that only awaited the (previously void) result logged "sent"
+        // regardless of whether a device was ever actually reached.
+        var (service, db) = BuildService();
+
+        db.Setup(d => d.Fetch<string>(It.IsAny<string>(), It.IsAny<object[]>()))
+            .Returns(new List<string>());
+
+        var sent = await service.SendNotificationToUserAsync("user-1", "tenant-1", "Title", "Body");
+
+        sent.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task SendToUser_WithToken_QueriesDatabaseScopedToThatUser()
     {
         var (service, db) = BuildService();
@@ -268,11 +285,13 @@ public class PrismNotificationServiceTests
             .Returns(new List<string> { "token-1" });
 
         // FCM not initialised — service will log a warning and return early
-        await service.SendNotificationToUserAsync("user-1", "tenant-1", "Licence approved", "Your application was approved.");
+        var sent = await service.SendNotificationToUserAsync("user-1", "tenant-1", "Licence approved", "Your application was approved.");
 
         db.Verify(d => d.Fetch<string>(
             It.Is<string>(sql => sql.Contains("SELECT PushToken FROM prismDeviceCredentials") && sql.Contains("UserId")),
             "tenant-1", "user-1"), Times.Once,
             "a single-user send must scope the lookup to that user, not fan out to the whole tenant");
+
+        sent.Should().BeFalse("FCM isn't initialised in this test, so even with a real token nothing was actually sent");
     }
 }

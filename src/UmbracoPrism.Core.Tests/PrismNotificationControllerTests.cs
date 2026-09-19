@@ -21,16 +21,18 @@ public class PrismNotificationControllerTests
 
     private static PrismNotificationController BuildController(
         PrismTenant? tenant = null,
-        string? userOid = null,
+        string? userEmail = null,
         bool authenticated = true,
         Mock<IPrismNotificationService>? serviceMock = null,
         Mock<INotificationRateLimitService>? rateLimitMock = null)
     {
-        var prismContext = new Mock<IPrismContext>();
-        prismContext.Setup(c => c.CurrentTenant).Returns(tenant);
+        var userContext = new Mock<IPrismUserContext>();
+        userContext.Setup(c => c.CurrentTenant).Returns(tenant);
+        userContext.Setup(c => c.IsAuthenticated).Returns(authenticated && !string.IsNullOrEmpty(userEmail));
+        userContext.Setup(c => c.Email).Returns(userEmail);
 
         serviceMock ??= new Mock<IPrismNotificationService>();
-        
+
         if (rateLimitMock == null)
         {
             rateLimitMock = new Mock<INotificationRateLimitService>();
@@ -40,22 +42,17 @@ public class PrismNotificationControllerTests
             rateLimitMock.Setup(r => r.CheckSubscriptionLimit(It.IsAny<string>(), It.IsAny<string>()))
                 .Returns((false, 0));
         }
-        
+
         var logger = new Mock<ILogger<PrismNotificationController>>();
 
         var controller = new PrismNotificationController(
             serviceMock.Object,
-            prismContext.Object,
+            userContext.Object,
             rateLimitMock.Object,
             logger.Object);
 
-        // Set up HttpContext with claims
-        var claims = new List<Claim>();
-        if (!string.IsNullOrEmpty(userOid))
-            claims.Add(new Claim("oid", userOid));
-
         var identity = new ClaimsIdentity(
-            authenticated ? claims : [],
+            authenticated ? [] : null,
             authenticated ? "PrismMemberCookie" : null);
         var principal = new ClaimsPrincipal(identity);
 
@@ -72,12 +69,12 @@ public class PrismNotificationControllerTests
     [Fact]
     public async Task Register_ValidToken_Returns200()
     {
-        var tenant = new PrismTenant { Id = 1, Name = "Tenant1" };
+        var tenant = new PrismTenant { Id = 1, Name = "Tenant1", Hostname = "tenant1.example" };
         var serviceMock = new Mock<IPrismNotificationService>();
 
         var controller = BuildController(
             tenant: tenant,
-            userOid: "user-oid-123",
+            userEmail: "member@example.com",
             serviceMock: serviceMock);
 
         var request = new PrismPushRegisterRequest { PushToken = "fcm-token-abc" };
@@ -87,14 +84,14 @@ public class PrismNotificationControllerTests
         result.Should().BeOfType<OkResult>();
 
         serviceMock.Verify(s => s.RegisterDeviceTokenAsync(
-            "user-oid-123", "1", "fcm-token-abc", default), Times.Once);
+            "member@example.com", "tenant1.example", "fcm-token-abc", default), Times.Once);
     }
 
     [Fact]
     public async Task Register_MissingToken_Returns400()
     {
-        var tenant = new PrismTenant { Id = 1, Name = "Tenant1" };
-        var controller = BuildController(tenant: tenant, userOid: "user-oid-123");
+        var tenant = new PrismTenant { Id = 1, Name = "Tenant1", Hostname = "tenant1.example" };
+        var controller = BuildController(tenant: tenant, userEmail: "member@example.com");
 
         var request = new PrismPushRegisterRequest { PushToken = "" };
 
@@ -107,8 +104,8 @@ public class PrismNotificationControllerTests
     [Fact]
     public async Task Register_NullRequest_Returns400()
     {
-        var tenant = new PrismTenant { Id = 1, Name = "Tenant1" };
-        var controller = BuildController(tenant: tenant, userOid: "user-oid-123");
+        var tenant = new PrismTenant { Id = 1, Name = "Tenant1", Hostname = "tenant1.example" };
+        var controller = BuildController(tenant: tenant, userEmail: "member@example.com");
 
         var result = await controller.RegisterToken(null!);
 
@@ -116,10 +113,10 @@ public class PrismNotificationControllerTests
     }
 
     [Fact]
-    public async Task Register_NoUserOid_Returns401()
+    public async Task Register_NotAuthenticated_Returns401()
     {
-        var tenant = new PrismTenant { Id = 1, Name = "Tenant1" };
-        var controller = BuildController(tenant: tenant, userOid: null);
+        var tenant = new PrismTenant { Id = 1, Name = "Tenant1", Hostname = "tenant1.example" };
+        var controller = BuildController(tenant: tenant, userEmail: null, authenticated: false);
 
         var request = new PrismPushRegisterRequest { PushToken = "fcm-token-abc" };
 
@@ -131,7 +128,7 @@ public class PrismNotificationControllerTests
     [Fact]
     public async Task Register_NoTenant_Returns401()
     {
-        var controller = BuildController(tenant: null, userOid: "user-oid-123");
+        var controller = BuildController(tenant: null, userEmail: "member@example.com");
 
         var request = new PrismPushRegisterRequest { PushToken = "fcm-token-abc" };
 
@@ -143,12 +140,12 @@ public class PrismNotificationControllerTests
     [Fact]
     public async Task Unregister_AuthenticatedUser_Returns200()
     {
-        var tenant = new PrismTenant { Id = 2, Name = "Tenant2" };
+        var tenant = new PrismTenant { Id = 2, Name = "Tenant2", Hostname = "tenant2.example" };
         var serviceMock = new Mock<IPrismNotificationService>();
 
         var controller = BuildController(
             tenant: tenant,
-            userOid: "user-oid-456",
+            userEmail: "another-member@example.com",
             serviceMock: serviceMock);
 
         var result = await controller.UnregisterToken();
@@ -156,14 +153,14 @@ public class PrismNotificationControllerTests
         result.Should().BeOfType<OkResult>();
 
         serviceMock.Verify(s => s.UnregisterDeviceTokenAsync(
-            "user-oid-456", "2", default), Times.Once);
+            "another-member@example.com", "tenant2.example", default), Times.Once);
     }
 
     [Fact]
-    public async Task Unregister_NoUserOid_Returns401()
+    public async Task Unregister_NotAuthenticated_Returns401()
     {
-        var tenant = new PrismTenant { Id = 2, Name = "Tenant2" };
-        var controller = BuildController(tenant: tenant, userOid: null);
+        var tenant = new PrismTenant { Id = 2, Name = "Tenant2", Hostname = "tenant2.example" };
+        var controller = BuildController(tenant: tenant, userEmail: null, authenticated: false);
 
         var result = await controller.UnregisterToken();
 
@@ -175,12 +172,12 @@ public class PrismNotificationControllerTests
     [Fact]
     public async Task Subscribe_ValidGenre_Returns200()
     {
-        var tenant = new PrismTenant { Id = 3, Name = "Tenant3" };
+        var tenant = new PrismTenant { Id = 3, Name = "Tenant3", Hostname = "tenant3.example" };
         var serviceMock = new Mock<IPrismNotificationService>();
 
         var controller = BuildController(
             tenant: tenant,
-            userOid: "user-oid-789",
+            userEmail: "subscriber@example.com",
             serviceMock: serviceMock);
 
         var request = new PrismSubscribeRequest { Genre = "news" };
@@ -190,14 +187,14 @@ public class PrismNotificationControllerTests
         result.Should().BeOfType<OkResult>();
 
         serviceMock.Verify(s => s.SubscribeToGenreAsync(
-            "user-oid-789", "3", "news", default), Times.Once);
+            "subscriber@example.com", "tenant3.example", "news", default), Times.Once);
     }
 
     [Fact]
     public async Task Subscribe_MissingGenre_Returns400()
     {
-        var tenant = new PrismTenant { Id = 3, Name = "Tenant3" };
-        var controller = BuildController(tenant: tenant, userOid: "user-oid-789");
+        var tenant = new PrismTenant { Id = 3, Name = "Tenant3", Hostname = "tenant3.example" };
+        var controller = BuildController(tenant: tenant, userEmail: "subscriber@example.com");
 
         var request = new PrismSubscribeRequest { Genre = "" };
 
@@ -209,8 +206,8 @@ public class PrismNotificationControllerTests
     [Fact]
     public async Task Subscribe_NullRequest_Returns400()
     {
-        var tenant = new PrismTenant { Id = 3, Name = "Tenant3" };
-        var controller = BuildController(tenant: tenant, userOid: "user-oid-789");
+        var tenant = new PrismTenant { Id = 3, Name = "Tenant3", Hostname = "tenant3.example" };
+        var controller = BuildController(tenant: tenant, userEmail: "subscriber@example.com");
 
         var result = await controller.Subscribe(null!);
 
@@ -220,7 +217,7 @@ public class PrismNotificationControllerTests
     [Fact]
     public async Task Subscribe_NoTenant_Returns401()
     {
-        var controller = BuildController(tenant: null, userOid: "user-oid-789");
+        var controller = BuildController(tenant: null, userEmail: "subscriber@example.com");
 
         var request = new PrismSubscribeRequest { Genre = "alerts" };
 
@@ -232,12 +229,12 @@ public class PrismNotificationControllerTests
     [Fact]
     public async Task Unsubscribe_ValidGenre_Returns200()
     {
-        var tenant = new PrismTenant { Id = 4, Name = "Tenant4" };
+        var tenant = new PrismTenant { Id = 4, Name = "Tenant4", Hostname = "tenant4.example" };
         var serviceMock = new Mock<IPrismNotificationService>();
 
         var controller = BuildController(
             tenant: tenant,
-            userOid: "user-oid-xyz",
+            userEmail: "unsubscriber@example.com",
             serviceMock: serviceMock);
 
         var request = new PrismSubscribeRequest { Genre = "alerts" };
@@ -247,14 +244,14 @@ public class PrismNotificationControllerTests
         result.Should().BeOfType<OkResult>();
 
         serviceMock.Verify(s => s.UnsubscribeFromGenreAsync(
-            "user-oid-xyz", "4", "alerts", default), Times.Once);
+            "unsubscriber@example.com", "tenant4.example", "alerts", default), Times.Once);
     }
 
     [Fact]
     public async Task Unsubscribe_MissingGenre_Returns400()
     {
-        var tenant = new PrismTenant { Id = 4, Name = "Tenant4" };
-        var controller = BuildController(tenant: tenant, userOid: "user-oid-xyz");
+        var tenant = new PrismTenant { Id = 4, Name = "Tenant4", Hostname = "tenant4.example" };
+        var controller = BuildController(tenant: tenant, userEmail: "unsubscriber@example.com");
 
         var request = new PrismSubscribeRequest { Genre = "" };
 
@@ -264,10 +261,10 @@ public class PrismNotificationControllerTests
     }
 
     [Fact]
-    public async Task Unsubscribe_NoUserOid_Returns401()
+    public async Task Unsubscribe_NotAuthenticated_Returns401()
     {
-        var tenant = new PrismTenant { Id = 4, Name = "Tenant4" };
-        var controller = BuildController(tenant: tenant, userOid: null);
+        var tenant = new PrismTenant { Id = 4, Name = "Tenant4", Hostname = "tenant4.example" };
+        var controller = BuildController(tenant: tenant, userEmail: null, authenticated: false);
 
         var request = new PrismSubscribeRequest { Genre = "alerts" };
 
@@ -276,51 +273,21 @@ public class PrismNotificationControllerTests
         result.Should().BeOfType<UnauthorizedObjectResult>();
     }
 
-    // ------------------------------------------------------------------ User Identity Resolution
-
-    [Fact]
-    public async Task Register_FallbackClaim_ResolvesUserOid()
-    {
-        // Test alternate claim type for user OID
-        var tenant = new PrismTenant { Id = 5, Name = "Tenant5" };
-        var serviceMock = new Mock<IPrismNotificationService>();
-        var controller = BuildController(tenant: tenant, serviceMock: serviceMock);
-
-        // Add fallback claim type
-        var claims = new List<Claim>
-        {
-            new("http://schemas.microsoft.com/identity/claims/objectidentifier", "fallback-oid")
-        };
-        var identity = new ClaimsIdentity(claims, "PrismMemberCookie");
-        var principal = new ClaimsPrincipal(identity);
-
-        controller.ControllerContext.HttpContext.User = principal;
-
-        var request = new PrismPushRegisterRequest { PushToken = "fcm-token-fallback" };
-
-        var result = await controller.RegisterToken(request);
-
-        result.Should().BeOfType<OkResult>();
-
-        serviceMock.Verify(s => s.RegisterDeviceTokenAsync(
-            "fallback-oid", "5", "fcm-token-fallback", default), Times.Once);
-    }
-
     // ------------------------------------------------------------------ Rate Limiting
 
     [Fact]
     public async Task Register_RateLimited_Returns429()
     {
-        var tenant = new PrismTenant { Id = 1, Name = "Tenant1" };
+        var tenant = new PrismTenant { Id = 1, Name = "Tenant1", Hostname = "tenant1.example" };
         var rateLimitMock = new Mock<INotificationRateLimitService>();
-        
+
         // Override default to return rate-limited
         rateLimitMock.Setup(r => r.CheckTokenRegistrationLimit(It.IsAny<string>(), It.IsAny<string>()))
             .Returns((true, 3600)); // Limited, retry after 1 hour
 
         var controller = BuildController(
             tenant: tenant,
-            userOid: "user-oid-123",
+            userEmail: "member@example.com",
             rateLimitMock: rateLimitMock);
 
         var request = new PrismPushRegisterRequest { PushToken = "fcm-token-abc" };
@@ -337,8 +304,8 @@ public class PrismNotificationControllerTests
     [Fact]
     public async Task Register_TokenTooLong_Returns400()
     {
-        var tenant = new PrismTenant { Id = 1, Name = "Tenant1" };
-        var controller = BuildController(tenant: tenant, userOid: "user-oid-123");
+        var tenant = new PrismTenant { Id = 1, Name = "Tenant1", Hostname = "tenant1.example" };
+        var controller = BuildController(tenant: tenant, userEmail: "member@example.com");
 
         var longToken = new string('a', 501); // Exceeds 500 character limit
         var request = new PrismPushRegisterRequest { PushToken = longToken };
@@ -351,16 +318,16 @@ public class PrismNotificationControllerTests
     [Fact]
     public async Task Subscribe_RateLimited_Returns429()
     {
-        var tenant = new PrismTenant { Id = 3, Name = "Tenant3" };
+        var tenant = new PrismTenant { Id = 3, Name = "Tenant3", Hostname = "tenant3.example" };
         var rateLimitMock = new Mock<INotificationRateLimitService>();
-        
+
         // Override default to return rate-limited
         rateLimitMock.Setup(r => r.CheckSubscriptionLimit(It.IsAny<string>(), It.IsAny<string>()))
             .Returns((true, 1800)); // Limited, retry after 30 minutes
 
         var controller = BuildController(
             tenant: tenant,
-            userOid: "user-oid-789",
+            userEmail: "subscriber@example.com",
             rateLimitMock: rateLimitMock);
 
         var request = new PrismSubscribeRequest { Genre = "news" };
