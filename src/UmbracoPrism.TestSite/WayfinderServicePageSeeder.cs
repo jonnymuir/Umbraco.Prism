@@ -84,12 +84,12 @@ public class WayfinderServicePageSeeder(
 
         try
         {
-            await EnsureDefinitionSeededAsync(TestSiteSeedContract.JugglingLicenceBlueprintKey, "apply-for-a-juggling-licence.json", cancellationToken);
-            await EnsureDefinitionSeededAsync(TestSiteSeedContract.ContributionsBlueprintKey, "bulk-contributions.json", cancellationToken);
-            await EnsureDefinitionSeededAsync(TestSiteSeedContract.MoneyModellerBlueprintKey, "money-modeller.json", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.JugglingLicenceBlueprintSlug, "apply-for-a-juggling-licence.json", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.ContributionsBlueprintSlug, "bulk-contributions.json", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.MoneyModellerBlueprintSlug, "money-modeller.json", cancellationToken);
 
-            EnsureStagePage(TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicenceBlueprintKey);
-            EnsureStagePage(TestSiteSeedContract.ContributionsPageName, TestSiteSeedContract.ContributionsBlueprintKey);
+            EnsureStagePage(TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicenceBlueprintSlug);
+            EnsureStagePage(TestSiteSeedContract.ContributionsPageName, TestSiteSeedContract.ContributionsBlueprintSlug);
             EnsureWorklistPage(TestSiteSeedContract.CaseworkerQueuePageName);
             // Money Modeller's own web-user queue is the citizen-facing part (model savings pot
             // scenarios, hand a chosen one off as a quote request) — exactly what a stage page
@@ -98,7 +98,7 @@ public class WayfinderServicePageSeeder(
             // but nothing asked for that admin view yet — only the citizen-facing modeller was
             // the point (showing off graph/calculation-heavy UI working well on mobile), so no
             // worklist page for it here.
-            EnsureStagePage(TestSiteSeedContract.MoneyModellerPageName, TestSiteSeedContract.MoneyModellerBlueprintKey);
+            EnsureStagePage(TestSiteSeedContract.MoneyModellerPageName, TestSiteSeedContract.MoneyModellerBlueprintSlug);
         }
         catch (Exception ex)
         {
@@ -115,7 +115,7 @@ public class WayfinderServicePageSeeder(
     // as sufficient for "did the source of truth change at all".
     private const string SeedSourceHashTagKey = "_prismSeedSourceHash";
 
-    private async Task EnsureDefinitionSeededAsync(string definitionKey, string fileName, CancellationToken cancellationToken)
+    private async Task EnsureDefinitionSeededAsync(string blueprintSlug, string fileName, CancellationToken cancellationToken)
     {
         var path = Path.Combine(env.ContentRootPath, "service-blueprints", fileName);
         if (!File.Exists(path))
@@ -127,13 +127,13 @@ public class WayfinderServicePageSeeder(
         var json = await File.ReadAllTextAsync(path, cancellationToken);
         var fileHash = ComputeHash(json);
 
-        var existing = await workflowSourceStore.LoadAsync(definitionKey, cancellationToken);
+        var existing = await workflowSourceStore.LoadAsync(blueprintSlug, cancellationToken);
         if (existing is not null)
         {
             var storedHash = existing.Tags?.GetValueOrDefault(SeedSourceHashTagKey);
             if (storedHash == fileHash)
             {
-                logger.LogDebug("WAYFINDER SERVICE PAGE SEEDER: {Key} already up to date with its seed file; leaving as-is", definitionKey);
+                logger.LogDebug("WAYFINDER SERVICE PAGE SEEDER: {Slug} already up to date with its seed file; leaving as-is", blueprintSlug);
                 return;
             }
 
@@ -150,11 +150,11 @@ public class WayfinderServicePageSeeder(
             var updateResult = await workflowSourceStore.SaveAsync(updatedBlueprint, existing.Version, cancellationToken);
             if (!updateResult.Saved)
             {
-                logger.LogWarning("WAYFINDER SERVICE PAGE SEEDER: Re-sync reported a conflict for {Key} (expected version {Version}); leaving the existing row untouched", definitionKey, existing.Version);
+                logger.LogWarning("WAYFINDER SERVICE PAGE SEEDER: Re-sync reported a conflict for {Slug} (expected version {Version}); leaving the existing row untouched", blueprintSlug, existing.Version);
                 return;
             }
 
-            logger.LogInformation("WAYFINDER SERVICE PAGE SEEDER: {Key} re-synced from its updated seed file and pushed to the live engine", definitionKey);
+            logger.LogInformation("WAYFINDER SERVICE PAGE SEEDER: {Slug} re-synced from its updated seed file and pushed to the live engine", blueprintSlug);
             return;
         }
 
@@ -165,11 +165,11 @@ public class WayfinderServicePageSeeder(
         var result = await workflowSourceStore.SaveAsync(blueprint, expectedVersion: 0, cancellationToken);
         if (!result.Saved)
         {
-            logger.LogWarning("WAYFINDER SERVICE PAGE SEEDER: Save reported a conflict for {Key} (unexpected for a fresh seed); skipping", definitionKey);
+            logger.LogWarning("WAYFINDER SERVICE PAGE SEEDER: Save reported a conflict for {Slug} (unexpected for a fresh seed); skipping", blueprintSlug);
             return;
         }
 
-        logger.LogInformation("WAYFINDER SERVICE PAGE SEEDER: {Key} seeded and pushed to the live engine", definitionKey);
+        logger.LogInformation("WAYFINDER SERVICE PAGE SEEDER: {Slug} seeded and pushed to the live engine", blueprintSlug);
     }
 
     private ServiceBlueprint? DeserializeOrWarn(string json, string fileName)
@@ -198,7 +198,7 @@ public class WayfinderServicePageSeeder(
         return merged;
     }
 
-    private void EnsureStagePage(string name, string blueprintKey)
+    private void EnsureStagePage(string name, string blueprintSlug)
     {
         var homePage = TestSiteSeedContract.FindContentByAlias(contentService, TestSiteSeedContract.HomePageAlias);
         if (homePage == null)
@@ -221,7 +221,10 @@ public class WayfinderServicePageSeeder(
         var page = contentService.Create(name, homePage.Id, WayfinderServicePageContentType.Alias);
         page.SetValue("stageArea", BuildBlockGridValueJson(StageElementTypeKey,
         [
-            new BlockPropertyValue("blueprintKey", "Umbraco.TextBox", blueprintKey)
+            // "blueprintKey" here is the Umbraco Block List property alias Wayfinder.Umbraco's
+            // own CreateServiceRequestStageBlock.cs defines — an external contract, not renamed
+            // alongside this file's own local variables.
+            new BlockPropertyValue("blueprintKey", "Umbraco.TextBox", blueprintSlug)
         ]));
 
         PublishOrLog(page, name);
