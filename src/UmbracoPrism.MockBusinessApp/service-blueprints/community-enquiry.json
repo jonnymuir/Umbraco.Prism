@@ -5,6 +5,7 @@
   "schemaVersion": "1.0",
   "initialStage": "collecting-details",
   "requestPolicy": "single",
+  "allowManualRestart": true,
   "stages": [
     {
       "stageKey": "collecting-details",

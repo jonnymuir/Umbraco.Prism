@@ -6,6 +6,7 @@
   "schemaVersion": "1.0",
   "initialStage": "choose-start",
   "requestPolicy": "single",
+  "allowManualRestart": true,
   "calculations": {
     "tables": {
       "pensionAgeFactor": {
