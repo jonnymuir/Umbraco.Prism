@@ -160,6 +160,16 @@ public class MobileBundleService : IMobileBundleService
 
     private static string BuildPackageJson(string appName, bool biometricAuthEnabled, bool pushNotificationsEnabled)
     {
+        // @capacitor/app: unconditional, not a flag-gated dep like the ones below — every
+        // generated app needs its own 'resume' lifecycle event, not just ones with biometric
+        // auth or push notifications on. Wayfinder's own wayfinder-poll.js (the join-gateway
+        // waiting stage) listens for it directly when window.Capacitor is present: a mobile
+        // WebView's document visibilitychange isn't always reliable for an app-level background/
+        // foreground transition, and a citizen who backgrounds the app mid-wait needs the page to
+        // re-check on return rather than sit on a stale setTimeout that may never actually have
+        // fired while backgrounded. First-party Capacitor plugin, auto-linked by `npx cap sync`
+        // (already run for every generated app) — no native code of our own needed, unlike the
+        // bespoke PrismContentWatcher plugin.
         var biometricDeps = biometricAuthEnabled
             ? """
 ,
@@ -198,7 +208,8 @@ public class MobileBundleService : IMobileBundleService
     "open:android": "npx cap open android"
   },
   "dependencies": {
-    "@capacitor/core": "^7.0.0"{{biometricDeps}}{{pushDeps}}
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/app": "^7.0.0"{{biometricDeps}}{{pushDeps}}
   },
   "devDependencies": {
     "@capacitor/cli": "^7.0.0",

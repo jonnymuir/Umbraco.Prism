@@ -85,6 +85,29 @@ public class MobileBundleServiceTests
     }
 
     [Fact]
+    public async Task BuildBundleAsync_AlwaysIncludesCapacitorAppDependency()
+    {
+        // Unconditional, unlike the biometric/push deps below — every generated app needs its
+        // own 'resume' lifecycle event (wayfinder-poll.js listens for it directly), regardless of
+        // whether biometric auth or push notifications are enabled.
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest
+        {
+            AppName = "Test App",
+            AppId = "com.example.test",
+            BiometricAuthEnabled = false
+        };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var packageJson = ReadEntry(archive, "package.json");
+        packageJson.Should().Contain("\"@capacitor/app\"");
+    }
+
+    [Fact]
     public async Task BuildBundleAsync_BiometricDisabled_PackageJsonHasNoBiometricDeps()
     {
         var service = new MobileBundleService();
