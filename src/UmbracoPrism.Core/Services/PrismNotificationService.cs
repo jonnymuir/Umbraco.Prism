@@ -157,7 +157,7 @@ public class PrismNotificationService : IPrismNotificationService
     }
 
     /// <inheritdoc/>
-    public async Task SendNotificationToUserAsync(
+    public async Task<bool> SendNotificationToUserAsync(
         string userId,
         string tenantId,
         string title,
@@ -168,7 +168,8 @@ public class PrismNotificationService : IPrismNotificationService
 
         var tokens = GetPushTokensForUsers(db, tenantId, [userId]);
 
-        await FanOutAsync(db, tenantId, tokens, title, body, ct);
+        var sentCount = await FanOutAsync(db, tenantId, tokens, title, body, ct);
+        return sentCount > 0;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -189,7 +190,8 @@ public class PrismNotificationService : IPrismNotificationService
         return tokens;
     }
 
-    private async Task FanOutAsync(
+    /// <returns>The total number of devices actually sent to, across every batch — 0 for every "nothing to do" or failure case (no registered device, Firebase not configured, every send rejected), so a caller can tell a real send from a silent no-op instead of assuming success just because nothing threw.</returns>
+    private async Task<int> FanOutAsync(
         Umbraco.Cms.Infrastructure.Persistence.IUmbracoDatabase db,
         string tenantId,
         IReadOnlyList<string> tokens,
@@ -198,17 +200,23 @@ public class PrismNotificationService : IPrismNotificationService
         CancellationToken ct)
     {
         if (tokens.Count == 0)
-            return;
+        {
+            _logger.LogInformation(
+                "No registered device for this notification (tenant: {TenantId}, title: {Title}).",
+                tenantId, LogScrub.Line(title));
+            return 0;
+        }
 
         if (_messaging == null)
         {
             _logger.LogWarning(
                 "FCM is not initialised (Prism:Firebase:CredentialJson not configured). " +
                 "Notification not sent (title: {Title}).", LogScrub.Line(title));
-            return;
+            return 0;
         }
 
         var staleTokens = new List<string>();
+        var totalSent = 0;
 
         for (var offset = 0; offset < tokens.Count; offset += FcmBatchSize)
         {
@@ -238,6 +246,7 @@ public class PrismNotificationService : IPrismNotificationService
                 _logger.LogInformation(
                     "FCM multicast: sent={Sent} failed={Failed} (title: {Title})",
                     response.SuccessCount, response.FailureCount, LogScrub.Line(title));
+                totalSent += response.SuccessCount;
             }
             catch (Exception ex)
             {
@@ -259,6 +268,8 @@ public class PrismNotificationService : IPrismNotificationService
                 _logger.LogWarning(ex, "Failed to nullify stale push token.");
             }
         }
+
+        return totalSent;
     }
 
     private static FirebaseMessaging? TryInitFirebase(IConfiguration configuration, ILogger logger)

@@ -15,12 +15,25 @@ namespace UmbracoPrism.Core.Controllers;
 /// SEC-PT2-009 ANTIFORGERY POLICY: This controller is a Capacitor mobile app API.
 /// [IgnoreAntiforgeryToken] is deliberate — see BiometricController for rationale.
 /// </summary>
+/// <remarks>
+/// Identity here MUST match <c>PublicVisitorIdentityResolver.Resolve()</c> — the same
+/// (email, hostname) pair Wayfinder's own <c>ServiceRequest.UserId</c>/<c>TenantId</c> already use
+/// for a signed-in member. Previously resolved via the "oid" Entra claim and the tenant's numeric
+/// database id instead (matching <c>BiometricController</c>'s own scheme, copied here for
+/// consistency at the time) — found live: an Automate automation resolving a Wayfinder instance's
+/// owner to notify them (<c>ResolveWayfinderInstanceOwnerAction</c>) could never match a
+/// <c>prismDeviceCredentials</c> row registered under the different scheme, so
+/// <c>PrismSendPushNotificationAction</c> silently found zero devices every time — worse, its own
+/// success log fired regardless, since it never checked whether a device was actually found.
+/// <c>BiometricController</c> is unaffected — it's a separate feature with its own separate rows
+/// in the same table, unrelated to Wayfinder.
+/// </remarks>
 [Route("umbraco/prism/push")]
 [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
 [IgnoreAntiforgeryToken]
 public class PrismNotificationController(
     IPrismNotificationService notificationService,
-    IPrismContext prismContext,
+    IPrismUserContext userContext,
     INotificationRateLimitService rateLimitService,
     ILogger<PrismNotificationController> logger) : Controller
 {
@@ -139,11 +152,8 @@ public class PrismNotificationController(
 
     private (string? userId, string? tenantId) ResolveUserAndTenant()
     {
-        var userId = User.FindFirst("oid")?.Value
-            ?? User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
-
-        var tenant = prismContext.CurrentTenant;
-        var tenantId = tenant?.Id.ToString();
+        var userId = userContext.IsAuthenticated ? userContext.Email : null;
+        var tenantId = userContext.CurrentTenant?.Hostname;
 
         return (userId, tenantId);
     }

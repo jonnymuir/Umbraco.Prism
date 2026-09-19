@@ -67,13 +67,27 @@ public sealed class PrismSendPushNotificationAction(
                 StepRunErrorCategory.Validation);
         }
 
-        await notificationService.SendNotificationToUserAsync(
+        var sent = await notificationService.SendNotificationToUserAsync(
             settings.UserId, settings.TenantId, settings.Title, settings.Body, cancellationToken);
 
-        logger.LogInformation(
-            "Prism push notification sent to user {UserId} in tenant {TenantId}.",
-            settings.UserId, settings.TenantId);
+        if (sent)
+        {
+            logger.LogInformation(
+                "Prism push notification sent to user {UserId} in tenant {TenantId}.",
+                settings.UserId, settings.TenantId);
+        }
+        else
+        {
+            // Not a failure: a citizen who never installed the mobile app, or never signed in as
+            // a member, has no registered device to send to — a legitimate outcome, not an
+            // automation error. But it must be visible, unlike before: this action used to log
+            // "sent" and report Success unconditionally, regardless of whether the underlying
+            // send actually found a device.
+            logger.LogInformation(
+                "No registered device found for user {UserId} in tenant {TenantId} — push notification not sent.",
+                settings.UserId, settings.TenantId);
+        }
 
-        return Success(new Output { Sent = true });
+        return Success(new Output { Sent = sent });
     }
 }
