@@ -566,7 +566,15 @@
             </div>
         </section>
 
-        @* 
+        @* Not a feature — a small easter egg. Deliberately plain text, no icon, no card, no
+           btn-* styling that would make it read as a real product feature; reuses the existing
+           u-text-muted/u-text-sm utility classes rather than adding any CSS of its own (no
+           style="" attribute either — this page's CSP is style-src 'self', no unsafe-inline). *@
+        <p class="u-text-muted u-text-sm">
+            <a href="/games/hedgehogger/index.html">🦔</a>
+        </p>
+
+        @*
             Phase 1 Security: Debug panel is environment-gated via PrismDebugTagHelper.
             Only renders in Development or when Prism:EnableDebugPanel=true.
             Safe to include in views; the tag helper suppresses output in production.

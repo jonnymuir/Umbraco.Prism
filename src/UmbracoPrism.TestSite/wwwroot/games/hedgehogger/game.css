@@ -1,0 +1,49 @@
+/* Extracted from the original hedgehogger/index.html's inline <style> block — this app's own
+   CSP (style-src 'self', no unsafe-inline, applied to every response except /umbraco) blocks an
+   inline <style> tag the same way it blocks a style="" attribute, so this has to be its own
+   same-origin stylesheet instead. No other change from the original game. */
+* {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  margin: 0;
+  padding: 0;
+}
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #0d130e;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Comic Sans MS", cursive, sans-serif;
+  touch-action: none;
+}
+#canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Back-to-app link — not part of the original game, added for this app's own easter egg
+   integration. Fixed top-left, small and unobtrusive so it doesn't compete with the game's own
+   UI, above the canvas (canvas is a sibling, not a child, of this) via z-index. */
+.back-to-app {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  left: 0;
+  z-index: 10;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+  text-decoration: none;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 0 0 8px 0;
+}
+.back-to-app:hover,
+.back-to-app:focus-visible {
+  color: rgba(255, 255, 255, 0.9);
+}
