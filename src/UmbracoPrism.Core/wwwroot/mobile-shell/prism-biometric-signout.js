@@ -27,6 +27,20 @@
 // no longer intercepts or reroutes that navigation at all. What it still does: fire the
 // biometric-credential cleanup alongside it, best-effort, without ever blocking or delaying the
 // navigation on that cleanup completing.
+//
+// clearIdentityProviderCookies() below is a different mechanism again, added for a gap the
+// above doesn't cover: AccountController.Logout() skips the federated redirect entirely for a
+// biometric-tagged session (no Entra session in this WebView for it to end — see its own
+// remarks), which is correct, but it means Entra's own SSO cookie from whenever this device
+// first did an interactive sign-in never gets cleared on any later biometric sign-out — reported
+// live as "signed out of the app but still silently signed in to Entra underneath". Neither
+// prior silent attempt above (iframe, fetch ping) can fix this either, and for the same reason:
+// both ask Entra's own server to do the clearing, over a channel Entra/WKWebView blocks. Native
+// cookie-store deletion asks Entra nothing — it deletes whatever's already sitting in this app's
+// own WebView cookie jar, so neither X-Frame-Options nor ITP applies. Fired unconditionally
+// alongside the rest, not just for biometric sessions — harmless no-op when there's nothing to
+// clear (an ordinary session's own federated redirect, above, already clears this cookie as a
+// side effect of the request itself).
 (function () {
   var Cap = window.Capacitor;
   if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) return;
@@ -63,6 +77,22 @@
       .catch(function () {});
   }
 
+  function clearIdentityProviderCookies() {
+    // Read off this script's own tag (Master.cshtml renders it server-side, per-tenant — see
+    // that view's own remarks) rather than a global, so this file stays self-contained.
+    var scriptEl = document.currentScript ||
+      document.querySelector('script[src*="prism-biometric-signout.js"]');
+    var hostsAttr = (scriptEl && scriptEl.getAttribute('data-prism-idp-hosts')) || '';
+    var hosts = hostsAttr.split(',').map(function (h) { return h.trim(); }).filter(Boolean);
+
+    // Best-effort, not awaited — same reasoning as every other call in this file. The Android
+    // side of this plugin ignores `hosts` entirely and clears the WebView's whole cookie jar
+    // (there's no per-host removal API on android.webkit.CookieManager, and nothing else in
+    // this single-purpose WebView needs a cookie preserved across sign-out); iOS uses it to
+    // target exactly the record(s) that belong to this tenant's own IdP host(s).
+    Cap.nativePromise('PrismIdentityCookiePlugin', 'clearCookies', { hosts: hosts }).catch(function () {});
+  }
+
   function revokeServerSidePushToken() {
     // Same reasoning as revokeServerSideCredential() above — a stale token left registered past
     // sign-out would keep sending this device notifications addressed to whichever member signs
@@ -83,5 +113,6 @@
     clearLocalBiometricState();
     revokeServerSideCredential();
     revokeServerSidePushToken();
+    clearIdentityProviderCookies();
   }, true);
 })();
