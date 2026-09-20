@@ -283,6 +283,22 @@ public class PrismNotificationService : IPrismNotificationService
             return null;
         }
 
+        // Diagnostic only — structure/shape, never the credential's own values. Found live: a
+        // generic "not configured" message downstream (FanOutAsync, hardcoded regardless of
+        // which branch here actually failed) made every real failure indistinguishable from a
+        // genuinely-missing credential, with the one specific log line that would say why (the
+        // exception this method's own catch block deliberately swallowed) never surfacing at all.
+        var isJson = credentialValue.TrimStart().StartsWith('{');
+        logger.LogInformation(
+            "Firebase credential resolved: length={Length}, mode={Mode}, hasType={HasType}, " +
+            "hasProjectId={HasProjectId}, hasPrivateKey={HasPrivateKey}, hasClientEmail={HasClientEmail}.",
+            credentialValue.Length,
+            isJson ? "json" : "file-path",
+            isJson && credentialValue.Contains("\"type\""),
+            isJson && credentialValue.Contains("\"project_id\""),
+            isJson && credentialValue.Contains("\"private_key\""),
+            isJson && credentialValue.Contains("\"client_email\""));
+
         try
         {
             // Guard: only initialise once across the app lifetime
@@ -292,6 +308,9 @@ public class PrismNotificationService : IPrismNotificationService
             try
             {
                 app = FirebaseApp.GetInstance(appName);
+                logger.LogInformation(
+                    "Reusing an already-created FirebaseApp instance named '{AppName}' — its " +
+                    "credential was NOT re-read from current config.", appName);
             }
             catch (Exception)
             {
@@ -302,7 +321,7 @@ public class PrismNotificationService : IPrismNotificationService
             {
                 GoogleCredential credential;
 
-                if (credentialValue.TrimStart().StartsWith('{'))
+                if (isJson)
                 {
                     // JSON string (from Key Vault or appsettings dev override)
                     credential = GoogleCredential.FromJson(credentialValue);
@@ -318,12 +337,20 @@ public class PrismNotificationService : IPrismNotificationService
                     appName);
             }
 
-            return FirebaseMessaging.GetMessaging(app);
+            var messaging = FirebaseMessaging.GetMessaging(app);
+            logger.LogInformation("Firebase initialised successfully.");
+            return messaging;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Security: do NOT log exception details (could leak credential paths or JSON structure)
-            logger.LogError("Failed to initialise Firebase — push notifications disabled.");
+            // The exception type/message describe a structural problem (e.g. "missing
+            // 'private_key' field", "unrecognized credential type") — they don't echo back the
+            // credential's own field values, so logging them isn't a leak, unlike the raw JSON
+            // itself would be. This is the one piece of information that would have actually
+            // answered "why is _messaging null" instead of everyone downstream guessing.
+            logger.LogError(ex,
+                "Failed to initialise Firebase — push notifications disabled. Failure: {ExceptionType}: {ExceptionMessage}",
+                ex.GetType().Name, ex.Message);
             return null;
         }
     }
