@@ -60,7 +60,7 @@ public class MobileBundleService : IMobileBundleService
             AddEntry(archive, "www/mobile-overrides.css", BuildMobileOverrideTemplate());
             AddEntry(archive, "scripts/doctor-mobile.sh", BuildDoctorScript(startUrl));
             AddEntry(archive, "scripts/bootstrap-ios.sh", BuildBootstrapIosScript(startUrl, biometricAuthEnabled, mobileDiagnosticsEnabled, pushNotificationsEnabled));
-            AddEntry(archive, "scripts/bootstrap-android.sh", BuildBootstrapAndroidScript(biometricAuthEnabled, pushNotificationsEnabled));
+            AddEntry(archive, "scripts/bootstrap-android.sh", BuildBootstrapAndroidScript(appId, biometricAuthEnabled, pushNotificationsEnabled));
             AddEntry(archive, "scripts/trust-ios-localhost-cert.sh", BuildTrustIosLocalhostCertScript(startUrl));
           AddEntry(archive, "resources/mobile-assets.json", BuildAssetsManifest(iconUrl, splashUrl, errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics));
 
@@ -1437,6 +1437,12 @@ class PrismBridgeViewController: CAPBridgeViewController, WKScriptMessageHandler
         // @aparajita/capacitor-biometric-auth's own plugin (already proven working in this app)
         // uses too.
         bridge?.registerPluginInstance(PrismContentWatcherPlugin())
+
+        // See PrismIdentityCookiePlugin's own remarks. Registered unconditionally, same
+        // reasoning as PrismContentWatcherPlugin above — this app never overrides
+        // autoRegisterPlugins, so registerPluginInstance (not registerPluginType) is what
+        // actually wires it in.
+        bridge?.registerPluginInstance(PrismIdentityCookiePlugin())
     }
 
     override func viewDidLoad() {
@@ -1586,6 +1592,54 @@ public class PrismContentWatcherPlugin: CAPPlugin, CAPBridgedPlugin {
             Self.activeHold?.contentDidChange(in: webView)
         }
         call.resolve()
+    }
+}
+
+// Deletes the IdP's own SSO session cookie(s) directly from this app's WebView cookie store —
+// prism-biometric-signout.js's own remarks explain why this exists: AccountController.Logout()
+// correctly skips the federated sign-out redirect for a biometric-tagged session (no Entra
+// session in this WebView for it to end), but that leaves Entra's own cookie from this device's
+// original interactive sign-in stale forever, since nothing else ever clears it again. Two
+// silent alternatives were already tried and failed for the reason documented there (Entra's
+// X-Frame-Options: DENY; WKWebView dropping Set-Cookie on cross-origin fetch under ITP) — both
+// ask Entra's own server to do the clearing over a channel that blocks it. This asks Entra
+// nothing: WKWebsiteDataStore is this app's own local cookie jar, so neither limitation applies.
+// jsName ("PrismIdentityCookiePlugin") must exactly match the string
+// prism-biometric-signout.js passes to Cap.nativePromise.
+@objc(PrismIdentityCookiePlugin)
+public class PrismIdentityCookiePlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "PrismIdentityCookiePlugin"
+    public let jsName = "PrismIdentityCookiePlugin"
+    public let pluginMethods: [CAPPluginMethod] = [
+        .init(#selector(clearCookies))
+    ]
+
+    @objc func clearCookies(_ call: CAPPluginCall) {
+        let hosts = call.getArray("hosts", String.self) ?? []
+        guard !hosts.isEmpty else {
+            call.resolve(["cleared": 0])
+            return
+        }
+
+        let store = WKWebsiteDataStore.default()
+        store.fetchDataRecords(ofTypes: [WKWebsiteDataTypeCookies]) { records in
+            // Suffix match, not just equality — WKWebsiteDataStore records a cookie's owning
+            // host exactly as the page that set it (e.g. a specific "{tenant}.ciamlogin.com"),
+            // and a generic OIDC authority's own subdomains deserve the same coverage a plain
+            // equality check would miss.
+            let matching = records.filter { record in
+                hosts.contains { host in
+                    record.displayName == host || record.displayName.hasSuffix("." + host)
+                }
+            }
+            guard !matching.isEmpty else {
+                DispatchQueue.main.async { call.resolve(["cleared": 0]) }
+                return
+            }
+            store.removeData(ofTypes: [WKWebsiteDataTypeCookies], for: matching) {
+                DispatchQueue.main.async { call.resolve(["cleared": matching.count]) }
+            }
+        }
     }
 }
 
@@ -2274,7 +2328,7 @@ fi
 """;
     }
 
-    private static string BuildBootstrapAndroidScript(bool biometricAuthEnabled, bool pushNotificationsEnabled)
+    private static string BuildBootstrapAndroidScript(string appId, bool biometricAuthEnabled, bool pushNotificationsEnabled)
     {
         var manifestInjection = biometricAuthEnabled
             ? """
@@ -2316,6 +2370,72 @@ fi
 """
             : string.Empty;
 
+        // See PrismIdentityCookiePlugin's own remarks (BuildBootstrapIosScript, same file) for
+        // the underlying problem — this is Android's own equivalent. No per-host cookie removal
+        // API exists on android.webkit.CookieManager, unlike iOS's WKWebsiteDataStore, so this
+        // clears the WebView's whole cookie jar instead of targeting specific hosts — safe here
+        // because this single-purpose app WebView has no other cookie worth preserving across
+        // sign-out. Unconditional, not gated on biometricAuthEnabled — matches
+        // prism-biometric-signout.js's own reasoning: this matters for every mobile sign-out,
+        // not just biometric-enabled tenants.
+        //
+        // MainActivity.java is rewritten wholesale, not patched with a regex — same precedent as
+        // AppDelegate.swift/PrismBridgeViewController.swift on iOS (BuildBootstrapIosScript,
+        // same file): Capacitor's own default MainActivity.java has no content beyond the bare
+        // class declaration, so nothing is lost, and a blind regex against a file whose exact
+        // current content isn't verified in this build pipeline would be guesswork. registerPlugin()
+        // must run before super.onCreate() — Capacitor's own documented pattern for wiring in a
+        // plugin autoRegisterPlugins' own classpath discovery won't find.
+        var javaPackagePath = appId.Replace('.', '/');
+        var cookiePluginInjection = $$"""
+
+echo "Writing PrismIdentityCookiePlugin.kt and registering it in MainActivity..."
+JAVA_DIR="android/app/src/main/java/{{javaPackagePath}}"
+if [ -d "$JAVA_DIR" ]; then
+  cat > "$JAVA_DIR/PrismIdentityCookiePlugin.kt" << 'PRISM_COOKIE_PLUGIN_EOF'
+package {{appId}}
+
+import android.webkit.CookieManager
+import com.getcapacitor.Plugin
+import com.getcapacitor.PluginCall
+import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.CapacitorPlugin
+
+@CapacitorPlugin(name = "PrismIdentityCookiePlugin")
+class PrismIdentityCookiePlugin : Plugin() {
+    @PluginMethod
+    fun clearCookies(call: PluginCall) {
+        val cookieManager = CookieManager.getInstance()
+        cookieManager.removeAllCookies {
+            cookieManager.flush()
+            call.resolve()
+        }
+    }
+}
+PRISM_COOKIE_PLUGIN_EOF
+  echo "✓ PrismIdentityCookiePlugin.kt written"
+
+  cat > "$JAVA_DIR/MainActivity.java" << 'PRISM_MAINACTIVITY_EOF'
+package {{appId}};
+
+import android.os.Bundle;
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {
+  @Override
+  public void onCreate(Bundle savedInstanceState) {
+    registerPlugin(PrismIdentityCookiePlugin.class);
+    super.onCreate(savedInstanceState);
+  }
+}
+PRISM_MAINACTIVITY_EOF
+  echo "✓ MainActivity.java rewritten to register PrismIdentityCookiePlugin"
+else
+  echo "⚠️ $JAVA_DIR not found. Run 'npx cap add android' first."
+fi
+
+""";
+
         return $$"""
 #!/usr/bin/env bash
 set -euo pipefail
@@ -2343,7 +2463,7 @@ npx cap sync android
 
 echo "Generating app icon and splash screen from resources/icon.svg..."
 npx capacitor-assets generate --android
-{{manifestInjection}}{{pushInjection}}
+{{manifestInjection}}{{pushInjection}}{{cookiePluginInjection}}
 if [[ "${CI:-}" == "true" ]]; then
   echo "CI environment detected — skipping emulator run/open. The android/ project is synced and"
   echo "ready for a signing/build step (e.g. ./gradlew bundleRelease) to take over from here."

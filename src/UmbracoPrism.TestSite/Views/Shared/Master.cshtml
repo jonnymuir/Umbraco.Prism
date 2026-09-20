@@ -1,5 +1,6 @@
 @using UmbracoPrism.Core.Extensions
 @using UmbracoPrism.Core.Models
+@using UmbracoPrism.Core.Services
 @using Umbraco.Cms.Core.Models
 @using Umbraco.Cms.Core.Models.Blocks
 @inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
@@ -154,8 +155,14 @@
            script (avoiding Entra's own account-picker interstitial inside the app's one
            WebView) matters for every mobile sign-out, not just biometric-enabled tenants; the
            biometric-revoke calls it also makes are harmless no-ops when nothing was ever
-           enrolled. See the script's own remarks. *@
-        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-signout.js"></script>
+           enrolled. See the script's own remarks.
+
+           data-prism-idp-hosts feeds the native cookie-store cleanup this script also fires —
+           the concrete host(s) the current tenant's IdP sets its own SSO session cookie on,
+           resolved server-side (the same tenant data PrismSecurityHeadersMiddleware already
+           derives CSP hosts from) since the client has no other way to know it. *@
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-signout.js"
+                data-prism-idp-hosts="@string.Join(",", PrismIdentityProviderHosts.Resolve(tenant))"></script>
 
         @* Same reasoning as above, applied to push: whether the native FirebaseMessaging plugin
            is actually compiled into this build is a bundle-generation-time decision

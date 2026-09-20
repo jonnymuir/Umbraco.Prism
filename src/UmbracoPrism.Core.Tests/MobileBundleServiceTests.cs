@@ -75,6 +75,47 @@ public class MobileBundleServiceTests
         readme.Should().Contain("Generated config appends `prismMobile=1` to Start URL for server-side mobile detection.");
     }
 
+    [Fact]
+    public async Task BuildBundleAsync_BootstrapScripts_RegisterIdentityProviderCookiePluginRegardlessOfBiometricSetting()
+    {
+        // Reported live: a biometric-tagged sign-out correctly skips the federated Entra
+        // redirect (no session for it to end in this WebView), but that leaves Entra's own SSO
+        // cookie from the device's original interactive sign-in stale forever, so a later login
+        // silently re-authenticates instead of showing credentials again. This plugin clears it
+        // natively instead — unconditional, matching prism-biometric-signout.js's own reasoning:
+        // it matters for every mobile sign-out, not just biometric-enabled tenants.
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+        var payload = new PrismMobileBundleRequest { AppName = "Test App", AppId = "com.example.test" };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, payload);
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        iosBootstrap.Should().Contain("bridge?.registerPluginInstance(PrismIdentityCookiePlugin())");
+        iosBootstrap.Should().Contain("class PrismIdentityCookiePlugin: CAPPlugin, CAPBridgedPlugin");
+        iosBootstrap.Should().Contain("public let jsName = \"PrismIdentityCookiePlugin\"");
+        iosBootstrap.Should().Contain("@objc func clearCookies(_ call: CAPPluginCall)");
+        iosBootstrap.Should().Contain("let store = WKWebsiteDataStore.default()");
+        iosBootstrap.Should().Contain("store.removeData(ofTypes: [WKWebsiteDataTypeCookies], for: matching)");
+
+        var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
+        androidBootstrap.Should().Contain("JAVA_DIR=\"android/app/src/main/java/com/example/test\"");
+        androidBootstrap.Should().Contain("$JAVA_DIR/PrismIdentityCookiePlugin.kt");
+        androidBootstrap.Should().Contain("package com.example.test");
+        androidBootstrap.Should().Contain("@CapacitorPlugin(name = \"PrismIdentityCookiePlugin\")");
+        androidBootstrap.Should().Contain("cookieManager.removeAllCookies {");
+
+        // MainActivity.java is rewritten wholesale (same precedent as AppDelegate.swift on iOS) —
+        // asserts the registration actually happens, not just that the plugin file exists on
+        // disk, the same class of gap the PrismBridgeViewController.swift pbxproj test above
+        // guards against.
+        androidBootstrap.Should().Contain("$JAVA_DIR/MainActivity.java");
+        androidBootstrap.Should().Contain("registerPlugin(PrismIdentityCookiePlugin.class);");
+        androidBootstrap.Should().Contain("super.onCreate(savedInstanceState);");
+    }
+
     private static string ReadEntry(ZipArchive archive, string path)
     {
         var entry = archive.GetEntry(path);
