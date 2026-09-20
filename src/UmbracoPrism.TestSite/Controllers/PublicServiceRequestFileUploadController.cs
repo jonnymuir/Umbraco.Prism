@@ -57,7 +57,10 @@ public class PublicServiceRequestFileUploadController(
         var options = optionsAccessor.Value;
         var tenantId = options.ResolveTenantId!(HttpContext);
         var userId = options.ResolveUserId(HttpContext);
-        var accessProfile = options.ResolveAccessProfile!(HttpContext);
+        // No blueprintKey in this route (service-request/upload/{instanceId}/{fieldKey}) — same
+        // as before this parameter existed, this controller's own identity resolution never
+        // varied by blueprint; the engine's own ownership check downstream is the real boundary.
+        var accessProfile = options.ResolveAccessProfile!(HttpContext, null);
 
         var authoritativeFields = await nonceService.ResolveAsync(nonce, instanceId, userId, cancellationToken);
         var field = authoritativeFields?.FirstOrDefault(f =>
