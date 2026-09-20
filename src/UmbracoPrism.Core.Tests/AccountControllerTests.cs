@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Linq;
 using System.Reflection;
 using System.Security.Claims;
 using UmbracoPrism.Core.Controllers;
@@ -125,5 +126,34 @@ public class AccountControllerTests
         method.Should().NotBeNull();
         method!.GetCustomAttributes<HttpGetAttribute>().Should().BeEmpty(
             "logout must not accept GET — any GET-based logout is CSRF-able (SEC-PT2-003)");
+    }
+
+    // ── Skip the Entra redirect for a session that never went through it ───
+
+    [Fact]
+    public void Logout_SignsOutOfBothSchemes_ForAnOrdinaryInteractiveSession()
+    {
+        var controller = BuildController(isAuthenticated: true);
+
+        var result = controller.Logout().Should().BeOfType<SignOutResult>().Subject;
+
+        result.AuthenticationSchemes.Should().BeEquivalentTo("PrismMemberCookie", "PrismEntraID");
+    }
+
+    [Fact]
+    public void Logout_SignsOutOfTheLocalCookieOnly_ForABiometricSession()
+    {
+        // A biometric session was established entirely via BiometricController's own backchannel
+        // refresh_token grant — "PrismEntraID" never ran its interactive OIDC challenge in this
+        // WebView, so it has no session there for Entra to end and no id_token_hint to offer.
+        // Signing out of it anyway just shows Entra's own account-chooser for nothing (see
+        // BiometricController's own remarks on the "prism_auth_method" claim this checks).
+        var controller = BuildController(isAuthenticated: true);
+        controller.ControllerContext.HttpContext.User.Identities.First().AddClaim(
+            new Claim("prism_auth_method", "biometric"));
+
+        var result = controller.Logout().Should().BeOfType<SignOutResult>().Subject;
+
+        result.AuthenticationSchemes.Should().BeEquivalentTo("PrismMemberCookie");
     }
 }

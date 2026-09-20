@@ -11,12 +11,18 @@
     "fields": {
       "member": {
         "source": "service",
-        "shape": { "tier": { "valueKind": "string" } }
+        "shape": {
+          "tier": { "valueKind": "string" },
+          "name": { "valueKind": "string" },
+          "email": { "valueKind": "string" }
+        }
       },
       "isMember": { "expr": "member.tier <> ''" },
       "membershipTier": { "expr": "member.tier" },
+      "memberName": { "expr": "member.name" },
+      "memberEmail": { "expr": "member.email" },
       "feeAmount": {
-        "expr": "if(isMember and (member.tier = 'Competitive' or member.tier = 'Professional'), 20, 25)",
+        "expr": "if(licenceType = 'Competitive' or licenceType = 'Professional', 20, 25)",
         "format": "gbp"
       }
     }
@@ -90,13 +96,15 @@
               "maxLength": 100,
               "fieldKey": "full-name",
               "label": "Full name",
-              "required": true
+              "required": true,
+              "defaultFrom": "memberName"
             },
             {
               "type": "email",
               "fieldKey": "email-address",
               "label": "Email address",
-              "required": true
+              "required": true,
+              "defaultFrom": "memberEmail"
             },
             {
               "type": "date",
@@ -141,7 +149,7 @@
           "children": [
             {
               "type": "radio",
-              "fieldKey": "licence-type",
+              "fieldKey": "licenceType",
               "label": "What type of licence are you applying for?",
               "hint": "Choose the option that best matches how you plan to juggle. If we've pre-selected one for you above, you can still choose a different one.",
               "options": ["Recreational", "Competitive", "Professional"],
@@ -153,7 +161,7 @@
         {
           "type": "details",
           "heading": "How is my licence fee calculated?",
-          "content": "The standard fee is £25. Juggling Society members with a Competitive or Professional membership tier receive a discounted fee of £20."
+          "content": "The standard fee is £25. Competitive and Professional licences cost £20, whatever your membership tier — your membership only suggests which licence type to apply for, it doesn't set the fee on its own."
         },
         {
           "type": "fieldset",
@@ -208,7 +216,7 @@
             },
             {
               "type": "radio",
-              "fieldKey": "licence-type",
+              "fieldKey": "licenceType",
               "label": "Licence type",
               "options": ["Recreational", "Competitive", "Professional"],
               "required": true,
@@ -247,7 +255,7 @@
           "params": {
             "supportSystemKey": "juggling-licence-decision",
             "capabilityKey": "decide-application",
-            "inputs": { "licenceType": "licence-type" }
+            "inputs": { "licenceType": "licenceType" }
           }
         }
       ],
