@@ -21,6 +21,9 @@ public sealed class PrismSendPushNotificationSettings
 
     [Field(Label = "Body", Description = "The notification's body text.", SortOrder = 3, SupportsBindings = true)]
     public string Body { get; set; } = string.Empty;
+
+    [Field(Label = "Deep link path", Description = "Optional site-relative path (e.g. /apply-for-a-juggling-licence) to open when the notification is tapped, instead of just opening the app.", SortOrder = 4, SupportsBindings = true)]
+    public string? DeepLinkPath { get; set; }
 }
 
 /// <summary>
@@ -68,7 +71,7 @@ public sealed class PrismSendPushNotificationAction(
         }
 
         var sent = await notificationService.SendNotificationToUserAsync(
-            settings.UserId, settings.TenantId, settings.Title, settings.Body, cancellationToken);
+            settings.UserId, settings.TenantId, settings.Title, settings.Body, settings.DeepLinkPath, cancellationToken);
 
         if (sent)
         {

@@ -24,6 +24,24 @@
   // already uses) doesn't re-POST identical state every time.
   var REGISTERED_TOKEN_KEY = 'prism_push_registered_token_' + TENANT_HOST;
 
+  // Routes a tapped notification to whatever page PrismNotificationService's caller asked for
+  // (MulticastMessage.Data["url"], see PrismSendPushNotificationAction's optional DeepLinkPath)
+  // instead of just leaving the WebView on whatever page it happened to be on when backgrounded.
+  // Same Cap.Plugins.<Plugin>.addListener bridge wayfinder-poll.js's own onForeground() uses for
+  // @capacitor/app's 'resume' event — the one already proven to work in this exact stack.
+  if (Cap.Plugins && Cap.Plugins.FirebaseMessaging && Cap.Plugins.FirebaseMessaging.addListener) {
+    Cap.Plugins.FirebaseMessaging.addListener('notificationActionPerformed', function (event) {
+      try {
+        var url = event && event.notification && event.notification.data && event.notification.data.url;
+        if (url) {
+          window.location.href = url;
+        }
+      } catch (e) {
+        console.log('[Prism Push] notification tap handling threw: ' + (e && (e.message || String(e))));
+      }
+    });
+  }
+
   (async function () {
     try {
       var permission = await Cap.nativePromise('FirebaseMessaging', 'requestPermissions', {});

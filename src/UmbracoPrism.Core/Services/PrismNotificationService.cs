@@ -137,7 +137,7 @@ public class PrismNotificationService : IPrismNotificationService
         // Collect push tokens for those users within the tenant
         var tokens = GetPushTokensForUsers(db, tenantId, userIds);
 
-        await FanOutAsync(db, tenantId, tokens, title, body, ct);
+        await FanOutAsync(db, tenantId, tokens, title, body, deepLinkPath: null, ct);
     }
 
     /// <inheritdoc/>
@@ -153,7 +153,7 @@ public class PrismNotificationService : IPrismNotificationService
             "SELECT PushToken FROM prismDeviceCredentials WHERE TenantId = @0 AND PushToken IS NOT NULL",
             tenantId);
 
-        await FanOutAsync(db, tenantId, tokens, title, body, ct);
+        await FanOutAsync(db, tenantId, tokens, title, body, deepLinkPath: null, ct);
     }
 
     /// <inheritdoc/>
@@ -162,13 +162,14 @@ public class PrismNotificationService : IPrismNotificationService
         string tenantId,
         string title,
         string body,
+        string? deepLinkPath = null,
         CancellationToken ct = default)
     {
         using var db = _databaseFactory.CreateDatabase();
 
         var tokens = GetPushTokensForUsers(db, tenantId, [userId]);
 
-        var sentCount = await FanOutAsync(db, tenantId, tokens, title, body, ct);
+        var sentCount = await FanOutAsync(db, tenantId, tokens, title, body, deepLinkPath, ct);
         return sentCount > 0;
     }
 
@@ -197,6 +198,7 @@ public class PrismNotificationService : IPrismNotificationService
         IReadOnlyList<string> tokens,
         string title,
         string body,
+        string? deepLinkPath,
         CancellationToken ct)
     {
         if (tokens.Count == 0)
@@ -226,7 +228,10 @@ public class PrismNotificationService : IPrismNotificationService
             var message = new MulticastMessage
             {
                 Tokens = batch,
-                Notification = new Notification { Title = title, Body = body }
+                Notification = new Notification { Title = title, Body = body },
+                Data = string.IsNullOrWhiteSpace(deepLinkPath)
+                    ? null
+                    : new Dictionary<string, string> { ["url"] = deepLinkPath },
             };
 
             try

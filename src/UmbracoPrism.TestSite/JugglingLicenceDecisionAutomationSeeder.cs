@@ -174,6 +174,9 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
                 ["tenantId"] = $"${{steps.{resolveOwnerStepId}.tenantId}}",
                 ["title"] = title,
                 ["body"] = body,
+                // Tapping the notification should land the applicant back on their (single,
+                // auto-resumed) application instead of just opening the app to wherever it last was.
+                ["deepLinkPath"] = TestSiteSeedContract.JugglingLicencePageUrl,
             },
         };
 
