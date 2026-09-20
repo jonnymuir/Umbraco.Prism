@@ -338,6 +338,21 @@ public class PrismNotificationService : IPrismNotificationService
             }
 
             var messaging = FirebaseMessaging.GetMessaging(app);
+
+            // Defensive, not expected: FirebaseMessaging.GetMessaging(FirebaseApp) is documented
+            // to always return a real instance for a non-null app (or throw ArgumentNullException,
+            // already handled by the catch below) — but trusting a third-party contract forever is
+            // exactly the kind of assumption that reintroduces a silent null with no diagnostic
+            // trail if a future SDK version ever changes that. Cheap to check, and if it ever does
+            // fire, it's immediately actionable instead of another round of "why is this null".
+            if (messaging is null)
+            {
+                logger.LogError(
+                    "FirebaseMessaging.GetMessaging returned null despite a successfully created " +
+                    "FirebaseApp — contradicts its documented contract; treating as uninitialised.");
+                return null;
+            }
+
             logger.LogInformation("Firebase initialised successfully.");
             return messaging;
         }
