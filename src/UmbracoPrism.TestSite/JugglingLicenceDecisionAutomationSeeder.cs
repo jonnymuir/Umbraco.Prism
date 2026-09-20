@@ -155,16 +155,14 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             Id = resolveOwner,
             ActionAlias = "wayfinder.resolveInstanceOwner",
             Name = "Resolve applicant",
-            Position = new StepPosition { X = -400, Y = 0 },
             Settings = new() { ["instanceId"] = "${trigger.body.instanceId}" },
         };
 
-        static StepConfiguration Notify(Guid id, string name, string title, string body, Guid resolveOwnerStepId, double x, double y) => new()
+        static StepConfiguration Notify(Guid id, string name, string title, string body, Guid resolveOwnerStepId) => new()
         {
             Id = id,
             ActionAlias = "prism.sendPushNotification",
             Name = name,
-            Position = new StepPosition { X = x, Y = y },
             Settings = new()
             {
                 // A step's own outputs sit directly under its GUID in the "steps" binding scope
@@ -184,12 +182,11 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
         // rather than an HTTP Request step: Automate's built-in HttpRequestAction blocks loopback
         // (SSRF protection), so an automation on the same box as Wayfinder cannot call the site
         // back over HTTP.
-        static StepConfiguration Resolve(Guid id, string name, string outcome, string note, double x, double y) => new()
+        static StepConfiguration Resolve(Guid id, string name, string outcome, string note) => new()
         {
             Id = id,
             ActionAlias = "wayfinder.resolveSupportSystemOutcome",
             Name = name,
-            Position = new StepPosition { X = x, Y = y },
             Settings = new()
             {
                 ["invocationId"] = "${trigger.body.invocationId}",
@@ -208,7 +205,6 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
                 Id = checkLicenceType,
                 ActionAlias = "umbracoAutomate.if",
                 Name = "Fast-track licence type?",
-                Position = new StepPosition { X = 0, Y = 0 },
                 Settings = new()
                 {
                     ["conditions"] = new ConditionSet
@@ -232,15 +228,14 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
                 },
             },
             Notify(autoNotify, "Notify: approved (auto)", "Juggling licence approved",
-                "Good news — your recreational juggling licence has been approved automatically.", resolveOwner, 200, -160),
+                "Good news — your recreational juggling licence has been approved automatically.", resolveOwner),
             Resolve(autoResolve, "Resolve: approved (auto)", "approved",
-                "Automatically approved — recreational licences fast-track with no review.", 400, -160),
+                "Automatically approved — recreational licences fast-track with no review."),
             new()
             {
                 Id = requestApproval,
                 ActionAlias = "umbracoAutomate.requestApproval",
                 Name = "Approve competitive/professional licence?",
-                Position = new StepPosition { X = 200, Y = 160 },
                 Settings = new()
                 {
                     ["prompt"] = "A competitive/professional juggling licence application needs a decision. Licence type: ${trigger.body.inputs.licenceType}.",
@@ -248,13 +243,13 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
                 },
             },
             Notify(approvedNotify, "Notify: approved (reviewed)", "Juggling licence approved",
-                "Good news — your juggling licence application has been approved.", resolveOwner, 400, 80),
+                "Good news — your juggling licence application has been approved.", resolveOwner),
             Resolve(approvedResolve, "Resolve: approved (reviewed)", "approved",
-                "Approved after review.", 600, 80),
+                "Approved after review."),
             Notify(referredNotify, "Notify: referred", "Juggling licence needs more information",
-                "We need to take a closer look at your juggling licence application — we'll be in touch.", resolveOwner, 400, 240),
+                "We need to take a closer look at your juggling licence application — we'll be in touch.", resolveOwner),
             Resolve(referredResolve, "Resolve: referred", "referred",
-                "Referred for further review by the licensing team.", 600, 240),
+                "Referred for further review by the licensing team."),
         };
 
         // SourceHandle is the canvas node's output handle id; for a branching step it is the same
@@ -275,6 +270,17 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             new() { SourceStepId = requestApproval, TargetStepId = referredNotify, SourceHandle = "rejected", Outcome = "rejected" },
             new() { SourceStepId = referredNotify, TargetStepId = referredResolve },
         };
+
+        // Automate itself has no auto-arrange feature to call (checked: no such API in
+        // Umbraco.Automate.Core, nothing client-side either) — hand-picked X/Y here previously
+        // overlapped once the graph grew past a simple chain, because the values didn't respect
+        // the canvas's own step-card width (see LayoutSteps' own remarks). Compute every
+        // position from the graph shape instead, so it stays untangled regardless of future edits.
+        var positions = LayoutSteps(steps, connections);
+        foreach (var step in steps)
+        {
+            step.Position = positions[step.Id];
+        }
 
         var trigger = new TriggerConfiguration
         {
@@ -303,5 +309,78 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             Steps = steps,
             Connections = connections,
         };
+    }
+
+    /// <summary>
+    /// Lays out a step graph left-to-right by BFS depth from the trigger (step <see cref="Guid.Empty"/>
+    /// in <paramref name="connections"/>), and top-to-bottom within each column by DFS leaf order —
+    /// a parent centres over the midpoint of its own children's rows, so a single-child chain stays
+    /// in a straight line and only fans out where the graph actually branches. Column/row spacing is
+    /// sized against the canvas's own step-card CSS (Umbraco.Automate.Core's ua-automation-canvas
+    /// element: <c>min-width:220px;max-width:280px</c>, height varies with how much a step's
+    /// description wraps), with enough clearance either side that adjacent cards and their
+    /// connecting edges never overlap. Assumes a tree — a step with more than one incoming
+    /// connection keeps whichever column/row it was assigned on first visit, which is correct for
+    /// every shape this automation actually uses (branch, never rejoin).
+    /// </summary>
+    internal static Dictionary<Guid, StepPosition> LayoutSteps(
+        IReadOnlyList<StepConfiguration> steps,
+        IReadOnlyList<StepConnection> connections)
+    {
+        const double ColumnWidth = 360;
+        const double RowHeight = 180;
+
+        var childrenOf = connections
+            .GroupBy(c => c.SourceStepId)
+            .ToDictionary(g => g.Key, g => g.Select(c => c.TargetStepId).Distinct().ToList());
+
+        var column = new Dictionary<Guid, int>();
+        var queue = new Queue<(Guid Id, int Depth)>();
+        queue.Enqueue((Guid.Empty, -1));
+        while (queue.Count > 0)
+        {
+            var (id, depth) = queue.Dequeue();
+            if (!childrenOf.TryGetValue(id, out var kids))
+            {
+                continue;
+            }
+
+            foreach (var kid in kids)
+            {
+                if (column.ContainsKey(kid))
+                {
+                    continue;
+                }
+
+                column[kid] = depth + 1;
+                queue.Enqueue((kid, depth + 1));
+            }
+        }
+
+        var row = new Dictionary<Guid, double>();
+        var nextLeafRow = 0;
+        double AssignRow(Guid id)
+        {
+            if (row.TryGetValue(id, out var existing))
+            {
+                return existing;
+            }
+
+            var kids = childrenOf.TryGetValue(id, out var list) ? list : [];
+            var value = kids.Count == 0 ? nextLeafRow++ : kids.Average(AssignRow);
+            row[id] = value;
+            return value;
+        }
+        AssignRow(Guid.Empty);
+
+        var centreOffset = (Math.Max(1, nextLeafRow) - 1) / 2.0;
+
+        return steps.ToDictionary(
+            s => s.Id,
+            s => new StepPosition
+            {
+                X = column.GetValueOrDefault(s.Id) * ColumnWidth,
+                Y = (row.GetValueOrDefault(s.Id) - centreOffset) * RowHeight,
+            });
     }
 }
