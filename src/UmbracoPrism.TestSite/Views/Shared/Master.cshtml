@@ -73,13 +73,6 @@
     @if (isPrismMobileRequest)
     {
         <link rel="stylesheet" href="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell.css" />
-
-        @* TEMPORARY: diagnosing an intermittent "join-gateway wait screen stops auto-refreshing"
-           report — see the script's own remarks. Must load before wayfinder-poll.js's own
-           <script> (placed by _Stage-Waiting.cshtml, inside @RenderBody() below) so its
-           window.fetch patch is in place first; unlike a deferred script, a plain synchronous
-           <head> script is guaranteed to run before anything in <body> regardless of ordering. *@
-        <script src="/js/prism-poll-debug.js"></script>
     }
 
 </head>
