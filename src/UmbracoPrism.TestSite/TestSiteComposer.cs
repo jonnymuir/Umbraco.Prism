@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using UmbracoPrism.Core;
@@ -187,20 +188,38 @@ public class TestSiteComposer : IComposer
         {
             var membershipClient = sp.GetRequiredService<IJugglingSocietyMembershipClient>();
             var memberRecordService = sp.GetRequiredService<IMemberSavingsRecordService>();
+            var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
             return new UmbracoProcessManagerEngine(
                 sp.GetRequiredService<ILogger<UmbracoProcessManagerEngine>>(),
                 sp.GetRequiredService<IServiceBlueprintStore>(),
                 sp.GetRequiredService<IServiceContentSanitizer>(),
                 sp.GetRequiredService<IServiceRequestStore>(),
-                sp.GetRequiredService<IHttpContextAccessor>(),
+                httpContextAccessor,
                 (instance, definition, _) =>
                 {
                     if (string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceBlueprintSlug, StringComparison.OrdinalIgnoreCase))
                     {
                         var membership = membershipClient.GetForUser(instance.UserId);
+                        // Same claim types PrismUserContext itself reads — resolved directly
+                        // here rather than through that (request-)Scoped service, since this
+                        // resolver is captured once into a Singleton at startup. Gated on
+                        // IsAuthenticated because instance.UserId is only the applicant's real
+                        // email for a signed-in member (PublicVisitorIdentityResolver's scheme);
+                        // for an anonymous visitor it's an opaque correlation-cookie GUID, which
+                        // must never be suggested back to them as their own email address. Both
+                        // fall back to null for an anonymous visitor or a non-request caller
+                        // (e.g. an automation callback resuming the instance with no live
+                        // HttpContext), which defaultFrom already treats as "no suggestion".
+                        var user = httpContextAccessor.HttpContext?.User;
+                        var isAuthenticated = user?.Identity?.IsAuthenticated ?? false;
                         return new Dictionary<string, object?>
                         {
-                            ["member"] = new Dictionary<string, object?> { ["tier"] = membership.Tier }
+                            ["member"] = new Dictionary<string, object?>
+                            {
+                                ["tier"] = membership.Tier,
+                                ["name"] = isAuthenticated ? user!.FindFirstValue("name") : null,
+                                ["email"] = isAuthenticated ? instance.UserId : null
+                            }
                         };
                     }
 

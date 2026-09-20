@@ -81,10 +81,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
     {
         var definition = LoadDefinition();
         var authoringService = new ServiceBlueprintAuthoringService(new Mock<IServiceBlueprintSourceStore>().Object);
-        var mockServiceInputs = new Dictionary<string, object?>
-        {
-            ["member"] = new Dictionary<string, object?> { ["tier"] = "Competitive" }
-        };
+        var mockServiceInputs = MemberServiceInputs("Competitive");
 
         var outcome = authoringService.Validate(definition, mockServiceInputs);
 
@@ -120,12 +117,10 @@ public class JugglingLicenceCmsServiceBlueprintTests
     public void Simulate_AnonymousVisitor_ReachesTheAutomatedDecisionWait_WithUndiscountedFee()
     {
         var definition = LoadDefinition();
-        var mockServiceInputs = new Dictionary<string, object?>
-        {
-            ["member"] = new Dictionary<string, object?> { ["tier"] = "" }
-        };
+        var mockServiceInputs = MemberServiceInputs(tier: "", name: null, email: null);
 
-        var result = new ServiceBlueprintSimulationRunner().Run(definition, BuildWalkthroughSteps(), mockServiceInputs);
+        var result = new ServiceBlueprintSimulationRunner().Run(
+            definition, BuildWalkthroughSteps(overrideLicenceType: "Recreational"), mockServiceInputs);
 
         result.Trace.Should().HaveCount(5, "initial GetCurrent plus four Advance steps to the automated-decision leap");
         // Submitting leaps into the juggling-licence-decision support system — a real Umbraco
@@ -137,7 +132,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
         result.Trace[^1].Render!.StateDisplayName.Should().Be("Processing your application");
         result.Calculations.Should().OnlyContain(c => c != null,
             "member is always resolved (with an empty tier sentinel for non-members), so calculations never fail");
-        result.Calculations[^1]!.Fields["feeAmount"].Should().Be(25m, "no membership discount applies");
+        result.Calculations[^1]!.Fields["feeAmount"].Should().Be(25m, "a Recreational licence never gets the discount, membership or not");
         result.Calculations[^1]!.Fields["isMember"].Should().Be(false);
     }
 
@@ -145,10 +140,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
     public void Simulate_LoggedInCompetitiveMember_ReachesTheAutomatedDecisionWait_WithDiscountedFee()
     {
         var definition = LoadDefinition();
-        var mockServiceInputs = new Dictionary<string, object?>
-        {
-            ["member"] = new Dictionary<string, object?> { ["tier"] = "Competitive" }
-        };
+        var mockServiceInputs = MemberServiceInputs("Competitive");
 
         var result = new ServiceBlueprintSimulationRunner().Run(definition, BuildWalkthroughSteps(), mockServiceInputs);
 
@@ -156,17 +148,42 @@ public class JugglingLicenceCmsServiceBlueprintTests
         result.Trace[^1].Render!.StateDisplayName.Should().Be("Processing your application");
         result.Calculations[^1]!.Fields["isMember"].Should().Be(true);
         result.Calculations[^1]!.Fields["membershipTier"].Should().Be("Competitive");
-        result.Calculations[^1]!.Fields["feeAmount"].Should().Be(20m, "Competitive members receive the discounted fee");
+        result.Calculations[^1]!.Fields["feeAmount"].Should().Be(20m, "applying for a Competitive licence gets the discounted fee");
     }
 
     [Fact]
     public void Simulate_LoggedInMember_LicenceTypeIsPreFilledFromMembershipTier_BeforeAnySubmission()
     {
         var definition = LoadDefinition();
-        var mockServiceInputs = new Dictionary<string, object?>
+        var mockServiceInputs = MemberServiceInputs("Professional");
+
+        // Only the first step — stop right before applicant-details would be submitted, so this
+        // reads full-name/email-address's own suggested values, not values the walkthrough itself
+        // supplied.
+        var steps = new[]
         {
-            ["member"] = new Dictionary<string, object?> { ["tier"] = "Professional" }
+            new ProcessManagerSimulationStep("continue", new Dictionary<string, object?>
+            {
+                ["age-confirmation"] = true,
+                ["uk-address-confirmation"] = true
+            })
         };
+
+        var result = new ServiceBlueprintSimulationRunner().Run(definition, steps, mockServiceInputs);
+
+        var fields = result.Trace[^1].Render!.Components.SelectMany(c => c.Fields).ToList();
+
+        fields.Single(f => f.FieldKey == "full-name").Value.Should().Be("Alex Juggler",
+            "defaultFrom should suggest the member's own name before they've typed anything");
+        fields.Single(f => f.FieldKey == "email-address").Value.Should().Be("alex@example.test",
+            "defaultFrom should suggest the member's own email before they've typed anything");
+    }
+
+    [Fact]
+    public void Simulate_LoggedInMember_LicenceTypeIsPreFilledFromMembershipTier_BeforeAnySubmission_OnLicenceStage()
+    {
+        var definition = LoadDefinition();
+        var mockServiceInputs = MemberServiceInputs("Professional");
 
         // Only the first two steps — stop right before licence-type would be submitted, so this
         // reads the field's suggested value, not a value the walkthrough itself supplied.
@@ -189,7 +206,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
 
         var licenceTypeField = result.Trace[^1].Render!.Components
             .SelectMany(c => c.Fields)
-            .Single(f => f.FieldKey == "licence-type");
+            .Single(f => f.FieldKey == "licenceType");
 
         licenceTypeField.Value.Should().Be("Professional",
             "defaultFrom should suggest the member's own tier before they've chosen anything");
@@ -199,10 +216,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
     public void Simulate_LoggedInMember_CanOverrideTheSuggestedLicenceType()
     {
         var definition = LoadDefinition();
-        var mockServiceInputs = new Dictionary<string, object?>
-        {
-            ["member"] = new Dictionary<string, object?> { ["tier"] = "Professional" }
-        };
+        var mockServiceInputs = MemberServiceInputs("Professional");
 
         // Submits "Recreational" despite the member's tier being "Professional" — proves
         // defaultFrom is a genuine, overridable default, not a locked-in value.
@@ -214,26 +228,51 @@ public class JugglingLicenceCmsServiceBlueprintTests
         var checkAnswersEnvelope = result.Trace.First(e => e.Render?.StepType == "check-answers");
         var summaryValue = checkAnswersEnvelope.Render!.Components
             .SelectMany(c => c.Fields)
-            .Single(f => f.FieldKey == "licence-type")
+            .Single(f => f.FieldKey == "licenceType")
             .Value;
 
         summaryValue.Should().Be("Recreational", "the visitor's own submitted choice always wins over the suggested default");
     }
 
     [Fact]
-    public void Simulate_RecreationalMember_DoesNotReceiveTheDiscount()
+    public void Simulate_RecreationalLicenceTypeChosen_DoesNotReceiveTheDiscount()
     {
         var definition = LoadDefinition();
-        var mockServiceInputs = new Dictionary<string, object?>
-        {
-            ["member"] = new Dictionary<string, object?> { ["tier"] = "Recreational" }
-        };
+        var mockServiceInputs = MemberServiceInputs("Professional");
 
-        var result = new ServiceBlueprintSimulationRunner().Run(definition, BuildWalkthroughSteps(), mockServiceInputs);
+        // A Professional-tier member who nonetheless applies for a Recreational licence pays the
+        // standard fee — the discount tracks the licence actually applied for, not membership status.
+        var result = new ServiceBlueprintSimulationRunner().Run(
+            definition, BuildWalkthroughSteps(overrideLicenceType: "Recreational"), mockServiceInputs);
 
         result.Calculations[^1]!.Fields["isMember"].Should().Be(true);
-        result.Calculations[^1]!.Fields["feeAmount"].Should().Be(25m, "the discount is Competitive/Professional-only");
+        result.Calculations[^1]!.Fields["feeAmount"].Should().Be(25m, "the discount only applies to Competitive/Professional licences, whatever the member's own tier");
     }
+
+    [Fact]
+    public void Simulate_MembershipTierAloneDoesNotGrantTheDiscount_OnlyTheChosenLicenceTypeDoes()
+    {
+        var definition = LoadDefinition();
+        var mockServiceInputs = MemberServiceInputs("Recreational");
+
+        // A Recreational-tier member who applies for a Competitive licence still gets the
+        // discount — the fee is driven entirely by the licence type chosen on this application,
+        // never by raw membership status.
+        var result = new ServiceBlueprintSimulationRunner().Run(
+            definition, BuildWalkthroughSteps(overrideLicenceType: "Competitive"), mockServiceInputs);
+
+        result.Calculations[^1]!.Fields["feeAmount"].Should().Be(20m, "the chosen licence type — not the member's own tier — decides the fee");
+    }
+
+    // Mirrors what TestSiteComposer's own serviceInputsResolver actually supplies for a signed-in
+    // member: tier from the Juggling Society membership record, name/email from the current
+    // claims principal (null for an anonymous visitor, never the anonymous correlation-cookie
+    // GUID — see that resolver's own remarks).
+    private static Dictionary<string, object?> MemberServiceInputs(string tier, string? name = "Alex Juggler", string? email = "alex@example.test") =>
+        new()
+        {
+            ["member"] = new Dictionary<string, object?> { ["tier"] = tier, ["name"] = name, ["email"] = email }
+        };
 
     private static IReadOnlyList<ProcessManagerSimulationStep> BuildWalkthroughSteps(string overrideLicenceType = "Competitive") =>
     [
@@ -250,7 +289,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
         }),
         new ProcessManagerSimulationStep("continue", new Dictionary<string, object?>
         {
-            ["licence-type"] = overrideLicenceType,
+            ["licenceType"] = overrideLicenceType,
             ["declaration"] = true
         }),
         new ProcessManagerSimulationStep("submit")
