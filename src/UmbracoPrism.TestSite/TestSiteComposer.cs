@@ -92,30 +92,21 @@ public class TestSiteComposer : IComposer
             // the juggling licence journey, though (an NJF caseworker is also a citizen; a plain
             // member gets their membership-tier fee discount — see
             // apply-for-a-juggling-licence.json's serviceInputsResolver wiring): this resolver
-            // picks the persona from *which page originated the request* for that one page, not
-            // just from who's signed in.
-            options.ResolveAccessProfile = ctx =>
-            {
-                if (IsJugglingLicenceContext(ctx))
-                {
-                    return PublicVisitorQueue.AccessProfile;
-                }
-
-                if (ctx.User.Identity?.IsAuthenticated != true)
-                {
-                    return PublicVisitorQueue.AccessProfile;
-                }
-
-                if (IsMoneyModellerContext(ctx))
-                {
-                    return MoneyModellerAccess.AccessProfile;
-                }
-
-                var email = ctx.RequestServices.GetRequiredService<IPrismUserContext>().Email;
-                return NjfContributionsTeam.IsMember(email)
-                    ? NjfContributionsTeam.AccessProfile
-                    : NjfContributionsTeam.NoAccessProfile;
-            };
+            // picks the persona from the blueprint the current call is scoped to, not just from
+            // who's signed in.
+            //
+            // Keyed directly off Wayfinder.Umbraco's own resolved blueprintKey parameter
+            // (Wayfinder.Umbraco 2.0+, jonnymuir/Wayfinder.Umbraco#104) rather than guessing it
+            // from the request's own path/form/query shape — a prior version of this resolver did
+            // exactly that (StartsWithSegments against the page path and the stage-advance POST's
+            // own form field) and missed ServiceRequestPollController's poll GET entirely (its own
+            // blueprintKey travels as a query parameter, a third shape nothing here recognised): a
+            // signed-in applicant's own join-gateway wait-screen poll silently resolved
+            // NjfContributionsTeam.NoAccessProfile instead of PublicVisitorQueue.AccessProfile and
+            // 404'd on every single attempt. Reading the already-resolved key removes that whole
+            // bug class — there's no longer any of Wayfinder.Umbraco's own routing to keep in sync
+            // with by hand.
+            options.ResolveAccessProfile = ResolveAccessProfile;
         });
 
         // ServiceRequestPollController (the join-gateway waiting screen's own poll endpoint)
@@ -270,71 +261,30 @@ public class TestSiteComposer : IComposer
     }
 
     /// <summary>
-    /// True for the juggling licence page's own GET render, and for its advance POST
-    /// (<see cref="Wayfinder.Umbraco.Controllers.WayfinderStageSurfaceController"/> — a single
-    /// route shared by every blueprint, so its own URL carries no clue which one originated a
-    /// given request). Never uses the <c>Referer</c> header for this: it's supplied entirely by
-    /// the client and trivially forged by anything that isn't a browser honouring same-origin
-    /// navigation (curl, a script, a browser with referrers stripped) — not a signal any
-    /// access-control decision should read at all. Previously used Referer as a fallback here and
-    /// it was a real bug, not just bad practice: clicking "Caseworker queue" in the top nav
-    /// straight from the juggling licence page carried that page as the *next* request's own
-    /// Referer, misclassifying the entire caseworker queue page as "juggling licence context" and
-    /// handing a signed-in-but-not-NJF member (demo@prism.local) the public citizen's own access
-    /// profile there instead of correctly denying them — they saw their own in-progress
-    /// applications sitting in what looked like the caseworker queue. (Not a privilege-escalation
-    /// bug in practice — PublicVisitorQueue.AccessProfile's own queue key/capabilities never
-    /// overlap with the NJF queue's, so the engine's own ActorProfile checks still fully bounded
-    /// it — but a real information-disclosure/UX bug all the same, and exactly the kind of thing
-    /// that stops being harmless the day a real deployment's queues aren't so cleanly disjoint.)
-    ///
-    /// The advance POST's own form already carries the authoritative answer
-    /// (<c>BlueprintKey</c> — the same field <c>ServiceRequestStageService.AdvanceAsync</c> itself
-    /// reads later) instead: the *controller* already read <c>Request.Form</c> before calling into
-    /// this resolver, so ASP.NET Core has it buffered and reading it back off <paramref name="ctx"/>
-    /// here needs no further await/stream access.
+    /// Wired as <see cref="Wayfinder.Umbraco.Configuration.WayfinderServiceDesignOptions.ResolveAccessProfile"/>
+    /// above — extracted to its own testable method rather than an inline lambda, same reasoning
+    /// as everywhere else this file uses that pattern.
     /// </summary>
-    private static bool IsJugglingLicenceContext(HttpContext ctx)
+    internal static ActorProfile ResolveAccessProfile(HttpContext ctx, string? blueprintKey)
     {
-        if (ctx.Request.Path.StartsWithSegments(TestSiteSeedContract.JugglingLicencePageUrl, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(blueprintKey, TestSiteSeedContract.JugglingLicenceBlueprintSlug, StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            return PublicVisitorQueue.AccessProfile;
         }
 
-        if (!ctx.Request.Path.StartsWithSegments(
-                Wayfinder.Umbraco.Controllers.WayfinderStageSurfaceController.RoutePath, StringComparison.OrdinalIgnoreCase)
-            || !ctx.Request.HasFormContentType)
+        if (ctx.User.Identity?.IsAuthenticated != true)
         {
-            return false;
+            return PublicVisitorQueue.AccessProfile;
         }
 
-        return string.Equals(
-            ctx.Request.Form["BlueprintKey"].ToString(),
-            TestSiteSeedContract.JugglingLicenceBlueprintSlug,
-            StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Same shape and same Referer-header caution as <see cref="IsJugglingLicenceContext"/> —
-    /// see that method's own remarks for why the advance POST's own form field is read instead.
-    /// </summary>
-    private static bool IsMoneyModellerContext(HttpContext ctx)
-    {
-        if (ctx.Request.Path.StartsWithSegments(TestSiteSeedContract.MoneyModellerPageUrl, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(blueprintKey, TestSiteSeedContract.MoneyModellerBlueprintSlug, StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            return MoneyModellerAccess.AccessProfile;
         }
 
-        if (!ctx.Request.Path.StartsWithSegments(
-                Wayfinder.Umbraco.Controllers.WayfinderStageSurfaceController.RoutePath, StringComparison.OrdinalIgnoreCase)
-            || !ctx.Request.HasFormContentType)
-        {
-            return false;
-        }
-
-        return string.Equals(
-            ctx.Request.Form["BlueprintKey"].ToString(),
-            TestSiteSeedContract.MoneyModellerBlueprintSlug,
-            StringComparison.OrdinalIgnoreCase);
+        var email = ctx.RequestServices.GetRequiredService<IPrismUserContext>().Email;
+        return NjfContributionsTeam.IsMember(email)
+            ? NjfContributionsTeam.AccessProfile
+            : NjfContributionsTeam.NoAccessProfile;
     }
 }
