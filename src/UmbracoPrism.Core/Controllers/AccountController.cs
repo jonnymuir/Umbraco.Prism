@@ -83,7 +83,20 @@ public class AccountController(ILogger<AccountController> logger) : Controller
             Request.Host.Value,
             Request.Headers.UserAgent.ToString());
 
-        // Sign out of the local cookie AND the Entra ID session
+        // A session established via BiometricController's own backchannel refresh_token grant
+        // (see its own remarks on the "prism_auth_method" claim) never went through "PrismEntraID"'s
+        // interactive OIDC challenge, so Entra has no browser-side SSO session in this WebView to
+        // end and no id_token_hint to give its end-session endpoint — signing out of that scheme
+        // anyway just shows Entra's own interactive account-chooser for nothing. Sign out of the
+        // local cookie only in that case; every other session still signs out of both.
+        if (User.HasClaim("prism_auth_method", "biometric"))
+        {
+            return SignOut(
+                new AuthenticationProperties { RedirectUri = "/" },
+                "PrismMemberCookie"
+            );
+        }
+
         return SignOut(
             new AuthenticationProperties { RedirectUri = "/" },
             "PrismMemberCookie",

@@ -548,7 +548,8 @@ public class BiometricControllerTests
             "PrismMemberCookie",
             It.Is<ClaimsPrincipal>(p =>
                 p.FindFirst("oid")!.Value == "user-oid-123" &&
-                p.FindFirst("tid")!.Value == "entra-tenant-id"),
+                p.FindFirst("tid")!.Value == "entra-tenant-id" &&
+                p.FindFirst("prism_auth_method")!.Value == "biometric"),
             It.Is<AuthenticationProperties>(props =>
                 props.GetTokens().Any(t => t.Name == "access_token" && t.Value == "new-access-token") &&
                 props.GetTokens().Any(t => t.Name == "refresh_token" && t.Value == "new-refresh-token"))),

@@ -406,6 +406,13 @@ public class BiometricController(
         var identity = new ClaimsIdentity("PrismMemberCookie");
         identity.AddClaim(new Claim("oid", claims.UserOid));
         identity.AddClaim(new Claim("tid", tenant.EntraTenantId));
+        // Marks this session as established via the backchannel refresh_token grant above, never
+        // through "PrismEntraID"'s own interactive OIDC challenge — so Entra has no browser-side
+        // SSO session cookie for this WebView at all. AccountController.Logout() reads this claim
+        // to skip signing out of "PrismEntraID" for exactly this session (nothing there for Entra
+        // to unambiguously end — with no id_token_hint to give it, Entra's own end-session
+        // endpoint falls back to an interactive account-chooser instead of a clean redirect).
+        identity.AddClaim(new Claim("prism_auth_method", "biometric"));
         AddDisplayClaimsFromIdToken(identity, tokenResult.IdToken);
 
         var principal = new ClaimsPrincipal(identity);
