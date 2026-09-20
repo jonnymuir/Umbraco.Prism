@@ -294,11 +294,36 @@ public class TestSiteComposer : IComposer
     /// this resolver, so ASP.NET Core has it buffered and reading it back off <paramref name="ctx"/>
     /// here needs no further await/stream access.
     /// </summary>
-    private static bool IsJugglingLicenceContext(HttpContext ctx)
+    // ServiceRequestPollController — the join-gateway waiting screen's own poll endpoint — has no
+    // RoutePath constant of its own to reference (unlike WayfinderStageSurfaceController below),
+    // so this literal is duplicated from its [Route("api/wayfinder/workflow")]/[HttpGet("poll")]
+    // attributes. Worth adding one there if this ever drifts.
+    //
+    // Found live: a signed-in juggling-licence applicant's own wait screen polled this endpoint
+    // and got 404 on every single attempt, from the very first poll, whether or not the
+    // automation had actually finished — this resolver recognised the page GET and the stage
+    // -advance POST as juggling-licence context, but never this third surface, so a signed-in
+    // member's poll fell all the way through ResolveAccessProfile's own fallback chain to
+    // NjfContributionsTeam.NoAccessProfile (correct for every OTHER unrecognised authenticated
+    // context, wrong for this one) — an access profile with no rights over their own instance at
+    // all. An anonymous applicant never hit this: the IsAuthenticated != true branch above already
+    // gives them PublicVisitorQueue.AccessProfile regardless, which is exactly why this only ever
+    // showed up for a signed-in test.
+    private const string ServiceRequestPollRoutePath = "/api/wayfinder/workflow/poll";
+
+    internal static bool IsJugglingLicenceContext(HttpContext ctx)
     {
         if (ctx.Request.Path.StartsWithSegments(TestSiteSeedContract.JugglingLicencePageUrl, StringComparison.OrdinalIgnoreCase))
         {
             return true;
+        }
+
+        if (ctx.Request.Path.StartsWithSegments(ServiceRequestPollRoutePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(
+                ctx.Request.Query["blueprintKey"].ToString(),
+                TestSiteSeedContract.JugglingLicenceBlueprintSlug,
+                StringComparison.OrdinalIgnoreCase);
         }
 
         if (!ctx.Request.Path.StartsWithSegments(
@@ -316,13 +341,22 @@ public class TestSiteComposer : IComposer
 
     /// <summary>
     /// Same shape and same Referer-header caution as <see cref="IsJugglingLicenceContext"/> —
-    /// see that method's own remarks for why the advance POST's own form field is read instead.
+    /// see that method's own remarks for why the advance POST's own form field (and now the poll
+    /// GET's own query string) is read instead.
     /// </summary>
-    private static bool IsMoneyModellerContext(HttpContext ctx)
+    internal static bool IsMoneyModellerContext(HttpContext ctx)
     {
         if (ctx.Request.Path.StartsWithSegments(TestSiteSeedContract.MoneyModellerPageUrl, StringComparison.OrdinalIgnoreCase))
         {
             return true;
+        }
+
+        if (ctx.Request.Path.StartsWithSegments(ServiceRequestPollRoutePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(
+                ctx.Request.Query["blueprintKey"].ToString(),
+                TestSiteSeedContract.MoneyModellerBlueprintSlug,
+                StringComparison.OrdinalIgnoreCase);
         }
 
         if (!ctx.Request.Path.StartsWithSegments(
