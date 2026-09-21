@@ -59,7 +59,7 @@
     "eslint": "^10.9.1",
     "playwright": "^1.58.2",
     "storybook": "^10.6.0",
-    "typescript": "~5.9.3",
+    "typescript": "~7.0.2",
     "vite": "^8.2.2",
     "vitest": "^4.1.11",
     "wayfinder-demo-recording-kit": "github:jonnymuir/wayfinder-demo-recording-kit#v1.0.0"
