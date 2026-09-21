@@ -18,7 +18,7 @@
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "@aparajita/capacitor-secure-storage": "^8.0.0",
-    "@capacitor/core": "^8.5.1",
+    "@capacitor/core": "^8.5.2",
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/push-notifications": "^8.1.2",
     "@codemirror/commands": "^6.11.0",
@@ -31,8 +31,8 @@
     "@umbraco-cms/backoffice": "^17.1.0",
     "@xyflow/react": "^12.11.5",
     "lit": "^3.3.3",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "overrides": {
     "dompurify": "^3.4.13",
@@ -48,8 +48,8 @@
     "@storybook/addon-docs": "^10.6.0",
     "@storybook/addon-vitest": "^10.6.0",
     "@storybook/web-components-vite": "^10.6.0",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@typescript-eslint/parser": "^8.69.0",
     "@umbraco-cms/backoffice": "^17.6.2",
     "@umbraco-ui/uui-css": "^1.18.1",
@@ -60,7 +60,7 @@
     "playwright": "^1.58.2",
     "storybook": "^10.6.0",
     "typescript": "~5.9.3",
-    "vite": "^8.2.2",
+    "vite": "^8.3.0",
     "vitest": "^4.1.11",
     "wayfinder-demo-recording-kit": "github:jonnymuir/wayfinder-demo-recording-kit#v1.0.0"
   }
