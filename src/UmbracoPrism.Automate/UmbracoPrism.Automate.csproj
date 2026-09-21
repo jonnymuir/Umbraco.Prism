@@ -10,7 +10,7 @@
     <!-- Umbraco Automate versions independently of the Umbraco.Cms major/minor it targets — track
          the same 17.x line TestSite's own Umbraco.Automate/Umbraco.Automate.Persistence.Sqlite
          PackageReferences use, not $(UmbracoPackageRange). -->
-    <PackageReference Include="Umbraco.Automate.Core" Version="17.3.0" />
+    <PackageReference Include="Umbraco.Automate.Core" Version="17.4.0" />
     <!-- Umbraco.Automate.Core pulls in SQLitePCLRaw.lib.e_sqlite3 2.1.11 transitively, which has
          a known high-severity advisory (GHSA-2m69-gcr7-jv3q, bundled SQLite < 3.50.2). The
          advisory itself lists no patched 2.x version, but the 3.x line re-versions to track the
