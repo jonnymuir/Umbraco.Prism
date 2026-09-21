@@ -102,10 +102,17 @@ public class MobileBundleServiceTests
 
         var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
         androidBootstrap.Should().Contain("JAVA_DIR=\"android/app/src/main/java/com/example/test\"");
-        androidBootstrap.Should().Contain("$JAVA_DIR/PrismIdentityCookiePlugin.kt");
-        androidBootstrap.Should().Contain("package com.example.test");
+        androidBootstrap.Should().Contain("$JAVA_DIR/PrismIdentityCookiePlugin.java");
+        androidBootstrap.Should().Contain("package com.example.test;");
         androidBootstrap.Should().Contain("@CapacitorPlugin(name = \"PrismIdentityCookiePlugin\")");
-        androidBootstrap.Should().Contain("cookieManager.removeAllCookies {");
+        androidBootstrap.Should().Contain("cookieManager.removeAllCookies(new ValueCallback<Boolean>()");
+
+        // CONFIRMED LIVE (first real CI dispatch of this feature): a .kt file here builds nothing
+        // at all — Capacitor's default `cap add android` app module has no Kotlin Gradle plugin
+        // applied, so javac silently never compiles it, and MainActivity.java's own reference to
+        // the class fails with "cannot find symbol". Plain Java only, matching MainActivity's own
+        // toolchain — guards against this regressing back to Kotlin.
+        androidBootstrap.Should().NotContain("PrismIdentityCookiePlugin.kt");
 
         // MainActivity.java is rewritten wholesale (same precedent as AppDelegate.swift on iOS) —
         // asserts the registration actually happens, not just that the plugin file exists on

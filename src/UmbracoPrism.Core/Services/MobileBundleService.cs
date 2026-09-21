@@ -2386,34 +2386,47 @@ fi
         // current content isn't verified in this build pipeline would be guesswork. registerPlugin()
         // must run before super.onCreate() — Capacitor's own documented pattern for wiring in a
         // plugin autoRegisterPlugins' own classpath discovery won't find.
+        //
+        // CONFIRMED LIVE (a prior version of this fix wrote a .kt file here — dead on arrival on
+        // the very first CI dispatch: "cannot find symbol: class PrismIdentityCookiePlugin" from
+        // MainActivity.java's own compileDebugJavaWithJavac task). Capacitor's default `cap add
+        // android` app module applies no Kotlin Gradle plugin at all — it's pure Java — so a .kt
+        // file under src/main/java is silently never compiled by anything; javac just doesn't see
+        // it. Plain Java instead, matching MainActivity.java's own toolchain exactly, sidesteps
+        // this rather than also patching build.gradle to add a Kotlin plugin this project doesn't
+        // otherwise need.
         var javaPackagePath = appId.Replace('.', '/');
         var cookiePluginInjection = $$"""
 
-echo "Writing PrismIdentityCookiePlugin.kt and registering it in MainActivity..."
+echo "Writing PrismIdentityCookiePlugin.java and registering it in MainActivity..."
 JAVA_DIR="android/app/src/main/java/{{javaPackagePath}}"
 if [ -d "$JAVA_DIR" ]; then
-  cat > "$JAVA_DIR/PrismIdentityCookiePlugin.kt" << 'PRISM_COOKIE_PLUGIN_EOF'
-package {{appId}}
+  cat > "$JAVA_DIR/PrismIdentityCookiePlugin.java" << 'PRISM_COOKIE_PLUGIN_EOF'
+package {{appId}};
 
-import android.webkit.CookieManager
-import com.getcapacitor.Plugin
-import com.getcapacitor.PluginCall
-import com.getcapacitor.PluginMethod
-import com.getcapacitor.annotation.CapacitorPlugin
+import android.webkit.CookieManager;
+import android.webkit.ValueCallback;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "PrismIdentityCookiePlugin")
-class PrismIdentityCookiePlugin : Plugin() {
-    @PluginMethod
-    fun clearCookies(call: PluginCall) {
-        val cookieManager = CookieManager.getInstance()
-        cookieManager.removeAllCookies {
-            cookieManager.flush()
-            call.resolve()
-        }
-    }
+public class PrismIdentityCookiePlugin extends Plugin {
+  @PluginMethod
+  public void clearCookies(PluginCall call) {
+    final CookieManager cookieManager = CookieManager.getInstance();
+    cookieManager.removeAllCookies(new ValueCallback<Boolean>() {
+      @Override
+      public void onReceiveValue(Boolean value) {
+        cookieManager.flush();
+        call.resolve();
+      }
+    });
+  }
 }
 PRISM_COOKIE_PLUGIN_EOF
-  echo "✓ PrismIdentityCookiePlugin.kt written"
+  echo "✓ PrismIdentityCookiePlugin.java written"
 
   cat > "$JAVA_DIR/MainActivity.java" << 'PRISM_MAINACTIVITY_EOF'
 package {{appId}};
