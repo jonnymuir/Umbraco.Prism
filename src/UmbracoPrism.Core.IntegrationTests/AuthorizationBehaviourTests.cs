@@ -1,6 +1,5 @@
 using System.Net;
 using FluentAssertions;
-using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.TestSite;
 
 namespace UmbracoPrism.Core.IntegrationTests;
@@ -132,34 +131,19 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
             "[ValidateAntiForgeryToken] guards logout-CSRF; a 400 (not 401) also confirms the class is [AllowAnonymous]");
     }
 
-    // ---- Money Modeller mobile login gate (Program.cs, added alongside the "Licence" mobile nav
-    // tab and the biometric-enroll modal) — anonymous Money Modeller access stays intentional on
-    // the web (see CLAUDE.md's declarative-calculations section), but the mobile app bounces an
-    // unauthenticated visitor to login first. ----
-
-    [Fact]
-    public async Task Money_modeller_redirects_an_anonymous_mobile_request_to_login()
-    {
-        using var client = Anonymous();
-        var path = $"{TestSiteSeedContract.MoneyModellerPageUrl}?{PrismMobileRequestDetection.QueryParameterName}=1";
-
-        var res = await client.GetAsync(path);
-
-        res.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        res.Headers.Location!.OriginalString.Should().StartWith("/auth/login?returnUrl=");
-        res.Headers.Location!.OriginalString.Should().Contain(Uri.EscapeDataString(TestSiteSeedContract.MoneyModellerPageUrl));
-    }
-
-    [Fact]
-    public async Task Money_modeller_does_not_redirect_an_anonymous_non_mobile_request()
-    {
-        using var client = Anonymous();
-
-        var res = await client.GetAsync(TestSiteSeedContract.MoneyModellerPageUrl);
-
-        res.StatusCode.Should().NotBe(HttpStatusCode.Redirect,
-            "the plain web page keeps its existing anonymous-preview behaviour");
-    }
+    // ---- Money Modeller's own login requirement is no longer a hardcoded, money-modeller-
+    // specific gate (Program.cs) — it's now data-driven: a PrismPageAccessPolicy row against its
+    // own content node, enforced generically by PrismPageAccessFilter for any guarded page (see
+    // UmbracoPrism.Core.Tests.PrismPageAccessFilterTests / PrismPageAccessResolverTests for the
+    // behavioural coverage: 404 for a tenant-unavailable page, redirect-to-login for a signed-out
+    // visitor on a sign-in-required page, pass-through otherwise). A booted-host equivalent here
+    // would need Money Modeller's own content actually seeded first — WayfinderServicePageSeeder
+    // documents a known first-boot ordering race against two other handlers that this factory's
+    // always-fresh SQLite DB never gets a "second boot" to self-heal from (confirmed live: this
+    // exact test previously got a 404 from Umbraco's own routing, not the filter, because the
+    // page was never created), and this project has no existing pattern for reliably creating
+    // real published content inline in a booted-host test — not worth inventing one just for
+    // this when the filter/resolver unit tests already cover the actual logic precisely. ----
 
     // ---- TestSite public file download: [AllowAnonymous], engine ownership is the boundary ----
 

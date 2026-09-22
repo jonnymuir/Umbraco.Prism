@@ -1,14 +1,40 @@
 @using Umbraco.Cms.Core.Models.Blocks
+@using Umbraco.Cms.Core.Services
+@using UmbracoPrism.Core.Models
+@using UmbracoPrism.Core.Services
 @model IEnumerable<BlockListItem>
+@inject IDocumentUrlService DocumentUrlService
+@inject IPrismPageAccessResolver PageAccessResolver
 
 @if (Model != null && Model.Any())
 {
-    var navItems = Model.Select(block => new
-    {
-        label = block.Content.Value<string>("navLabel") ?? string.Empty,
-        href = block.Content.Value<string>("navUrl") ?? "/",
-        target = block.Content.Value<bool>("openInNewTab") ? "_blank" : null,
-    });
+    // A nav link is skipped when its target resolves to a Prism-guarded page the current
+    // visitor/tenant can't have (PrismPageAccessResult.Unavailable — "doesn't exist for them",
+    // not just "requires sign-in", which still renders normally since clicking it correctly
+    // triggers login). navUrl is a raw path string (not a content picker — see
+    // MobileNavSchemaSetup), so it's resolved to its content key via Umbraco's own route lookup
+    // before consulting the resolver; a link with no matching content node (an external URL, a
+    // typo) is left alone rather than guessed at.
+    var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
+
+    var navItems = Model
+        .Where(block =>
+        {
+            var url = block.Content.Value<string>("navUrl");
+            if (string.IsNullOrWhiteSpace(url)) return true;
+
+            var contentKey = DocumentUrlService.GetDocumentKeyByRoute(url, culture: null, documentStartNodeId: null, isDraft: false);
+            if (contentKey is null) return true;
+
+            return PageAccessResolver.Resolve(contentKey.Value, PrismContext.CurrentTenant, isAuthenticated)
+                != PrismPageAccessResult.Unavailable;
+        })
+        .Select(block => new
+        {
+            label = block.Content.Value<string>("navLabel") ?? string.Empty,
+            href = block.Content.Value<string>("navUrl") ?? "/",
+            target = block.Content.Value<bool>("openInNewTab") ? "_blank" : null,
+        });
 
     <nav aria-label="Main navigation">
         @foreach (var item in navItems)

@@ -4,6 +4,8 @@ import { UmbElementMixin } from '@umbraco-cms/backoffice/element-api';
 import { UMB_MODAL_MANAGER_CONTEXT, UmbModalManagerContext } from '@umbraco-cms/backoffice/modal';
 import { UMB_AUTH_CONTEXT } from '@umbraco-cms/backoffice/auth';
 import { PrismCreateTenantModalElement } from './prism-create-tenant-modal.ts';
+import { PrismPageAccessDashboardElement } from './prism-page-access-dashboard.ts';
+import { PrismCreatePageAccessPolicyModalElement } from './prism-create-page-access-policy-modal.ts';
 import { umbHttpClient } from '@umbraco-cms/backoffice/http-client';
 import { tryExecute } from '@umbraco-cms/backoffice/resources';
 
@@ -13,8 +15,10 @@ export type { BiometricBridge } from './biometric-bridge';
 export { PrismPushNotifications } from './push-notifications';
 export type { PushPermissionState } from './push-notifications';
 
-// Log the modal element for debugging
+// Log the modal elements for debugging
 console.log('Modal element loaded:', PrismCreateTenantModalElement);
+console.log('Modal element loaded:', PrismPageAccessDashboardElement);
+console.log('Modal element loaded:', PrismCreatePageAccessPolicyModalElement);
 
 @customElement('prism-dashboard')
 export class PrismDashboardElement extends UmbElementMixin(LitElement) {

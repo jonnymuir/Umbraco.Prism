@@ -1,18 +1,40 @@
 @using Umbraco.Cms.Core.Models.Blocks
+@using Umbraco.Cms.Core.Services
 @using System.Text.Json
+@using UmbracoPrism.Core.Models
+@using UmbracoPrism.Core.Services
 @model IEnumerable<BlockListItem>
+@inject IDocumentUrlService DocumentUrlService
+@inject IPrismPageAccessResolver PageAccessResolver
 
 @if (Model != null && Model.Any())
 {
     var currentPath = Context.Request.Path.Value ?? "/";
 
-    var navItems = Model.Select(block => new
-    {
-        label  = block.Content.Value<string>("navLabel") ?? string.Empty,
-        href   = block.Content.Value<string>("navUrl") ?? "/",
-        icon   = block.Content.Value<IPublishedContent?>("navIcon")?.Url(),
-        target = block.Content.Value<bool>("openInNewTab") ? "_blank" : (string?)null,
-    });
+    // Same "Unavailable" filter as _DesktopNav.cshtml (see its own remarks) — applied here
+    // server-side too, before serializing to JSON, so an unavailable page's existence is never
+    // even shipped to the client-side web component.
+    var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
+
+    var navItems = Model
+        .Where(block =>
+        {
+            var url = block.Content.Value<string>("navUrl");
+            if (string.IsNullOrWhiteSpace(url)) return true;
+
+            var contentKey = DocumentUrlService.GetDocumentKeyByRoute(url, culture: null, documentStartNodeId: null, isDraft: false);
+            if (contentKey is null) return true;
+
+            return PageAccessResolver.Resolve(contentKey.Value, PrismContext.CurrentTenant, isAuthenticated)
+                != PrismPageAccessResult.Unavailable;
+        })
+        .Select(block => new
+        {
+            label  = block.Content.Value<string>("navLabel") ?? string.Empty,
+            href   = block.Content.Value<string>("navUrl") ?? "/",
+            icon   = block.Content.Value<IPublishedContent?>("navIcon")?.Url(),
+            target = block.Content.Value<bool>("openInNewTab") ? "_blank" : (string?)null,
+        });
 
     var itemsJson = JsonSerializer.Serialize(navItems, new JsonSerializerOptions
     {
