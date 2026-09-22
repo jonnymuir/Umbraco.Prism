@@ -140,26 +140,62 @@ dispatch failing outright, same pattern as push notifications' own soft gate on 
 
 ### One-time Google Play Console / Firebase setup
 
+**Play Console's own navigation has moved more than once since this doc was first written** —
+the steps below reflect where things actually live, found live during this account's first real
+setup (Sep 2026). If a named page is gone by the time you read this, the underlying operation
+(register app / confirm signing / create service account / grant Play permissions) still exists
+somewhere; the old "Setup" section in particular has been dissolved into other pages entirely.
+
 - [ ] Register the app in **Play Console** with the same package name as `PRISM_REFERENCE_APP_ID`
       (e.g. `com.jonnymuir.prismreference`) — must match exactly, same as the iOS Bundle ID.
-- [ ] Enroll in **Play App Signing** (Play Console → Setup → App signing). Unlike iOS's App Store
-      Connect API key (which mints a fresh signing identity every run), Android app-signing needs
-      a **persistent upload keystore** generated once, locally:
+- [ ] **Play App Signing needs no manual enrollment step.** Google auto-enrolls every new app in
+      it (has done since 2021) — a freshly-registered app already shows an active,
+      Google-managed "App signing key" under **Protected with Play → Play Store protection →
+      (expand) → App signing**; the old "App integrity" page and the even older "Setup → App
+      signing" page both just redirect here now. What you *do* still need is your own persistent
+      **upload keystore**, generated once, locally — unlike iOS's App Store Connect API key
+      (which mints a fresh signing identity every CI run):
       ```bash
       keytool -genkeypair -v -keystore release-upload.keystore -alias prism-upload \
         -keyalg RSA -keysize 2048 -validity 10000
       ```
       Regenerating this keystore later would break every future update — back it up somewhere
-      safe before it ever goes into GitHub Secrets. Play App Signing means Google holds the
-      *final* signing key and re-signs what you upload with your upload keystore, so losing the
-      upload keystore later is recoverable (Google can issue a replacement) rather than fatal,
-      which a bare self-managed keystore setup would not allow.
-- [ ] Create a **service account** (Google Cloud Console, in the same project Play Console is
-      linked to), grant it access under Play Console → Setup → API access, and generate its JSON
-      key.
+      safe before it ever goes into GitHub Secrets. You do **not** need to register its
+      certificate with Google ahead of time either: the console's "Upload key certificate"
+      section stays empty until your first real `.aab` upload, at which point whatever key signed
+      it is captured automatically as your registered upload key from then on. Play App Signing
+      means Google holds the *final* signing key and re-signs what you upload with your upload
+      keystore, so losing the upload keystore later is recoverable (Google can issue a
+      replacement) rather than fatal, which a bare self-managed keystore setup would not allow —
+      proportionate for a reference app with no real users: worst case is a support-mediated key
+      reset, not a dead app.
+- [ ] Create a **service account** for CI. The standalone "Setup → API access" page some older
+      docs describe no longer exists for a personal account; the actual flow, found live:
+      1. In **Google Cloud Console**, reuse the same project your Firebase iOS setup already uses
+         (Play Console's own **Settings → Linked services → Firebase → "Manage service account
+         permissions"** link drops you straight into that project's Service Accounts page) rather
+         than creating a separate project — you need it again for the Firebase Android app
+         registration below anyway.
+      2. **APIs & Services → Library**, enable **Google Play Android Developer API** on that
+         project if it isn't already.
+      3. **IAM & Admin → Service Accounts → Create Service Account** (e.g. `prism-play-upload`),
+         skip granting it any project IAM role — Play Console permissions are granted separately,
+         not via GCP IAM. Don't reuse an existing Firebase Admin SDK service account for this: it
+         already holds broad Firebase project access unrelated to Play uploads.
+      4. That service account's **Keys** tab → **Add Key → Create new key → JSON** — the download
+         is `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`.
+      5. Grant it Play Console access the *same way you'd invite a human* — **Users and
+         permissions → Invite new users**, paste the service account's email
+         (`...@<project-id>.iam.gserviceaccount.com`) into the email field, add the app under App
+         permissions, and tick only **"Release apps to testing tracks"** (its own description
+         explicitly excludes publishing to production — the correct least-privilege scope for
+         what this pipeline does).
 - [ ] Firebase: register the **Android app** in the same Firebase project the iOS setup already
-      uses (see `docs/PUSH_SETUP.md`) — same project, just add the Android app registration
-      (package name must match again) to get `google-services.json`.
+      uses (see `docs/PUSH_SETUP.md`) — **Project settings → General → Your apps → add Android
+      app**, package name must match again, leave the debug SHA-1 field blank (only needed for
+      Dynamic Links/Google Sign-In, not plain FCM push), skip the Gradle-SDK-setup walkthrough
+      Firebase offers afterwards (`bootstrap-android.sh` already wires the downloaded
+      `google-services.json` in for you) to get `google-services.json`.
 
 ### GitHub repository configuration
 
