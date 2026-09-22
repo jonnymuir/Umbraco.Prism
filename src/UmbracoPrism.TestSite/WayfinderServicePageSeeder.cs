@@ -9,7 +9,10 @@ using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
+using Umbraco.Cms.Infrastructure.Persistence;
 using UmbracoPrism.Core.Models;
+using UmbracoPrism.Core.Persistence;
+using UmbracoPrism.Core.Services;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Engine.Abstractions;
 
@@ -58,6 +61,8 @@ public class WayfinderServicePageSeeder(
     IWebHostEnvironment env,
     IOptions<PrismConfiguration> prismConfig,
     IRuntimeState runtimeState,
+    IUmbracoDatabaseFactory databaseFactory,
+    IPrismPageAccessResolver pageAccessResolver,
     ILogger<WayfinderServicePageSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
@@ -99,6 +104,15 @@ public class WayfinderServicePageSeeder(
             // the point (showing off graph/calculation-heavy UI working well on mobile), so no
             // worklist page for it here.
             EnsureStagePage(TestSiteSeedContract.MoneyModellerPageName, TestSiteSeedContract.MoneyModellerBlueprintSlug);
+
+            // Money Modeller requires sign-in (see the reference app's own product decision:
+            // the anonymous-preview fallback reads as broken rather than a deliberate demo on
+            // the mobile app). Expressed as data — a Prism page-access policy row against this
+            // page's own content key — rather than code, so it's discoverable/editable from the
+            // Settings → Advanced "Page access" backoffice screen like any other policy, not
+            // hardcoded to this one page's URL. Enforced generically by PrismPageAccessFilter
+            // (UmbracoPrism.Core) for every request, not by this seeder.
+            EnsureMoneyModellerRequiresSignIn();
         }
         catch (Exception ex)
         {
@@ -228,6 +242,34 @@ public class WayfinderServicePageSeeder(
         ]));
 
         PublishOrLog(page, name);
+    }
+
+    private void EnsureMoneyModellerRequiresSignIn()
+    {
+        var page = TestSiteSeedContract.FindWayfinderServicePageByName(contentService, TestSiteSeedContract.MoneyModellerPageName);
+        if (page is null)
+        {
+            logger.LogDebug("WAYFINDER SERVICE PAGE SEEDER: Money Modeller page not found; skipping its page-access policy");
+            return;
+        }
+
+        using var db = databaseFactory.CreateDatabase();
+        var existing = db.FirstOrDefault<PrismPageAccessPolicySchema>(
+            "SELECT * FROM prismPageAccessPolicies WHERE ContentKey = @0", page.Key);
+        if (existing is not null)
+        {
+            return;
+        }
+
+        db.Insert(new PrismPageAccessPolicySchema
+        {
+            ContentKey = page.Key,
+            RequiresSignIn = true,
+            TenantAllowListJson = null
+        });
+        pageAccessResolver.Invalidate("money-modeller-seed");
+
+        logger.LogInformation("WAYFINDER SERVICE PAGE SEEDER: Money Modeller page-access policy (requires sign-in) seeded");
     }
 
     private void EnsureWorklistPage(string name)

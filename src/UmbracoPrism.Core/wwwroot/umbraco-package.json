@@ -49,6 +49,53 @@
       "name": "Prism Create Tenant Modal",
       "elementName": "prism-create-tenant-modal",
       "js": "/App_Plugins/UmbracoPrism/dist/prism-dashboard.js"
+    },
+    {
+      "type": "workspace",
+      "kind": "default",
+      "alias": "Prism.Workspace.PageAccessRoot",
+      "name": "Prism Page Access Root Workspace",
+      "meta": {
+        "entityType": "prism-page-access-root",
+        "headline": "Page access"
+      }
+    },
+    {
+      "type": "workspaceView",
+      "alias": "Prism.WorkspaceView.PageAccessRoot",
+      "name": "Prism Page Access Root Workspace View",
+      "elementName": "prism-page-access-dashboard",
+      "js": "/App_Plugins/UmbracoPrism/dist/prism-dashboard.js",
+      "meta": {
+        "label": "Page access",
+        "pathname": "page-access",
+        "icon": "icon-lock"
+      },
+      "conditions": [
+        {
+          "alias": "Umb.Condition.WorkspaceAlias",
+          "match": "Prism.Workspace.PageAccessRoot"
+        }
+      ]
+    },
+    {
+      "type": "menuItem",
+      "alias": "Prism.MenuItem.PageAccessRoot",
+      "name": "Prism Page Access Menu Item",
+      "weight": 90,
+      "meta": {
+        "label": "Page access",
+        "icon": "icon-lock",
+        "entityType": "prism-page-access-root",
+        "menus": ["Umb.Menu.AdvancedSettings"]
+      }
+    },
+    {
+      "type": "modal",
+      "alias": "Prism.CreatePageAccessPolicyModal",
+      "name": "Prism Create Page Access Policy Modal",
+      "elementName": "prism-create-page-access-policy-modal",
+      "js": "/App_Plugins/UmbracoPrism/dist/prism-dashboard.js"
     }
   ]
 }

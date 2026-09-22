@@ -13,10 +13,12 @@ using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Mvc;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Notifications;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Persistence;
+using UmbracoPrism.Core.Filters;
 using Umbraco.Extensions;
 
 namespace UmbracoPrism.Core;
@@ -30,6 +32,7 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<ISecretVaultService, SecretVaultService>();
         builder.Services.AddSingleton<ITenantTokenResolver, TenantTokenResolver>();
         builder.Services.AddSingleton<ITenantService, TenantService>();
+        builder.Services.AddSingleton<IPrismPageAccessResolver, PrismPageAccessResolver>();
         builder.Services.AddSingleton<IBrandingService, BrandingService>();
         builder.Services.AddSingleton<IMobileBundleService, MobileBundleService>();
         builder.Services.AddSingleton<IPrismBrandingMetadataService, PrismBrandingMetadataService>();
@@ -242,6 +245,15 @@ public class PrismComposer : IComposer
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismStarterContentSeeder>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismConfiguredTenantSeeder>();
         builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>();
+        builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismPageAccessRouteRefreshHandler>();
         builder.Services.ConfigureOptions<PrismManagementApiConfiguration>();
+
+        // Global resource filter enforcing IPrismPageAccessResolver on every content-routed
+        // request — see PrismPageAccessFilter's own remarks on why an MVC filter (not a raw
+        // app.Use(...) middleware) is the pipeline-position-safe way to do this.
+        builder.Services.Configure<MvcOptions>(options =>
+        {
+            options.Filters.Add<PrismPageAccessFilter>();
+        });
     }
 }
