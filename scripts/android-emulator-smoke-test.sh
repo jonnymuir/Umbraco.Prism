@@ -34,8 +34,11 @@ for attempt in $(seq 1 15); do
   adb exec-out screencap -p > build/emulator-smoke-test.png
   # Crop away the top ~8% (Android status bar, generally shorter than iOS's notch/Dynamic
   # Island area) so its own icon/text contrast can't mask a blank body.
-  magick build/emulator-smoke-test.png -gravity South -crop 100%x92%+0+0 +repage build/emulator-smoke-test-content.png
-  SPREAD=$(magick identify -format "%[fx:standard_deviation]" build/emulator-smoke-test-content.png)
+  # `convert`/`identify`, not the unified `magick` binary — Ubuntu 24.04's `apt-get install
+  # imagemagick` gives ImageMagick 6, which never shipped `magick` (that's IM7-only); found
+  # live once the smoke test script finally ran far enough to reach this line at all.
+  convert build/emulator-smoke-test.png -gravity South -crop 100%x92%+0+0 +repage build/emulator-smoke-test-content.png
+  SPREAD=$(identify -format "%[fx:standard_deviation]" build/emulator-smoke-test-content.png)
   echo "Attempt $attempt/15 — content-area colour standard deviation: $SPREAD (consecutive passes: $CONSECUTIVE_PASSES)"
   if (( $(echo "$SPREAD >= 0.03" | bc -l) )); then
     CONSECUTIVE_PASSES=$((CONSECUTIVE_PASSES + 1))
