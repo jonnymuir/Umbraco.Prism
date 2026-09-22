@@ -14,7 +14,7 @@
 # entirely and lets it use full bash syntax freely.
 set -euo pipefail
 
-APK_PATH=$(find mobile-app/android -maxdepth 5 -iname "app-debug.apk" | head -n 1)
+APK_PATH=$(find mobile-app/android -maxdepth 8 -iname "app-debug.apk" | head -n 1)
 if [ -z "$APK_PATH" ]; then
   echo "::error::Could not find built app-debug.apk under mobile-app/android."
   exit 1
