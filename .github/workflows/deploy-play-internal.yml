@@ -155,7 +155,12 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            set -euo pipefail
+            # ReactiveCircus/android-emulator-runner runs this script via plain POSIX `sh`
+            # (dash on Ubuntu runners), not bash — `set -o pipefail` and `(( ))` arithmetic
+            # tests below are bash-only and fail outright under dash ("Illegal option -o
+            # pipefail"), found live on this pipeline's first real dispatch run. `set -eu`
+            # only, and a `[ ... ]` string comparison in place of `(( ))`.
+            set -eu
 
             APK_PATH=$(find mobile-app/android -maxdepth 5 -iname "app-debug.apk" | head -n 1)
             if [ -z "$APK_PATH" ]; then
@@ -184,7 +189,7 @@ jobs:
               magick build/emulator-smoke-test.png -gravity South -crop 100%x92%+0+0 +repage build/emulator-smoke-test-content.png
               SPREAD=$(magick identify -format "%[fx:standard_deviation]" build/emulator-smoke-test-content.png)
               echo "Attempt $attempt/15 — content-area colour standard deviation: $SPREAD (consecutive passes: $CONSECUTIVE_PASSES)"
-              if (( $(echo "$SPREAD >= 0.03" | bc -l) )); then
+              if [ "$(echo "$SPREAD >= 0.03" | bc -l)" = "1" ]; then
                 CONSECUTIVE_PASSES=$((CONSECUTIVE_PASSES + 1))
                 if [ "$CONSECUTIVE_PASSES" -ge 2 ]; then
                   PASSED=true
