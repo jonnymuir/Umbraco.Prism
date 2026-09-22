@@ -147,7 +147,7 @@ jobs:
       # own comment). Uses a debug, not release, APK — no signing needed for an emulator smoke
       # test, mirroring iOS's own Debug-configuration simulator build.
       - name: Emulator smoke test (build, install, launch, verify real content renders)
-        uses: ReactiveCircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 34
           target: google_apis
