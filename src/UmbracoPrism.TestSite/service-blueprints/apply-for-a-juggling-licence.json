@@ -255,7 +255,11 @@
           "params": {
             "supportSystemKey": "juggling-licence-decision",
             "capabilityKey": "decide-application",
-            "inputs": { "licenceType": "licenceType" }
+            "inputs": {
+              "licenceType": "licenceType",
+              "applicantName": "full-name",
+              "applicantEmail": "email-address"
+            }
           }
         }
       ],
