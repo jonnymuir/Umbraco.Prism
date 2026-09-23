@@ -49,7 +49,12 @@ public class JugglingLicenceCmsServiceBlueprintTests
                     {
                         Key = "decide-application",
                         DisplayName = "Decide a juggling licence application",
-                        Inputs = [new() { Key = "licenceType", Title = "Licence type", ValueKind = ComponentPropertyValueKind.String, Format = "field-ref", Required = true }],
+                        Inputs =
+                        [
+                            new() { Key = "licenceType", Title = "Licence type", ValueKind = ComponentPropertyValueKind.String, Format = "field-ref", Required = true },
+                            new() { Key = "applicantName", Title = "Applicant name", ValueKind = ComponentPropertyValueKind.String, Format = "field-ref" },
+                            new() { Key = "applicantEmail", Title = "Applicant email", ValueKind = ComponentPropertyValueKind.String, Format = "field-ref" },
+                        ],
                         Outputs = [new() { Key = "applicationDecisionNote", Title = "Decision note", ValueKind = ComponentPropertyValueKind.String }],
                         SupportedCompletionModes = [SupportSystemCompletionMode.Webhook],
                         Outcomes = [new() { Key = "approved", DisplayName = "Approved" }, new() { Key = "referred", DisplayName = "Referred" }],

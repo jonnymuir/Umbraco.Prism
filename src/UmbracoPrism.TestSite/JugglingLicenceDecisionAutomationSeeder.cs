@@ -238,7 +238,9 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
                 Name = "Approve competitive/professional licence?",
                 Settings = new()
                 {
-                    ["prompt"] = "A competitive/professional juggling licence application needs a decision. Licence type: ${trigger.body.inputs.licenceType}.",
+                    ["prompt"] = "${trigger.body.inputs.applicantName} (${trigger.body.inputs.applicantEmail}) is applying for a " +
+                        "${trigger.body.inputs.licenceType} juggling licence. This needs a human decision because only " +
+                        "Recreational licences fast-track automatically.",
                     ["timeoutHours"] = 72,
                 },
             },
