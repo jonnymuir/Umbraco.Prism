@@ -268,10 +268,10 @@ export function drawMower(ctx, x, y, width, age) {
   ctx.restore();
 }
 
-export function drawCat(ctx, x, y, dir, age) {
+export function drawCat(ctx, x, y, dir, age, stalking = false) {
   ctx.save();
   ctx.translate(x + 15, y);
-  const bob = Math.sin(age * 9) * 1.4;
+  const bob = stalking ? Math.sin(age * 15) * 0.5 : Math.sin(age * 9) * 1.4;
   ctx.translate(0, bob);
 
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -279,14 +279,22 @@ export function drawCat(ctx, x, y, dir, age) {
   ctx.ellipse(0, 16 - bob, 15, 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Tail
+  // Crouched stalking pose: flattened and slightly wider, tense and ready.
+  if (stalking) {
+    ctx.scale(1.16, 0.66);
+    ctx.translate(0, 7);
+  }
+
+  // Tail — a fast, tight flick when stalking instead of a lazy sway.
   ctx.strokeStyle = '#e0690b';
   ctx.lineWidth = 5;
   ctx.lineCap = 'round';
   ctx.beginPath();
   const tailBase = -dir * 13;
+  const tailFreq = stalking ? 16 : 6;
+  const tailAmp = stalking ? 2.5 : 4;
   ctx.moveTo(tailBase, 4);
-  ctx.quadraticCurveTo(tailBase - dir * 14, -8 + Math.sin(age * 6) * 4, tailBase - dir * 8, -18);
+  ctx.quadraticCurveTo(tailBase - dir * 14, -8 + Math.sin(age * tailFreq) * tailAmp, tailBase - dir * 8, -18);
   ctx.stroke();
 
   const body = ctx.createRadialGradient(-4, -4, 2, 0, 0, 16);
@@ -309,28 +317,46 @@ export function drawCat(ctx, x, y, dir, age) {
     ctx.stroke();
   }
 
-  // Ears
+  // Ears — pinned back and flattened when stalking, upright otherwise.
   ctx.fillStyle = '#d46200';
   for (const s of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(s * 10, -8);
-    ctx.lineTo(s * 4, -19);
-    ctx.lineTo(s * 1, -8);
+    if (stalking) {
+      ctx.moveTo(s * 9, -8);
+      ctx.lineTo(s * 16, -5);
+      ctx.lineTo(s * 10, -2);
+    } else {
+      ctx.moveTo(s * 10, -8);
+      ctx.lineTo(s * 4, -19);
+      ctx.lineTo(s * 1, -8);
+    }
     ctx.fill();
     ctx.fillStyle = '#ffb4a2';
     ctx.beginPath();
-    ctx.moveTo(s * 8, -9.5);
-    ctx.lineTo(s * 4.5, -16);
-    ctx.lineTo(s * 2, -9.5);
+    if (stalking) {
+      ctx.moveTo(s * 9.5, -7.5);
+      ctx.lineTo(s * 14, -5.5);
+      ctx.lineTo(s * 10.5, -3.5);
+    } else {
+      ctx.moveTo(s * 8, -9.5);
+      ctx.lineTo(s * 4.5, -16);
+      ctx.lineTo(s * 2, -9.5);
+    }
     ctx.fill();
     ctx.fillStyle = '#d46200';
   }
 
-  // Face
-  ctx.fillStyle = '#161a1d';
+  // Face — narrowed, glowing predatory eyes when stalking.
+  ctx.fillStyle = stalking ? '#ffd23f' : '#161a1d';
   ctx.beginPath();
-  ctx.arc(dir * 4, -1, 1.6, 0, Math.PI * 2);
+  ctx.ellipse(dir * 4, -1, stalking ? 2.6 : 1.6, stalking ? 1.4 : 1.6, 0, 0, Math.PI * 2);
   ctx.fill();
+  if (stalking) {
+    ctx.fillStyle = '#161a1d';
+    ctx.beginPath();
+    ctx.ellipse(dir * 4, -1, 0.9, 1.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.strokeStyle = 'rgba(20,20,20,0.55)';
   ctx.lineWidth = 1;
   for (const wy of [-1, 2]) {
