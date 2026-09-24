@@ -24,7 +24,7 @@
     <PackageReference Include="Wayfinder" Version="0.11.1" />
     <PackageReference Include="Wayfinder.Engine" Version="0.11.1" />
     <PackageReference Include="Wayfinder.Engine.Http" Version="0.3.0" />
-    <PackageReference Include="Wayfinder.Umbraco" Version="2.0.0" />
+    <PackageReference Include="Wayfinder.Umbraco" Version="2.0.1" />
     <!-- Umbraco Automate (MIT) — the juggling-licence demo's "processing-application" stage
          calls out to a real Automate automation via Wayfinder's config-only webhook support
          system (see appsettings.json's Wayfinder:SupportSystems and
