@@ -11,25 +11,14 @@
  * Row 0 is the start (bottom); row `rows - 1` is the goal row (top).
  */
 
-// Even spacing helper for obstacles that loop across a lane of width `w`,
-// wrapping at +/-`margin`. Fully deterministic: same inputs, same layout.
-function evenlySpaced(count, width, margin, phaseOffset = 0) {
-  const cycle = width + margin * 2;
-  const spacing = cycle / count;
-  const out = [];
-  for (let k = 0; k < count; k++) {
-    let x = k * spacing - margin + phaseOffset;
-    if (x > width + margin) x -= cycle;
-    out.push(x);
-  }
-  return out;
-}
+import { evenlySpaced } from './level-utils.js';
 
 const W = 392; // logical width = cols(7) * laneSize(56)
 
 export const LEVEL_1 = {
   id: 'level1',
   name: 'Garden Crossing',
+  nextLevelId: 'level2',
   cols: 7,
   rows: 11,
   laneSize: 56,
@@ -42,20 +31,24 @@ export const LEVEL_1 = {
     // 1 — buffer, first collectibles
     { type: 'SAFE', items: [{ col: 1, type: 'APPLE' }, { col: 5, type: 'APPLE' }] },
 
-    // 2 — road, mowers moving right
+    // 2 — road, mowers moving right. Phase chosen (via an exhaustive search,
+    // not a guess) so the player's fixed start column stays clear for the
+    // first ~2.5s — a fresh run always arrives here at ~t=0 with zero prior
+    // chance to react, so this is the one lane that needs a deliberately
+    // generous margin rather than relying on the general per-instant proof.
     {
       type: 'ROAD',
       dir: 1,
       speed: 78,
-      obstacles: evenlySpaced(2, W, 100).map((startX) => ({ kind: 'MOWER', width: 70, height: 34, startX })),
+      obstacles: evenlySpaced(2, W, 100, 14).map((startX) => ({ kind: 'MOWER', width: 70, height: 34, startX })),
     },
 
-    // 3 — road, cats moving left
+    // 3 — road, cats moving left. Same reasoning as row 2 above.
     {
       type: 'ROAD',
       dir: -1,
       speed: 66,
-      obstacles: evenlySpaced(2, W, 100, 148).map((startX) => ({ kind: 'CAT', width: 46, height: 30, startX })),
+      obstacles: evenlySpaced(2, W, 100, 212).map((startX) => ({ kind: 'CAT', width: 46, height: 30, startX })),
     },
 
     // 4 — safe median
