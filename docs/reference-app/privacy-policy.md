@@ -37,6 +37,11 @@ Accounts and content in the demo environment can be reset at any time without no
 normal for a test/reference deployment. Nothing in this app should be treated as a permanent
 record.
 
+## Deleting your data
+
+See [Delete Your Account](delete-account.md) for how to request removal of any data this app
+holds.
+
 ## Contact
 
 Questions about this policy or the data this reference app handles can be raised as an issue on
