@@ -46,6 +46,13 @@ Push notification architecture: device registration, subscription management, co
 
 ---
 
+## Reference App
+
+### [Prism Reference App](reference-app/README.md)
+What the internal-testing mobile build actually is, plus its [Privacy Policy](reference-app/privacy-policy.md) (used as the store-listing privacy policy URL for TestFlight/Play internal testing).
+
+---
+
 ## Design Documents
 
 Contributor-focused internal references.
