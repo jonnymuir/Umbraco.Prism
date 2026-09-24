@@ -4,17 +4,34 @@ const HUD_HEIGHT = 72;
 const HOP_RATE = 7.2; // jumpProgress units/sec -> ~0.14s hop
 const LANDING_THRESHOLD = 0.5; // hazard checks only apply once this far into the hop
 const INTERP_RATE = 20;
+const CAMERA_RATE = 6;
 const ROLL_DURATION = 0.32;
 const ROLL_COOLDOWN = 0.9;
 const ROLL_LANES = 2;
 const OBSTACLE_MARGIN = 100;
-const HIGH_SCORE_KEY = 'hh_highscore';
+const PROGRESS_KEY = 'hh_progress';
 
 function wrapX(startX, dir, speed, t, width, margin) {
   const cycle = width + margin * 2;
   let x = startX + dir * speed * t;
   x = ((x + margin) % cycle + cycle) % cycle - margin;
   return x;
+}
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function loadProgress() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROGRESS_KEY) || 'null');
+    return {
+      unlocked: Array.isArray(parsed?.unlocked) ? parsed.unlocked : [],
+      lastPlayed: typeof parsed?.lastPlayed === 'string' ? parsed.lastPlayed : null,
+    };
+  } catch {
+    return { unlocked: [], lastPlayed: null };
+  }
 }
 
 class Particle {
@@ -79,31 +96,27 @@ class FloatingText {
 }
 
 export class HedgehoggerGame {
-  constructor(canvas, level) {
+  constructor(canvas, levels) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.level = level;
+    this.levels = levels;
+    this.levelsById = new Map(levels.map((l) => [l.id, l]));
 
-    this.gridWidth = level.cols * level.laneSize;
-    this.gridHeight = level.rows * level.laneSize;
-    this.logicalWidth = this.gridWidth;
-    this.logicalHeight = this.gridHeight + HUD_HEIGHT;
-    this.colWidth = level.laneSize;
-    this.laneSize = level.laneSize;
-
-    this.highScore = parseInt(localStorage.getItem(HIGH_SCORE_KEY) || '0', 10);
-    this.bestTimeMs = parseInt(localStorage.getItem(`hh_${level.id}_besttime`) || '0', 10) || null;
+    this.progress = loadProgress();
+    if (!this.progress.unlocked.includes(levels[0].id)) this.progress.unlocked.unshift(levels[0].id);
+    const startId = this.progress.lastPlayed && this.levelsById.has(this.progress.lastPlayed)
+      ? this.progress.lastPlayed
+      : levels[0].id;
 
     this.decorAge = 0;
     this.blinkTimer = 2 + Math.random() * 2;
     this.blink = false;
 
     this.resize = this.resize.bind(this);
-    this.resize();
     window.addEventListener('resize', this.resize);
 
     this.initInput();
-    this.resetRun();
+    this.setLevel(this.levelsById.get(startId));
 
     this.lastTime = performance.now();
     requestAnimationFrame((ts) => this.loop(ts));
@@ -111,6 +124,30 @@ export class HedgehoggerGame {
     // Test/debug hook — harmless in production, lets automated checks drive
     // the game deterministically without simulating raw pointer gestures.
     window.__hedgehogger = this;
+  }
+
+  // --- Level lifecycle ---------------------------------------------------
+
+  setLevel(level) {
+    this.level = level;
+    this.gridWidth = level.cols * level.laneSize;
+    this.gridHeight = level.rows * level.laneSize;
+    this.laneSize = level.laneSize;
+    this.colWidth = level.laneSize;
+    this.viewportRows = level.viewportRows || level.rows;
+    this.viewportHeight = this.viewportRows * level.laneSize;
+    this.logicalWidth = this.gridWidth;
+    this.logicalHeight = HUD_HEIGHT + this.viewportHeight;
+    this.cameraY = 0;
+
+    this.bestScore = parseInt(localStorage.getItem(`hh_${level.id}_bestscore`) || '0', 10);
+    this.bestTimeMs = parseInt(localStorage.getItem(`hh_${level.id}_besttime`) || '0', 10) || null;
+
+    this.progress.lastPlayed = level.id;
+    localStorage.setItem(PROGRESS_KEY, JSON.stringify(this.progress));
+
+    this.resize();
+    this.resetRun();
   }
 
   resize() {
@@ -126,8 +163,6 @@ export class HedgehoggerGame {
     this.canvas.style.height = `${Math.floor(this.logicalHeight * scale)}px`;
   }
 
-  // --- Setup ---------------------------------------------------------
-
   resetRun() {
     this.state = 'START';
     this.score = 0;
@@ -141,6 +176,14 @@ export class HedgehoggerGame {
     this.playAge = 0;
     this.winTimeMs = 0;
     this.goalClaimed = false;
+    this.cameraY = 0;
+
+    // Collectibles live on the level's own data object, so a fresh run must
+    // explicitly reset them — otherwise "collected" persists forever once a
+    // treat is eaten, even across restarts.
+    for (const lane of this.level.lanes) {
+      if (lane.items) for (const item of lane.items) item.collected = false;
+    }
 
     this.player = {
       gridX: this.level.startCol,
@@ -163,7 +206,7 @@ export class HedgehoggerGame {
 
   updatePlayerWorldTarget(snap = false) {
     this.player.x = (this.player.gridX + 0.5) * this.colWidth;
-    this.player.y = HUD_HEIGHT + this.gridHeight - (this.player.laneIndex + 0.5) * this.laneSize;
+    this.player.y = this.gridHeight - (this.player.laneIndex + 0.5) * this.laneSize;
     if (snap) {
       this.player.visualX = this.player.x;
       this.player.visualY = this.player.y;
@@ -184,6 +227,11 @@ export class HedgehoggerGame {
     let lastTap = 0;
 
     const onPrimary = () => {
+      if (this.state === 'LEVEL_COMPLETE' && this.level.nextLevelId && this.levelsById.has(this.level.nextLevelId)) {
+        this.setLevel(this.levelsById.get(this.level.nextLevelId));
+        this.beginPlaying();
+        return;
+      }
       if (this.state === 'START' || this.state === 'GAMEOVER' || this.state === 'LEVEL_COMPLETE') {
         this.resetRun();
         this.beginPlaying();
@@ -270,10 +318,7 @@ export class HedgehoggerGame {
       this.furthestLane = p.laneIndex;
       this.score += diff * 10;
       this.floatingTexts.push(new FloatingText(p.visualX, p.visualY - 24, `+${diff * 10}`, '#ffb703'));
-      if (this.score > this.highScore) {
-        this.highScore = this.score;
-        localStorage.setItem(HIGH_SCORE_KEY, String(this.highScore));
-      }
+      this.maybeSaveBestScore();
     }
   }
 
@@ -308,6 +353,13 @@ export class HedgehoggerGame {
     }
   }
 
+  maybeSaveBestScore() {
+    if (this.score > this.bestScore) {
+      this.bestScore = this.score;
+      localStorage.setItem(`hh_${this.level.id}_bestscore`, String(this.bestScore));
+    }
+  }
+
   triggerDeath(type, reason) {
     this.state = 'DEATH_ANIM';
     this.deathCause = reason;
@@ -332,13 +384,14 @@ export class HedgehoggerGame {
     this.goalClaimed = true;
     this.winTimeMs = performance.now() - this.levelStartTime;
     this.score += 200;
-    if (this.score > this.highScore) {
-      this.highScore = this.score;
-      localStorage.setItem(HIGH_SCORE_KEY, String(this.highScore));
-    }
+    this.maybeSaveBestScore();
     if (!this.bestTimeMs || this.winTimeMs < this.bestTimeMs) {
       this.bestTimeMs = this.winTimeMs;
       localStorage.setItem(`hh_${this.level.id}_besttime`, String(Math.round(this.bestTimeMs)));
+    }
+    if (this.level.nextLevelId && !this.progress.unlocked.includes(this.level.nextLevelId)) {
+      this.progress.unlocked.push(this.level.nextLevelId);
+      localStorage.setItem(PROGRESS_KEY, JSON.stringify(this.progress));
     }
     this.spawnConfetti(this.player.visualX, this.player.visualY, 24);
     if (window.Capacitor?.Plugins?.Haptics) window.Capacitor.Plugins.Haptics.notification({ type: 'SUCCESS' });
@@ -399,9 +452,17 @@ export class HedgehoggerGame {
     }
     if (p.rollCooldown > 0) p.rollCooldown -= dt;
 
+    // Camera follows the player's logical (pre-interpolation) target, giving
+    // a slight forward anticipation, and is clamped to the level's bounds —
+    // for a level that fits entirely in the viewport this always resolves
+    // to 0, so short levels render exactly as if there were no camera at all.
+    const maxCameraY = Math.max(0, this.gridHeight - this.viewportHeight);
+    const targetCameraY = clamp(p.y - this.viewportHeight * 0.62, 0, maxCameraY);
+    this.cameraY += (targetCameraY - this.cameraY) * (1 - Math.exp(-CAMERA_RATE * dt));
+
     const landed = p.jumpProgress >= LANDING_THRESHOLD;
     const lane = this.level.lanes[p.laneIndex];
-    const laneCenterY = HUD_HEIGHT + this.gridHeight - (p.laneIndex + 0.5) * this.laneSize;
+    const laneCenterY = this.gridHeight - (p.laneIndex + 0.5) * this.laneSize;
 
     if (lane.type === 'RIVER') {
       let onLog = false;
@@ -468,6 +529,7 @@ export class HedgehoggerGame {
             this.floatingTexts.push(new FloatingText(itemX, p.visualY - 20, '+30', '#5fd4c0'));
             this.spawnDust(itemX, p.visualY, 8);
           }
+          this.maybeSaveBestScore();
         }
       }
     }
@@ -480,26 +542,39 @@ export class HedgehoggerGame {
     ctx.fillStyle = '#111b13';
     ctx.fillRect(0, 0, this.logicalWidth, this.logicalHeight);
 
+    ctx.save();
+    ctx.translate(0, HUD_HEIGHT - this.cameraY);
     this.renderLanes();
     this.particles.forEach((pt) => pt.draw(ctx));
     this.renderPlayer();
     this.floatingTexts.forEach((f) => f.draw(ctx));
+    ctx.restore();
+
     this.renderHUD();
 
-    if (this.state === 'START') this.renderBanner('HEDGEHOGGER', 'Level 1 · Garden Crossing', 'Hop apples & beetles for points. Reach a burrow to win!', 'TAP TO PLAY');
-    else if (this.state === 'GAMEOVER') this.renderBanner('OH NO!', this.deathCause || 'Try again!', `Best score: ${this.highScore}`, 'TAP TO RETRY');
-    else if (this.state === 'LEVEL_COMPLETE') {
+    const levelNum = this.levels.indexOf(this.level) + 1;
+    if (this.state === 'START') {
+      this.renderBanner('HEDGEHOGGER', `Level ${levelNum} · ${this.level.name}`, this.level.introText || 'Hop apples & beetles for points. Reach a burrow to win!', 'TAP TO PLAY');
+    } else if (this.state === 'GAMEOVER') {
+      this.renderBanner('OH NO!', this.deathCause || 'Try again!', `Best score: ${this.bestScore}`, 'TAP TO RETRY');
+    } else if (this.state === 'LEVEL_COMPLETE') {
       const secs = (this.winTimeMs / 1000).toFixed(1);
       const bestSecs = this.bestTimeMs ? (this.bestTimeMs / 1000).toFixed(1) : secs;
-      this.renderBanner('LEVEL COMPLETE!', `Time: ${secs}s  ·  Best: ${bestSecs}s`, `Score: ${this.score}`, 'PLAY AGAIN');
+      const action = this.level.nextLevelId ? 'NEXT LEVEL' : 'PLAY AGAIN';
+      this.renderBanner('LEVEL COMPLETE!', `Time: ${secs}s  ·  Best: ${bestSecs}s`, `Score: ${this.score}`, action);
     }
   }
 
   renderLanes() {
     const ctx = this.ctx;
+    const viewTop = this.cameraY - this.laneSize;
+    const viewBottom = this.cameraY + this.viewportHeight + this.laneSize;
+
     for (let i = 0; i < this.level.rows; i++) {
+      const y = this.gridHeight - (i + 1) * this.laneSize;
+      if (y + this.laneSize < viewTop || y > viewBottom) continue;
+
       const lane = this.level.lanes[i];
-      const y = HUD_HEIGHT + this.gridHeight - (i + 1) * this.laneSize;
       const h = this.laneSize;
 
       if (lane.type === 'SAFE') S.drawGrassLane(ctx, 0, y, this.logicalWidth, h, i, this.decorAge);
@@ -574,6 +649,7 @@ export class HedgehoggerGame {
 
   renderHUD() {
     const ctx = this.ctx;
+    const levelNum = this.levels.indexOf(this.level) + 1;
     ctx.save();
     ctx.fillStyle = 'rgba(13, 19, 14, 0.92)';
     ctx.fillRect(0, 0, this.logicalWidth, HUD_HEIGHT);
@@ -587,7 +663,7 @@ export class HedgehoggerGame {
     ctx.textAlign = 'left';
     ctx.fillStyle = '#f1faee';
     ctx.font = '900 15px sans-serif';
-    ctx.fillText(`LEVEL 1 · GARDEN CROSSING`, 14, 22);
+    ctx.fillText(`LEVEL ${levelNum} · ${this.level.name.toUpperCase()}`, 14, 22);
 
     ctx.font = '900 14px sans-serif';
     ctx.fillStyle = '#ffb703';
@@ -607,7 +683,7 @@ export class HedgehoggerGame {
       ctx.fillText(`${secs}s`, this.logicalWidth - 14, 34);
       ctx.font = '700 11px sans-serif';
       ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.fillText(`BEST ${this.highScore}`, this.logicalWidth - 14, 54);
+      ctx.fillText(`BEST ${this.bestScore}`, this.logicalWidth - 14, 54);
     }
     ctx.restore();
   }
