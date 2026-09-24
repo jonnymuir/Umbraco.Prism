@@ -96,27 +96,34 @@ class FloatingText {
 }
 
 export class HedgehoggerGame {
-  constructor(canvas, levels) {
+  constructor(canvas, levels, options = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.levels = levels;
     this.levelsById = new Map(levels.map((l) => [l.id, l]));
+    this.onExit = options.onExit || null;
 
     this.progress = loadProgress();
-    if (!this.progress.unlocked.includes(levels[0].id)) this.progress.unlocked.unshift(levels[0].id);
-    const startId = this.progress.lastPlayed && this.levelsById.has(this.progress.lastPlayed)
-      ? this.progress.lastPlayed
-      : levels[0].id;
+    if (!this.progress.unlocked.includes(levels[0].id)) {
+      this.progress.unlocked.unshift(levels[0].id);
+      // Persisted immediately, not just held in memory until setLevel() runs
+      // — the hub reads localStorage directly and needs Level 1 to already
+      // show as unlocked before any level has ever been played.
+      localStorage.setItem(PROGRESS_KEY, JSON.stringify(this.progress));
+    }
 
     this.decorAge = 0;
     this.blinkTimer = 2 + Math.random() * 2;
     this.blink = false;
 
+    // Inactive until a level is actually selected (from the hub) — this
+    // lets a HedgehoggerGame instance and a LevelHub instance coexist on
+    // the same canvas, each ignoring input/render while the other owns the
+    // screen. See setLevel()/deactivate() and hub.js.
+    this.active = false;
     this.resize = this.resize.bind(this);
-    window.addEventListener('resize', this.resize);
 
     this.initInput();
-    this.setLevel(this.levelsById.get(startId));
 
     this.lastTime = performance.now();
     requestAnimationFrame((ts) => this.loop(ts));
@@ -128,7 +135,20 @@ export class HedgehoggerGame {
 
   // --- Level lifecycle ---------------------------------------------------
 
+  // Loads a level and immediately starts playing it (skips the START
+  // banner) — used when the player taps a tile in the hub, where tapping
+  // the tile already IS the "play" action.
+  startLevel(levelId) {
+    this.setLevel(this.levelsById.get(levelId));
+    this.beginPlaying();
+  }
+
+  deactivate() {
+    this.active = false;
+  }
+
   setLevel(level) {
+    this.active = true;
     this.level = level;
     this.gridWidth = level.cols * level.laneSize;
     this.gridHeight = level.rows * level.laneSize;
@@ -202,6 +222,8 @@ export class HedgehoggerGame {
       deathType: null,
     };
     this.updatePlayerWorldTarget(true);
+
+    this.chaser = this.level.chaser ? { row: 0, col: this.level.startCol, idleTime: 0 } : null;
   }
 
   updatePlayerWorldTarget(snap = false) {
@@ -226,13 +248,14 @@ export class HedgehoggerGame {
     let startY = 0;
     let lastTap = 0;
 
+    // LEVEL_COMPLETE always returns to the hub — the hub is where the
+    // player chooses what's next (replay for a better score, or move on),
+    // rather than the engine deciding for them. GAMEOVER still retries the
+    // same level directly, since "I died, let me try again" doesn't need a
+    // hub round-trip.
     const onPrimary = () => {
-      if (this.state === 'LEVEL_COMPLETE' && this.level.nextLevelId && this.levelsById.has(this.level.nextLevelId)) {
-        this.setLevel(this.levelsById.get(this.level.nextLevelId));
-        this.beginPlaying();
-        return;
-      }
-      if (this.state === 'START' || this.state === 'GAMEOVER' || this.state === 'LEVEL_COMPLETE') {
+      if (this.state === 'LEVEL_COMPLETE') { this.onExit?.(); return; }
+      if (this.state === 'START' || this.state === 'GAMEOVER') {
         this.resetRun();
         this.beginPlaying();
       }
@@ -240,7 +263,10 @@ export class HedgehoggerGame {
 
     // Pointer Events unify mouse, touch and pen — this makes the game
     // playable with a mouse (desktop/Storybook/QA), not just touchscreens.
+    // Every handler ignores input while inactive, so a HedgehoggerGame
+    // instance can sit dormant behind the hub on the same canvas.
     this.canvas.addEventListener('pointerdown', (e) => {
+      if (!this.active) return;
       e.preventDefault();
       this.canvas.setPointerCapture(e.pointerId);
       startX = e.clientX;
@@ -251,6 +277,7 @@ export class HedgehoggerGame {
     });
 
     this.canvas.addEventListener('pointerup', (e) => {
+      if (!this.active) return;
       e.preventDefault();
       if (this.state !== 'PLAYING') {
         onPrimary();
@@ -269,6 +296,7 @@ export class HedgehoggerGame {
     });
 
     window.addEventListener('keydown', (e) => {
+      if (!this.active) return;
       if (this.state !== 'PLAYING') {
         if (e.code === 'Space' || e.code === 'Enter') onPrimary();
         return;
@@ -310,6 +338,7 @@ export class HedgehoggerGame {
     p.laneIndex = targetLane;
     p.jumpProgress = 0;
     this.updatePlayerWorldTarget();
+    if (this.chaser) this.chaser.idleTime = 0;
 
     this.spawnDust(p.visualX, p.visualY + p.radius * 0.6, 4);
 
@@ -376,6 +405,9 @@ export class HedgehoggerGame {
     } else if (type === 'SOAKED') {
       this.floatingTexts.push(new FloatingText(this.player.visualX, this.player.visualY - 30, 'SOAKED!', '#48cae4'));
       this.spawnSplash(this.player.visualX, this.player.visualY, 10);
+    } else if (type === 'POUNCED') {
+      this.floatingTexts.push(new FloatingText(this.player.visualX, this.player.visualY - 30, 'POUNCED!', '#f77f00'));
+      this.spawnDust(this.player.visualX, this.player.visualY, 12);
     }
   }
 
@@ -533,6 +565,36 @@ export class HedgehoggerGame {
         }
       }
     }
+
+    // The prowling cat — a chaser whose row can only ever be at or below the
+    // player's own row (clamped), so it always approaches from a known,
+    // visible direction, never as a surprise from ahead.
+    //
+    // It only climbs once the player has gone `idleGrace` seconds WITHOUT
+    // MOVING AT ALL — any move (forward, lateral, even backward) resets that
+    // clock — rather than climbing on absolute elapsed time since the level
+    // started. This is deliberate, not just an implementation detail: an
+    // absolute-time model can't distinguish "the player has been idle for a
+    // while" from "the player is playing normally but the level is long," so
+    // it's either too lenient for genuine camping or (as originally built,
+    // and caught in testing) an instant, unavoidable catch for anyone who
+    // takes more than a moment to make their very first move — no real human
+    // reacts within a single frame of the level starting. Idle time is the
+    // only signal that actually means "hasn't moved in a while," and it
+    // naturally gives a fresh grace period after every legitimate pause
+    // (e.g. sidestepping while timing a sprinkler), not just once at t=0.
+    if (this.chaser) {
+      const cfg = this.level.chaser;
+      const ch = this.chaser;
+      ch.idleTime += dt;
+      const chaserActive = ch.idleTime > cfg.idleGrace;
+      if (chaserActive) ch.row = Math.min(p.laneIndex, ch.row + cfg.climbRate * dt);
+      ch.col += (p.gridX - ch.col) * (1 - Math.exp(-cfg.turnSpeed * dt));
+
+      if (chaserActive && landed && !p.isRolling && p.laneIndex - ch.row <= cfg.catchRange && Math.abs(p.gridX - ch.col) < 0.6) {
+        this.triggerDeath('POUNCED', 'Caught by the prowling cat! Rolling into a ball shakes off a pounce.');
+      }
+    }
   }
 
   // --- Render --------------------------------------------------------
@@ -545,6 +607,7 @@ export class HedgehoggerGame {
     ctx.save();
     ctx.translate(0, HUD_HEIGHT - this.cameraY);
     this.renderLanes();
+    if (this.chaser) this.renderChaser();
     this.particles.forEach((pt) => pt.draw(ctx));
     this.renderPlayer();
     this.floatingTexts.forEach((f) => f.draw(ctx));
@@ -560,8 +623,7 @@ export class HedgehoggerGame {
     } else if (this.state === 'LEVEL_COMPLETE') {
       const secs = (this.winTimeMs / 1000).toFixed(1);
       const bestSecs = this.bestTimeMs ? (this.bestTimeMs / 1000).toFixed(1) : secs;
-      const action = this.level.nextLevelId ? 'NEXT LEVEL' : 'PLAY AGAIN';
-      this.renderBanner('LEVEL COMPLETE!', `Time: ${secs}s  ·  Best: ${bestSecs}s`, `Score: ${this.score}`, action);
+      this.renderBanner('LEVEL COMPLETE!', `Time: ${secs}s  ·  Best: ${bestSecs}s`, `Score: ${this.score}`, 'BACK TO MAP');
     }
   }
 
@@ -614,6 +676,15 @@ export class HedgehoggerGame {
     }
   }
 
+  renderChaser() {
+    const ch = this.chaser;
+    const cfg = this.level.chaser;
+    const worldY = this.gridHeight - (ch.row + 0.5) * this.laneSize;
+    const worldX = (ch.col + 0.5) * this.colWidth;
+    const stalking = ch.idleTime > cfg.idleGrace && this.player.laneIndex - ch.row <= cfg.prowlRange;
+    S.drawCat(this.ctx, worldX - 15, worldY, 1, this.decorAge, stalking);
+  }
+
   renderPlayer() {
     const ctx = this.ctx;
     const p = this.player;
@@ -632,7 +703,7 @@ export class HedgehoggerGame {
 
     if (this.state === 'DEATH_ANIM') {
       if (p.deathType === 'DROWN') ctx.scale(Math.max(0, this.deathTimer / 0.85), Math.max(0, this.deathTimer / 0.85));
-      else if (p.deathType === 'SQUISH') ctx.scale(1.5, 0.25);
+      else if (p.deathType === 'SQUISH' || p.deathType === 'POUNCED') ctx.scale(1.5, 0.25);
     } else if (this.state === 'LEVEL_COMPLETE') {
       const bounce = 1 + Math.sin(this.decorAge * 10) * 0.06;
       ctx.scale(bounce, bounce);
@@ -738,8 +809,10 @@ export class HedgehoggerGame {
   loop(timestamp) {
     const dt = Math.min((timestamp - this.lastTime) / 1000, 0.1);
     this.lastTime = timestamp;
-    this.update(dt);
-    this.render();
+    if (this.active) {
+      this.update(dt);
+      this.render();
+    }
     requestAnimationFrame((ts) => this.loop(ts));
   }
 }

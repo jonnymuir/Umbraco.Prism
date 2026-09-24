@@ -55,3 +55,27 @@ canvas {
 .back-to-app:focus-visible {
   color: rgba(255, 255, 255, 0.9);
 }
+
+/* Map link — returns to the level-select hub from mid-level. Bottom-left,
+   deliberately clear of the in-canvas HUD strip (top) and the back-to-app
+   link (top-right). Shown/hidden by main.js depending on whether a level
+   is currently active. */
+.back-to-map {
+  position: fixed;
+  bottom: env(safe-area-inset-bottom, 0px);
+  left: 0;
+  z-index: 10;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+  text-decoration: none;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 0 8px 0 0;
+}
+.back-to-map:hover,
+.back-to-map:focus-visible {
+  color: rgba(255, 255, 255, 0.9);
+}
+.back-to-map[hidden] {
+  display: none;
+}
