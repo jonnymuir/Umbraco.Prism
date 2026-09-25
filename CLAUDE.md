@@ -242,3 +242,15 @@ When a commit introduces a breaking change, add a `BREAKING CHANGE: <description
 | Vinyl Vault broadcast admin (`vinyl-admin` realm role) | `vinyl-admin@prism.local` | `password` |
 | Umbraco backoffice | `admin@prism.local` | `PrismLocal!12345` |
 | Keycloak admin | `admin` | `admin` |
+
+---
+
+## Easter eggs
+
+`homePage.cshtml` links to `/games/hedgehogger/index.html`, a small deliberately-undersold 🦔 link
+(no card, no icon — see that view's own comment). The game itself (a deterministic puzzle game,
+not a Prism feature) has been extracted to its own repo,
+[`jonnymuir/Hedgehogger`](https://github.com/jonnymuir/Hedgehogger) — this repo has zero
+dependency on it, carries no copy of its code, and that repo's own deploy pipeline keeps
+`/games/hedgehogger/` populated on prismreference.com's VPS independently of this repo's own
+`deploy-prism-reference.yml`. The link itself never needs to change when the game does.
