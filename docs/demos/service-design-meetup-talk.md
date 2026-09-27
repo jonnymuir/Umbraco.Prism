@@ -404,34 +404,25 @@ Straight into whatever the "where next" / takeaways section lands on.
 
 What exists versus what's still needed:
 
-| Demo | Existing footage | Status |
+| Demo | Recording tool | Status |
 |---|---|---|
-| 3 (MCP, in-talk: add a stage) | None | New, small demo, nothing recorded yet. |
-| 1+2 (Automate) | None | Missing, no `tests/demo/*.spec.ts` for the coaching-register/Automate sequence. `docs/automate-support-system-walkthrough.md`'s "Run the journey" section is a ready-made storyboard to record against. |
-| 4 (Prism) | None | Net new. Record tenant-create + rebrand as one take; record the mobile clip separately since it's the video-only beat anyway. |
-| 1 (code reveal beats) | N/A, VS Code screen only | Lowest priority; worst case, talk through the file live from a static screenshot. |
-| Appendix (from-scratch build) | `Wayfinder.Umbraco/tests/demo/demo-footage/wayfinder-umbraco-mcp-authoring-demo.mp4` (+ `.webm`, `.compressed.mp4`) | Exists, current architecture, dated 31 Aug 2026. Not needed for this talk's timing, keep for whenever the full version gets shown as its own session. `npm run demo:record` from `tests/demo/` re-runs it if it ever needs refreshing. |
+| 1+2 (Automate) | `Wayfinder.Umbraco/tests/demo/coaching-register-automate-demo.spec.ts` (`npm run demo:record:automate`) | Exists, current architecture. Needs the full Aspire stack (Mailpit included). |
+| 3 (MCP, in-talk: add a stage) | `Wayfinder.Umbraco/tests/demo/coaching-register-add-stage-demo.spec.ts` (`npm run demo:record:add-stage`) | Exists, current architecture. A real agent call, so re-record periodically as the reference app changes. |
+| 4 (Prism) | `UmbracoPrism.Client/tests/demo/prism-tenancy-branding-demo.spec.ts` (`npm run demo:record:tenancy-branding`) | Exists, current architecture. Its own cleanup pass reverts the seeded tenant's branding and removes the tenant it creates, so rerunning it never leaves shared demo state altered. |
+| 1 (code reveal beats) | N/A, VS Code screen only | No recording possible; worst case, talk through the file live from a static screenshot. |
+| Appendix (from-scratch build) | `Wayfinder.Umbraco/tests/demo/demo-footage/wayfinder-umbraco-mcp-authoring-demo.mp4` (+ `.webm`, `.compressed.mp4`) | Exists, current architecture. Not needed for this talk's timing, kept for whenever the full version gets shown as its own session. `npm run demo:record` from `tests/demo/` re-runs it. |
 
 **Do not use as backups:** `UmbracoPrism.Client/demo-footage/licence-transfer-demo.*`,
-`garden-waste-permit-demo*.*`, `juggle*.*` (all dated before 29 Jul 2026). These demo Prism's own
-now-removed "CMS Service Blueprint" backoffice feature, the architecture they show no longer
-exists (`TestSite` now installs `Wayfinder.Umbraco` directly instead). They'd actively mislead if
-played as a "this is how it works" backup. Worth deleting or clearly archiving so nobody grabs one
-by mistake mid-panic before a talk.
+`garden-waste-permit-demo*.*`, `juggle*.*`. These demo Prism's own now-removed "CMS Service
+Blueprint" backoffice feature, the architecture they show no longer exists (`TestSite` now
+installs `Wayfinder.Umbraco` directly instead). They'd actively mislead if played as a "this is
+how it works" backup. Worth deleting or clearly archiving so nobody grabs one by mistake mid-panic
+before a talk.
 
-Priority order for what's left to actually record:
-
-1. **Demo 1+2 (Automate)** and **Demo 3 (add a stage)**, equal top priority, both genuinely
-   missing and both what's actually shown live in this talk.
-2. **Demo 4 (Prism)**, net new, lowest existing-tooling coverage.
-3. **Demo 1 code-reveal beats**, skip if short on time.
-
-The Appendix demo already has a usable recording, no action needed there unless it gets shown as
-its own session.
-
-Use the `narrated-single-take-demo-recording` approach for each: one continuous take, no
-stitching, no fixed sleeps waiting on the agent, poll for the actual "blueprint saved" signal the
-way `mcp-authoring-walkthrough.md` already documents.
+Every recording tool above is gitignored output (`demo-footage/`), so the files themselves aren't
+committed. Run the relevant `npm run demo:record:*` script against a warmed stack to produce them
+before a real talk, and again any time the underlying blueprint or backoffice changes enough to
+make a rerecord worthwhile.
 
 ---
 
