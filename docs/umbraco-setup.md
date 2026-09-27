@@ -1,6 +1,6 @@
 # Adding Prism to Your Umbraco Site
 
-This guide walks you through adding Umbraco Prism to an existing Umbraco v17+ site (or bootstrapping it in a greenfield project). The process is designed to be minimal: install the package, register services, and Prism handles the rest.
+This guide walks you through adding Umbraco Prism to an existing Umbraco v17+ site (or bootstrapping it in a greenfield project). The process is designed to be minimal: install the package and Prism handles the rest — there is no service registration to write.
 
 ## 1. Install the NuGet Package
 
@@ -10,23 +10,19 @@ In your Umbraco project:
 dotnet add package UmbracoPrism
 ```
 
-## 2. Configure Program.cs
+## 2. Nothing to Configure in Program.cs
 
-Your `Program.cs` needs just one line to register Prism services. Key Vault setup is optional.
-
-### Register Prism Services
-
-Add Prism services after Umbraco setup:
+Prism registers itself via `PrismComposer`, an Umbraco `IComposer` that `.AddComposers()` — the
+same call every Umbraco site already makes to pick up its own composers — discovers
+automatically. There is no `AddPrism()`-style call to add; if your `Program.cs` already looks
+like this, Prism is already wired up the moment the package reference is added:
 
 ```csharp
-builder.Services.AddUmbraco(env, builder.Configuration)
+builder.CreateUmbracoBuilder()
     .AddBackOffice()
     .AddWebsite()
-    .AddComposers()
+    .AddComposers()   // <- picks up PrismComposer automatically, nothing else needed
     .Build();
-
-// Add this line:
-builder.Services.AddPrism(builder.Configuration);
 ```
 
 ### Optional: Key Vault for Production
