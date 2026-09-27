@@ -36,9 +36,8 @@ afternoon, worn by the same you:
 - 🎨 **Designer hat** — the person who only ever opens the backoffice (or talks to an agent in
   plain language) and never opens `Program.cs`.
 
-Call out the hat switch explicitly, out loud, every time it happens — it's a running visual gag
-(two hats on the podium, physically swapped, works well) as much as it's the argument. The
-switches land at:
+Call out the hat switch explicitly, out loud, every time it happens — naming the skill-set switch
+is doing real work here, not just decoration. The switches land at:
 
 1. **Demo 1, Beat A → Beat B**: write three lines of C#, then in the same breath open the same
    site's backoffice and behave like someone who has never seen that file.
