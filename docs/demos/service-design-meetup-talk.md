@@ -15,12 +15,15 @@ Wayfinder.Umbraco. Every demo below is built from features that already exist an
 possible, already have a tested walkthrough behind them:
 
 - Demo 1+2 (Wayfinder.Umbraco + Automate) = slides 6–8, based on
-  `Wayfinder.Umbraco/docs/automate-support-system-walkthrough.md` (already written, already
-  proven to work end to end).
-- Demo 3 (MCP) = slide 9, based on `Wayfinder.Umbraco/docs/mcp-authoring-walkthrough.md`
-  (already written, already the source of a recorded video script).
-- Demo 4 (Prism) = slide 10, built fresh here from `UmbracoPrism.TestSite`'s actual
-  composer/Program.cs and README — no existing walkthrough to lean on for this one.
+  `Wayfinder.Umbraco/docs/automate-support-system-walkthrough.md`.
+- Demo 3 (MCP) = slide 9: a small, live conversational edit to the same `njf-coaching-register`
+  definition Demo 1+2 just ran — not a from-scratch build. The bigger "design an entire service"
+  capability is referenced out loud but not shown; its full script lives in the Appendix at the
+  end of this doc, as a separate demo in its own right.
+- Demo 4 (Prism) = slide 10, built from `UmbracoPrism.TestSite`'s composer/Program.cs.
+
+The whole talk — explore service design, all four demos, takeaways — targets **~30 minutes** (see
+Rough timing at the end of this doc), leaving real room for questions in a typical meetup slot.
 
 ### The thread running through all four demos: one person, two hats
 
@@ -39,14 +42,14 @@ switches land at:
 
 1. **Demo 1, Beat A → Beat B**: write three lines of C#, then in the same breath open the same
    site's backoffice and behave like someone who has never seen that file.
-2. **Demo 3, Act 1 → Act 2**: Act 1 is pure developer work (OAuth client, MCP registration) — Act
-   2 is pure designer work (stop typing commands, start typing sentences). Same terminal, same
-   person, thirty seconds apart.
+2. **Demo 3, Beat A → Beat B**: Beat A is pure developer work (OAuth client, MCP registration) —
+   Beat B is pure designer work (stop typing commands, start typing sentences). Same terminal,
+   same person, thirty seconds apart.
 3. **Demo 3's real thesis, stated once, directly**: the agent itself is doing both jobs at once —
-   it reads the contract like a developer (calling `list_queue_capabilities`, reading the schema)
-   and writes the service like a designer (stages, routing, plain-language field names). That's
-   the "knowledge in system, not in head" point from slide 9, and it's *why* one person can do
-   both jobs — the system, not the person's memory, is what enforces the contract between them.
+   it reads the live definition like a developer (the existing stages, routing, component
+   contract) and writes the addition like a designer (a stage, a label, plain-language copy).
+   That's the "knowledge in system, not in head" point from slide 9, and it's *why* one person can
+   do both jobs — the system, not the person's memory, is what enforces the contract between them.
 4. **Demo 4, Beat A → Beat E**: opens on `Program.cs` (developer), closes back on the same
    juggling-licence journey from Demo 1–3 now running happily alongside a live-edited brand
    (designer) — full circle, same pattern, different repo.
@@ -71,8 +74,9 @@ dotnet run --project Wayfinder.Umbraco.AppHost
 - Mailpit: `https://localhost:8025` (real inbox for the standards-officer email)
 - For a completely clean run (recommended right before the talk), wipe the DB first:
   `rm -rf Wayfinder.Umbraco.ReferenceApp/umbraco/Data/*` and boot with
-  `Umbraco__CMS__Global__TimeOut=02:00:00` set (Demo 3's agent conversation can run long — you do
-  not want the backoffice session timing out mid-demo).
+  `Umbraco__CMS__Global__TimeOut=02:00:00` set — cheap insurance against the backoffice session
+  timing out mid-demo (matters far more if the Appendix's from-scratch build ever gets shown
+  instead of the short Demo 3).
 
 **Stack 2 — Umbraco.Prism** (this repo)
 ```bash
@@ -120,10 +124,11 @@ this demo.**
   never re-synced from the JSON on later boots (`DemoTenantSeeder` on the Prism side behaves
   differently and really does reconcile every boot — don't assume one implies the other). A seed
   JSON change needs a full DB wipe + restart to take effect, not just a restart.
-- **The MCP-authored blueprint** (Demo 3) gets a brand-new key every rehearsal pass, so *creating*
-  it never needs a reset. To also re-run the applicant/caseworker walk-through (Act 5) against
-  the same saved one more than once, ask the agent's brief to include `allowManualRestart: true`
-  for that blueprint too — mention it in the brief and it'll set it.
+- **Demo 3 now edits `njf-coaching-register` itself** (adds a stage) rather than creating a
+  separate blueprint, so it stacks on top of whatever's already there — rehearsing Demos 1–3
+  together more than once without a wipe in between will add another stage on top of the last
+  one, not replace it. Wipe between full rehearsal passes if doing all three in sequence more than
+  once.
 - **Full wipe command**, when one is wanted (e.g. to declutter Settings → Blueprints after many
   MCP rehearsal passes, or for a pristine take before the final recording):
   ```bash
@@ -155,7 +160,7 @@ this demo.**
 
 ## Demo 1 + 2 — Wayfinder.Umbraco, then Automate (slides 6–8)
 
-One continuous live thread, ~10–12 minutes. Goal: prove the backoffice-hosted service design
+One continuous live thread, ~9–10 minutes. Goal: prove the backoffice-hosted service design
 surface *and* that wiring a real external-system integration into it is config + a few seeded
 steps, not bespoke plumbing. This block does the hat-switch twice: developer → designer at Beat
 A→B, then back to "designer watching a system a developer built actually integrate" at Beat D.
@@ -226,10 +231,11 @@ browser."
 3. **Say, before switching tabs:** "This is the third lane of a service blueprint that's easy to
    forget about when you're staring at the front-end journey — the *support process*. Right now
    this app just POSTed a signed webhook out to an Automate automation. Let's go look at it."
-4. Switch to **Umbraco Automate** section in the backoffice (or open `AutomateCoachingStandardsSeeder.cs`
-   in VS Code first if you want one more code beat — it's a good one: **say** "this whole
-   automation — the branch, the email, the approval gate — is built and published in C# on every
-   boot, via `IAutomationService`. Nobody clicked this together by hand, though you *could* have.")
+4. Switch to **Umbraco Automate** section in the backoffice. **Optional, skip if short on time:**
+   open `AutomateCoachingStandardsSeeder.cs` in VS Code first for one more code beat — **say**
+   "this whole automation — the branch, the email, the approval gate — is built and published in
+   C# on every boot, via `IAutomationService`. Nobody clicked this together by hand, though you
+   *could* have."
 5. Open the running automation's canvas. Show the **If** branch, the **Send Email**, the
    **Request Approval** step.
 6. Switch to **Mailpit** — the "needs review" email has arrived for real.
@@ -250,26 +256,26 @@ rather than debugging live. Note the timestamp for "Beat D" once it's recorded.
 
 ---
 
-## Demo 3 — MCP: design a new service, live, with the room (slide 9)
+## Demo 3 — MCP: have a conversation with a service blueprint (slide 9)
 
-~12–15 minutes, the highest-risk block — agent runs for this shape of brief have taken 30–45
-minutes in prior recordings, so the whole thing isn't run live end to end on purpose. Live:
-connect + brief + watch it work + review in the editor. **Recorded only:** the full
-applicant/caseworker run-through (Act 5 below) — narrate over the recording instead of doing it
-live, and say so plainly ("let's not make you watch me click through a form for five minutes —
-here's it running for real, captured earlier").
+~4–5 minutes. Goal: prove a service blueprint isn't a static file — it's something to *talk to*
+about a small, real change, on the exact same `njf-coaching-register` definition the room just
+watched work end to end in Demo 1+2. Deliberately not a from-scratch build — that capability gets
+referenced out loud, not shown (see the Appendix for the full version, a separate demo in its own
+right).
 
 ### Setup narration (before typing anything)
 
 > "Everything we just watched happen in the backoffice, an AI agent can do too — over the exact
-> same identity, the exact same permissions. Not a special sandbox. If it can't do something a
-> human editor couldn't, that's a bug. And notice what I'm about to do: put the developer hat
-> back on for about ninety seconds — then take it back off, and never touch it again for the rest
-> of this demo."
+> same identity, the exact same permissions. And it's not limited to small edits like the one
+> we're about to make — the same conversation can design an entire branching service from a blank
+> page. That's genuinely a whole other demo, ask me about it afterwards. Right now, let's do the
+> thing you'll actually reach for most days: change something small on a service that's already
+> live."
 
-### Act 1 — connect (🧑‍💻 developer hat, live, ~1–2 min)
+### Beat A — connect (🧑‍💻 developer hat, live, ~30 sec)
 
-In the scratch terminal (already in the browser-logged-in backoffice session, Act 1 reuses it):
+In the scratch terminal:
 
 ```bash
 claude mcp add --transport http wayfinder-umbraco \
@@ -280,114 +286,59 @@ claude mcp login wayfinder-umbraco
 claude mcp list
 ```
 
-**Narrate while it runs:** "That's registering the MCP server, then logging in — the exact same
-OAuth screen the backoffice itself uses. Whatever group membership I have is what the agent gets.
-No open door."
+**Narrate briefly:** "Same OAuth screen the backoffice login uses. Whatever group membership I
+have is what the agent gets."
 
-**Hat switch, said out loud:** "That's it — OAuth client, MCP registration, done. From here I'm
-not going to type a single command. I'm a designer now, and I'm just going to talk to it."
+**Hat switch, said out loud:** "Done. From here I'm a designer, not a developer — just going to
+talk to it."
 
-### Act 2 — the brief, with the room's idea folded in (🎨 designer hat, live, this is the centrepiece)
+### Beat B — ask the room, then the agent (🎨 designer hat, live, ~2–3 min — the centrepiece)
 
-**Ask the room first:** "The National Juggling Federation needs a new public service. What should
-it be?" Let one or two suggestions land. There's latitude here — the brief below is a proven
-*shape* (eligibility branch → evidence upload → declaration → caseworker decision), so the
-specifics can genuinely be reflavoured live around whatever the room gives, as long as it roughly
-fits that shape. If it's a wildly different shape (e.g. "a calculator," "a chatbot") — that's a
-great "let's take that as an idea for next time" line, and fall back to the scripted one below.
+**Ask the room:** "A coach just got accredited. Before we send them off, what's one small, fun
+thing we should give them?" Take a suggestion — almost anything works, since the ask is
+deliberately small: one new stage, at one clear point in an already-working flow.
 
-**Scripted good fallback**, fully written, same proven shape as the tested "transfer your
-licence" brief so it carries the same confidence — use verbatim if the room is quiet or the
-suggestion doesn't fit a blueprint's shape:
+**Scripted good fallback**, use verbatim if the room is quiet:
 
-> Hi. I work on public safety for the National Juggling Federation. I need a new service.
->
-> The problem: performers keep asking to run flaming-torch juggling displays at public events,
-> and right now there's no proper route to get one signed off — people are just doing it and
-> hoping. I want an "Apply for a Flaming Torches Display Permit" service.
->
-> What I know about how it needs to work:
-> - Only for jugglers who already hold a current standard juggling licence with us — if they
->   don't, they need to get a standard licence first; that's a separate existing service.
-> - They need a valid public liability insurance certificate, and a written risk assessment for
->   the specific venue.
-> - Before we grant anything, they need to formally declare they won't perform within 3 metres of
->   flammable bunting, decorations, or a bouncy castle (yes, this has happened).
-> - A safety officer always has to check the evidence and make the actual decision — this can
->   never be auto-approved.
-> - Same accessibility bar as everything else we ship: WCAG double-A.
->
-> Can you help me design this properly? Ask me anything you need.
+> In the `njf-coaching-register` definition, right after a coach is accredited, before the final
+> confirmation, add a stage where they pick a fun coaching nickname from a short list you invent —
+> juggling-themed, playful (think "The Whirling Dervish," "Captain Diabolo"). Show their chosen
+> nickname back to them on the confirmation screen. Validate and simulate the accredited path,
+> then save.
 
-**Launch, in the scratch terminal:**
-```bash
-claude --model sonnet \
-  --tools "mcp__wayfinder-umbraco__*,ListMcpResourcesTool,ReadMcpResourceDirTool,ReadMcpResourceTool" \
-  --permission-mode bypassPermissions
-```
-Paste the brief (adapted live with the room's flavour, or verbatim fallback above). Answer its
-clarifying questions in plain language, in character as "the service owner" — don't explain
-implementation details, that's the point.
+**Say while typing the brief:** "Notice what I'm *not* telling it — not which component type to
+use, not where in the JSON the stage goes, not how routing works. It already knows all of that
+from reading this definition."
 
-**Optional safety net:** the same brief can be run headlessly ahead of time (no `claude mcp login`
-needed — the seeded demo-agent client credentials work non-interactively), so `Settings →
-Blueprints` already has a finished, saved definition to open cold if the live room run struggles.
+**While it works, narrate (this is slide 9's actual thesis):** "It's reading the live
+`njf-coaching-register` definition as its own style reference, adding one stage in the right
+place, and it'll validate and simulate before it saves — same discipline whether the change is
+one stage or twenty. That's the difference between knowledge in an agent's *head*, which goes
+stale, and knowledge it can *look up in the system*, which can't."
 
-**While it works, narrate over the top (this is slide 9's actual thesis):**
+Done in well under a minute for a change this size — reporting the save is the signal to move on.
 
-> "Notice it isn't guessing conventions. Before it drafted anything it read this host's existing
-> blueprints as a style reference and asked what component types this host can actually render.
-> That's the difference between knowledge in an agent's *head* — which goes stale — and knowledge
-> it can *look up in the system* — which can't. The harness matters as much as the model here:
-> Wayfinder has to be able to validate and simulate with real, specific errors, not just accept
-> or reject, or the agent has nothing to correct itself against.
->
-> And look at what it's actually doing right now: it's wearing both hats *at once*. It's reading
-> a contract and calling an API like a developer, and it's naming stages and writing question text
-> like a designer — and the reason it can do both without making a mess is the same reason a
-> human can: the system, not a person's memory, is what's actually enforcing the boundary between
-> 'this is allowed' and 'this renders sensibly.' That's the whole argument of this talk in one
-> agent call."
+### Beat C — see it (~1 min)
 
-Let it run as long as the room's patience allows. It's done when it reports the blueprint saved.
-Watch **Settings → Blueprints** in the backoffice tab for the new entry to appear the moment the
-first save lands — a nice "look, right there" beat without waiting for its full summary.
+**Settings → Blueprints → njf-coaching-register** → the new stage is sitting in the graph,
+between the accredited outcome and confirmation.
 
-### Act 3 — wire it in (live if time allows, ~1 min)
+**Say:** "That's live. The next coach who gets accredited sees this. No restart, no redeploy, and
+nobody touched a line of code."
 
-Backoffice → **Content → Apply** page → the service request stage block → change **Blueprint
-key** to the new one → **Update** → **Save and publish**.
-**Say:** "No restart. No redeploy. That save reached the live engine the moment it happened."
+If there's time, re-run the Demo 1+2 happy path once more as Alex Applicant to see the new
+nickname stage render for real — skip this if the clock's tight, the graph view alone lands the
+point.
 
-### Act 4 — tour it in the visual editor (live, ~2 min)
-
-**Settings → Blueprints** → open the new one. Fit to screen. Find the eligibility stage, the
-document-upload stage, the safety/case-worker review stage, and the Join where both cursors
-converge into the approved/rejected outcome. Open **Validation** — clean.
-
-**Don't script the exact branching mechanism in advance.** A Split gateway fans out
-unconditionally in this engine, so a genuine either/or (e.g. "holds a licence? yes/no") is
-usually modelled as two distinct action buttons routing by trigger, rather than a condition on a
-single Split — but the agent may choose either shape. Both are valid; narrate whichever is
-actually on screen rather than pointing at a mechanism decided beforehand.
-
-**Say:** "Every one of those traces to a line in the brief. Nothing in the brief named a stage, a
-condition, a button, or a component type — that vocabulary is the agent's, from reading the
-system, not mine."
-
-### Act 5 — run it (recorded only, narrate over playback)
-
-Cut to the recording of: applicant journey through to confirmation, caseworker picking it up and
-deciding. ~2 min of playback while narrating, not silent.
-
-**Closing line:** "One conversation, one access token, a working, branching, GDS-shaped public
-service — reviewed and adjustable by a human at every step along the way."
+**Closing line:** "That's the capability at its smallest. Given more space, the same conversation
+builds the whole thing from nothing — I've done that as its own demo, happy to show anyone who
+wants to see it afterwards."
 
 ---
 
 ## Demo 4 — Umbraco.Prism (slide 10)
 
-~10 minutes. Different stack — switch browser window/profile and VS Code window to Prism now.
+~7–8 minutes. Different stack — switch browser window/profile and VS Code window to Prism now.
 Goal: same "how little code" philosophy beat as Demo 1, then two fast backoffice wins
 (multi-tenant + live rebrand), a **video-only** mobile beat, then close the whole talk's loop by
 showing this same NJF/juggling world already running on Wayfinder.Umbraco *inside* Prism.
@@ -408,7 +359,7 @@ the way any host would, for its own citizen journey."
 **Hat switch, said out loud:** "Laptop closed again. Everything from here is Settings and forms —
 the same backoffice a content editor with zero C# would use."
 
-### Beat B — multi-tenant, live (🎨 designer/product hat, ~3 min)
+### Beat B — multi-tenant, live (🎨 designer/product hat, ~2 min)
 
 Backoffice → **Settings → Prism Dashboard** (Settings → Advanced, same placement convention as
 Blueprints). Show the existing seeded tenant. Then, live:
@@ -457,10 +408,11 @@ What exists versus what's still needed:
 
 | Demo | Existing footage | Status |
 |---|---|---|
-| 3 (MCP) | `Wayfinder.Umbraco/tests/demo/demo-footage/wayfinder-umbraco-mcp-authoring-demo.mp4` (+ `.webm`, `.compressed.mp4`) | Current architecture, dated 31 Aug 2026 — usable as-is, but re-record periodically as the reference app changes. `npm run demo:record` from `tests/demo/` re-runs it. |
-| 1+2 (Automate) | None | Missing — no `tests/demo/*.spec.ts` for the coaching-register/Automate sequence. `docs/automate-support-system-walkthrough.md`'s "Run the journey" section is a ready-made storyboard to record against. **Highest priority to actually produce.** |
+| 3 (MCP, in-talk: add a stage) | None | New, small demo — nothing recorded yet. |
+| 1+2 (Automate) | None | Missing — no `tests/demo/*.spec.ts` for the coaching-register/Automate sequence. `docs/automate-support-system-walkthrough.md`'s "Run the journey" section is a ready-made storyboard to record against. |
 | 4 (Prism) | None | Net new. Record tenant-create + rebrand as one take; record the mobile clip separately since it's the video-only beat anyway. |
 | 1 (code reveal beats) | N/A — VS Code screen only | Lowest priority; worst case, talk through the file live from a static screenshot. |
+| Appendix (from-scratch build) | `Wayfinder.Umbraco/tests/demo/demo-footage/wayfinder-umbraco-mcp-authoring-demo.mp4` (+ `.webm`, `.compressed.mp4`) | Exists, current architecture, dated 31 Aug 2026. Not needed for this talk's timing — keep for whenever the full version gets shown as its own session. `npm run demo:record` from `tests/demo/` re-runs it if it ever needs refreshing. |
 
 **Do not use as backups:** `UmbracoPrism.Client/demo-footage/licence-transfer-demo.*`,
 `garden-waste-permit-demo*.*`, `juggle*.*` (all dated before 29 Jul 2026). These demo Prism's own
@@ -469,12 +421,15 @@ exists (`TestSite` now installs `Wayfinder.Umbraco` directly instead). They'd ac
 played as a "this is how it works" backup. Worth deleting or clearly archiving so nobody grabs one
 by mistake mid-panic before a talk.
 
-Priority order for what's left to actually record — highest-risk, least-existing-tooling first:
+Priority order for what's left to actually record:
 
-1. **Demo 1+2 (Automate)** — nothing exists yet; this is the gap most worth closing.
-2. **Demo 3 (MCP)** — a fresh take periodically, to track reference-app changes.
-3. **Demo 4 (Prism)** — net new, lowest existing-tooling coverage.
-4. **Demo 1 code-reveal beats** — skip if short on time.
+1. **Demo 1+2 (Automate)** and **Demo 3 (add a stage)** — equal top priority, both genuinely
+   missing and both what's actually shown live in this talk.
+2. **Demo 4 (Prism)** — net new, lowest existing-tooling coverage.
+3. **Demo 1 code-reveal beats** — skip if short on time.
+
+The Appendix demo already has a usable recording — no action needed there unless it gets shown as
+its own session.
 
 Use the `narrated-single-take-demo-recording` approach for each: one continuous take, no
 stitching, no fixed sleeps waiting on the agent — poll for the actual "blueprint saved" signal the
@@ -486,20 +441,141 @@ way `mcp-authoring-walkthrough.md` already documents.
 
 | Section | Minutes |
 |---|---|
-| Explore service design (slides 3–5, no demo) | 5–7 |
-| Demo 1+2: Wayfinder.Umbraco + Automate | 10–12 |
-| Demo 3: MCP | 12–15 |
-| Demo 4: Prism | 8–10 |
-| Where next / takeaways | 5 |
-| **Total** | **~45–55** |
+| Explore service design (slides 3–5, no demo) | 5 |
+| Demo 1+2: Wayfinder.Umbraco + Automate | 9–10 |
+| Demo 3: MCP (add a stage) | 4–5 |
+| Demo 4: Prism | 7–8 |
+| Where next / takeaways | 3 |
+| **Total** | **~28–31** |
 
-Trim Demo 3's live portion (cut straight to narrating over the recording after Act 2 starts) if
-running a full slot short — it's the one place where "let it run" doesn't scale to a fixed slot.
+Leaves genuine room for questions and a bit of drift in a typical meetup slot. If still tight:
+skip the optional `AutomateCoachingStandardsSeeder.cs` code peek in Demo 1+2 Beat D, or skip live
+tenant creation in Demo 4 Beat B and just rebrand the already-seeded tenant instead.
+
+---
+
+## Appendix: build a brand-new service from scratch (not part of this talk)
+
+The full "design an entire service from a blank page" demo that the main Demo 3 above references
+but doesn't show — ~12–15 minutes on its own, worth doing as a separate session (or folding into a
+longer version of this talk another time). Based on
+`Wayfinder.Umbraco/docs/mcp-authoring-walkthrough.md`.
+
+~12–15 minutes, the highest-risk block of this version — agent runs for this shape of brief have
+taken 30–45 minutes in prior recordings, so the whole thing isn't run live end to end. Live:
+connect + brief + watch it work + review in the editor. **Recorded only:** the full
+applicant/caseworker run-through (Act 5 below) — narrate over the recording instead of doing it
+live.
+
+### Act 1 — connect (🧑‍💻 developer hat, live, ~1–2 min)
+
+In the scratch terminal:
+
+```bash
+claude mcp add --transport http wayfinder-umbraco \
+  https://localhost:44399/wayfinder/service-blueprint-authoring/mcp \
+  --client-id umbraco-back-office-wayfinder-mcp \
+  --callback-port 33418
+claude mcp login wayfinder-umbraco
+claude mcp list
+```
+
+**Narrate while it runs:** "That's registering the MCP server, then logging in — the exact same
+OAuth screen the backoffice itself uses. Whatever group membership I have is what the agent gets.
+No open door."
+
+### Act 2 — the brief, with the room's idea folded in (🎨 designer hat, live, this is the centrepiece)
+
+**Ask the room first:** "The National Juggling Federation needs a new public service. What should
+it be?" Let one or two suggestions land. There's latitude here — the brief below is a proven
+*shape* (eligibility branch → evidence upload → declaration → caseworker decision), so the
+specifics can genuinely be reflavoured live around whatever the room gives, as long as it roughly
+fits that shape. If it's a wildly different shape (e.g. "a calculator," "a chatbot") — that's a
+great "let's take that as an idea for next time" line, and fall back to the scripted one below.
+
+**Scripted good fallback**, fully written, use verbatim if the room is quiet or the suggestion
+doesn't fit a blueprint's shape:
+
+> Hi. I work on public safety for the National Juggling Federation. I need a new service.
+>
+> The problem: performers keep asking to run flaming-torch juggling displays at public events,
+> and right now there's no proper route to get one signed off — people are just doing it and
+> hoping. I want an "Apply for a Flaming Torches Display Permit" service.
+>
+> What I know about how it needs to work:
+> - Only for jugglers who already hold a current standard juggling licence with us — if they
+>   don't, they need to get a standard licence first; that's a separate existing service.
+> - They need a valid public liability insurance certificate, and a written risk assessment for
+>   the specific venue.
+> - Before we grant anything, they need to formally declare they won't perform within 3 metres of
+>   flammable bunting, decorations, or a bouncy castle (yes, this has happened).
+> - A safety officer always has to check the evidence and make the actual decision — this can
+>   never be auto-approved.
+> - Same accessibility bar as everything else we ship: WCAG double-A.
+>
+> Can you help me design this properly? Ask me anything you need.
+
+**Launch, in the scratch terminal:**
+```bash
+claude --model sonnet \
+  --tools "mcp__wayfinder-umbraco__*,ListMcpResourcesTool,ReadMcpResourceDirTool,ReadMcpResourceTool" \
+  --permission-mode bypassPermissions
+```
+Paste the brief (adapted live with the room's flavour, or verbatim fallback above). Answer its
+clarifying questions in plain language, in character as "the service owner" — don't explain
+implementation details, that's the point.
+
+**Optional safety net:** the same brief can be run headlessly ahead of time (no `claude mcp login`
+needed — the seeded demo-agent client credentials work non-interactively), so `Settings →
+Blueprints` already has a finished, saved definition to open cold if the live room run struggles.
+
+**While it works, narrate over the top:**
+
+> "Notice it isn't guessing conventions. Before it drafted anything it read this host's existing
+> blueprints as a style reference and asked what component types this host can actually render.
+> That's the difference between knowledge in an agent's *head* — which goes stale — and knowledge
+> it can *look up in the system* — which can't. The harness matters as much as the model here:
+> Wayfinder has to be able to validate and simulate with real, specific errors, not just accept
+> or reject, or the agent has nothing to correct itself against."
+
+Let it run as long as the room's patience allows. It's done when it reports the blueprint saved.
+Watch **Settings → Blueprints** in the backoffice tab for the new entry to appear the moment the
+first save lands.
+
+### Act 3 — wire it in (live if time allows, ~1 min)
+
+Backoffice → **Content → Apply** page → the service request stage block → change **Blueprint
+key** to the new one → **Update** → **Save and publish**.
+**Say:** "No restart. No redeploy. That save reached the live engine the moment it happened."
+
+### Act 4 — tour it in the visual editor (live, ~2 min)
+
+**Settings → Blueprints** → open the new one. Fit to screen. Find the eligibility stage, the
+document-upload stage, the safety/case-worker review stage, and the Join where both cursors
+converge into the approved/rejected outcome. Open **Validation** — clean.
+
+**Don't script the exact branching mechanism in advance.** A Split gateway fans out
+unconditionally in this engine, so a genuine either/or (e.g. "holds a licence? yes/no") is
+usually modelled as two distinct action buttons routing by trigger, rather than a condition on a
+single Split — but the agent may choose either shape. Both are valid; narrate whichever is
+actually on screen rather than pointing at a mechanism decided beforehand.
+
+**Say:** "Every one of those traces to a line in the brief. Nothing in the brief named a stage, a
+condition, a button, or a component type — that vocabulary is the agent's, from reading the
+system, not mine."
+
+### Act 5 — run it (recorded only, narrate over playback)
+
+Cut to the recording of: applicant journey through to confirmation, caseworker picking it up and
+deciding. ~2 min of playback while narrating, not silent.
+
+**Closing line:** "One conversation, one access token, a working, branching, GDS-shaped public
+service — reviewed and adjustable by a human at every step along the way."
 
 ---
 
 ## Related
 
 - [`Wayfinder.Umbraco/docs/automate-support-system-walkthrough.md`](https://github.com/jonnymuir/Wayfinder.Umbraco/blob/main/docs/automate-support-system-walkthrough.md) — Demo 1+2's source walkthrough.
-- [`Wayfinder.Umbraco/docs/mcp-authoring-walkthrough.md`](https://github.com/jonnymuir/Wayfinder.Umbraco/blob/main/docs/mcp-authoring-walkthrough.md) — Demo 3's source walkthrough.
-- [`licence-transfer-mcp-walkthrough.md`](licence-transfer-mcp-walkthrough.md) (this folder) — the historical Prism-side MCP demo this one's Demo 3 framing is modelled on; superseded architecturally, kept as a record.
+- [`Wayfinder.Umbraco/docs/mcp-authoring-walkthrough.md`](https://github.com/jonnymuir/Wayfinder.Umbraco/blob/main/docs/mcp-authoring-walkthrough.md) — the Appendix's source walkthrough.
+- [`licence-transfer-mcp-walkthrough.md`](licence-transfer-mcp-walkthrough.md) (this folder) — the historical Prism-side MCP demo the Appendix's framing is modelled on; superseded architecturally, kept as a record.
