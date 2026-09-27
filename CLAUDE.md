@@ -232,6 +232,16 @@ When a commit introduces a breaking change, add a `BREAKING CHANGE: <description
 - C#: idiomatic .NET 10 / Umbraco v17 patterns. Use `IContentTypeService`, `IDataTypeService` etc. from DI, don't re-register.
 - TypeScript: Lit web components. Use `data-prism-*` attributes to expose semantic hooks for Playwright.
 
+### Documentation style
+
+Docs, guides, and demo scripts (`docs/**`) describe **current state**, not the history of how
+that state was reached. Never write "X originally had Y", "discovered while...", "verified live",
+"checked and corrected from an earlier draft" — a reader coming to the doc cold has no context
+for the "before" and doesn't need it; state the current behaviour directly, as if it had always
+been true. That narrative belongs in the commit message or PR description that introduced the
+change, not in the doc itself. Applies equally to a narrated `docs/demos/` script — someone else
+will read it cold too, not just the person who wrote it.
+
 ---
 
 ## Demo credentials (local)

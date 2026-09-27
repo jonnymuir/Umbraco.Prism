@@ -108,27 +108,18 @@ TestSite home.
 Run this many times before the real thing — here's exactly when a reset is needed and when it
 isn't, so seeding does as much of the work as it actually can.
 
-### Demo 1+2 (`njf-coaching-register`, Wayfinder.Umbraco.ReferenceApp) — fixed and verified live
+### Demo 1+2 (`njf-coaching-register`, Wayfinder.Umbraco.ReferenceApp)
 
-`service-blueprints/njf-coaching-register.json` originally had `requestPolicy: "single"` but no
-`allowManualRestart`. That meant Alex Applicant's coach application was a single persistent
-instance per database lifetime — no in-app "start again," so a full DB wipe would've been needed
-before every rehearsal pass.
+`njf-coaching-register` has `allowManualRestart: true`, so reset the coach journey any time,
+mid-flow or after completion, just by visiting `/apply?action=start-new`. **No DB wipe needed for
+this demo.**
 
-- **Fix, applied and verified live:** `"allowManualRestart": true` was added to that JSON and
-  confirmed against a running instance (`GET .../wayfinder/service-blueprints/njf-coaching-register`
-  returns `allowManualRestart: true`). Once it's live, reset the coach journey any time, mid-flow
-  or after completion, just by visiting `/apply?action=start-new`. **No DB wipe needed for this
-  demo from here on.**
-- **Important, checked live:** a plain restart does **not** pick up a seed-file edit if the
-  blueprint already exists in the database. `ReferenceBlueprintSeeder` calls
-  `store.SaveAsync(blueprint, expectedVersion: 0)` — that only succeeds when nothing is stored
-  yet, so an existing blueprint is seeded once, ever, and never re-synced from the JSON on later
-  boots (unlike `DemoTenantSeeder` on the Prism side, which really does reconcile every boot —
-  the two seeders behave differently, don't assume one implies the other). Getting the fix above
-  to actually take effect took a full DB wipe + restart, confirmed by re-querying the live
-  blueprint afterwards. If a seed JSON is ever edited on an install that's already booted once,
-  the same applies: **wipe, don't just restart.**
+- **If you ever edit a seed JSON on an install that's already booted once, a plain restart won't
+  pick it up.** `ReferenceBlueprintSeeder` seeds with `store.SaveAsync(blueprint, expectedVersion: 0)`,
+  which only succeeds when nothing is stored yet — an existing blueprint is seeded once, ever, and
+  never re-synced from the JSON on later boots (`DemoTenantSeeder` on the Prism side behaves
+  differently and really does reconcile every boot — don't assume one implies the other). A seed
+  JSON change needs a full DB wipe + restart to take effect, not just a restart.
 - **The MCP-authored blueprint** (Demo 3) gets a brand-new key every rehearsal pass, so *creating*
   it never needs a reset. To also re-run the applicant/caseworker walk-through (Act 5) against
   the same saved one more than once, ask the agent's brief to include `allowManualRestart: true`
@@ -338,13 +329,9 @@ Paste the brief (adapted live with the room's flavour, or verbatim fallback abov
 clarifying questions in plain language, in character as "the service owner" — don't explain
 implementation details, that's the point.
 
-**Already rehearsed for real, non-interactively, against this exact fallback brief** (headless,
-via the seeded demo-agent client credentials, no human answering its clarifying questions): it
-came back with a clean, validated, saved definition — `njf-flaming-torches-permit` — in one pass,
-no back-and-forth needed. That run sat live in `Settings → Blueprints` on the ReferenceApp
-afterwards, openable cold as a "here's one made earlier" safety net, independent of whatever
-happens in the live room run. (A DB wipe since then means it may not still be there — rerun the
-headless rehearsal before a real sit-down if a guaranteed fallback artefact is wanted.)
+**Optional safety net:** the same brief can be run headlessly ahead of time (no `claude mcp login`
+needed — the seeded demo-agent client credentials work non-interactively), so `Settings →
+Blueprints` already has a finished, saved definition to open cold if the live room run struggles.
 
 **While it works, narrate over the top (this is slide 9's actual thesis):**
 
@@ -378,13 +365,11 @@ key** to the new one → **Update** → **Save and publish**.
 document-upload stage, the safety/case-worker review stage, and the Join where both cursors
 converge into the approved/rejected outcome. Open **Validation** — clean.
 
-**Real-run note (from an actual rehearsal against this exact brief):** don't script the exact
-branching mechanism in advance — the agent chose to model "holds a licence? yes/no" as **two
-distinct action buttons** (routes by which trigger fires) rather than a conditional Split gateway,
-because a Split fans out unconditionally in this engine and a genuine either/or needs two
-triggers, not a condition on one. A different run might produce a Split with an "Available when"
-condition instead — both are valid; just narrate whichever one is actually on screen rather than
-pointing at a specific mechanism decided beforehand.
+**Don't script the exact branching mechanism in advance.** A Split gateway fans out
+unconditionally in this engine, so a genuine either/or (e.g. "holds a licence? yes/no") is
+usually modelled as two distinct action buttons routing by trigger, rather than a condition on a
+single Split — but the agent may choose either shape. Both are valid; narrate whichever is
+actually on screen rather than pointing at a mechanism decided beforehand.
 
 **Say:** "Every one of those traces to a line in the brief. Nothing in the brief named a stage, a
 condition, a button, or a component type — that vocabulary is the agent's, from reading the
@@ -468,27 +453,26 @@ Straight into whatever the "where next" / takeaways section lands on.
 
 ## Recording plan (for backups)
 
-**Checked directly, on disk** — here's what actually exists versus what's still needed.
+What exists versus what's still needed:
 
 | Demo | Existing footage | Status |
 |---|---|---|
-| 3 (MCP) | `Wayfinder.Umbraco/tests/demo/demo-footage/wayfinder-umbraco-mcp-authoring-demo.mp4` (+ `.webm`, `.compressed.mp4`) | **Exists, current architecture, dated 31 Aug 2026.** Post-dates the Wayfinder.Umbraco extraction, so it's the real thing, not stale. Given how much has moved since (the `allowManualRestart` fix alone), re-record before relying on it as the only backup — but usable as-is in a pinch. `npm run demo:record` from `tests/demo/` re-runs it. |
-| 1+2 (Automate) | None | Genuinely missing — no `tests/demo/*.spec.ts` for the coaching-register/Automate sequence. `docs/automate-support-system-walkthrough.md`'s "Run the journey" section is a ready-made storyboard to record against. **Highest priority to actually produce.** |
-| 4 (Prism) | None | Net new, as expected. Record tenant-create + rebrand as one take; record the mobile clip separately since it's the video-only beat anyway. |
+| 3 (MCP) | `Wayfinder.Umbraco/tests/demo/demo-footage/wayfinder-umbraco-mcp-authoring-demo.mp4` (+ `.webm`, `.compressed.mp4`) | Current architecture, dated 31 Aug 2026 — usable as-is, but re-record periodically as the reference app changes. `npm run demo:record` from `tests/demo/` re-runs it. |
+| 1+2 (Automate) | None | Missing — no `tests/demo/*.spec.ts` for the coaching-register/Automate sequence. `docs/automate-support-system-walkthrough.md`'s "Run the journey" section is a ready-made storyboard to record against. **Highest priority to actually produce.** |
+| 4 (Prism) | None | Net new. Record tenant-create + rebrand as one take; record the mobile clip separately since it's the video-only beat anyway. |
 | 1 (code reveal beats) | N/A — VS Code screen only | Lowest priority; worst case, talk through the file live from a static screenshot. |
 
-**Do not use as backups — checked, and they predate the Wayfinder.Umbraco migration (all from
-before the 29 Jul 2026 extraction commit):** `UmbracoPrism.Client/demo-footage/licence-transfer-demo.*`,
-`garden-waste-permit-demo*.*`, `juggle*.*`. These demo Prism's own now-removed "CMS Service
-Blueprint" backoffice feature — the architecture they show no longer exists (`TestSite` now
-installs `Wayfinder.Umbraco` directly instead). They'd actively mislead if played as a "this is
-how it works" backup. Worth deleting or clearly archiving so nobody grabs one by mistake mid-panic
-before a talk.
+**Do not use as backups:** `UmbracoPrism.Client/demo-footage/licence-transfer-demo.*`,
+`garden-waste-permit-demo*.*`, `juggle*.*` (all dated before 29 Jul 2026). These demo Prism's own
+now-removed "CMS Service Blueprint" backoffice feature — the architecture they show no longer
+exists (`TestSite` now installs `Wayfinder.Umbraco` directly instead). They'd actively mislead if
+played as a "this is how it works" backup. Worth deleting or clearly archiving so nobody grabs one
+by mistake mid-panic before a talk.
 
 Priority order for what's left to actually record — highest-risk, least-existing-tooling first:
 
 1. **Demo 1+2 (Automate)** — nothing exists yet; this is the gap most worth closing.
-2. **Demo 3 (MCP)** — a fresh take, since the existing one predates the fixes made here.
+2. **Demo 3 (MCP)** — a fresh take periodically, to track reference-app changes.
 3. **Demo 4 (Prism)** — net new, lowest existing-tooling coverage.
 4. **Demo 1 code-reveal beats** — skip if short on time.
 
