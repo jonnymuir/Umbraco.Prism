@@ -1,3 +1,18 @@
+## Prism tenancy and branding demo
+
+`prism-tenancy-branding-demo.spec.ts` (`npm run demo:record:tenancy-branding`) is a separate,
+UI-only recording: create a new tenant live, rebrand the seeded one (a real CSS custom property,
+not a preset), then close the loop on the same juggling-licence journey Wayfinder.Umbraco's own
+demos run. Mirrors Demo 4 of
+[`../../../../docs/demos/service-design-meetup-talk.md`](../../../../docs/demos/service-design-meetup-talk.md).
+No AI agent involved, so no long unattended wait, headed Chromium is used anyway for consistency
+with the rest of this toolkit. Its own `afterAll` reverts the seeded tenant's branding and deletes
+the tenant it created, regardless of pass or fail, so a rehearsal pass never leaves the one tenant
+every other demo also relies on altered. Needs the full Aspire stack running first (TestSite,
+Keycloak, MockBusinessApp), same as `garden-waste-demo.spec.ts` below.
+
+---
+
 # Garden waste permit: demo recording
 
 `garden-waste-demo.spec.ts` captures the "AI-assisted workflow authoring" walkthrough as one
