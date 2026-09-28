@@ -492,6 +492,24 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
           this._dynamicMobileBrandingValues[varName] = explicitMobileOverride ?? variable.currentValue;
         });
       });
+
+      // Annotation (@prism section:/label:/description:) is an enhancement, never a
+      // requirement, for a variable to be overridable here — any CSS custom property Prism
+      // discovers is fair game to override, it just gets plainer treatment without one. Seed
+      // dynamic state for every variable the un-annotated file scan found too, so edits to
+      // those (rendered by _renderDynamicBrandingTab's "Other variables" fallback) are actually
+      // collected and saved, the same as annotated ones.
+      const annotatedNames = new Set(data.sections.flatMap(section => section.variables.map(v => v.variable)));
+      this._brandingTabs.forEach(tab => {
+        tab.variables.forEach(variable => {
+          if (annotatedNames.has(variable.name)) return;
+          const varName = variable.name;
+          this._dynamicBrandingValues[varName] = tenantOverrides[varName] ?? variable.defaultValue ?? '';
+          const explicitMobileOverride = tenantMobileOverrides[varName];
+          this._mobileInherited[varName] = !explicitMobileOverride;
+          this._dynamicMobileBrandingValues[varName] = explicitMobileOverride ?? variable.defaultValue ?? '';
+        });
+      });
     } catch (error) {
       console.error('Error fetching branding metadata:', error);
       this._brandingMetadataError = error instanceof Error ? error.message : 'Unknown error';
@@ -1281,30 +1299,51 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   private _renderDynamicBrandingTab(tabIndex: number) {
     if (!this._brandingMetadata) return html``;
 
-    const tabVariableNames = new Set(
-      this._brandingTabs[tabIndex]?.variables.map(v => v.name) ?? []
+    const tab = this._brandingTabs[tabIndex];
+    const tabVariables = tab?.variables ?? [];
+    const tabVariableNames = new Set(tabVariables.map(v => v.name));
+
+    const annotatedNames = new Set(
+      this._brandingMetadata.sections.flatMap(section => section.variables.map(v => v.variable))
     );
 
-    const sectionsToShow = tabVariableNames.size > 0
-      ? this._brandingMetadata.sections
-          .map(section => ({
-            ...section,
-            variables: section.variables.filter(v => tabVariableNames.has(v.variable))
-          }))
-          .filter(section => section.variables.length > 0)
-      : this._brandingMetadata.sections;
+    const sectionsToShow = this._brandingMetadata.sections
+      .map(section => ({
+        ...section,
+        variables: section.variables.filter(v => tabVariableNames.has(v.variable))
+      }))
+      .filter(section => section.variables.length > 0);
 
-    const displaySections = sectionsToShow.length > 0 ? sectionsToShow : this._brandingMetadata.sections;
+    // Every CSS custom property Prism finds is overridable here, annotated or not — an
+    // @prism annotation only ever adds a friendlier label/description/picker, it's never a
+    // requirement. A variable this tab declares that carries no annotation still needs to
+    // show up and be genuinely editable, not disappear or fall back to showing every other
+    // tab's fully-annotated content (which is confusing and unrelated to this file).
+    const plainVariables = tabVariables.filter(v => !annotatedNames.has(v.name));
 
     return html`
       <div role="tabpanel" id="branding-panel-${tabIndex}" aria-labelledby="branding-tab-${tabIndex}" class="tab-content">
-        ${displaySections.map(section => html`
+        ${sectionsToShow.map(section => html`
           <uui-box headline="${section.name}" style="margin-bottom: 1.5rem;">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
               ${section.variables.map(variable => this._renderDynamicField(variable))}
             </div>
           </uui-box>
         `)}
+        ${plainVariables.length > 0 ? html`
+          <uui-box headline="${sectionsToShow.length > 0 ? 'Other variables' : 'Variables'}" style="margin-bottom: 1.5rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+              ${plainVariables.map(variable => this._renderDynamicField({
+                variable: variable.name,
+                label: variable.name,
+                description: '',
+                type: 'text',
+                syntax: '*',
+                currentValue: variable.defaultValue ?? ''
+              }))}
+            </div>
+          </uui-box>
+        ` : ''}
       </div>
     `;
   }
