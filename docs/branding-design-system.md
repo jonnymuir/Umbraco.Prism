@@ -87,7 +87,7 @@ Types are inferred from `@property` syntax, but can be overridden with `type:` i
 
 ## File Structure (test client example)
 
-Branding is organized across five (or how ever many you choose) focused CSS files, aggregated by a single entry point:
+Branding is organized across focused CSS files, aggregated by a single entry point:
 
 ### **`prism-branding.css`** (Aggregator)
 
@@ -99,6 +99,7 @@ The single import point. Other modules import from here.
 @import url("/branding/prism-layout.css");
 @import url("/branding/prism-imagery.css");
 @import url("/branding/prism-components.css");
+@import url("/branding/prism-forms.css");
 ```
 
 ### **`prism-colors.css`** (Brand Identity)
@@ -205,6 +206,23 @@ Page dimensions, gutters, gaps, shadows. Mostly `length` type.
     --prism-radius: 16px;
 }
 ```
+
+### **`prism-forms.css`** (GDS Form & Service Request Styling)
+
+Styling for Wayfinder-rendered service request forms: fieldsets, inputs, buttons, error
+summaries, the review/confirmation shells, the Money Modeller's slider/stat-group/chart
+components, and the Service Request Hub. See the
+[service blueprint customisation guide](guides/service-request-customisation.md) for the full
+variable reference.
+
+This file's `@property` custom properties (`--wayfinder-button-font-size`,
+`--prism-input-border`, and the rest) are **deliberately not** annotated with `@prism` comments,
+so they don't appear in the tenant branding editor alongside Brand Colours/Typography/Layout/
+Imagery/Components. These tokens govern GDS-locked, accessibility-critical form chrome (focus
+outlines, hit-target sizes, contrast-safe defaults) that Prism intentionally keeps outside the
+self-service editor. A real host that wants to theme this layer overrides the variables in its
+own stylesheet, the same way [service-request-customisation.md](guides/service-request-customisation.md)
+describes, it just isn't exposed as a point-and-click editor field.
 
 ---
 

@@ -1,9 +1,0 @@
-{
-  "name": "umbraco-prism-testsite",
-  "version": "1.0.0",
-  "description": "Frontend dependencies for Umbraco.Prism TestSite",
-  "private": true,
-  "dependencies": {
-    "govuk-frontend": "^6.5.0"
-  }
-}

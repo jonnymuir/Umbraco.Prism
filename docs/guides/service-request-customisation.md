@@ -57,8 +57,9 @@ The easiest way to customize Prism: override CSS variables. All Prism styling us
 --prism-hint-color: var(--prism-muted);
 --prism-hint-font-size: 16px;
 --prism-required-color: var(--prism-danger);
---prism-button-font-size: 19px;
---prism-button-padding: 8px 16px 7px;
+--wayfinder-button-font-size: 19px;
+--wayfinder-button-padding: 8px 16px 7px;
+--wayfinder-button-border-radius: 0;
 --prism-actions-gap: 1rem;
 
 /* Confirmation panel */
@@ -117,7 +118,9 @@ Create a custom CSS file in your Umbraco project and reference it in your layout
 
 ```cshtml
 <head>
-    <link rel="stylesheet" href="/css/govuk-frontend.min.css" />
+    <!-- Served from Wayfinder.Rendering.GovUk's own static assets, not a vendored copy, so it
+         always matches whatever GOV.UK Frontend version that package bundles. -->
+    <link rel="stylesheet" href="/_content/Wayfinder.Rendering.GovUk/govuk-frontend/govuk-frontend.min.css" />
     <link rel="stylesheet" href="/branding/prism-branding.css" />
 
     <!-- Your custom theme overrides, after Prism's own -->
