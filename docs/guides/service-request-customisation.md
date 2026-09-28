@@ -46,36 +46,25 @@ The easiest way to customize Prism: override CSS variables. All Prism styling us
 #### Forms (`prism-forms.css`: mostly derived from the color variables above)
 
 ```css
---prism-form-group-spacing: 20px;
---prism-input-border: 2px solid var(--prism-text);
---prism-input-border-radius: 0;
---prism-input-padding: 8px 12px;
---prism-input-font-size: 19px;
---prism-input-focus-outline: 3px solid var(--prism-focus);
---prism-label-font-size: 19px;
---prism-label-font-weight: 700;
 --prism-hint-color: var(--prism-muted);
---prism-hint-font-size: 16px;
---prism-required-color: var(--prism-danger);
 --wayfinder-button-font-size: 19px;
 --wayfinder-button-padding: 8px 16px 7px;
 --wayfinder-button-border-radius: 0;
---prism-actions-gap: 1rem;
-
-/* Confirmation panel */
---prism-panel-confirmation-border-color: var(--prism-success);
---prism-panel-confirmation-bg: color-mix(in srgb, var(--prism-success) 8%, var(--prism-surface));
---prism-panel-confirmation-padding: 1.5rem;
-
-/* Check-answers (the "review" shell) */
---prism-review-dt-color: var(--prism-muted);
---prism-review-item-border: 1px solid var(--prism-border);
 
 /* Errors */
 --prism-error: var(--prism-danger);
 --prism-error-bg: color-mix(in srgb, var(--prism-danger) 8%, var(--prism-surface));
 --prism-error-border: var(--prism-danger);
 ```
+
+Real forms are rendered with GOV.UK Frontend's own native classes (`govuk-input`, `govuk-label`,
+`govuk-hint`, `govuk-fieldset`, ...) by `Wayfinder.Umbraco`, not a Prism-specific field
+abstraction — `prism-forms.css` styles the layer *around* those (the stage page container,
+alerts, the error summary, buttons, the Service Request Hub, and the Money Modeller's
+slider/stat-group/chart) plus the small amount of markup TestSite's own client-side JS injects
+(the character counter above). `--prism-error`/`--prism-error-bg`/`--prism-error-border` back a
+plain `input[aria-invalid="true"]`/`select[...]`/`textarea[...]` rule, so they apply regardless
+of which component rendered the field.
 
 #### Layout (`prism-layout.css`)
 
@@ -109,7 +98,7 @@ Create a custom CSS file in your Umbraco project and reference it in your layout
 :root {
     --prism-primary: #d32f2f;
     --prism-accent: #388e3c;
-    --prism-form-group-spacing: 28px;
+    --wayfinder-button-border-radius: 4px;
     --prism-font-body: Georgia, serif;
 }
 ```

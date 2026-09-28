@@ -4,76 +4,10 @@
    @property declarations for form-specific custom properties
    -------------------------------------------------------------------------- */
 
-@property --prism-form-group-spacing {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 20px;
-}
-
-@property --prism-input-border {
-  syntax: '*';
-  inherits: true;
-  initial-value: none;
-}
-
-@property --prism-input-border-radius {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 0px;
-}
-
-@property --prism-input-padding {
-  syntax: '*';
-  inherits: true;
-  initial-value: 5px 10px;
-}
-
-@property --prism-input-font-size {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 19px;
-}
-
-@property --prism-input-focus-color {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #f59e0b;
-}
-
-@property --prism-input-focus-outline {
-  syntax: '*';
-  inherits: true;
-  initial-value: none;
-}
-
-@property --prism-label-font-size {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 19px;
-}
-
-@property --prism-label-font-weight {
-  syntax: '<number>';
-  inherits: true;
-  initial-value: 700;
-}
-
 @property --prism-hint-color {
   syntax: '<color>';
   inherits: true;
   initial-value: #64748b;
-}
-
-@property --prism-hint-font-size {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 16px;
-}
-
-@property --prism-required-color {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #ef4444;
 }
 
 @property --wayfinder-button-font-size {
@@ -94,142 +28,27 @@
   initial-value: 0px;
 }
 
-@property --prism-actions-gap {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 1rem;
-}
-
-@property --prism-panel-confirmation-border-color {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #16a34a;
-}
-
-@property --prism-panel-confirmation-bg {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #f0faf4;
-}
-
-@property --prism-panel-confirmation-padding {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 1.5rem;
-}
-
-@property --prism-review-dt-color {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #64748b;
-}
-
-@property --prism-review-item-border {
-  syntax: '*';
-  inherits: true;
-  initial-value: none;
-}
-
 /* --------------------------------------------------------------------------
    Custom properties (theming)
    -------------------------------------------------------------------------- */
 
 :root {
-    --prism-form-group-spacing: 20px;
-    --prism-input-border: 2px solid var(--prism-text);
-    --prism-input-border-radius: 0;
-    --prism-input-padding: 8px 12px;
-    --prism-input-font-size: 19px;
-    --prism-input-focus-color: var(--prism-focus);
-    --prism-input-focus-outline: 3px solid var(--prism-focus);
-    --prism-label-font-size: 19px;
-    --prism-label-font-weight: 700;
     --prism-hint-color: var(--prism-muted);
-    --prism-hint-font-size: 16px;
-    --prism-required-color: var(--prism-danger);
     --wayfinder-button-font-size: 19px;
     --wayfinder-button-padding: 8px 16px 7px;
     --wayfinder-button-border-radius: 0;
-    --prism-actions-gap: 1rem;
-    --prism-panel-confirmation-border-color: var(--prism-success);
-    --prism-panel-confirmation-bg: color-mix(in srgb, var(--prism-success) 8%, var(--prism-surface));
-    --prism-panel-confirmation-padding: 1.5rem;
-    --prism-review-dt-color: var(--prism-muted);
-    --prism-review-item-border: 1px solid var(--prism-border);
 }
 
 /* --------------------------------------------------------------------------
-   Fieldset / legend
+   Character count (textareas with a minlength/maxlength constraint)
    -------------------------------------------------------------------------- */
 
-.prism-fieldset {
-    border: 0;
-    padding: 0;
-    margin: 0 0 30px;
-    min-inline-size: 0;
-}
-
-.prism-legend {
-    font-size: var(--prism-text-size-lg);
-    font-weight: 700;
-    margin-bottom: 15px;
-    padding: 0;
-    color: var(--prism-text);
-    /* display:table forces block behaviour for <legend> across all browsers
-       without the float hack that causes first radio to shift right */
-    display: table;
-    max-width: 100%;
-    box-sizing: border-box;
-}
-
-/* --------------------------------------------------------------------------
-   Form groups
-   -------------------------------------------------------------------------- */
-
-.prism-form-group {
-    margin-bottom: var(--prism-form-group-spacing);
-}
-
-.prism-form-group::after {
-    content: '';
-    display: table;
-    clear: both;
-}
-
-/* --------------------------------------------------------------------------
-   Labels
-   -------------------------------------------------------------------------- */
-
-.prism-label {
-    display: block;
-    font-size: var(--prism-label-font-size);
-    font-weight: var(--prism-label-font-weight);
-    margin-bottom: 5px;
-    cursor: pointer;
-    color: var(--prism-text);
-}
-
-.prism-label--inline {
-    display: inline;
-    font-weight: 400;
-    margin-bottom: 0;
-    margin-left: 0.5rem;
-    cursor: pointer;
-}
-
-/* --------------------------------------------------------------------------
-   Hint text
-   -------------------------------------------------------------------------- */
-
-.prism-hint {
-    color: var(--prism-hint-color);
-    font-size: var(--prism-hint-font-size);
-    display: block;
-    margin-bottom: 10px;
-    line-height: 1.4;
-}
-
-/* Character count for textareas */
+/* prism-service-request-validation.js's attachCharacterCounters() injects this counter after
+   any textarea[minlength]/textarea[maxlength], regardless of what classes the textarea itself
+   carries (govuk-textarea in current markup) — so these three rules stay live even though the
+   surrounding "GDS field" abstraction (.prism-input/.prism-label/.prism-fieldset/etc.) that used
+   to wrap it was removed as dead code alongside this file's own now-unreachable client-side
+   validation functions. */
 .prism-field-char-count {
     font-size: 0.875rem;
     text-align: right;
@@ -245,105 +64,6 @@
 .prism-field-char-count--error {
     color: var(--prism-error, #d4351c);
     font-weight: 700;
-}
-
-/* --------------------------------------------------------------------------
-   Required indicator
-   -------------------------------------------------------------------------- */
-
-.prism-required {
-    color: var(--prism-required-color);
-    margin-left: 0.2em;
-    font-weight: 700;
-}
-
-/* --------------------------------------------------------------------------
-   Inputs
-   -------------------------------------------------------------------------- */
-
-.prism-input,
-.prism-textarea,
-.prism-select {
-    box-sizing: border-box;
-    width: 100%;
-    max-width: 40rem;
-    min-height: 44px;
-    padding: var(--prism-input-padding);
-    font-size: var(--prism-input-font-size);
-    font-family: inherit;
-    line-height: 1.25;
-    border: var(--prism-input-border);
-    border-radius: var(--prism-input-border-radius);
-    background-color: var(--prism-surface);
-    color: var(--prism-text);
-    appearance: none;
-    -webkit-appearance: none;
-}
-
-.prism-textarea {
-    resize: vertical;
-    min-height: 160px;
-    line-height: 1.5;
-}
-
-.prism-select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%230b0c0c' d='M0 0l6 8 6-8z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
-    padding-right: 2.5rem;
-}
-
-/* Focus states — WCAG 2.2 AA visible focus */
-
-.prism-input:focus-visible,
-.prism-textarea:focus-visible,
-.prism-select:focus-visible {
-    outline: var(--prism-input-focus-outline);
-    outline-offset: 0;
-    box-shadow: inset 0 0 0 2px var(--prism-text);
-}
-
-/* Never suppress focus without a replacement */
-.prism-input:focus:not(:focus-visible),
-.prism-textarea:focus:not(:focus-visible),
-.prism-select:focus:not(:focus-visible) {
-    outline: 2px solid transparent;
-}
-
-/* --------------------------------------------------------------------------
-   Checkboxes and radios
-   -------------------------------------------------------------------------- */
-
-.prism-checkbox,
-.prism-radio {
-    width: 1.5rem;
-    height: 1.5rem;
-    margin: 0;
-    padding: 0;
-    vertical-align: middle;
-    cursor: pointer;
-    flex-shrink: 0;
-    accent-color: var(--prism-primary);
-}
-
-.prism-checkbox:focus-visible,
-.prism-radio:focus-visible {
-    outline: 3px solid var(--prism-input-focus-color);
-    outline-offset: 2px;
-}
-
-.prism-form-group__checkbox-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.prism-checkbox-item,
-.prism-radio-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
 }
 
 /* --------------------------------------------------------------------------
@@ -426,123 +146,10 @@
 }
 
 /* --------------------------------------------------------------------------
-   Review step
-   -------------------------------------------------------------------------- */
-
-.prism-review__group {
-    margin-bottom: 2rem;
-}
-
-.prism-review__group-title {
-    font-size: var(--prism-text-size-lg);
-    font-weight: 700;
-    margin-bottom: 15px;
-    color: var(--prism-text);
-}
-
-.prism-review__list {
-    margin: 0;
-    padding: 0;
-}
-
-.prism-review__item {
-    display: grid;
-    grid-template-columns: 1fr 2fr;
-    gap: 10px 20px;
-    padding: 15px 0;
-    border-bottom: var(--prism-review-item-border);
-}
-
-.prism-review__item:first-child {
-    border-top: var(--prism-review-item-border);
-}
-
-.prism-review__label {
-    font-size: var(--prism-text-size-md);
-    font-weight: 700;
-    color: var(--prism-text);
-}
-
-.prism-review__value {
-    font-size: var(--prism-text-size-md);
-    margin: 0;
-    word-break: break-word;
-    color: var(--prism-text);
-}
-
-.prism-review__empty {
-    color: var(--prism-hint-color);
-    font-style: italic;
-}
-
-/* --------------------------------------------------------------------------
-   Completion / confirmation panel
-   -------------------------------------------------------------------------- */
-
-.prism-panel--confirmation {
-    background-color: var(--prism-panel-confirmation-bg);
-    border-left: 6px solid var(--prism-panel-confirmation-border-color);
-    padding: var(--prism-panel-confirmation-padding);
-}
-
-.prism-panel__title {
-    font-size: var(--prism-text-size-lg);
-    font-weight: 700;
-    margin: 0 0 10px;
-    color: var(--prism-panel-confirmation-border-color);
-}
-
-.prism-panel__body {
-    font-size: var(--prism-text-size-md);
-    margin: 0;
-    line-height: 1.5;
-}
-
-/* --------------------------------------------------------------------------
-   Readonly fields
-   -------------------------------------------------------------------------- */
-
-.prism-field__input--readonly,
-.prism-input.prism-field__input--readonly,
-.prism-textarea.prism-field__input--readonly {
-    background-color: color-mix(in srgb, var(--prism-border) 20%, var(--prism-surface));
-    color: var(--prism-muted);
-    cursor: not-allowed;
-    opacity: 0.85;
-}
-
-.prism-field__input--readonly:hover {
-    border-color: var(--prism-input-border);
-}
-
-.prism-field__readonly-display {
-    padding: var(--prism-input-padding);
-    background-color: color-mix(in srgb, var(--prism-border) 20%, var(--prism-surface));
-    color: var(--prism-muted);
-    border: var(--prism-input-border);
-    border-radius: var(--prism-input-border-radius);
-    font-size: var(--prism-input-font-size);
-    min-height: 2.5rem;
-    display: flex;
-    align-items: center;
-}
-
-/* --------------------------------------------------------------------------
    Responsive — mobile
    -------------------------------------------------------------------------- */
 
 @media (max-width: 640px) {
-    .prism-input,
-    .prism-textarea,
-    .prism-select {
-        width: 100%;
-        max-width: 100%;
-    }
-
-    .prism-review__item {
-        grid-template-columns: 1fr;
-    }
-
     .wayfinder-button {
         width: 100%;
         justify-content: center;
@@ -555,11 +162,6 @@
 
 .stage-page {
     margin: 0;
-}
-
-.stage-page__header {
-    margin-bottom: var(--prism-section-gap);
-    padding-top: 0;
 }
 
 .stage-page__title {
@@ -601,68 +203,6 @@
 
 .stage-alert--warn p {
     margin: 0;
-}
-
-/* --------------------------------------------------------------------------
-   Form group error state
-   -------------------------------------------------------------------------- */
-
-.prism-form-group--error .prism-input,
-.prism-form-group--error .prism-textarea,
-.prism-form-group--error .prism-select {
-    border-color: var(--prism-danger);
-    border-width: 3px;
-}
-
-.prism-form-group__error {
-    font-size: 0.875rem;
-    color: var(--prism-danger);
-    font-weight: 700;
-    margin: 0.25rem 0 0;
-    display: block;
-}
-
-/* --------------------------------------------------------------------------
-   Review step — intro text
-   -------------------------------------------------------------------------- */
-
-.prism-review__intro {
-    color: var(--prism-hint-color);
-    margin-bottom: 1.5rem;
-}
-
-/* --------------------------------------------------------------------------
-   Status timeline step
-   -------------------------------------------------------------------------- */
-
-.prism-status__icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    display: block;
-}
-
-.prism-status__heading {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--prism-primary);
-    margin-bottom: 0.75rem;
-}
-
-.prism-status__body {
-    color: var(--prism-muted);
-    max-width: 480px;
-    margin: 0 auto;
-}
-
-/* --------------------------------------------------------------------------
-   Completion icon
-   -------------------------------------------------------------------------- */
-
-.prism-completion__icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    display: block;
-    text-align: center;
 }
 
 /* --------------------------------------------------------------------------
@@ -724,28 +264,6 @@
     background-color: var(--prism-focus);
     color: var(--prism-text);
     box-shadow: inset 0 0 0 1px var(--prism-text);
-}
-
-/* Field wrapper error modifier — turns field into error state */
-.prism-field--error .prism-label {
-    color: var(--prism-error, #d4351c);
-}
-
-.prism-field--error input,
-.prism-field--error select,
-.prism-field--error textarea {
-    border-color: var(--prism-error, #d4351c);
-    border-width: 3px;
-}
-
-/* Inline error message — appears below invalid field */
-.prism-field-error {
-    color: var(--prism-danger);
-    font-weight: 700;
-    font-size: var(--prism-text-size-md);
-    margin: 5px 0 15px;
-    padding-left: 12px;
-    border-left: 4px solid var(--prism-danger);
 }
 
 /* Error state for inputs with aria-invalid — standalone styling */

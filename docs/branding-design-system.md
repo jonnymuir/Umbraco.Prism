@@ -209,20 +209,23 @@ Page dimensions, gutters, gaps, shadows. Mostly `length` type.
 
 ### **`prism-forms.css`** (GDS Form & Service Request Styling)
 
-Styling for Wayfinder-rendered service request forms: fieldsets, inputs, buttons, error
-summaries, the review/confirmation shells, the Money Modeller's slider/stat-group/chart
-components, and the Service Request Hub. See the
+Real service request fields are rendered with GOV.UK Frontend's own native classes
+(`govuk-input`, `govuk-label`, `govuk-hint`, `govuk-fieldset`, ...) by `Wayfinder.Umbraco`, not a
+Prism-specific field abstraction. `prism-forms.css` styles the layer around those: the stage page
+container and alerts, buttons, the error summary, the Service Request Hub, and the Money
+Modeller's slider/stat-group/chart components, plus a small character-count widget TestSite's own
+client-side JS injects. See the
 [service blueprint customisation guide](guides/service-request-customisation.md) for the full
 variable reference.
 
-This file's `@property` custom properties (`--wayfinder-button-font-size`,
-`--prism-input-border`, and the rest) are **deliberately not** annotated with `@prism` comments,
-so they don't appear in the tenant branding editor alongside Brand Colours/Typography/Layout/
-Imagery/Components. These tokens govern GDS-locked, accessibility-critical form chrome (focus
-outlines, hit-target sizes, contrast-safe defaults) that Prism intentionally keeps outside the
-self-service editor. A real host that wants to theme this layer overrides the variables in its
-own stylesheet, the same way [service-request-customisation.md](guides/service-request-customisation.md)
-describes, it just isn't exposed as a point-and-click editor field.
+This file's `@property` custom properties (`--wayfinder-button-font-size` and the rest) are
+**deliberately not** annotated with `@prism` comments, so they don't appear in the tenant
+branding editor alongside Brand Colours/Typography/Layout/Imagery/Components. These tokens govern
+GDS-locked, accessibility-critical form chrome (hit-target sizes, contrast-safe defaults) that
+Prism intentionally keeps outside the self-service editor. A real host that wants to theme this
+layer overrides the variables in its own stylesheet, the same way
+[service-request-customisation.md](guides/service-request-customisation.md) describes, it just
+isn't exposed as a point-and-click editor field.
 
 ---
 
