@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MailKit" Version="4.17.0" />
+    <PackageReference Include="MailKit" Version="4.18.0" />
     <PackageReference Include="Umbraco.Cms" Version="$(UmbracoPackageRange)" />
     <PackageReference Include="Umbraco.Cms.DevelopmentMode.Backoffice" Version="$(UmbracoPackageRange)" />
     <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.2" />
@@ -31,8 +31,8 @@
          JugglingLicenceDecisionAutomationSeeder). Registers itself through its own
          UmbracoAutomateComposer, picked up automatically by Umbraco's own composer discovery —
          a bare package reference is enough, no explicit AddUmbracoAutomate() call. -->
-    <PackageReference Include="Umbraco.Automate" Version="17.3.0" />
-    <PackageReference Include="Umbraco.Automate.Persistence.Sqlite" Version="17.3.0" />
+    <PackageReference Include="Umbraco.Automate" Version="17.4.0" />
+    <PackageReference Include="Umbraco.Automate.Persistence.Sqlite" Version="17.4.0" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" Condition="$(RuntimeIdentifier.StartsWith('linux')) or $(RuntimeIdentifier.StartsWith('win')) or ('$(RuntimeIdentifier)' == '' and !$([MSBuild]::IsOSPlatform('osx')))" />
   </ItemGroup>
 
