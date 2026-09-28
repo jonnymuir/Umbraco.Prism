@@ -70,6 +70,25 @@ jobs:
           password: ${{ env.PRISM_VPS_PASSWORD }}
           script: sudo systemctl stop prism-reference
 
+      # scp only adds/overwrites — it never deletes a destination file that's gone from the
+      # source, so a renamed or removed file (e.g. a stylesheet renamed in a refactor) stays
+      # stranded on the VPS forever, alongside its replacement, confusing anything that scans
+      # wwwroot at runtime (found live: BrandingService, which discovers CSS variables by
+      # walking every *.css file under the content root, was serving tabs for both an old
+      # deleted components.css and a duplicate govuk-frontend.min.css left over from a prior
+      # deploy). This app has no state worth preserving between deploys — the tenant is
+      # code-seeded on every boot, and Wayfinder's own per-service-request-instance file uploads
+      # under App_Data/wayfinder-uploads are only ever meaningful alongside that same disposable,
+      # reseeded database — so a full wipe before copying the fresh build is correct here, not
+      # just convenient.
+      - name: Clean the previous deployment
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ env.PRISM_VPS_HOST }}
+          username: ${{ env.PRISM_VPS_USERNAME }}
+          password: ${{ env.PRISM_VPS_PASSWORD }}
+          script: sudo find /var/www/prism-reference -mindepth 1 -delete
+
       - name: Copy published files to the VPS
         uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
         with:
