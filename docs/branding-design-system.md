@@ -227,6 +227,17 @@ layer overrides the variables in its own stylesheet, the same way
 [service-request-customisation.md](guides/service-request-customisation.md) describes, it just
 isn't exposed as a point-and-click editor field.
 
+### **`prism-govuk-bridge.css`** (GOV.UK Frontend Alignment)
+
+GOV.UK Frontend ships its own `--govuk-*` custom properties (colours, mostly). This file aliases
+the relevant ones to the matching `--prism-*` token (`--govuk-brand-colour: var(--prism-primary)`
+and so on), so editing a Prism token also updates the GOV.UK components that consume it, rather
+than requiring the same colour to be set twice. Unlike a plain colour field, a `var()` reference
+isn't something a native colour picker can render directly, so these render as a "Linked to
+`<token>`" badge with a picker to repoint or break the link instead of the usual widget. See
+[the GOV.UK token bridge guide](guides/govuk-token-bridge.md) for the full mapping, why the
+cascade ordering works, and how the linked-field picker works.
+
 ---
 
 ## How It Works: The Backend
