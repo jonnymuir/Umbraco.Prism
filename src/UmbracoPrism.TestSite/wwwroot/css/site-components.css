@@ -1,0 +1,618 @@
+/* Components — Reusable UI patterns */
+
+/* Hero */
+.hero {
+    background-blend-mode: var(--prism-hero-image-blend, normal);
+    background-color: var(--prism-primary, #4f46e5);
+    background-image: var(--prism-hero-image, none), var(--prism-hero-bg, none);
+    background-size: cover;
+    background-position: center;
+    color: var(--prism-hero-text, #ffffff);
+    border-radius: var(--prism-radius, 16px);
+    padding: var(--prism-hero-padding, 40px);
+    margin-top: 32px;
+    box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
+}
+
+.hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--prism-hero-badge, rgba(255, 255, 255, 0.2));
+    font-size: var(--prism-text-size-sm, 12px);
+    letter-spacing: var(--prism-letter-spacing-caps, 0.08em);
+    text-transform: uppercase;
+}
+
+.hero h1 {
+    margin: 16px 0 12px;
+    font-family: var(--prism-font-display, var(--prism-font-body));
+    font-size: var(--prism-text-size-xl, 40px);
+    font-weight: var(--prism-heading-weight, 700);
+}
+
+.hero p {
+    margin: 0 0 24px;
+    max-width: 640px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: var(--prism-text-size-lg, 22px);
+}
+
+.hero-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: var(--prism-text-size-md, 16px);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-primary {
+    background: var(--wayfinder-button-bg, #4f46e5);
+    color: var(--wayfinder-button-text, #ffffff);
+    box-shadow: 0 8px 16px rgba(79, 70, 229, 0.3);
+}
+
+.btn-primary:hover {
+    background: var(--wayfinder-button-hover, #4338ca);
+    transform: translateY(-1px);
+}
+
+.btn-ghost {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.btn-ghost:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.btn-secondary {
+    background: var(--prism-surface, #ffffff);
+    color: var(--prism-primary, #4f46e5);
+    border-color: var(--prism-border, #e2e8f0);
+}
+
+.btn-secondary:hover {
+    background: var(--prism-surface-alt, #f8fafc);
+    transform: translateY(-1px);
+}
+
+.btn-outline {
+    background: transparent;
+    color: var(--prism-danger, #ef4444);
+    border-color: var(--prism-danger, #ef4444);
+}
+
+.btn-outline:hover {
+    background: var(--prism-danger, #ef4444);
+    color: #ffffff;
+}
+
+.btn-subscribe {
+    padding: 0.75rem 1.5rem;
+    background: #4299e1;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-subscribe:hover {
+    background: #3182ce;
+}
+
+.btn-waitlist {
+    background: #ed8936;
+    color: white;
+}
+
+.btn-waitlist:hover {
+    background: #dd6b20;
+}
+
+/* Cards */
+.card,
+.dash-card {
+    background: var(--prism-surface, #ffffff);
+    border-radius: var(--prism-radius, 16px);
+    padding: 24px;
+    border: 1px solid var(--prism-border, #e2e8f0);
+    box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
+}
+
+.card__icon,
+.dash-card__icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 16px;
+}
+
+.card__icon--security,
+.dash-card__icon--account {
+    background: rgba(79, 70, 229, 0.12);
+    color: var(--prism-primary, #4f46e5);
+}
+
+.card__icon--tenancy,
+.dash-card__icon--documents {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--prism-accent, #22c55e);
+}
+
+.card__icon--mobile,
+.dash-card__icon--support {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--prism-warning, #f59e0b);
+}
+
+.card h3,
+.dash-card h3 {
+    margin: 0 0 8px;
+    font-weight: 700;
+}
+
+.card p,
+.dash-card p {
+    margin: 0;
+    color: var(--prism-muted, #64748b);
+}
+
+.dash-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dash-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+}
+
+html.prism-mobile .card {
+    border-radius: 14px;
+    padding: 16px;
+    color: var(--prism-text, #0f172a);
+    background: var(--prism-surface, #ffffff);
+}
+
+html.prism-mobile .card p {
+    color: var(--prism-muted, #64748b);
+}
+
+/* Features section */
+.features {
+    margin-top: var(--prism-section-gap, 28px);
+}
+
+.features h2 {
+    font-family: var(--prism-font-display, var(--prism-font-body));
+    font-size: var(--prism-text-size-lg, 22px);
+    font-weight: var(--prism-heading-weight, 700);
+    margin: 0 0 8px;
+}
+
+.features > p {
+    color: var(--prism-muted, #64748b);
+    margin: 0 0 20px;
+}
+
+/* Dashboard sections */
+.dash-welcome {
+    margin-bottom: 32px;
+}
+
+.dash-welcome h1 {
+    font-family: var(--prism-font-display, var(--prism-font-body));
+    font-size: var(--prism-text-size-xl, 40px);
+    font-weight: var(--prism-heading-weight, 700);
+    margin: 0 0 4px;
+}
+
+.dash-welcome p {
+    color: var(--prism-muted, #64748b);
+    margin: 0;
+}
+
+.dash-section {
+    margin-bottom: 32px;
+}
+
+.dash-section h2 {
+    font-family: var(--prism-font-display, var(--prism-font-body));
+    font-size: var(--prism-text-size-lg, 22px);
+    font-weight: var(--prism-heading-weight, 700);
+    margin: 0 0 8px;
+}
+
+.dash-section > p {
+    color: var(--prism-muted, #64748b);
+    margin: 0 0 16px;
+}
+
+/* Biometric card */
+.dash-bio-card {
+    background: var(--prism-surface, #ffffff);
+    border-radius: var(--prism-radius, 16px);
+    padding: 24px;
+    border: 1px solid var(--prism-border, #e2e8f0);
+    box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
+}
+
+.dash-bio-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: var(--prism-surface-alt, #f8fafc);
+    border-radius: 12px;
+    margin-bottom: 16px;
+}
+
+.dash-bio-status__dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.dash-bio-status__dot--active {
+    background: var(--prism-success, #16a34a);
+    box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.2);
+}
+
+.dash-bio-status__dot--inactive {
+    background: var(--prism-muted, #64748b);
+}
+
+.dash-bio-status strong {
+    flex: 1;
+}
+
+.dash-bio-status__hint {
+    color: var(--prism-muted, #64748b);
+    font-size: var(--prism-text-size-sm, 13px);
+}
+
+.dash-bio-steps {
+    display: grid;
+    gap: 12px;
+}
+
+.dash-bio-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--prism-border, #e2e8f0);
+}
+
+.dash-bio-step:last-child {
+    border-bottom: none;
+}
+
+.dash-bio-step__num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--prism-primary, #4f46e5);
+    color: var(--prism-primary-contrast, #ffffff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.dash-bio-step h4 {
+    margin: 0 0 2px;
+    font-size: 0.95rem;
+}
+
+.dash-bio-step p {
+    margin: 0;
+    color: var(--prism-muted, #64748b);
+    font-size: var(--prism-text-size-sm, 13px);
+}
+
+/* Profile card */
+.dash-profile {
+    background: var(--prism-surface, #ffffff);
+    border-radius: var(--prism-radius, 16px);
+    padding: 24px;
+    border: 1px solid var(--prism-border, #e2e8f0);
+    box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
+}
+
+.dash-profile__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--prism-border, #e2e8f0);
+}
+
+.dash-profile__row:last-child {
+    border-bottom: none;
+}
+
+.dash-profile__label {
+    color: var(--prism-muted, #64748b);
+    font-size: var(--prism-text-size-sm, 13px);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: var(--prism-letter-spacing-caps, 0.08em);
+}
+
+.dash-profile__value {
+    font-weight: 600;
+}
+
+/* API card */
+.dash-api-card {
+    background: var(--prism-surface, #ffffff);
+    border-radius: var(--prism-radius, 16px);
+    padding: 24px;
+    border: 1px solid var(--prism-border, #e2e8f0);
+    box-shadow: var(--prism-card-shadow, 0 10px 30px rgba(15, 23, 42, 0.12));
+}
+
+.dash-api-card pre {
+    background: var(--prism-surface-alt, #f8fafc);
+    border: 1px solid var(--prism-border, #e2e8f0);
+    border-radius: 10px;
+    padding: 16px;
+    font-size: var(--prism-text-size-sm, 13px);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 12px 0 0;
+    color: var(--prism-text, #0f172a);
+}
+
+.dash-api-card .api-hint {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 10px;
+    font-size: var(--prism-text-size-sm, 13px);
+    color: var(--prism-text, #0f172a);
+}
+
+.dash-api-card .api-hint code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+}
+
+/* Downstream API demo panel — the button/badge/summary colours below are also set directly by
+   member-dashboard-downstream-demo.js at runtime (element.style.background/.color); JS-driven
+   style mutations aren't subject to CSP's style-src restriction on inline style="" HTML
+   attributes (confirmed live), only the server-rendered initial markup was. These classes
+   replace that initial inline markup; the script's own runtime overrides are unaffected. */
+.dash-api-card__intro {
+    margin: 0 0 16px;
+    color: var(--prism-muted, #64748b);
+}
+
+.dash-api-card__btn {
+    font-size: var(--prism-text-size-sm, 13px);
+    padding: 8px 16px;
+}
+
+.dash-api-card__loading {
+    display: none;
+    padding: 16px 0;
+    color: var(--prism-muted, #64748b);
+    font-size: var(--prism-text-size-sm, 13px);
+}
+
+.dash-api-card__result {
+    display: none;
+}
+
+.dash-api-card__status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.dash-api-card__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: var(--prism-text-size-sm, 13px);
+    font-weight: 700;
+    font-family: monospace;
+}
+
+.dash-api-card__url {
+    font-size: var(--prism-text-size-sm, 13px);
+    color: var(--prism-muted, #64748b);
+    font-family: monospace;
+    word-break: break-all;
+}
+
+.dash-api-card__timing {
+    font-size: var(--prism-text-size-sm, 13px);
+    color: var(--prism-muted, #64748b);
+    margin-left: auto;
+}
+
+.dash-api-card__summary {
+    margin: 0 0 12px;
+    font-size: var(--prism-text-size-sm, 13px);
+}
+
+.dash-api-card__result-box {
+    background: var(--prism-surface-alt, #f8fafc);
+    border: 1px solid var(--prism-border, #e2e8f0);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.dash-api-card__result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    background: var(--prism-surface, #ffffff);
+    border-bottom: 1px solid var(--prism-border, #e2e8f0);
+}
+
+.dash-api-card__result-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.dash-api-card__body-label {
+    font-size: var(--prism-text-size-sm, 13px);
+    color: var(--prism-muted, #64748b);
+    font-weight: 700;
+}
+
+.dash-api-card__content-type {
+    font-size: var(--prism-text-size-sm, 13px);
+    color: var(--prism-muted, #64748b);
+    font-family: monospace;
+}
+
+.dash-api-card__reset-btn {
+    background: none;
+    border: none;
+    color: var(--prism-muted, #64748b);
+    cursor: pointer;
+    font-size: var(--prism-text-size-sm, 13px);
+    padding: 2px 6px;
+}
+
+/* Higher specificity than the generic ".dash-api-card pre" rule above (which would otherwise
+   also match #api-body and reapply its own background/border/margin). */
+pre.dash-api-card__body {
+    margin: 0;
+    padding: 16px;
+    font-size: var(--prism-text-size-sm, 13px);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--prism-text, #0f172a);
+}
+
+/* Mobile navigation */
+html.prism-mobile {
+    /* Single source of truth for the fixed bottom nav bar's real rendered height (item
+       min-height 38px + 10px top padding + 10px bottom padding + 1px border, some headroom) —
+       shared with .container's own bottom-padding reservation below so the two can't drift
+       independently. Not a --prism-* token: this is a structural layout constant, not a
+       tenant-branding value. */
+    --mobile-nav-height: 70px;
+}
+
+.mobile-shell-nav {
+    display: none;
+}
+
+.prism-mobile .mobile-shell-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(15, 23, 42, 0.94);
+    border-top: 1px solid rgba(148, 163, 184, 0.3);
+    backdrop-filter: blur(8px);
+    z-index: 1000;
+}
+
+/* Found live: nothing reserved space for the fixed nav bar above, so real page content (a
+   form's own Submit button, say) could render directly underneath it, partly or fully hidden —
+   not just the footer. */
+.prism-mobile .container {
+    padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+}
+
+.mobile-shell-nav__item {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 38px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: #e2e8f0;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(148, 163, 184, 0.16);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.mobile-shell-nav__item--active {
+    background: rgba(79, 70, 229, 0.35);
+    border-color: rgba(129, 140, 248, 0.55);
+    color: #ffffff;
+}
+
+/* Mobile hero overrides */
+html.prism-mobile .hero {
+    border-radius: 22px;
+    padding: 20px 16px;
+    min-height: 280px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+html.prism-mobile .hero h1 {
+    font-size: clamp(1.7rem, 5.8vw, 2.1rem);
+}
+
+html.prism-mobile .hero p {
+    font-size: 1rem;
+}
+
+html.prism-mobile .hero-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+}
+
+html.prism-mobile .hero-actions .btn {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+html.prism-mobile .dash-welcome h1 {
+    font-size: clamp(1.5rem, 5vw, 2rem);
+}

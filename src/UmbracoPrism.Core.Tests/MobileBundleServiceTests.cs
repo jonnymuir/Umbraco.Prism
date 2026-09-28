@@ -457,7 +457,7 @@ public class MobileBundleServiceTests
         // the first place — needed unconditionally (not just for hosted content) because this
         // same script's own meta-tag overwrite was silently stripping the viewport-fit=cover
         // Master.cshtml already sets, on every page including this app's own, which is why
-        // TestSite's own layout.css (env(safe-area-inset-top) on .portal-header/.dash-header)
+        // TestSite's own site-layout.css (env(safe-area-inset-top) on .portal-header/.dash-header)
         // hadn't actually been doing anything.
         iosBootstrap.Should().Contain("fileprivate enum PrismOwnHost");
         iosBootstrap.Should().Contain("static let value = \"test.example\"");

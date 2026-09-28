@@ -3,6 +3,10 @@
 // explicitly. window.GOVUKFrontend is assigned here purely so existing call sites (and this
 // behaviour's own regression test, govuk-frontend-bootstrap.spec.ts) can keep checking it,
 // matching the shape the previous classic-script version exposed.
-import { initAll } from '/js/govuk-frontend.min.js';
+//
+// Imported from Wayfinder.Rendering.GovUk's own static assets rather than a vendored copy in
+// this project, so it always matches whatever GOV.UK Frontend version that package bundles (see
+// the equivalent stylesheet link in Master.cshtml for the same rationale).
+import { initAll } from '/_content/Wayfinder.Rendering.GovUk/govuk-frontend/govuk-frontend.min.js';
 window.GOVUKFrontend = { initAll };
 initAll();
