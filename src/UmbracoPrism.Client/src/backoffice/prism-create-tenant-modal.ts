@@ -70,6 +70,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   @state() private _dynamicBrandingValues: Record<string, string> = {};
   @state() private _dynamicMobileBrandingValues: Record<string, string> = {};
   @state() private _mobileInherited: Record<string, boolean> = {};
+  // Keyed by variable name (desktop) or `${variable}:mobile` (mobile) — true while the picker
+  // for a linked (var(--x)) field is open. See _renderLinkableField.
+  @state() private _linkEditing: Record<string, boolean> = {};
   
   // Form State
   @state() private _id: number | null = null;
@@ -1348,6 +1351,51 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     `;
   }
 
+  // A variable's raw value can itself be a reference to another variable, e.g.
+  // "var(--prism-danger, #d4351c)" (see prism-govuk-bridge.css). Detects that and pulls out the
+  // target name and optional fallback text.
+  private _parseLink(rawValue: string | undefined): { target: string; fallback?: string } | null {
+    if (!rawValue) return null;
+    const match = /^var\(\s*(--[\w-]+)\s*(?:,\s*(.+))?\)$/.exec(rawValue.trim());
+    if (!match) return null;
+    return { target: match[1], fallback: match[2]?.trim() };
+  }
+
+  private _findVariableMeta(name: string) {
+    if (!this._brandingMetadata) return undefined;
+    for (const section of this._brandingMetadata.sections) {
+      const found = section.variables.find(v => v.variable === name);
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  // Follows a chain of var(--x) references down to a literal value, for swatch previews and for
+  // seeding a fallback when a link is first created. Bounded depth guards against a cycle.
+  private _resolveLiteralValue(rawValue: string | undefined, depth = 0): string | undefined {
+    if (!rawValue || depth > 5) return rawValue;
+    const link = this._parseLink(rawValue);
+    if (!link) return rawValue;
+    const meta = this._findVariableMeta(link.target);
+    const targetRaw = meta ? (this._dynamicBrandingValues[link.target] ?? meta.currentValue) : undefined;
+    return this._resolveLiteralValue(targetRaw, depth + 1) ?? link.fallback;
+  }
+
+  // Other variables this one could link to: same type, not itself already a link (keeps the
+  // picker to one hop, no chains), excluding itself.
+  private _getLinkableTargets(variable: BrandingMetadata['sections'][0]['variables'][0]) {
+    if (!this._brandingMetadata) return [];
+    const options: Array<{ name: string; value: string; group: string }> = [];
+    this._brandingMetadata.sections.forEach(section => {
+      section.variables.forEach(v => {
+        if (v.variable === variable.variable || v.type !== variable.type) return;
+        if (this._parseLink(this._dynamicBrandingValues[v.variable] ?? v.currentValue)) return;
+        options.push({ name: v.label || v.variable, value: v.variable, group: section.name });
+      });
+    });
+    return options;
+  }
+
   private _renderDynamicField(variable: BrandingMetadata['sections'][0]['variables'][0]) {
     const varName = variable.variable;
     const currentValue = this._dynamicBrandingValues[varName] ?? variable.currentValue;
@@ -1358,6 +1406,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
     const resetValue = () => {
       this._dynamicBrandingValues = { ...this._dynamicBrandingValues, [varName]: variable.currentValue };
+      this._linkEditing = { ...this._linkEditing, [varName]: false };
     };
 
     const renderField = (value: string, isMobile: boolean) => {
@@ -1461,6 +1510,79 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       `;
     };
 
+    // A field whose live value is a var(--x) reference (see prism-govuk-bridge.css) renders as a
+    // "Linked to X" badge instead of the raw widget, a native colour/text input can't render a
+    // var() string. "Customise" swaps the badge for a picker of same-type tokens, plus a "Custom
+    // value" escape hatch that drops back to renderField seeded with the resolved live colour.
+    const renderValueControl = (value: string, isMobile: boolean) => {
+      const link = this._parseLink(value);
+      if (!link) {
+        return renderField(value, isMobile);
+      }
+
+      const editKey = isMobile ? `${varName}:mobile` : varName;
+      const setValue = (newValue: string) => {
+        if (isMobile) {
+          this._dynamicMobileBrandingValues = { ...this._dynamicMobileBrandingValues, [varName]: newValue };
+        } else {
+          this._dynamicBrandingValues = { ...this._dynamicBrandingValues, [varName]: newValue };
+        }
+      };
+
+      if (!this._linkEditing[editKey]) {
+        const targetLabel = this._findVariableMeta(link.target)?.label ?? link.target;
+        const preview = variable.type === 'color' ? this._resolveLiteralValue(value) : undefined;
+        return html`
+          <div data-testid="link-badge-${editKey}" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; border: 1px dashed var(--uui-color-border); border-radius: 4px;">
+            ${preview ? html`<span style="width: 20px; height: 20px; flex-shrink: 0; border-radius: 4px; border: 1px solid var(--uui-color-border); background: ${preview};"></span>` : ''}
+            <span style="flex: 1; font-size: 0.85rem; color: var(--uui-color-text-alt);">Linked to ${targetLabel}</span>
+            <uui-button
+              look="placeholder"
+              compact
+              style="font-size: 0.7rem;"
+              label=${`Customise ${variable.label}`}
+              data-testid="link-customise-${editKey}"
+              @click=${() => { this._linkEditing = { ...this._linkEditing, [editKey]: true }; }}>
+              Customise
+            </uui-button>
+          </div>
+        `;
+      }
+
+      const options = [
+        { name: 'Custom value (not linked)', value: '__custom__' },
+        ...this._getLinkableTargets(variable).map(t => ({ ...t, selected: t.value === link.target }))
+      ];
+
+      return html`
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <uui-select
+            label="Linked token"
+            data-testid="link-picker-${editKey}"
+            .options=${options}
+            @change=${(e: Event) => {
+              const chosen = (e.target as HTMLInputElement).value;
+              if (chosen === '__custom__') {
+                setValue(this._resolveLiteralValue(value) ?? value);
+              } else {
+                const fallback = this._resolveLiteralValue(`var(${chosen})`);
+                setValue(fallback ? `var(${chosen}, ${fallback})` : `var(${chosen})`);
+              }
+            }}>
+          </uui-select>
+          <uui-button
+            look="placeholder"
+            compact
+            style="font-size: 0.7rem; align-self: flex-start;"
+            label="Cancel customising"
+            data-testid="link-cancel-${editKey}"
+            @click=${() => { this._linkEditing = { ...this._linkEditing, [editKey]: false }; }}>
+            Cancel
+          </uui-button>
+        </div>
+      `;
+    };
+
     return html`
       <div style="display: flex; flex-direction: column; gap: 0.75rem;">
         <div>
@@ -1478,7 +1600,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
                 <uui-button look="placeholder" compact style="font-size: 0.7rem;" label="Reset to default" @click=${() => resetValue()}>↺ Reset</uui-button>
               ` : ''}
             </div>
-            ${renderField(currentValue, false)}
+            ${renderValueControl(currentValue, false)}
           </div>
           <div>
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
@@ -1516,7 +1638,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
               }
             </div>
             <div data-testid="mobile-field-${varName}" style="${isInherited ? 'display: none;' : ''}">
-              ${renderField(effectiveMobileValue, true)}
+              ${renderValueControl(effectiveMobileValue, true)}
             </div>
           </div>
         </div>

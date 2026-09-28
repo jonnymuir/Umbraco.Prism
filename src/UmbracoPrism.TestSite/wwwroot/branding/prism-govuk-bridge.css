@@ -1,0 +1,92 @@
+/*
+ * GOV.UK <-> Prism token bridge.
+ *
+ * GOV.UK Frontend ships its own --govuk-* custom properties on :root (mostly colours). Left
+ * alone, tenants have to edit Prism's own --prism-* tokens AND a parallel set of --govuk-*
+ * values to keep GDS components (buttons, error summaries, links) visually consistent with the
+ * rest of the site. Most of the properties below alias the matching --prism-* token instead, so
+ * editing a Prism token is enough; the tenant editor renders these as a "Linked to <token>" field
+ * with a picker to change or break the link. A handful have no matching Prism concept, those are
+ * plain overridable literals instead of links, still editable, just not auto-synced to anything.
+ * See docs/guides/govuk-token-bridge.md for the full mapping rationale and how the picker works.
+ */
+
+@property --govuk-brand-colour { syntax: '<color>'; inherits: true; initial-value: #1d70b8; }
+@property --govuk-text-colour { syntax: '<color>'; inherits: true; initial-value: #0b0c0c; }
+@property --govuk-inverse-text-colour { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --govuk-body-background-colour { syntax: '<color>'; inherits: true; initial-value: #ffffff; }
+@property --govuk-focus-colour { syntax: '<color>'; inherits: true; initial-value: #ffdd00; }
+@property --govuk-focus-text-colour { syntax: '<color>'; inherits: true; initial-value: #0b0c0c; }
+@property --govuk-input-border-colour { syntax: '<color>'; inherits: true; initial-value: #0b0c0c; }
+@property --govuk-link-active-colour { syntax: '<color>'; inherits: true; initial-value: #0b0c0c; }
+@property --govuk-surface-text-colour { syntax: '<color>'; inherits: true; initial-value: #0b0c0c; }
+@property --govuk-error-colour { syntax: '<color>'; inherits: true; initial-value: #d4351c; }
+@property --govuk-success-colour { syntax: '<color>'; inherits: true; initial-value: #00703c; }
+@property --govuk-border-colour { syntax: '<color>'; inherits: true; initial-value: #b1b4b6; }
+@property --govuk-hover-colour { syntax: '<color>'; inherits: true; initial-value: #b1b4b6; }
+@property --govuk-secondary-text-colour { syntax: '<color>'; inherits: true; initial-value: #505a5f; }
+@property --govuk-link-colour { syntax: '<color>'; inherits: true; initial-value: #1d70b8; }
+@property --govuk-template-background-colour { syntax: '<color>'; inherits: true; initial-value: #f4f8fb; }
+@property --govuk-surface-background-colour { syntax: '<color>'; inherits: true; initial-value: #f4f8fb; }
+@property --govuk-print-text-colour { syntax: '<color>'; inherits: true; initial-value: #000000; }
+@property --govuk-link-hover-colour { syntax: '<color>'; inherits: true; initial-value: #0f385c; }
+@property --govuk-link-visited-colour { syntax: '<color>'; inherits: true; initial-value: #54319f; }
+@property --govuk-surface-border-colour { syntax: '<color>'; inherits: true; initial-value: #8eb8dc; }
+
+:root {
+    /* Direct links: GOV.UK's own default already matches Prism's, so this is a no-op today and
+       only prevents future drift between the two. */
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Brand Colour | description: Drives GOV.UK buttons and highlighted elements. Linked to Primary Brand Colour. */
+    --govuk-brand-colour: var(--prism-primary, #1d70b8);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Body Text Colour | description: GOV.UK Frontend's default text colour. Linked to Body Text. */
+    --govuk-text-colour: var(--prism-text, #0b0c0c);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Inverse Text Colour | description: Text colour GOV.UK uses against a dark or brand background. Linked to Primary Contrast Text. */
+    --govuk-inverse-text-colour: var(--prism-primary-contrast, #ffffff);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Page Background Colour | description: Background colour behind GOV.UK page content. Linked to Surface Background. */
+    --govuk-body-background-colour: var(--prism-surface, #ffffff);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Focus Colour | description: Focus ring colour on GOV.UK interactive elements. Linked to Focus Indicator. */
+    --govuk-focus-colour: var(--prism-focus, #ffdd00);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Focus Text Colour | description: Text colour shown inside a focused GOV.UK element. Linked to Body Text. */
+    --govuk-focus-text-colour: var(--prism-text, #0b0c0c);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Input Border Colour | description: Border colour for GOV.UK form inputs. Linked to Body Text. */
+    --govuk-input-border-colour: var(--prism-text, #0b0c0c);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Active Link Colour | description: Colour of a GOV.UK link while being clicked. Linked to Body Text. */
+    --govuk-link-active-colour: var(--prism-text, #0b0c0c);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Surface Text Colour | description: Text colour used on GOV.UK's pale surface panels. Linked to Body Text. */
+    --govuk-surface-text-colour: var(--prism-text, #0b0c0c);
+
+    /* Corrective links: GOV.UK's default and Prism's default currently disagree slightly.
+       Linking these brings the demo genuinely into sync instead of two near-identical
+       reds/greens/greys drifting further apart over time. */
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Error Colour | description: Drives GOV.UK error summaries and validation messages. Linked to Danger Colour. */
+    --govuk-error-colour: var(--prism-danger, #d4351c);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Success Colour | description: Drives GOV.UK success and confirmation panels. Linked to Success Colour. */
+    --govuk-success-colour: var(--prism-success, #00703c);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Border Colour | description: Default border colour for GOV.UK components. Linked to Border Colour. */
+    --govuk-border-colour: var(--prism-border, #b1b4b6);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Hover Colour | description: Hover-state background and border colour on GOV.UK components. Linked to Border Colour. */
+    --govuk-hover-colour: var(--prism-border, #b1b4b6);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Secondary Text Colour | description: Drives GOV.UK's muted secondary text (captions, metadata). Linked to Muted Text. */
+    --govuk-secondary-text-colour: var(--prism-muted, #505a5f);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Link Colour | description: Colour for GOV.UK hyperlinks. Linked to Link Colour. */
+    --govuk-link-colour: var(--prism-link, #1d70b8);
+
+    /* Overridable but NOT linked: no existing Prism token represents the same design concept
+       (see docs/guides/govuk-token-bridge.md), so these are plain literal values a tenant can
+       still tweak independently, they just won't track a Prism token if it changes. */
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Page Canvas Colour | description: Background tint behind the whole GOV.UK page template, independent of Prism's Surface Background. */
+    --govuk-template-background-colour: #f4f8fb;
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Surface Panel Background | description: Background colour for GOV.UK's pale surface panels, e.g. notification banners. */
+    --govuk-surface-background-colour: #f4f8fb;
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Print Text Colour | description: Text colour used only when a GOV.UK page is printed. */
+    --govuk-print-text-colour: #000000;
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Link Hover Colour | description: Colour of a GOV.UK hyperlink on hover, independent of Link Colour. */
+    --govuk-link-hover-colour: #0f385c;
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Visited Link Colour | description: Colour of a previously-visited GOV.UK hyperlink, a GDS accessibility convention. */
+    --govuk-link-visited-colour: #54319f;
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Surface Border Colour | description: Border colour used on GOV.UK's pale surface panels. */
+    --govuk-surface-border-colour: #8eb8dc;
+
+    /* --govuk-breakpoint-* and --govuk-frontend-version are structural constants, never
+       tenant-editable, see docs/guides/govuk-token-bridge.md. */
+}
