@@ -61,7 +61,7 @@
     "storybook": "^10.6.0",
     "typescript": "~5.9.3",
     "vite": "^8.3.1",
-    "vitest": "^4.1.11",
+    "vitest": "^5.0.1",
     "wayfinder-demo-recording-kit": "github:jonnymuir/wayfinder-demo-recording-kit#v1.0.0"
   }
 }
