@@ -18,6 +18,12 @@
     if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) return;
 
     var TENANT_HOST = window.location.host;
+
+    // This script only runs on the unauthenticated login page, so the server session is gone
+    // and any earlier push registration can't be trusted (e.g. a redeploy wiped the server's
+    // device rows). Forget the local "already registered" note so prism-push-register.js
+    // registers again on the next authenticated page load.
+    localStorage.removeItem('prism_push_registered_token_' + TENANT_HOST);
     var SS_PREFIX = 'capacitor-storage_';
     var tokenKey = SS_PREFIX + 'prism_biometric_token_' + TENANT_HOST;
     var enrollKey = 'prism_biometric_enrollment_state_' + TENANT_HOST;
