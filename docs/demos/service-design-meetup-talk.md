@@ -359,12 +359,17 @@ config plus a few seeded steps.
 **Do it.**
 
 1. Private window 1: open the `referenceapp` endpoint from the Aspire dashboard, go to `/demo/login`, pick **Alex Applicant**.
-2. Open **Apply to coach** and fill in: name, email, `yearsCoaching` = `1` (this forces the review
-   branch), a disclosure reference, a first-aid expiry date.
+2. Open **Apply to coach**. Name and email are already filled in from the signed-in persona.
+   > "Nobody wrote code for that. The blueprint declares a `user` value and says these two fields
+   > default from it."
+
+   Fill in the rest: `yearsCoaching` = `1` (this forces the review branch), a disclosure
+   reference, a first-aid expiry date.
 3. Submit.
    > "That's a real wait state. Nothing polling client-side, a genuinely paused instance."
 
-**Success looks like.** The page says the application is being reviewed.
+**Success looks like.** Name and email arrive pre-filled, and after submitting the page says the
+application is being reviewed.
 
 ### Beat D: pick it up as the registrar and hit Automate (🎨, ~3 min)
 
