@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Moq;
 using Umbraco.Cms.Infrastructure.Persistence;
 using Wayfinder.Umbraco.Persistence;

@@ -201,7 +201,7 @@ OIDC via Keycloak. Stateless token handling; per-tenant JWKS validation; nonce h
 - **Semantic selectors**: `getByRole`, `getByLabel`, `getByText`, `aria-*`, `data-prism-*` attributes. Never CSS classes or web component tag names.
 - **Date inputs**: target sub-fields by generated IDs, `{fieldKey}-day`, `{fieldKey}-month`, `{fieldKey}-year`.
 - **Error assertions**: always check both `[role="alert"]` error summary AND field-level errors.
-- C# tests: XUnit + Moq + FluentAssertions. No database mocks, integration tests use a real test host.
+- C# tests: XUnit + Moq + AwesomeAssertions. No database mocks, integration tests use a real test host.
 - Playwright configs: `playwright.config.ts` (Storybook tests) and `playwright.localhost-auth.config.ts` (live Aspire stack tests, run separately).
 
 ### Branch policy

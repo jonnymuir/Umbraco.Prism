@@ -2,6 +2,54 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v6.0.0] — 2026-09-29
+
+### Breaking Changes
+
+- Enforces a Content-Security-Policy by default. Inline `<script>`, `<style>` and `onclick` handlers are now blocked by the browser. Move that content into external `.js`/`.css` files, or relax the policy through `Prism:SecurityHeaders` (`ContentSecurityPolicy` and `AdditionalContentSecurityPolicySources`).
+- Tightens the default policy further: it sets `object-src 'none'`, `base-uri 'self'` and `form-action 'self'`, and no longer allows arbitrary HTTPS images. Add any image hosts you rely on through `AdditionalContentSecurityPolicySources`.
+- Changes `ContentSecurityPolicyReportOnly` to default to off. Set it yourself if you want to trial a stricter draft policy alongside the enforced one.
+- Changes the reference site's blueprint access wiring for Wayfinder.Umbraco 2.x: `ResolveAccessProfile` now receives the blueprint key as a second argument (`Func<HttpContext, string?, ActorProfile>`). If you copied the reference site's pattern, update your delegate.
+- Removes the reference site's hardcoded Money Modeller sign-in gate. If you copied that middleware, replace it with a page access policy (see below).
+
+### New Features
+
+- Adds page access policies. Mark any page as requiring sign-in and limit it to named tenants from the new **Settings > Advanced > Page access** screen.
+- Hides pages from tenants that are not allowed to see them. They return a 404 rather than a login prompt, and their links disappear from navigation.
+- Makes page access policies portable with uSync, resolving pages by route so they move safely between environments.
+- Adds push notification delivery to generated mobile apps through Firebase, with automatic device registration after sign-in.
+- Adds a "Send Prism push notification" Automate action that can deep-link the tapped notification to a page.
+- Adds a headless mobile bundle CLI, so CI pipelines can generate the iOS and Android projects without the backoffice.
+- Adds a real app icon to every generated mobile bundle.
+- Adds native-feeling navigation to generated mobile apps: tap feedback, page transitions and a cached snapshot while the next page loads.
+- Adds `@capacitor/app` to generated mobile apps so they fire their own resume event.
+- Adds `IsNativeMobileRequest` for telling native app requests from mobile browsers.
+- Bridges GOV.UK Frontend colour tokens to your tenant's brand palette, so a rebrand recolours GOV.UK components too.
+- Shows tenant branding overrides (cache versus database) in the debug panel.
+
+### Bug Fixes & Improvements
+
+- Fixes push notifications that were never sent because devices were registered under a different user identity than the one used to send.
+- Fixes push notifications going missing after the server database is reset. The app now registers its device again after the session is lost.
+- Fixes mobile sign-out. It now clears biometric auto sign-in and the identity provider's session natively, and no longer opens Safari or triggers a file download.
+- Fixes the mobile status bar and notch overlapping page content on iOS and Android.
+- Fixes the biometric banner: oversized buttons, a "Welcome back, Member" greeting and a dashboard card that always said "Not configured".
+- Fixes the Content-Security-Policy blocking OIDC sign-out and inline style attributes.
+- Fixes CSS and JavaScript being cached by a CDN after a deploy, and authenticated pages being cached at all, by sending `Cache-Control: no-store`.
+- Fixes security headers being appended instead of set, and missing on Umbraco's own 404 page.
+- Marks the antiforgery cookie `Secure`.
+- Fixes the backoffice header exclusion swallowing `branding.css`.
+- Fixes stale files surviving a redeploy, and the branding tab fallback for unannotated tenants.
+- Targets API 36 in generated Android projects, as Google Play now requires.
+- Raises the iOS deployment target to 15.0, and fixes Android and iOS project generation errors.
+- Hardens OIDC sign-in: PKCE is enforced, and the biometric exchange now fails closed.
+- Sanitises request-derived values before logging, to prevent log forging.
+- Updates Umbraco to 17.7.0, uSync to 17.4.2, Umbraco Automate to 17.4.0 and Wayfinder.Umbraco to 2.0.4, and brings every other NuGet and npm dependency to its latest release within the current major version. This clears the `Microsoft.OpenApi`, `OpenTelemetry.Api` and MessagePack advisories.
+- Fixes the Blueprints editor resetting "allow manual restart" every time a blueprint was saved, which hid the "Start again" link.
+- Fixes the Blueprints editor always reporting "No support systems are registered on this host" in a support system call action.
+
+---
+
 ## [v5.0.1] — 2026-09-06
 
 ### Bug Fixes & Improvements

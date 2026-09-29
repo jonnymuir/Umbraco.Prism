@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Services.Validation;
 

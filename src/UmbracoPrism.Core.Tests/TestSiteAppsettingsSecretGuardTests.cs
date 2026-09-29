@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
-using FluentAssertions;
+using AwesomeAssertions;
 
 namespace UmbracoPrism.Core.Tests;
 
