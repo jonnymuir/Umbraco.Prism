@@ -10,6 +10,7 @@
     <!-- Umbraco Automate versions independently of the Umbraco.Cms major/minor it targets — track
          the same 17.x line TestSite's own Umbraco.Automate/Umbraco.Automate.Persistence.Sqlite
          PackageReferences use, not $(UmbracoPackageRange). -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.12" />
     <PackageReference Include="Umbraco.Automate.Core" Version="17.4.0" />
     <PackageReference Include="OpenTelemetry.Api" Version="1.19.1" />
     <!-- Umbraco.Automate.Core pulls in SQLitePCLRaw.lib.e_sqlite3 2.1.11 transitively, which has
