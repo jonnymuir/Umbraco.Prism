@@ -135,13 +135,15 @@ dotnet run --project Wayfinder.Umbraco.AppHost
 
 **Success looks like.** The terminal prints a line like `Login to the dashboard at https://localhost:49675/login?t=...`
 and stays running. The dashboard port is different on every run, so open the URL the terminal
-prints (Cmd+click it). In the dashboard, `mailpit` and `referenceapp` both show **Running**. Then check these load:
+prints (Cmd+click it). This Aspire dashboard is your starting point for the whole stack: open every
+service from its link in the **Endpoints** column rather than typing a URL. Wait until `mailpit` and
+`referenceapp` both show **Running**, then open these from the dashboard:
 
-| What | URL | Login |
-|---|---|---|
-| Backoffice | `https://localhost:44399/umbraco` | `admin@example.test` / `Wayfinder123!` |
-| Front end personas | `https://localhost:44399/demo/login` | pick a persona |
-| Mailpit inbox | `https://localhost:8025` | none |
+| What | Open from the dashboard | Then go to | Login |
+|---|---|---|---|
+| Backoffice | `referenceapp` endpoint | `/umbraco` | `admin@example.test` / `Wayfinder123!` |
+| Front end personas | `referenceapp` endpoint | `/demo/login` | pick a persona |
+| Mailpit inbox | `mailpit` endpoint | none | none |
 
 In the backoffice, **Settings > Blueprints** lists `njf-coaching-register`.
 
@@ -201,14 +203,15 @@ export Umbraco__CMS__Global__TimeOut=02:00:00
 dotnet run --project src/UmbracoPrism.AppHost
 ```
 
-**Success looks like.** The Aspire dashboard (`https://localhost:17214`) shows every resource
-**Running**. Then check:
+**Success looks like.** Open the Aspire dashboard (`https://localhost:17214`). It is your starting
+point for this stack: open every service from its link in the **Endpoints** column rather than
+typing a URL. Wait until every resource shows **Running**, then open these from the dashboard:
 
-| What | URL | Login |
-|---|---|---|
-| TestSite | `https://localhost:44345` | none |
-| Backoffice | `https://localhost:44345/umbraco` | `admin@prism.local` / `PrismLocal!12345` |
-| Keycloak SSO on the front end | sign in from TestSite | `demo@prism.local` / `password` |
+| What | Open from the dashboard | Then go to | Login |
+|---|---|---|---|
+| TestSite | `testsite` endpoint | none | none |
+| Backoffice | `testsite` endpoint | `/umbraco` | `admin@prism.local` / `PrismLocal!12345` |
+| Keycloak SSO on the front end | `testsite` endpoint, then sign in | none | `demo@prism.local` / `password` |
 
 In the backoffice, **Settings > Prism Dashboard** shows the seeded "Local Dev (Keycloak)" tenant.
 
@@ -257,22 +260,21 @@ size now so the back row can read it.
 **What it does.** Pre-opened, pinned tabs so nothing loads cold on stage. Use two browser windows
 (or profiles) so the switch between stacks is one click.
 
-**Do it.** Open in this order.
+**Do it.** Start from each stack's Aspire dashboard and open the tabs from its **Endpoints** links,
+in this order.
 
-Window A (Stack 1):
+Window A (Stack 1, the dashboard URL printed by `dotnet run` in Terminal window 1):
 
-```text
-https://localhost:44399/umbraco
-https://localhost:44399/
-https://localhost:8025
-```
+1. The Aspire dashboard itself.
+2. `referenceapp` endpoint, then `/umbraco`.
+3. `referenceapp` endpoint (the front end).
+4. `mailpit` endpoint.
 
-Window B (Stack 2):
+Window B (Stack 2, the dashboard at `https://localhost:17214`):
 
-```text
-https://localhost:44345/umbraco
-https://localhost:44345/
-```
+1. The Aspire dashboard itself.
+2. `testsite` endpoint, then `/umbraco`.
+3. `testsite` endpoint (the front end).
 
 **Success looks like.** Both backoffices are logged in (Stack 1: `admin@example.test`, Stack 2:
 `admin@prism.local`). Open a private window for Alex Applicant, and another for Casey Caseworker, so
@@ -297,9 +299,9 @@ clip, never debugging live.
 
 | Need | Command |
 |---|---|
-| Restart the coach journey (Demo 1+2), no wipe needed | visit `https://localhost:44399/apply-to-coach?action=start-new` |
+| Restart the coach journey (Demo 1+2), no wipe needed | open the `referenceapp` endpoint from its Aspire dashboard and go to `/apply-to-coach?action=start-new` |
 | Full Stack 1 reset (also removes stages added by Demo 3) | stop app, then `rm -rf Wayfinder.Umbraco.ReferenceApp/umbraco/Data/*` from `~/Documents/Projects/Wayfinder.Umbraco`, then repeat 1.2 Steps 4 and 5 |
-| Restart the licence journey (Demo 4) | visit `https://localhost:44345/apply-for-a-juggling-licence?action=start-new` |
+| Restart the licence journey (Demo 4) | open the `testsite` endpoint from its Aspire dashboard and go to `/apply-for-a-juggling-licence?action=start-new` |
 | Full Stack 2 reset | stop app, then repeat 1.3 Steps 2 to 4 |
 
 Seed JSON edits only take effect after a full Stack 1 wipe. `ReferenceBlueprintSeeder` seeds once
@@ -356,7 +358,7 @@ config plus a few seeded steps.
 
 **Do it.**
 
-1. Private window 1: `https://localhost:44399/demo/login`, pick **Alex Applicant**.
+1. Private window 1: open the `referenceapp` endpoint from the Aspire dashboard, go to `/demo/login`, pick **Alex Applicant**.
 2. Open **Apply to coach** and fill in: name, email, `yearsCoaching` = `1` (this forces the review
    branch), a disclosure reference, a first-aid expiry date.
 3. Submit.
@@ -373,7 +375,7 @@ without code.
 
 **Do it.**
 
-1. Private window 2: `https://localhost:44399/demo/login`, pick **Casey Caseworker**. Open
+1. Private window 2: open the `referenceapp` endpoint from the Aspire dashboard, go to `/demo/login`, pick **Casey Caseworker**. Open
    **Coaching register queue**, pick up the application, open **Review application**.
 2. Click **Run coaching-standards check**. The stage shows its own waiting screen.
    > "This is the third lane of a service blueprint, the support process. This app just POSTed a
@@ -382,7 +384,7 @@ without code.
    `AutomateCoachingStandardsSeeder.cs` first.
    > "This whole automation is built and published in C# on every boot via `IAutomationService`."
 4. Open the **Approvals** tab and point at the pending request naming the applicant.
-5. Switch to the Mailpit tab (`https://localhost:8025`) and open the "needs review" email.
+5. Switch to the Mailpit tab (the `mailpit` endpoint from the Aspire dashboard) and open the "needs review" email.
 6. Back in Automate > **Approvals**, approve via the dialog. Point at the run resolving.
 7. Casey's window: the case is still **With you**, and the wait screen has become **Confirm the
    outcome**. Click **Record and notify the applicant**.
@@ -414,7 +416,8 @@ Goal: show a blueprint is something you talk to. A small, real change to the sam
 **What it does.** Registers the Wayfinder MCP server with Claude Code, logs in through the same OAuth
 screen the backoffice uses, then lists servers.
 
-**Do it.**
+**Do it.** Copy the `referenceapp` endpoint from the Stack 1 Aspire dashboard and use it as the base
+of the URL below (it is normally `https://localhost:44399`).
 
 ```bash
 claude mcp add --transport http wayfinder-umbraco \
@@ -480,7 +483,7 @@ In the njf-coaching-register definition, right after a coach is accredited, befo
 > "That's live. The next coach who's accredited sees this. No restart, no redeploy, nobody touched
 > code."
 
-If time allows, restart the coach journey (`https://localhost:44399/apply-to-coach?action=start-new`)
+If time allows, restart the coach journey (`/apply-to-coach?action=start-new` on the `referenceapp` endpoint)
 as Alex and watch the new stage render. Skip if tight.
 
 > Close: "That's the capability at its smallest. Given more space, the same conversation builds the
