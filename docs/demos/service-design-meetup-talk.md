@@ -457,6 +457,13 @@ claude mcp list
 **What it does.** Starts Claude Code with only the Wayfinder MCP tools available, so it can read and
 edit blueprints and nothing else.
 
+The flags are staging choices, not requirements. A plain `claude` run from `~/demo-scratch` also
+finds the registered server. `--tools` limits the agent to the Wayfinder tools (no Bash or file
+tools), `--permission-mode bypassPermissions` stops it asking approval before each call, and
+`--model` picks the model. Use plain `claude` for a rehearsal if you like, and the full command
+for the talk. Either way, run it in the same window as Beat A so the certificate setting still
+applies.
+
 **Do it.**
 
 ```bash
