@@ -16,12 +16,12 @@ Checked out elsewhere, or on Windows? Swap the `cd` paths (and use `set VAR=valu
 **Running order.** Two separate stacks. Stack 1 (Wayfinder.Umbraco ReferenceApp) serves Demos 1, 2 and
 3. Stack 2 (Umbraco.Prism) serves Demo 4.
 
-**The thread through all four demos: one person, two hats.**
+**The thread through all four demos: one person, two roles.**
 
-- 🧑‍💻 Developer hat: `PackageReference`, three delegates in `Program.cs`, no visual editor.
-- 🎨 Designer hat: only the backoffice, or plain-language chat with an agent. Never `Program.cs`.
+- 🧑‍💻 Developer role: `PackageReference`, three delegates in `Program.cs`, no visual editor.
+- 🎨 Designer role: only the backoffice, or plain-language chat with an agent. Never `Program.cs`.
 
-Say the hat switch out loud each time it happens. The system, not the person's memory, enforces the
+Say the role switch out loud each time it happens. The system, not the person's memory, enforces the
 contract between the two jobs, which is why one person can do both.
 
 **Timing (~30 min):** service design intro 5, Demo 1+2 9-10, Demo 3 4-5, Demo 4 7-8, takeaways 3.
@@ -333,7 +333,7 @@ config plus a few seeded steps.
 
 **Success looks like.** Under two minutes, and the room has seen the three delegates.
 
-**Hat switch, out loud:** "That's the last C# you'll see from me for a while." Minimise VS Code.
+**Role switch, out loud:** "That's the last C# you'll see from me for a while." Minimise VS Code.
 
 ### Beat B: tour the blueprint (🎨, browser Window A, ~2 min)
 
@@ -436,7 +436,7 @@ claude mcp list
 
 > "Same OAuth screen the backoffice uses. Whatever group membership I have is what the agent gets."
 
-**Hat switch, out loud:** "From here I'm a designer, I'm just going to talk to it."
+**Role switch, out loud:** "From here I'm a designer, I'm just going to talk to it."
 
 ### Beat B: ask the room, then the agent (🎨, ~2-3 min, the centrepiece)
 
@@ -513,7 +513,7 @@ Wayfinder.Umbraco inside Prism.
 
 **Success looks like.** The block is on screen and the room can see it matches Beat A of Demo 1.
 
-**Hat switch, out loud:** "Laptop closed again. Everything from here is Settings and forms."
+**Role switch, out loud:** "Laptop closed again. Everything from here is Settings and forms."
 
 ### Beat B: multi-tenant, live (🎨, ~2 min)
 
@@ -572,7 +572,7 @@ Optional, 30 seconds: open `JugglingLicenceDecisionAutomationSeeder.cs` and the 
 
 > Closing line for the whole talk: "Four demos, one running joke. Every time, the same person opened
 > `Program.cs` and then closed it and opened a browser, or for ten minutes in the middle opened a
-> terminal and just talked. Different hats, same afternoon. That's the point of building these
+> terminal and just talked. Two roles, same afternoon. That's the point of building these
 > packages this way."
 
 Then straight into takeaways.
