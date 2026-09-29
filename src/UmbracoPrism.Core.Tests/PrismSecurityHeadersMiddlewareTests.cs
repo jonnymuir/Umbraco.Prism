@@ -313,6 +313,46 @@ public class PrismSecurityHeadersMiddlewareTests
     }
 
     [Fact]
+    public async Task NoStoreCacheControl_IsApplied_ToBrandingCss_DespiteLivingUnderUmbraco()
+    {
+        // Found live: /umbraco/prism/branding.css (PrismBrandingAssetsController) is an
+        // anonymous, publicly-referenced CSS resource that just happens to be routed under
+        // /umbraco (Umbraco's own reserved, collision-free path prefix). The blanket backoffice
+        // exclusion was swallowing it too, so Cloudflare cached a stale (once even empty, from
+        // before a tenant had any branding configured) copy for hours, surviving purges since the
+        // next re-fetch just got re-cached the same way — a tenant's saved colour override never
+        // reached the browser.
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/umbraco/prism/branding.css");
+        ctx.Response.ContentType = "text/css";
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().ContainKey("Cache-Control");
+        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("no-store, must-revalidate");
+        ctx.Response.Headers.Should().ContainKey("X-Content-Type-Options",
+            "the carve-out restores the full header set for this route, not just Cache-Control");
+    }
+
+    [Fact]
+    public async Task SecurityHeaders_AreStillSkipped_ForOtherUmbracoPrismRoutes()
+    {
+        // Regression guard: the carve-out must be scoped to exactly branding.css, not widened to
+        // every /umbraco/prism/* controller (vinyl notification, push notification, biometric) or
+        // to Umbraco's own backoffice UI.
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/umbraco/prism/mobile/biometric/something");
+        ctx.Response.ContentType = "application/json";
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers.Should().NotContainKey("X-Content-Type-Options");
+        ctx.Response.Headers.Should().NotContainKey("Cache-Control");
+    }
+
+    [Fact]
     public async Task SecurityHeaders_AreApplied_ForBackofficeRoutes_WhenExcludeBackofficeIsFalse()
     {
         var options = new PrismSecurityHeadersOptions { ExcludeBackoffice = false };

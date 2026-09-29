@@ -72,9 +72,24 @@ internal sealed class PrismSecurityHeadersMiddleware(
         await next(context);
     }
 
+    // /umbraco/prism/branding.css (PrismBrandingAssetsController) is an anonymous, publicly
+    // referenced CSS resource, not backoffice UI — it just happens to live under /umbraco
+    // because that's Umbraco's own reserved path prefix, guaranteed never to collide with a
+    // published content node's URL (the convention every Prism controller under /umbraco/prism
+    // follows). The blanket backoffice exclusion below was swallowing it too, so it never got
+    // NoCacheStaticAssets' Cache-Control: no-store — Cloudflare then cached whatever it last saw
+    // (including an empty response from before a tenant had any branding configured) for its own
+    // default ~4h static-extension TTL, surviving a manual purge since the very next re-fetch got
+    // re-cached the same way. Found live: a tenant's saved text-colour override never reached the
+    // browser, even with the browser's own cache disabled.
+    private static readonly PathString BrandingCssPath = "/umbraco/prism/branding.css";
+
     private bool IsExcluded(HttpContext context)
     {
         if (!_options.ExcludeBackoffice)
+            return false;
+
+        if (context.Request.Path.Equals(BrandingCssPath, StringComparison.OrdinalIgnoreCase))
             return false;
 
         return context.Request.Path.StartsWithSegments("/umbraco", StringComparison.OrdinalIgnoreCase);
