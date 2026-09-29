@@ -219,16 +219,22 @@ In the backoffice, **Settings > Prism Dashboard** shows the seeded "Local Dev (K
 
 **What it does.** A clean directory outside both repos, so the MCP demo is obviously "just talking
 over MCP" and not an agent with secret codebase context. Clears any earlier registration so the
-`mcp add` in Demo 3 starts fresh.
+`mcp add` in Demo 3 starts fresh. It also tells the Claude CLI to accept the local development
+certificate: the CLI's Node HTTP client does not read the macOS keychain that
+`dotnet dev-certs https --trust` populates, so without this `claude mcp login` fails with
+"unable to verify the first certificate". The setting lasts for this terminal window only, so run
+every Demo 3 command in it.
 
 **Do it.**
 
 ```bash
 mkdir -p ~/demo-scratch && cd ~/demo-scratch
+export NODE_TLS_REJECT_UNAUTHORIZED=0
 claude mcp remove wayfinder-umbraco 2>/dev/null; echo "scratch ready"
 ```
 
-**Success looks like.** Prints `scratch ready`, and `pwd` is `~/demo-scratch`.
+**Success looks like.** Prints `scratch ready`, `pwd` is `~/demo-scratch`, and
+`echo $NODE_TLS_REJECT_UNAUTHORIZED` prints `0`.
 
 ## 1.5 VS Code
 
