@@ -35,6 +35,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Infrastructure.Persistence;
 using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
@@ -180,6 +181,7 @@ public class Phase1SecurityRegressionTests : IDisposable
             Mock.Of<IPrismContext>(),
             Mock.Of<IPrismUserContext>(),
             Mock.Of<ITenantService>(),
+            Mock.Of<IUmbracoDatabaseFactory>(),
             new ConfigurationBuilder().Build(),
             Mock.Of<IAuthenticationSchemeProvider>(),
             new FakeWebHostEnvironment(isDevelopment: false),

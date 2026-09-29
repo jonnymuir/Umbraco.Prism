@@ -7,8 +7,12 @@ using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Security.Claims;
+using Umbraco.Cms.Infrastructure.Persistence;
 using UmbracoPrism.Core.Models;
+using UmbracoPrism.Core.Persistence;
 using UmbracoPrism.Core.Services;
 using Microsoft.Identity.Web;
 using Microsoft.Extensions.Options;
@@ -22,6 +26,7 @@ public class PrismDebugTagHelper(
     IPrismContext prismContext,
     IPrismUserContext prismUser,
     ITenantService tenantService,
+    IUmbracoDatabaseFactory databaseFactory,
     IConfiguration config,
     IAuthenticationSchemeProvider schemeProvider,
     IWebHostEnvironment environment,
@@ -82,6 +87,11 @@ public class PrismDebugTagHelper(
                     </div>
                 </div>
                 """);
+
+            // 1b. Branding overrides: the cached tenant (what /umbraco/prism/branding.css is built
+            // from) next to a fresh read of the same DB row, so a stale cache and a stale save can
+            // be told apart from what the browser actually received.
+            sb.Append(BuildBrandingCard(tenant, isPrismMobileRequest));
 
             // 2. Identity Section
             if (prismUser.IsAuthenticated)
@@ -180,4 +190,103 @@ public class PrismDebugTagHelper(
 
         output.Content.SetHtmlContent(sb.ToString());
     }
+
+    private string BuildBrandingCard(PrismTenant? tenant, bool includeMobileOverrides)
+    {
+        if (tenant is null)
+        {
+            return "<div class=\"card\"><h2>🎨 Branding Overrides</h2><p>No tenant resolved for this host.</p></div>";
+        }
+
+        var cached = tenant.BrandingOverrides ?? new Dictionary<string, string>();
+        var cachedMobile = tenant.MobileBrandingOverrides ?? new Dictionary<string, string>();
+
+        Dictionary<string, string>? stored = null;
+        Dictionary<string, string>? storedMobile = null;
+        string? dbError = null;
+        try
+        {
+            using var db = databaseFactory.CreateDatabase();
+            var row = db.SingleOrDefaultById<PrismTenantSchema>(tenant.Id);
+            stored = ParseOverrides(row?.BrandingOverrides);
+            storedMobile = ParseOverrides(row?.MobileBrandingOverrides);
+        }
+        catch (Exception ex)
+        {
+            dbError = ex.Message;
+        }
+
+        var servedCss = PrismBrandingCssBuilder.BuildCssOverrides(
+            tenant.BrandingOverrides,
+            includeMobileOverrides ? tenant.MobileBrandingOverrides : null,
+            tenant.BrandingCssDeclarations,
+            includeMobileOverrides ? tenant.MobileBrandingCssDeclarations : null);
+
+        var enc = HtmlEncoder.Default;
+        var sb = new StringBuilder();
+        sb.Append("<div class=\"card\"><h2>🎨 Branding Overrides <button class=\"copy-btn\" data-action=\"copy-to-clipboard\" data-copy-target=\"prism-branding-data\">Copy</button></h2>");
+        sb.Append("<div id=\"prism-branding-data\">");
+        sb.Append($"<p><strong>Tenant:</strong> <code>#{tenant.Id} {enc.Encode(tenant.Name ?? "")} ({enc.Encode(tenant.Hostname ?? "")})</code></p>");
+
+        if (dbError is not null)
+        {
+            sb.Append($"<p><strong>DB read failed:</strong> <code>{enc.Encode(dbError)}</code></p>");
+        }
+        else
+        {
+            var matches = SameOverrides(cached, stored!) && SameOverrides(cachedMobile, storedMobile!);
+            sb.Append($"<p><strong>Cache vs DB:</strong> {(matches ? "<b class=\"status-ok\">MATCH</b>" : "<b class=\"status-warn\">DIFFERS (cached tenant is stale)</b>")}</p>");
+        }
+
+        AppendOverrideList(sb, enc, "Cached desktop overrides", cached, stored);
+        AppendOverrideList(sb, enc, "Cached mobile overrides", cachedMobile, storedMobile);
+        sb.Append($"<p><strong>Served CSS ({(includeMobileOverrides ? "desktop + mobile" : "desktop only")}, {servedCss.Length} chars):</strong></p>");
+        sb.Append($"<pre><code>{enc.Encode(servedCss.Replace(";", ";\n"))}</code></pre>");
+        sb.Append("</div></div>");
+        return sb.ToString();
+    }
+
+    private static void AppendOverrideList(
+        StringBuilder sb,
+        HtmlEncoder enc,
+        string title,
+        Dictionary<string, string> cached,
+        Dictionary<string, string>? stored)
+    {
+        sb.Append($"<p><strong>{title} ({cached.Count}):</strong></p>");
+        if (cached.Count == 0)
+        {
+            sb.Append("<p><em>none</em></p>");
+            return;
+        }
+
+        sb.Append("<table class=\"claims-table\">");
+        foreach (var (name, value) in cached.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        {
+            var dbNote = stored is null
+                ? ""
+                : !stored.TryGetValue(name, out var dbValue)
+                    ? " <b class=\"status-warn\">not in DB</b>"
+                    : dbValue == value ? "" : $" <b class=\"status-warn\">DB: {enc.Encode(dbValue)}</b>";
+            sb.Append($"<tr class=\"claims-row\"><td class=\"claims-cell\">{enc.Encode(name)}</td><td><code>{enc.Encode(value)}</code>{dbNote}</td></tr>");
+        }
+
+        sb.Append("</table>");
+    }
+
+    private static Dictionary<string, string> ParseOverrides(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, string>();
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? new Dictionary<string, string>();
+        }
+        catch (JsonException)
+        {
+            return new Dictionary<string, string>();
+        }
+    }
+
+    private static bool SameOverrides(Dictionary<string, string> a, Dictionary<string, string> b) =>
+        a.Count == b.Count && a.All(kv => b.TryGetValue(kv.Key, out var v) && v == kv.Value);
 }
