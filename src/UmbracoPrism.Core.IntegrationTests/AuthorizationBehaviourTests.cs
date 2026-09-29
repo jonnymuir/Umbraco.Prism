@@ -1,5 +1,5 @@
 using System.Net;
-using FluentAssertions;
+using AwesomeAssertions;
 using UmbracoPrism.TestSite;
 
 namespace UmbracoPrism.Core.IntegrationTests;

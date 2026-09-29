@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Umbraco.Automate.Core.Automations;
 using UmbracoPrism.TestSite;
 

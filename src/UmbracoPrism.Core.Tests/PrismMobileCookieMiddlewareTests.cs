@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.AspNetCore.Http;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Middleware;

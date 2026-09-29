@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
-using FluentAssertions;
+using AwesomeAssertions;
 using UmbracoPrism.MockBusinessApp.Services.SupportSystem;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.SupportSystem;

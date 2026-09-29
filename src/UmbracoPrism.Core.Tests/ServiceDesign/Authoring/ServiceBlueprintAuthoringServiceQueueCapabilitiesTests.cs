@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Engine.Abstractions;

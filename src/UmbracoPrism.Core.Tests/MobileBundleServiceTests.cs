@@ -1,5 +1,5 @@
 using System.IO.Compression;
-using FluentAssertions;
+using AwesomeAssertions;
 using UmbracoPrism.Core.Controllers.Models;
 using UmbracoPrism.Core.Persistence;
 using UmbracoPrism.Core.Services;

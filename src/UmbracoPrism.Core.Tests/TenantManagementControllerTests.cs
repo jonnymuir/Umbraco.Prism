@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Umbraco.Cms.Infrastructure.Persistence;

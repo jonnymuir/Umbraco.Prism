@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using UmbracoPrism.TestSite;
 
 namespace UmbracoPrism.Core.Tests;

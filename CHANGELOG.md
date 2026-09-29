@@ -44,7 +44,9 @@ All notable changes to Umbraco Prism are documented here. This project follows [
 - Raises the iOS deployment target to 15.0, and fixes Android and iOS project generation errors.
 - Hardens OIDC sign-in: PKCE is enforced, and the biometric exchange now fails closed.
 - Sanitises request-derived values before logging, to prevent log forging.
-- Updates Umbraco to 17.6.2, clearing a `Microsoft.OpenApi` security advisory, and updates MessagePack and client build dependencies to clear further advisories.
+- Updates Umbraco to 17.7.0, uSync to 17.4.2, Umbraco Automate to 17.4.0 and Wayfinder.Umbraco to 2.0.4, and brings every other NuGet and npm dependency to its latest release within the current major version. This clears the `Microsoft.OpenApi`, `OpenTelemetry.Api` and MessagePack advisories.
+- Fixes the Blueprints editor resetting "allow manual restart" every time a blueprint was saved, which hid the "Start again" link.
+- Fixes the Blueprints editor always reporting "No support systems are registered on this host" in a support system call action.
 
 ---
 

@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Wayfinder.Engine.Models;
 using Wayfinder.Engine.Stores;
 
