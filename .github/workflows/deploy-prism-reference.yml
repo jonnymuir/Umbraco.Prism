@@ -80,14 +80,20 @@ jobs:
       # code-seeded on every boot, and Wayfinder's own per-service-request-instance file uploads
       # under App_Data/wayfinder-uploads are only ever meaningful alongside that same disposable,
       # reseeded database — so a full wipe before copying the fresh build is correct here, not
-      # just convenient.
+      # just convenient. The one exception is wwwroot/games, which belongs to the standalone
+      # jonnymuir/Hedgehogger repo's own deploy and is not part of this build, so it is kept.
       - name: Clean the previous deployment
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ env.PRISM_VPS_HOST }}
           username: ${{ env.PRISM_VPS_USERNAME }}
           password: ${{ env.PRISM_VPS_PASSWORD }}
-          script: sudo find /var/www/prism-reference -mindepth 1 -delete
+          script: >-
+            sudo find /var/www/prism-reference -mindepth 1
+            -not -path /var/www/prism-reference/wwwroot
+            -not -path /var/www/prism-reference/wwwroot/games
+            -not -path '/var/www/prism-reference/wwwroot/games/*'
+            -delete
 
       - name: Copy published files to the VPS
         uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
