@@ -1,0 +1,58 @@
+name: Code Health
+
+# CodeScene delta analysis: fails a pull request only when a file it touches ends up with a
+# lower Code Health score than it had on the base branch. New findings that leave the score
+# no lower, new files and untouched debt never block. Nothing is uploaded: the CLI analyses
+# the checkout locally and only uses the token to confirm the licence.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  delta:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install CodeScene CLI
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/cs.zip" https://downloads.codescene.io/enterprise/cli/cs-linux-amd64-latest.zip
+          unzip -q "$RUNNER_TEMP/cs.zip" -d "$RUNNER_TEMP/cs-bin"
+          chmod +x "$RUNNER_TEMP/cs-bin/cs"
+          echo "$RUNNER_TEMP/cs-bin" >> "$GITHUB_PATH"
+
+      - name: Delta analysis against the base branch
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # Fork and Dependabot pull requests do not receive repository secrets.
+          if [ -z "$CS_ACCESS_TOKEN" ]; then
+            echo "::notice::CS_ACCESS_TOKEN is not available to this run (fork or Dependabot pull request); skipping."
+            exit 0
+          fi
+          # Human-readable report for the log (never fails the step on its own).
+          cs delta "origin/$BASE_REF" || true
+
+          cs delta "origin/$BASE_REF" --output-format json --include-metadata > "$RUNNER_TEMP/delta.json"
+          cat > "$RUNNER_TEMP/gate.mjs" <<'JS'
+          import { readFileSync } from 'node:fs';
+          const { results = [] } = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+          const dropped = results.filter(
+            (file) => typeof file['old-score'] === 'number' && typeof file['new-score'] === 'number' && file['new-score'] < file['old-score']
+          );
+          for (const file of dropped) {
+            console.log(`::error file=${file.name}::Code Health dropped from ${file['old-score']} to ${file['new-score']}`);
+          }
+          console.log(dropped.length === 0 ? 'No file lost Code Health.' : `${dropped.length} file(s) lost Code Health.`);
+          process.exit(dropped.length === 0 ? 0 : 1);
+          JS
+          node "$RUNNER_TEMP/gate.mjs" "$RUNNER_TEMP/delta.json"
