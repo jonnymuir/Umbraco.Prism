@@ -1,0 +1,42 @@
+name: Code Health
+
+# CodeScene delta analysis: fails a pull request that makes the files it touches less
+# healthy (new Complex Method, Bumpy Road, Large Method, ... findings). It reports only
+# what the PR changes, so existing debt never blocks unrelated work. Nothing is uploaded:
+# the CLI analyses the checkout locally and only uses the token to confirm the licence.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  delta:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install CodeScene CLI
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/cs.zip" https://downloads.codescene.io/enterprise/cli/cs-linux-amd64-latest.zip
+          unzip -q "$RUNNER_TEMP/cs.zip" -d "$RUNNER_TEMP/cs-bin"
+          chmod +x "$RUNNER_TEMP/cs-bin/cs"
+          echo "$RUNNER_TEMP/cs-bin" >> "$GITHUB_PATH"
+
+      - name: Delta analysis against the base branch
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # Fork and Dependabot pull requests do not receive repository secrets.
+          if [ -z "$CS_ACCESS_TOKEN" ]; then
+            echo "::notice::CS_ACCESS_TOKEN is not available to this run (fork or Dependabot pull request); skipping."
+            exit 0
+          fi
+          cs delta "origin/$BASE_REF" --error-on-warnings
