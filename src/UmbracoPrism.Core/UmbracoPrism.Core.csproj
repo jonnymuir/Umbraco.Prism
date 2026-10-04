@@ -24,6 +24,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Services/MobileBundles/Templates/*" LogicalName="MobileBundleTemplates/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.2" />
     <PackageReference Include="FirebaseAdmin" Version="3.7.0" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />

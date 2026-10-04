@@ -240,6 +240,9 @@ export const OverflowTabs: Story = {
     typographyTab.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
     await modal.updateComplete;
 
-    await waitFor(() => expect(shadow.textContent ?? '').toContain('--prism-font-display'));
+    // The branding tab first shows its loading state while it asks the server for variable
+    // metadata, then (here, with no server) falls back to the static table that names the
+    // variable. Firefox's failed request can take longer than waitFor's default second.
+    await waitFor(() => expect(shadow.textContent ?? '').toContain('--prism-font-display'), { timeout: 5_000 });
   }
 };
