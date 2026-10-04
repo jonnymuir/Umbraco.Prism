@@ -1,0 +1,36 @@
+/* Example mobile-only token overrides */
+:root {
+  --prism-page-gutter: 12px;
+  --prism-grid-min: 180px;
+}
+
+/* Safe area helpers for notch / home indicator devices */
+.prism-mobile {
+  --prism-safe-top: env(safe-area-inset-top, 0px);
+  --prism-safe-right: env(safe-area-inset-right, 0px);
+  --prism-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --prism-safe-left: env(safe-area-inset-left, 0px);
+}
+
+.prism-mobile body {
+  padding-top: var(--prism-safe-top);
+  padding-right: var(--prism-safe-right);
+  padding-bottom: var(--prism-safe-bottom);
+  padding-left: var(--prism-safe-left);
+}
+
+.prism-mobile .container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* App-shell styling examples */
+.prism-mobile .desktop-nav {
+  display: none;
+}
+
+.prism-mobile .mobile-nav {
+  display: flex;
+}

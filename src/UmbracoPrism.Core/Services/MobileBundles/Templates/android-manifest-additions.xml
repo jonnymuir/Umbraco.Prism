@@ -1,0 +1,7 @@
+<!--
+  Android manifest additions for biometric authentication.
+  The bootstrap-android.sh script injects these automatically.
+  If you need to add them manually, add this permission inside the <manifest> element
+  of android/app/src/main/AndroidManifest.xml.
+-->
+<uses-permission android:name="android.permission.USE_BIOMETRIC" />
