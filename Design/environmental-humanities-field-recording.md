@@ -22,7 +22,7 @@ datasets (ancient hedgerows, woodland) to ask questions of them.
 8. [Identification through Umbraco Automate and Umbraco.AI](#8-identification-through-umbraco-automate-and-umbraco-ai)
 9. [The record and the GIS layer](#9-the-record-and-the-gis-layer)
 10. [Privacy and security](#10-privacy-and-security)
-11. [Delivery sequence](#11-delivery-sequence)
+11. [Delivery state](#11-delivery-state)
 12. [Open questions and things to verify](#12-open-questions-and-things-to-verify)
 
 ---
@@ -221,46 +221,79 @@ declined permission, an existing value being kept, and the no-script fallback.
 
 ### Packages
 
-`UmbracoPrism.TestSite` already references `Umbraco.Automate` 17.4.0. It adds the Umbraco 17 line
-of the AI packages:
+`UmbracoPrism.TestSite` references `Umbraco.Automate` 17.4.0 and adds the Umbraco 17 line of the AI
+packages:
 
-- `Umbraco.AI` (17.x)
-- `Umbraco.AI.Agent` (17.x)
-- `Umbraco.AI.Automate` (17.x), which adds the **Run AI Agent** and **Transcribe Audio** actions
-  and the AI triggers to Automate's catalogue
-- `Umbraco.AI.Google` (17.x), the Gemini provider
+- `Umbraco.AI` 17.5.0 and `Umbraco.AI.Agent` 17.3.0
+- `Umbraco.AI.Automate` 17.0.1, which adds the **Run AI Agent** and **Transcribe Audio** actions and
+  the AI triggers to Automate's catalogue
+- `Umbraco.AI.Google` 17.0.3, the Gemini provider
+- `Google.GenAI` 1.24.0, pinned by the host. `Umbraco.AI.Google` accepts any 1.x and resolves
+  1.10.0 by default, which rejects an inline image part's `displayName` with a Gemini Developer API
+  key and so fails every photo sent to a free AI Studio key.
 
 The 18.x line targets Umbraco 18 and is not used.
 
 ### Flow
 
-1. The `identify` stage's support-system call is sent by the configured webhook client, which
-   POSTs a signed invocation, photo reference included, to an Automate webhook trigger.
-2. The automation runs **Run AI Agent** with the photo as an attachment (a media key, up to 10
-   attachments and 20 MB, images passed directly to vision-capable models) and the location,
-   time and notes in the prompt.
+1. The `identify` stage's support-system call is sent by the configured webhook client, which POSTs
+   a signed invocation, photo reference included, to an Automate webhook trigger.
+2. The automation runs **Run AI Agent** with the photo as its attachment
+   (`${trigger.body.inputs.photo.storageKey}`, the media UDI) and the location, date, time and notes
+   in the message. The notes are quoted as data, and the agent's instructions say they are never
+   instructions.
 3. The agent returns structured output. Each schema field is exposed to later steps as a named
-   binding.
-4. A branch maps the result to an outcome, and a resolve step (the in-process custom action
-   pattern already in TestSite) completes the invocation with the outputs.
+   binding under the step's id.
+4. A typed in-process action, `prism.resolveButterflyIdentification`, reads each binding as its own
+   setting and completes the invocation. It builds the payload with `JsonObject` from individual
+   fields, so model text is never spliced into JSON. The outcome is restricted to `identified`,
+   `unclear` and `not-a-butterfly`, confidence to `low`, `medium` and `high`, control characters are
+   replaced, and lengths are capped. No branch step is needed because the agent's `outcome` field is
+   passed straight through.
 
-The agent is created in the Umbraco.AI backoffice and scoped to the **Automations** surface, with
-read-only tool permissions. Its output schema is `speciesGuess`, `commonName`, `confidence`,
-`lifeStage`, `habitatNotes` and `isButterfly`. Its instructions require an honest "unclear" when
-the photo does not support an identification, and forbid inventing locality claims.
+### The Umbraco.AI setup
 
-An `AutomateButterflyIdentificationSeeder` builds and publishes the automation on every boot,
-following `JugglingLicenceDecisionAutomationSeeder`: create or update, then publish, never throw
-if seeding fails. The agent and profile are seeded by the host the same way where Umbraco.AI
-exposes a service for it, and are otherwise a documented manual setup step.
+`FieldRecordingAiSetup` creates the connection (`field-recording-gemini`), the chat profile
+(`field-recording-vision`) and the agent (`butterfly-identifier`, scoped to the Automations surface,
+read-only tool permissions). `ButterflyIdentificationSeeder` then publishes the automation on every
+boot, following `JugglingLicenceDecisionAutomationSeeder`: create or update, then publish, never throw.
 
-### Provider
+- The connection's API key is the reference `$Umbraco:AI:Secrets:GoogleGeminiApiKey`, resolved from
+  the host's configuration (a user secret locally). It is never committed or logged.
+- The connection and profile are created only when missing, so moving to another provider is an edit
+  to that profile and nothing else, and a later boot does not undo it. The agent's instructions and
+  output schema are the contract the automation depends on, so they are refreshed on every boot while
+  its profile is left alone.
+- The output schema is `outcome` (required, an enum), `speciesGuess`, `commonName`, `confidence`,
+  `lifeStage` and `habitatNotes`.
+- The instructions require an honest `unclear` when the photo does not support an identification,
+  say never to guess a species to be helpful, and limit habitat notes to what is visible.
 
-The demo profile uses the Gemini free tier through `Umbraco.AI.Google`. Changing provider is a
-change to the Umbraco.AI profile and nothing else, which is the point of routing the call through
-Umbraco.AI. The API key is held in the host's secret store (a user secret locally, the existing
-secret mechanism in deployment) and never in committed configuration. See section 10 for what the
-free tier means for real data.
+### The model
+
+The default model is `gemini-3.8-flash`, configurable with `Prism:FieldRecording:GeminiModel`.
+
+- The agent runtime always declares tools alongside a JSON output schema. `gemini-2.5-flash` rejects
+  that combination outright (HTTP 400, "Function calling with a response mime type: 'application/json'
+  is unsupported"). The Gemini 3 family accepts it.
+- Free-tier availability shifts quickly. A flash-lite model has already been withdrawn for new keys,
+  and several models intermittently answer 503 "high demand". The default is the fastest model that
+  answered a photo correctly when it was chosen (about 7 seconds).
+- The free tier has a daily request quota per model per project
+  (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`). Each sighting costs at least one request, and
+  every retry costs another, so a busy day or a long test session can exhaust it (HTTP 429 until the
+  window resets).
+
+### When the AI does not answer
+
+- The agent step retries three times, five seconds apart, which rides out a transient 503. On the live
+  run that passed, the first attempt was a 503 and the retry succeeded.
+- If the step still fails, Automate skips past it and runs the next step with empty bindings. The
+  typed action treats a missing or unrecognised outcome as `unclear` with the note "No suggestion was
+  available. Enter what you saw yourself.", so the practitioner reaches the confirm stage and types
+  the species instead of waiting.
+- Wayfinder has no timeout for a support-system call that never answers. A failed AI step is covered
+  as above, but an automation that never runs at all would leave the practitioner at the wait screen.
 
 ### Files through the configured webhook support system (Wayfinder change 3)
 
@@ -300,11 +333,18 @@ Nothing in existing configuration depends on the throw, so no behaviour is kept 
 
 ### Photos live in Umbraco Media
 
-Run AI Agent takes attachments as media keys. TestSite's `IServiceRequestFileStorage`
-implementation for the photo field therefore writes the file into the Umbraco media library and
-returns the media key as the reference. The existing upload and download controllers keep working
-because they depend only on the interface. Retention, deletion and access control of the media
-items follow section 10.
+Run AI Agent takes attachments as media keys, UDIs or picker values. `MediaBackedSightingPhotoStorage`
+decorates the host's `IServiceRequestFileStorage` and handles only the `sightingPhoto` field: it writes
+the file to the media library under a "Butterfly sightings" folder and returns the media UDI as the
+storage key. Every other upload falls through to the disk storage it wraps, so the juggling licence and
+bulk contributions are unaffected, and the existing upload and download controllers keep working
+because they depend only on the interface.
+
+- Only JPEG, PNG and WebP are accepted, checked by file name and by file signature, because the engine
+  adapter hands storage a stream with a generic content type.
+- A stored reference can only be read back if it names a media item inside the sightings folder, so a
+  storage key is never a way to open an unrelated media item.
+- Retention, deletion and access control of the media items follow section 10.
 
 ## 9. The record and the GIS layer
 
@@ -346,6 +386,17 @@ section 10.
   before the file reaches storage. The existing upload controller's antiforgery token, upload
   nonce and ownership checks apply unchanged. Photo metadata is not trusted: coordinates and
   times in the stored record are the values the practitioner confirmed.
+- **Photos are publicly servable.** Umbraco serves media by path. A sighting photo, which also shows
+  where the practitioner was, is only as private as that path is unguessable, and is not access
+  controlled. Real use needs private storage or an authorised download route.
+- **Model output is untrusted.** The agent's answer, and the notes a practitioner types, reach a model
+  that can be steered, so the answer is treated as untrusted text end to end: fixed outcome and
+  confidence sets, values only ever set as JSON values, and a graceful result when nothing usable comes
+  back.
+- **Browser permissions.** The site's default `Permissions-Policy` forbids geolocation and its CSP
+  blocks map tiles. The host widens exactly two things through Prism's existing options:
+  `geolocation=(self)` for this origin, and the tile host under `img-src`. Camera stays off, because a
+  file input's `capture` attribute does not use it.
 - **Automate webhook.** HMAC-SHA256 signed with a key from configuration, as for the existing
   support systems. The signing key and the Gemini key are never committed or logged.
 - **Endpoints.** Every new endpoint carries an explicit authorization policy. `AllowAnonymous`
@@ -356,41 +407,41 @@ section 10.
   unverified record is published, or if the support-system callback accepts anything beyond the
   invocation id.
 
-## 11. Delivery sequence
+## 11. Delivery state
 
-1. **This document** is reviewed.
-2. **Wayfinder**, one branch and pull request carrying the three changes (capture mode, location
-   picker, file inputs in the configured webhook support system), with docs and tests. Released through the existing lockstep release chain.
-3. **Wayfinder.Umbraco** picks up the new Wayfinder versions and makes two small changes. Its
-   progressive-upload file input is its own markup, so it applies the capture mode through the
-   public `GovUkFileUploadField.CaptureAttribute`. Its question stage loads the picker module when
-   a stage contains a `location-picker`, as it does for the live-form script.
-4. **Prism `TestSite`** picks up the new versions and adds the Umbraco.AI packages, Media-backed
-   storage, the support-system client, the seeder, the blueprint and the demo script. TestSite work
-   can start against locally built Wayfinder packages while steps 2 and 3 are in review.
-5. **Iteration 2**: the GeoJSON endpoint and a QGIS walkthrough.
-6. **Iteration 3**: dataset research, then the overlay blueprint.
-
-A spike comes first, before any component work: add the Umbraco 17 AI packages to TestSite, set up
-the Gemini profile and an agent, and run a hand-built **Run AI Agent** automation against a test
-photo, to confirm the 17.x stack boots and returns structured output.
+1. **Wayfinder** 0.16.0 carries the three changes (capture mode, location picker, file inputs in the
+   configured webhook support system), with Editor 0.6.0 and Rendering.GovUk 0.6.0.
+2. **Wayfinder.Umbraco** 2.2.0 applies the capture mode in its own progressive-upload markup through the
+   public `GovUkFileUploadField.CaptureAttribute`, and loads the picker module on a stage that contains a
+   `location-picker`.
+3. **Prism `TestSite`** has the Umbraco.AI packages, the Media-backed photo storage, the
+   `butterfly-identification` support system, the Umbraco.AI setup, the seeded automation, the typed
+   hand-back action, the blueprint and its page. A phone-width headless-browser run over HTTPS goes from
+   photo upload through device location, the signed webhook, Gemini and the confirm stage to the final
+   record.
+4. **Iteration 2**: the GeoJSON endpoint and a QGIS walkthrough.
+5. **Iteration 3**: dataset research, then the overlay blueprint.
 
 ## 12. Open questions and things to verify
 
-1. **Umbraco 17 stack.** Confirm `Umbraco.AI`, `.Agent`, `.Automate` and `.Google` 17.x boot
-   together with `Umbraco.Automate` 17.4.0 in TestSite and that Run AI Agent returns the schema
-   bindings.
-2. **Media into the automation.** Confirm `inputs.photo.storageKey` from the webhook trigger can
-   be bound to Run AI Agent's attachment as a media key, and whether Automate ships an action to
-   create a media item (only needed if a step, not the storage, has to create it).
-3. **Provenance transport.** The picker posts one value, `lat,lng`, and announces source and
-   accuracy through `wayfinder:location-changed`. Confirm a small TestSite script can copy them
-   into companion fields that the blueprint declares (for example hidden or read-only inputs), and
-   that the validator's key whitelist accepts them as ordinary fields.
-4. **Progressive upload script.** Confirm in a browser that the progressive-upload script keeps
-   the `capture` attribute on the input it drives.
-5. **Capacitor permissions.** Confirm the generated bundle declares camera and location usage on
-   both platforms.
-6. **Photo retention rule** for abandoned and rejected sightings.
-7. **Last-modified heuristic.** Confirm on real iOS and Android devices that a freshly taken photo
-   reports a last-modified time close to now.
+1. **A photo with no butterfly, and notes that try to steer the model.** Both are meant to be handled
+   by the agent's instructions (`not-a-butterfly`, and notes treated as data). They have not been
+   confirmed against the live model: the runs hit Gemini 503s and then the free tier's daily quota, so
+   both took the graceful-degradation path instead. Re-run them when the quota resets.
+2. **Provenance transport.** The picker posts one value, `lat,lng`, and announces source and accuracy
+   through `wayfinder:location-changed`. Confirm a small TestSite script can copy them into companion
+   fields that the blueprint declares (for example hidden or read-only inputs), and that the
+   validator's key whitelist accepts them as ordinary fields.
+3. **Progressive upload script.** Confirm in a browser that the progressive-upload script keeps the
+   `capture` attribute on the input it drives.
+4. **A real phone.** Camera capture, the location permission prompts and the last-modified heuristic
+   for a freshly taken photo have only been exercised in a desktop browser. Confirm on iOS and Android,
+   including that the generated Capacitor bundle declares camera and location usage on both.
+5. **Support-call timeout.** Wayfinder has no timeout for a support-system call that never answers. A
+   small Wayfinder feature (an outcome the engine resolves itself after a declared time) would close
+   the gap the typed action only covers for a failed AI step.
+6. **Photo privacy and retention.** Media is publicly servable by path, and abandoned or rejected
+   sightings leave their photo behind. Decide on private storage or an authorised download route, and
+   a retention rule.
+7. **Free-tier capacity.** The daily per-model quota and intermittent 503s make the free tier suitable
+   for a demo only. Decide whether the demo needs a paid key or a second model to fall back on.
