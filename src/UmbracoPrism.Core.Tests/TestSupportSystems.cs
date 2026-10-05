@@ -8,7 +8,9 @@ namespace UmbracoPrism.Core.Tests;
 /// Registers TestSite's support systems exactly once per test process, from the same
 /// <c>appsettings.json</c> and <c>appsettings.Development.json</c> TestSite boots with, through the
 /// same <c>AddConfiguredSupportSystems</c> path, so a test of a blueprint that calls one is also a
-/// test of its configuration. <c>SupportSystemRegistry</c> freezes on first read, so every test
+/// test of its configuration. The files are read from TestSite's own folder, never from the test
+/// output: several referenced projects ship an <c>appsettings.json</c>, and which one a clean build
+/// leaves in the output is not under this project's control. <c>SupportSystemRegistry</c> freezes on first read, so every test
 /// class that needs it touches <see cref="EnsureRegistered"/> from its static constructor: the
 /// first one to run registers all of them before anything can read the registry.
 /// </summary>
@@ -17,7 +19,7 @@ internal static class TestSupportSystems
     static TestSupportSystems()
     {
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
+            .SetBasePath(FindTestSiteDirectory())
             .AddJsonFile("appsettings.json")
             .AddJsonFile("appsettings.Development.json")
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -34,5 +36,22 @@ internal static class TestSupportSystems
     internal static void EnsureRegistered()
     {
         // Touching this type runs the static constructor above, once.
+    }
+
+    private static string FindTestSiteDirectory()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory.FullName, "src", "UmbracoPrism.TestSite");
+            if (File.Exists(Path.Combine(candidate, "appsettings.json")))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException($"Could not find UmbracoPrism.TestSite's appsettings.json walking up from {AppContext.BaseDirectory}.");
     }
 }
