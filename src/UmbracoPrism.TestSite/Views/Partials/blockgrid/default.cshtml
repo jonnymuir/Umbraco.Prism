@@ -5,6 +5,6 @@
     var gridColumns = Model.GridColumns?.ToString() ?? "12";
 }
 
-<div class="umb-block-grid" data-grid-columns="@(gridColumns)" style="--umb-block-grid--grid-columns: @(gridColumns);">
+<div class="umb-block-grid" data-grid-columns="@(gridColumns)">
     @await Html.GetBlockGridItemsHtmlAsync(Model)
 </div>
