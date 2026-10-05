@@ -33,6 +33,13 @@
          a bare package reference is enough, no explicit AddUmbracoAutomate() call. -->
     <PackageReference Include="Umbraco.Automate" Version="17.4.0" />
     <PackageReference Include="Umbraco.Automate.Persistence.Sqlite" Version="17.4.0" />
+    <!-- Umbraco.AI and its Automate add-on (the Run AI Agent action), on the Umbraco 17 line, with the
+         Google provider for the field-recording demo's free Gemini profile. Each registers itself
+         through its own composer, so bare package references are enough. -->
+    <PackageReference Include="Umbraco.AI" Version="17.5.0" />
+    <PackageReference Include="Umbraco.AI.Agent" Version="17.3.0" />
+    <PackageReference Include="Umbraco.AI.Automate" Version="17.0.1" />
+    <PackageReference Include="Umbraco.AI.Google" Version="17.0.3" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" Condition="$(RuntimeIdentifier.StartsWith('linux')) or $(RuntimeIdentifier.StartsWith('win')) or ('$(RuntimeIdentifier)' == '' and !$([MSBuild]::IsOSPlatform('osx')))" />
   </ItemGroup>
 
