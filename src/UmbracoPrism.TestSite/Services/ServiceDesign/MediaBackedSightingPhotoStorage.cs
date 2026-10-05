@@ -53,33 +53,10 @@ public sealed class MediaBackedSightingPhotoStorage(
         }
 
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        using var buffer = new MemoryStream();
-        await using (var source = file.OpenReadStream())
-        {
-            await source.CopyToAsync(buffer, cancellationToken);
-        }
+        using var buffer = await ReadAsync(file, cancellationToken);
+        EnsureAnImage(extension, buffer);
 
-        if (!AllowedExtensions.Contains(extension) || !LooksLikeAnImage(buffer.GetBuffer().AsSpan(0, (int)buffer.Length)))
-        {
-            throw new InvalidOperationException("The sighting photo must be a JPEG, PNG or WebP image.");
-        }
-
-        var storedFileName = $"{Guid.NewGuid():N}{extension}";
-        var media = mediaService.CreateMedia(
-            $"Sighting {DateTime.UtcNow:yyyy-MM-dd HH-mm-ss}",
-            EnsureFolder().Key,
-            Constants.Conventions.MediaTypes.Image);
-        buffer.Position = 0;
-        media.SetValue(
-            mediaFileManager, mediaUrlGenerators, shortStringHelper, contentTypeBaseServiceProvider,
-            Constants.Conventions.Media.File, storedFileName, buffer);
-
-        var saved = mediaService.Save(media);
-        if (!saved.Success)
-        {
-            throw new InvalidOperationException("The sighting photo could not be saved to the media library.");
-        }
-
+        var media = CreateMedia(extension, buffer);
         logger.LogInformation("Stored a sighting photo as media {MediaKey} for instance {InstanceId}.", media.Key, instanceId);
         return new ServiceRequestFileReference
         {
@@ -97,24 +74,68 @@ public sealed class MediaBackedSightingPhotoStorage(
             return inner.OpenReadAsync(reference, cancellationToken);
         }
 
-        if (udi is not GuidUdi { EntityType: Constants.UdiEntityType.Media } mediaUdi
-            || FindFolder() is not { } folder
-            || mediaService.GetById(mediaUdi.Guid) is not { } media
-            || media.ParentId != folder.Id)
-        {
-            throw new FileNotFoundException("No sighting photo is stored under that reference.");
-        }
-
-        var stored = media.GetValue<string>(Constants.Conventions.Media.File);
-        var path = stored is not null && stored.TrimStart().StartsWith('{')
-            ? JsonNode.Parse(stored)?["src"]?.GetValue<string>()
-            : stored;
-        if (string.IsNullOrEmpty(path))
-        {
-            throw new FileNotFoundException("The sighting photo has no stored file.");
-        }
+        var media = FindSightingPhoto(udi)
+            ?? throw new FileNotFoundException("No sighting photo is stored under that reference.");
+        var path = StoredPath(media)
+            ?? throw new FileNotFoundException("The sighting photo has no stored file.");
 
         return Task.FromResult(mediaFileManager.FileSystem.OpenFile(mediaFileManager.FileSystem.GetRelativePath(path)));
+    }
+
+    private static async Task<MemoryStream> ReadAsync(IFormFile file, CancellationToken cancellationToken)
+    {
+        var buffer = new MemoryStream();
+        await using var source = file.OpenReadStream();
+        await source.CopyToAsync(buffer, cancellationToken);
+        return buffer;
+    }
+
+    private static void EnsureAnImage(string extension, MemoryStream buffer)
+    {
+        if (!AllowedExtensions.Contains(extension) || !LooksLikeAnImage(buffer.GetBuffer().AsSpan(0, (int)buffer.Length)))
+        {
+            throw new InvalidOperationException("The sighting photo must be a JPEG, PNG or WebP image.");
+        }
+    }
+
+    private IMedia CreateMedia(string extension, MemoryStream buffer)
+    {
+        var storedFileName = $"{Guid.NewGuid():N}{extension}";
+        var media = mediaService.CreateMedia(
+            $"Sighting {DateTime.UtcNow:yyyy-MM-dd HH-mm-ss}",
+            EnsureFolder().Key,
+            Constants.Conventions.MediaTypes.Image);
+        buffer.Position = 0;
+        media.SetValue(
+            mediaFileManager, mediaUrlGenerators, shortStringHelper, contentTypeBaseServiceProvider,
+            Constants.Conventions.Media.File, storedFileName, buffer);
+
+        if (!mediaService.Save(media).Success)
+        {
+            throw new InvalidOperationException("The sighting photo could not be saved to the media library.");
+        }
+
+        return media;
+    }
+
+    /// <summary>The media item a UDI names, but only when it is a photo inside this storage's own folder.</summary>
+    private IMedia? FindSightingPhoto(Udi udi)
+    {
+        if (udi is not GuidUdi { EntityType: Constants.UdiEntityType.Media } mediaUdi || FindFolder() is not { } folder)
+        {
+            return null;
+        }
+
+        var media = mediaService.GetById(mediaUdi.Guid);
+        return media?.ParentId == folder.Id ? media : null;
+    }
+
+    private string? StoredPath(IMedia media)
+    {
+        var stored = media.GetValue<string>(Constants.Conventions.Media.File);
+        var isJson = stored is not null && stored.TrimStart().StartsWith('{');
+        var path = isJson ? JsonNode.Parse(stored!)?["src"]?.GetValue<string>() : stored;
+        return string.IsNullOrEmpty(path) ? null : path;
     }
 
     private IMedia? FindFolder() =>
