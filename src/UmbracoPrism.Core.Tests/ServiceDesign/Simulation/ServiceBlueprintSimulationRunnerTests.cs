@@ -11,7 +11,7 @@ public class ServiceBlueprintSimulationRunnerTests
     [Fact]
     public void Run_LinearWorkflow_WalksThroughGatewayToCompletion()
     {
-        var result = new ServiceBlueprintSimulationRunner().Run(
+        var result = ServiceBlueprintSimulationRunner.Run(
             BuildLinearWorkflow(),
             [new ProcessManagerSimulationStep("submit")]);
 
@@ -40,7 +40,7 @@ public class ServiceBlueprintSimulationRunnerTests
             }
         };
 
-        var result = new ServiceBlueprintSimulationRunner().Run(
+        var result = ServiceBlueprintSimulationRunner.Run(
             definition,
             [new ProcessManagerSimulationStep("start-modelling")],
             mockServiceInputs);
@@ -59,7 +59,7 @@ public class ServiceBlueprintSimulationRunnerTests
     {
         var definition = LoadMoneyModeller();
 
-        var act = () => new ServiceBlueprintSimulationRunner().Run(
+        var act = () => ServiceBlueprintSimulationRunner.Run(
             definition,
             [new ProcessManagerSimulationStep("start-modelling")]);
 
@@ -85,7 +85,7 @@ public class ServiceBlueprintSimulationRunnerTests
             {
                 Key = "to-done",
                 DisplayName = "Route to done",
-                GatewayType = "Split",
+                GatewayType = GatewayKind.Split,
                 QueueKey = "applicant",
                 Routes = [new ServiceBlueprintRouteDefinition { Id = "release", Target = "done", Trigger = "submit" }]
             }
@@ -96,7 +96,7 @@ public class ServiceBlueprintSimulationRunnerTests
             {
                 StageKey = "start",
                 DisplayName = "Start",
-                StageType = "Question",
+                StageType = StageKind.Question,
                 QueueKey = "applicant",
                 Routes = [new ServiceBlueprintRouteDefinition { Id = "start-submit", Target = "to-done", Trigger = "submit" }]
             },
@@ -104,7 +104,7 @@ public class ServiceBlueprintSimulationRunnerTests
             {
                 StageKey = "done",
                 DisplayName = "Done",
-                StageType = "Confirmation",
+                StageType = StageKind.Confirmation,
                 QueueKey = "applicant",
                 Components = [new PanelComponent { Heading = "Application submitted" }]
             }

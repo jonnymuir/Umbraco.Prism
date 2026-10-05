@@ -239,37 +239,34 @@ public class JoinGatewayEngineTests
                 Components = [new PanelComponent { Heading = "Approved" }]
             }
         ],
-        Metadata = new ServiceBlueprintMetadata
-        {
-            AuthoredServiceBlueprintId = new Guid("aaaabbbb-cccc-dddd-eeee-000000000085"),
-            Gateways =
-            [
-                new ServiceBlueprintGatewayDefinition
-                {
-                    Key = "split-review",
-                    DisplayName = "Start parallel reviews",
-                    GatewayType = "Split",
-                    QueueKey = "applicant",
-                    Routes =
-                    [
-                        new ServiceBlueprintRouteDefinition { Id = "split-review--split-auto--finance-review", Target = "finance-review", Trigger = "split-auto" },
-                        new ServiceBlueprintRouteDefinition { Id = "split-review--split-auto--planning-review", Target = "planning-review", Trigger = "split-auto" }
-                    ]
-                },
-                new ServiceBlueprintGatewayDefinition
-                {
-                    Key = "join-reviews",
-                    DisplayName = "All reviews done",
-                    GatewayType = "Join",
-                    QueueKey = "applicant",
-                    WaitingContent = "Waiting for all reviews to complete.",
-                    WaitingExpectedSeconds = 60,
-                    WaitingPollIntervalMs = 5000,
-                    RequiredIncomingQueues = ["finance", "planning"],
-                    Routes = [new ServiceBlueprintRouteDefinition { Id = "join-reviews--release--decision", Target = "decision", Trigger = "release" }]
-                }
-            ]
-        }
+        AuthoredServiceBlueprintId = new Guid("aaaabbbb-cccc-dddd-eeee-000000000085"),
+        Gateways =
+        [
+            new ServiceBlueprintGatewayDefinition
+            {
+                Key = "split-review",
+                DisplayName = "Start parallel reviews",
+                GatewayType = GatewayKind.Split,
+                QueueKey = "applicant",
+                Routes =
+                [
+                    new ServiceBlueprintRouteDefinition { Id = "split-review--split-auto--finance-review", Target = "finance-review", Trigger = "split-auto" },
+                    new ServiceBlueprintRouteDefinition { Id = "split-review--split-auto--planning-review", Target = "planning-review", Trigger = "split-auto" }
+                ]
+            },
+            new ServiceBlueprintGatewayDefinition
+            {
+                Key = "join-reviews",
+                DisplayName = "All reviews done",
+                GatewayType = GatewayKind.Join,
+                QueueKey = "applicant",
+                WaitingContent = "Waiting for all reviews to complete.",
+                WaitingExpectedSeconds = 60,
+                WaitingPollIntervalMs = 5000,
+                RequiredIncomingQueues = ["finance", "planning"],
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "join-reviews--release--decision", Target = "decision", Trigger = "release" }]
+            }
+        ]
     };
 
     /// <summary>

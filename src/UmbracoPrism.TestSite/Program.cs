@@ -106,15 +106,21 @@ app.UseUmbraco()
         u.UseWebsiteEndpoints();
     });
 
-// Resolves the juggling-licence-decision support-system invocation once the Automate automation
-// (JugglingLicenceDecisionAutomationSeeder) calls back — same route shape as
-// Wayfinder.Umbraco.ReferenceApp's own Program.cs. Mapped directly on `app`, outside the Umbraco
-// endpoint groups above: only UseAuthorization() enforcement is pipeline-order-sensitive here, and
-// this endpoint is explicitly anonymous (the shared secret, not cookie/OIDC auth, is its guard).
-app.MapWebhookSupportSystemCallbacks(
-        () => app.Services.GetRequiredService<Wayfinder.Umbraco.Services.UmbracoProcessManagerEngine>(),
-        sharedSecret: builder.Configuration["JUGGLING_LICENCE_CALLBACK_SECRET"])
-    .AllowAnonymous();
+// The juggling-licence-decision automation runs on this same host and resolves its support-system
+// outcome in-process (ResolveSupportSystemOutcomeAction), so nothing here needs the HTTP callback
+// route. It is mapped only when a callback secret is configured (a receiver outside this process
+// calling back with X-Webhook-Secret): outside Development the route refuses to exist without one,
+// and an unauthenticated callback route is never worth having. Mapped directly on `app`, outside
+// the Umbraco endpoint groups: only UseAuthorization() enforcement is pipeline-order-sensitive
+// here, and this endpoint is explicitly anonymous (the shared secret is its guard, not
+// cookie/OIDC auth).
+if (builder.Configuration["JUGGLING_LICENCE_CALLBACK_SECRET"] is { Length: > 0 } callbackSecret)
+{
+    app.MapWebhookSupportSystemCallbacks(
+            () => app.Services.GetRequiredService<Wayfinder.Umbraco.Services.UmbracoProcessManagerEngine>(),
+            sharedSecret: callbackSecret)
+        .AllowAnonymous();
+}
 
 await app.RunAsync();
 

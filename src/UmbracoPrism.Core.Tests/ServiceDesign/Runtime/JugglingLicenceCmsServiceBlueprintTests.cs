@@ -124,7 +124,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
         var definition = LoadDefinition();
         var mockServiceInputs = MemberServiceInputs(tier: "", name: null, email: null);
 
-        var result = new ServiceBlueprintSimulationRunner().Run(
+        var result = ServiceBlueprintSimulationRunner.Run(
             definition, BuildWalkthroughSteps(overrideLicenceType: "Recreational"), mockServiceInputs);
 
         result.Trace.Should().HaveCount(5, "initial GetCurrent plus four Advance steps to the automated-decision leap");
@@ -147,7 +147,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
         var definition = LoadDefinition();
         var mockServiceInputs = MemberServiceInputs("Competitive");
 
-        var result = new ServiceBlueprintSimulationRunner().Run(definition, BuildWalkthroughSteps(), mockServiceInputs);
+        var result = ServiceBlueprintSimulationRunner.Run(definition, BuildWalkthroughSteps(), mockServiceInputs);
 
         result.Trace[^1].ResponseState.Should().Be("render");
         result.Trace[^1].Render!.StateDisplayName.Should().Be("Processing your application");
@@ -174,7 +174,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
             })
         };
 
-        var result = new ServiceBlueprintSimulationRunner().Run(definition, steps, mockServiceInputs);
+        var result = ServiceBlueprintSimulationRunner.Run(definition, steps, mockServiceInputs);
 
         var fields = result.Trace[^1].Render!.Components.SelectMany(c => c.Fields).ToList();
 
@@ -207,7 +207,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
             })
         };
 
-        var result = new ServiceBlueprintSimulationRunner().Run(definition, steps, mockServiceInputs);
+        var result = ServiceBlueprintSimulationRunner.Run(definition, steps, mockServiceInputs);
 
         var licenceTypeField = result.Trace[^1].Render!.Components
             .SelectMany(c => c.Fields)
@@ -225,7 +225,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
 
         // Submits "Recreational" despite the member's tier being "Professional" — proves
         // defaultFrom is a genuine, overridable default, not a locked-in value.
-        var result = new ServiceBlueprintSimulationRunner().Run(definition, BuildWalkthroughSteps(overrideLicenceType: "Recreational"), mockServiceInputs);
+        var result = ServiceBlueprintSimulationRunner.Run(definition, BuildWalkthroughSteps(overrideLicenceType: "Recreational"), mockServiceInputs);
 
         result.Trace[^1].ResponseState.Should().Be("render");
         result.Trace[^1].Render!.StateDisplayName.Should().Be("Processing your application");
@@ -247,7 +247,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
 
         // A Professional-tier member who nonetheless applies for a Recreational licence pays the
         // standard fee — the discount tracks the licence actually applied for, not membership status.
-        var result = new ServiceBlueprintSimulationRunner().Run(
+        var result = ServiceBlueprintSimulationRunner.Run(
             definition, BuildWalkthroughSteps(overrideLicenceType: "Recreational"), mockServiceInputs);
 
         result.Calculations[^1]!.Fields["isMember"].Should().Be(true);
@@ -263,7 +263,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
         // A Recreational-tier member who applies for a Competitive licence still gets the
         // discount — the fee is driven entirely by the licence type chosen on this application,
         // never by raw membership status.
-        var result = new ServiceBlueprintSimulationRunner().Run(
+        var result = ServiceBlueprintSimulationRunner.Run(
             definition, BuildWalkthroughSteps(overrideLicenceType: "Competitive"), mockServiceInputs);
 
         result.Calculations[^1]!.Fields["feeAmount"].Should().Be(20m, "the chosen licence type — not the member's own tier — decides the fee");

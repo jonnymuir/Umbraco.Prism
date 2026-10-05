@@ -14,7 +14,7 @@ public class ServiceRequestRenderShellResolverTests
             {
                 new ComponentRenderPayload { Type = "waiting", Content = "Please wait." }
             },
-            legacyStepType: string.Empty,
+            engineStepType: string.Empty,
             hasWaitingConfig: false,
             hasAvailableActions: false);
 
@@ -47,7 +47,7 @@ public class ServiceRequestRenderShellResolverTests
                     ]
                 }
             },
-            legacyStepType: string.Empty,
+            engineStepType: string.Empty,
             hasWaitingConfig: false,
             hasAvailableActions: true);
 
@@ -63,7 +63,7 @@ public class ServiceRequestRenderShellResolverTests
                 new ComponentRenderPayload { Type = "panel", Heading = "Done" },
                 new ComponentRenderPayload { Type = "body", Content = "Thanks." }
             },
-            legacyStepType: string.Empty,
+            engineStepType: string.Empty,
             hasWaitingConfig: false,
             hasAvailableActions: false);
 
@@ -79,7 +79,7 @@ public class ServiceRequestRenderShellResolverTests
                 new ComponentRenderPayload { Type = "heading", Content = "Under review" },
                 new ComponentRenderPayload { Type = "body", Content = "No action needed right now." }
             },
-            legacyStepType: string.Empty,
+            engineStepType: string.Empty,
             hasWaitingConfig: false,
             hasAvailableActions: false);
 
@@ -107,7 +107,7 @@ public class ServiceRequestRenderShellResolverTests
                     ]
                 }
             },
-            legacyStepType: string.Empty,
+            engineStepType: string.Empty,
             hasWaitingConfig: false,
             hasAvailableActions: true);
 
@@ -119,7 +119,7 @@ public class ServiceRequestRenderShellResolverTests
     {
         var shell = ServiceRequestRenderShellResolver.ResolveShell(
             Array.Empty<ComponentRenderPayload>(),
-            legacyStepType: "review",
+            engineStepType: "review",
             hasWaitingConfig: false,
             hasAvailableActions: false);
 
