@@ -13,7 +13,7 @@ public class ComponentTypeRegistryTests
     [
         "accordion", "body", "boolean", "bulk-data-review", "chart", "checkboxlist", "date",
         "decimal", "details", "email", "fieldset", "file-upload", "guidance-checklist", "heading",
-        "inset-text", "notification-banner", "number", "panel", "radio", "select", "slider",
+        "inset-text", "location-picker", "notification-banner", "number", "panel", "radio", "select", "slider",
         "stat-group", "summary-list", "task-list", "text", "textarea", "waiting", "warning-text"
     ];
 
