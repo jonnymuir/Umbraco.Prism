@@ -1,0 +1,306 @@
+{
+  "definitionKey": "record-a-butterfly-sighting",
+  "displayName": "Record a butterfly sighting",
+  "version": 1,
+  "schemaVersion": "1.0",
+  "description": "Field recording reference service: a practitioner photographs a butterfly, the device supplies where and when, an AI model suggests what it is through an Umbraco Automate automation, and the practitioner confirms or corrects it. One practitioner queue starts the service and does all the work; the identification support system is its own system queue.",
+  "initialStage": "record-sighting",
+  "requestPolicy": "single",
+  "allowManualRestart": true,
+  "calculations": {
+    "fields": {
+      "speciesGuess": { "source": "service", "valueKind": "string" },
+      "commonName": { "source": "service", "valueKind": "string" }
+    }
+  },
+  "queues": [
+    {
+      "key": "public-visitor",
+      "displayName": "Site visitor touchpoints",
+      "description": "The practitioner recording the sighting, in the field, on a phone or at a desk.",
+      "actor": "applicant"
+    },
+    {
+      "key": "identification",
+      "displayName": "Butterfly identification",
+      "description": "Never human-visible. Resolved by the butterfly-identification Umbraco Automate automation, which asks an Umbraco.AI agent what is in the photo.",
+      "actor": "system"
+    }
+  ],
+  "stages": [
+    {
+      "stageKey": "record-sighting",
+      "displayName": "Record your sighting",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "public-visitor",
+      "components": [
+        {
+          "type": "body",
+          "content": "Take a clear, close photo of the butterfly, then confirm where and when you saw it."
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "file-upload",
+              "fieldKey": "sightingPhoto",
+              "label": "Photo of the butterfly",
+              "hint": "On a phone you can take the photo now or choose one you took earlier.",
+              "required": true,
+              "acceptedFileTypes": [".jpg", ".jpeg", ".png", ".webp"],
+              "maxSizeBytes": 10485760,
+              "captureMode": "choose"
+            }
+          ]
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "location-picker",
+              "fieldKey": "location",
+              "label": "Where did you see it?",
+              "required": true
+            }
+          ]
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "date",
+              "fieldKey": "sightingDate",
+              "label": "Date of the sighting",
+              "hint": "For example, 27 3 2026",
+              "required": true
+            },
+            {
+              "type": "text",
+              "fieldKey": "sightingTime",
+              "label": "Time of the sighting (optional)",
+              "hint": "Use the 24-hour clock, for example 14:30",
+              "maxLength": 5,
+              "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+            },
+            {
+              "type": "textarea",
+              "fieldKey": "notes",
+              "label": "Notes (optional)",
+              "hint": "Anything useful about the place or what the butterfly was doing",
+              "maxLength": 500
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "record-sighting--continue--submit-sighting",
+          "target": "submit-sighting",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stageKey": "identify",
+      "displayName": "Identifying the butterfly",
+      "description": "Never human-visible. The practitioner waits at the identification-complete join gateway while this stage's onEnter action calls out to the butterfly-identification Umbraco Automate automation.",
+      "stageType": "Question",
+      "actor": "system",
+      "queueKey": "identification",
+      "components": [],
+      "actions": [
+        {
+          "type": "support-system-call",
+          "timing": "onEnter",
+          "params": {
+            "supportSystemKey": "butterfly-identification",
+            "capabilityKey": "identify-butterfly",
+            "inputs": {
+              "photo": "sightingPhoto",
+              "location": "location",
+              "sightingDate": "sightingDate",
+              "sightingTime": "sightingTime",
+              "notes": "notes"
+            }
+          }
+        }
+      ],
+      "routes": [
+        {
+          "id": "identify--identified--identification-complete",
+          "target": "identification-complete",
+          "trigger": "identified"
+        },
+        {
+          "id": "identify--unclear--identification-complete",
+          "target": "identification-complete",
+          "trigger": "unclear"
+        },
+        {
+          "id": "identify--not-a-butterfly--identification-complete",
+          "target": "identification-complete",
+          "trigger": "not-a-butterfly"
+        }
+      ]
+    },
+    {
+      "stageKey": "confirm-sighting",
+      "displayName": "Confirm what you saw",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "public-visitor",
+      "components": [
+        {
+          "type": "stat-group",
+          "title": "What the AI model suggests",
+          "items": [
+            { "label": "Scientific name", "fieldKey": "speciesGuess" },
+            { "label": "Common name", "fieldKey": "commonName" },
+            { "label": "Confidence", "fieldKey": "confidence" },
+            { "label": "Life stage", "fieldKey": "lifeStage" },
+            { "label": "Habitat and surroundings", "fieldKey": "habitatNotes" }
+          ]
+        },
+        {
+          "type": "inset-text",
+          "content": "This is a suggestion from an AI model and it can be wrong. What you confirm below is what gets recorded."
+        },
+        {
+          "type": "fieldset",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "confirmedCommonName",
+              "label": "Common name",
+              "required": true,
+              "maxLength": 100,
+              "defaultFrom": "commonName"
+            },
+            {
+              "type": "text",
+              "fieldKey": "confirmedScientificName",
+              "label": "Scientific name",
+              "hint": "Leave it as suggested, correct it, or clear it if you are not sure",
+              "maxLength": 100,
+              "defaultFrom": "speciesGuess"
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "confirm-sighting--continue--route-from-confirm-sighting",
+          "target": "route-from-confirm-sighting",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stageKey": "recorded",
+      "displayName": "Sighting recorded",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "public-visitor",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Sighting recorded"
+        },
+        {
+          "type": "stat-group",
+          "title": "Your record",
+          "items": [
+            { "label": "Common name", "fieldKey": "confirmedCommonName" },
+            { "label": "Scientific name", "fieldKey": "confirmedScientificName" },
+            { "label": "Where", "fieldKey": "location" },
+            { "label": "Date", "fieldKey": "sightingDate" }
+          ]
+        },
+        {
+          "type": "body",
+          "content": "Thank you. Your sighting is saved with the photo, the place and the date."
+        }
+      ],
+      "routes": []
+    },
+    {
+      "stageKey": "not-a-butterfly",
+      "displayName": "We could not see a butterfly",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "public-visitor",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "We could not see a butterfly in that photo"
+        },
+        {
+          "type": "body",
+          "content": "Nothing has been recorded. Start again with a clear, close photo of the butterfly."
+        }
+      ],
+      "routes": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "submit-sighting",
+      "displayName": "Send the photo for identification",
+      "gatewayType": "Split",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "submit-sighting--continue--identification-complete",
+          "target": "identification-complete",
+          "trigger": "continue"
+        },
+        {
+          "id": "submit-sighting--continue--identify",
+          "target": "identify",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "identification-complete",
+      "displayName": "Identification complete",
+      "gatewayType": "Join",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "identification-complete--identified--confirm-sighting",
+          "target": "confirm-sighting",
+          "trigger": "identified"
+        },
+        {
+          "id": "identification-complete--unclear--confirm-sighting",
+          "target": "confirm-sighting",
+          "trigger": "unclear"
+        },
+        {
+          "id": "identification-complete--not-a-butterfly--not-a-butterfly",
+          "target": "not-a-butterfly",
+          "trigger": "not-a-butterfly"
+        }
+      ],
+      "waitingContent": "We are looking at your photo. This usually takes a few seconds.",
+      "waitingExpectedSeconds": 20,
+      "waitingPollIntervalMs": 2000,
+      "requiredIncomingQueues": ["public-visitor", "identification"]
+    },
+    {
+      "key": "route-from-confirm-sighting",
+      "displayName": "Record the sighting",
+      "gatewayType": "Split",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "route-from-confirm-sighting--continue--recorded",
+          "target": "recorded",
+          "trigger": "continue"
+        }
+      ]
+    }
+  ]
+}

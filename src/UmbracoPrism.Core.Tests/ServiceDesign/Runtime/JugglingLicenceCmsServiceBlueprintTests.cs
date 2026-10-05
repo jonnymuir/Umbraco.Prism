@@ -27,46 +27,15 @@ namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 /// "processing-application" stage rather than the public-visitor queue's "application-decided"
 /// wait screen a real, ActorProfile-scoped citizen would see — a simulation-harness quirk, not a
 /// claim about what an actual visitor sees (that's a live/E2E concern, not this unit test's job).
-/// This static constructor registers the same descriptor TestSite's own Wayfinder:SupportSystems
-/// config produces (via AddConfiguredSupportSystems), so ValidateSupportSystemActions() and the
-/// simulation runner's own engine both resolve the reference correctly — SupportSystemRegistry
-/// freezes on first read, so this must run before any test method in this class does, which a
-/// static constructor guarantees.
+/// This static constructor registers TestSite's own Wayfinder:SupportSystems config (via
+/// <see cref="TestSupportSystems"/>), so ValidateSupportSystemActions() and the simulation runner's
+/// own engine both resolve the reference correctly. SupportSystemRegistry freezes on first read,
+/// so this must run before any test method in this class does, which a static constructor
+/// guarantees.
 /// </summary>
 public class JugglingLicenceCmsServiceBlueprintTests
 {
-    static JugglingLicenceCmsServiceBlueprintTests()
-    {
-        try
-        {
-            SupportSystemRegistry.Register(new SupportSystemDescriptor
-            {
-                Key = "juggling-licence-decision",
-                DisplayName = "Juggling Licence Decision",
-                Capabilities =
-                [
-                    new SupportSystemCapabilityDescriptor
-                    {
-                        Key = "decide-application",
-                        DisplayName = "Decide a juggling licence application",
-                        Inputs =
-                        [
-                            new() { Key = "licenceType", Title = "Licence type", ValueKind = ComponentPropertyValueKind.String, Format = "field-ref", Required = true },
-                            new() { Key = "applicantName", Title = "Applicant name", ValueKind = ComponentPropertyValueKind.String, Format = "field-ref" },
-                            new() { Key = "applicantEmail", Title = "Applicant email", ValueKind = ComponentPropertyValueKind.String, Format = "field-ref" },
-                        ],
-                        Outputs = [new() { Key = "applicationDecisionNote", Title = "Decision note", ValueKind = ComponentPropertyValueKind.String }],
-                        SupportedCompletionModes = [SupportSystemCompletionMode.Webhook],
-                        Outcomes = [new() { Key = "approved", DisplayName = "Approved" }, new() { Key = "referred", DisplayName = "Referred" }],
-                    },
-                ],
-            });
-        }
-        catch (InvalidOperationException)
-        {
-            // Already registered (e.g. re-run in the same process) — harmless.
-        }
-    }
+    static JugglingLicenceCmsServiceBlueprintTests() => TestSupportSystems.EnsureRegistered();
 
     [Fact]
     public void Definition_LoadsAndDeserializesCleanly()

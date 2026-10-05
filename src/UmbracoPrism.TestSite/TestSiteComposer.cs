@@ -16,6 +16,7 @@ using Wayfinder.Umbraco;
 using Wayfinder.Umbraco.Extensions;
 using Wayfinder.Umbraco.Services;
 using UmbracoPrism.TestSite.BackgroundServices;
+using UmbracoPrism.TestSite.FieldRecording;
 using UmbracoPrism.TestSite.Services;
 using UmbracoPrism.TestSite.Services.ServiceDesign;
 using Wayfinder.Engine.Abstractions;
@@ -249,6 +250,8 @@ public class TestSiteComposer : IComposer
                 sp.GetRequiredService<IBulkDatasetStore>());
         });
 
+        ComposeButterflySighting(builder);
+
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WayfinderServicePageContentType>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, WayfinderServicePageSeeder>();
 
@@ -261,13 +264,31 @@ public class TestSiteComposer : IComposer
     }
 
     /// <summary>
+    /// The butterfly sighting field-recording service: the sighting photo lives in the Umbraco media
+    /// library (the form an Automate "Run AI Agent" attachment accepts), every other upload stays on
+    /// disk, and one background service seeds the Umbraco.AI setup and the identification automation
+    /// (see <see cref="ButterflyIdentificationSeeder"/>). The identification support system itself is
+    /// config-only (Wayfinder:SupportSystems).
+    /// </summary>
+    private static void ComposeButterflySighting(IUmbracoBuilder builder)
+    {
+        builder.Services.AddSingleton<DiskServiceRequestFileStorage>();
+        builder.Services.AddSingleton<Wayfinder.Umbraco.Services.IServiceRequestFileStorage>(sp =>
+            ActivatorUtilities.CreateInstance<MediaBackedSightingPhotoStorage>(sp, sp.GetRequiredService<DiskServiceRequestFileStorage>()));
+
+        builder.Services.AddScoped<FieldRecordingAiSetup>();
+        builder.Services.AddHostedService<ButterflyIdentificationSeeder>();
+    }
+
+    /// <summary>
     /// Wired as <see cref="Wayfinder.Umbraco.Configuration.WayfinderServiceDesignOptions.ResolveAccessProfile"/>
     /// above — extracted to its own testable method rather than an inline lambda, same reasoning
     /// as everywhere else this file uses that pattern.
     /// </summary>
     internal static ActorProfile ResolveAccessProfile(HttpContext ctx, string? blueprintKey)
     {
-        if (string.Equals(blueprintKey, TestSiteSeedContract.JugglingLicenceBlueprintSlug, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(blueprintKey, TestSiteSeedContract.JugglingLicenceBlueprintSlug, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(blueprintKey, TestSiteSeedContract.ButterflySightingBlueprintSlug, StringComparison.OrdinalIgnoreCase))
         {
             return PublicVisitorQueue.AccessProfile;
         }

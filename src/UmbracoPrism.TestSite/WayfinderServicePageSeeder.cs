@@ -92,8 +92,10 @@ public class WayfinderServicePageSeeder(
             await EnsureDefinitionSeededAsync(TestSiteSeedContract.JugglingLicenceBlueprintSlug, "apply-for-a-juggling-licence.json", cancellationToken);
             await EnsureDefinitionSeededAsync(TestSiteSeedContract.ContributionsBlueprintSlug, "bulk-contributions.json", cancellationToken);
             await EnsureDefinitionSeededAsync(TestSiteSeedContract.MoneyModellerBlueprintSlug, "money-modeller.json", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.ButterflySightingBlueprintSlug, "record-a-butterfly-sighting.json", cancellationToken);
 
             EnsureStagePage(TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicenceBlueprintSlug);
+            EnsureStagePage(TestSiteSeedContract.ButterflySightingPageName, TestSiteSeedContract.ButterflySightingBlueprintSlug);
             EnsureStagePage(TestSiteSeedContract.ContributionsPageName, TestSiteSeedContract.ContributionsBlueprintSlug);
             EnsureWorklistPage(TestSiteSeedContract.CaseworkerQueuePageName);
             // Money Modeller's own web-user queue is the citizen-facing part (model savings pot

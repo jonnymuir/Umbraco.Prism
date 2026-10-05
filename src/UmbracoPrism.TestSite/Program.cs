@@ -25,6 +25,8 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, relo
 // read this exact same config key at runtime.
 builder.Configuration["JUGGLING_LICENCE_SIGNING_KEY"] ??=
     Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+builder.Configuration["BUTTERFLY_IDENTIFICATION_SIGNING_KEY"] ??=
+    Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
 
 var runtimeLayout = TestSiteRuntimeLayout.Apply(builder);
 

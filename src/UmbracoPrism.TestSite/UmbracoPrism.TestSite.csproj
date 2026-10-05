@@ -40,6 +40,10 @@
     <PackageReference Include="Umbraco.AI.Agent" Version="17.3.0" />
     <PackageReference Include="Umbraco.AI.Automate" Version="17.0.1" />
     <PackageReference Include="Umbraco.AI.Google" Version="17.0.3" />
+    <!-- Newer than the 1.10.0 Umbraco.AI.Google resolves by default (its range allows any 1.x): 1.10.0
+         rejects an inline image part's displayName with a Gemini Developer API key, which breaks every
+         photo sent to a free AI Studio key. -->
+    <PackageReference Include="Google.GenAI" Version="1.24.0" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" Condition="$(RuntimeIdentifier.StartsWith('linux')) or $(RuntimeIdentifier.StartsWith('win')) or ('$(RuntimeIdentifier)' == '' and !$([MSBuild]::IsOSPlatform('osx')))" />
   </ItemGroup>
 
