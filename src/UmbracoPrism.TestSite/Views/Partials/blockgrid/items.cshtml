@@ -22,7 +22,10 @@
                 {
                     @await Html.PartialAsync(partialViewName, item)
                 }
-                catch (InvalidOperationException)
+                // Only a missing partial is reported inline. Any other InvalidOperationException is a real
+                // failure inside the block's own view (e.g. the stage form's antiforgery token being
+                // requested over plain HTTP), and must surface instead of being mislabelled "not found".
+                catch (InvalidOperationException ex) when (ex.Message.Contains("was not found", StringComparison.Ordinal))
                 {
                     <p>
                         <strong>Could not render component of type: @(item.Content.ContentType.Alias)</strong>
