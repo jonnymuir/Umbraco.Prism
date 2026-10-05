@@ -135,15 +135,20 @@ empty value.
 
 ### Control
 
-- Latitude and longitude text inputs are the primary control. The page is complete and accessible
-  with the map script absent or failing.
-- A "Use my current location" button fills the inputs from the browser Geolocation API.
-- The map is an enhancement layered over the inputs: click or tap to place a pin, drag the pin to
-  adjust. Typing in the inputs moves the pin, and moving the pin updates the inputs. The map
-  region carries a text alternative that states the current coordinates.
-- When the stage loads with no value, the picker requests the current position and centres on it.
-  If permission is denied or unavailable, it centres on a configured default and shows the manual
-  inputs only.
+- One labelled text input holding `latitude,longitude` is the primary control and the only posted
+  field. The page is complete and accessible with the map script absent or failing, and no host
+  needs to compose or whitelist extra keys.
+- A "Use my current location" button fills the input from the browser Geolocation API and
+  announces the result and its accuracy in a live region.
+- The map is an enhancement layered over the input: click or tap to place a pin, drag the pin to
+  adjust. Typing a valid point in the input moves the pin, and moving the pin rewrites the input
+  in a canonical form (six decimal places, no spaces). The map region is focusable, pans with the
+  arrow keys, and its label tells a keyboard user to type the location in the field instead.
+- When the stage loads with an empty field, the picker requests the current position and fills
+  it. An existing value is never overwritten. If permission is declined or unavailable, the field
+  stays empty with a message saying how to proceed.
+- Each change fires a bubbling `wayfinder:location-changed` event on the input, with the point,
+  its `source` (`device`, `map` or `typed`) and, for a device fix, `accuracyMetres`.
 - The check-your-answers row shows the coordinates as text.
 
 ### Map library: OpenLayers
@@ -155,10 +160,10 @@ OpenLayers is the chosen library.
 - It reprojects natively (with proj4 for British National Grid, EPSG:27700) and reads WMS, WFS and
   GeoJSON layers. Iteration 3 overlays records on hedgerow and woodland data that is typically
   published in those forms, so the component does not need replacing later.
-- A bundle tree-shaken to this component (tile layer, vector point layer, drag interaction) is
-  about 97 KB gzipped. The full distribution is about 299 KB gzipped, so the build step is worth
+- The bundle, tree-shaken to this component (tile layer, vector point layer, drag interaction), is
+  about 96 KB gzipped. The full distribution is about 299 KB gzipped, so the build step is worth
   taking. The script loads only on stages that contain a `location-picker`.
-- Its map canvas is not keyboard-operable at the marker level. That is why the text inputs are the
+- Its map canvas is not keyboard-operable at the marker level. That is why the text input is the
   primary control and the map never the only way to set a value.
 
 MapLibre GL is not used: it needs vector tile infrastructure, and its canvas offers the weakest
@@ -166,21 +171,26 @@ accessibility. Proprietary SDKs that need API keys are not used.
 
 ### Packaging
 
-- `Wayfinder.Rendering.GovUk` ships `wayfinder-location-picker.js` and the OpenLayers bundle under
-  `wwwroot`, alongside `wayfinder-slider.js` and the vendored govuk-frontend.
-- A small esbuild script in the repository builds the tree-shaken OpenLayers bundle into a single
-  committed file, so consumers need no Node toolchain.
-- The tile source is configuration supplied by the host. The default is the public OpenStreetMap
-  tile server with its required attribution, suitable for demos only. A production host configures
-  its own provider (for the UK, the Ordnance Survey Maps API). The host's Content Security Policy
-  must allow the tile host under `img-src`.
+- `Wayfinder.Rendering.GovUk` ships one module, `wayfinder-location-picker.js`, with OpenLayers
+  bundled in, plus its stylesheet and a third-party notice, as static web assets under
+  `/_content/Wayfinder.Rendering.GovUk/location-picker/`. The script loads its own stylesheet, so a
+  host adds a single `<script type="module">`.
+- `npm run build` in `Wayfinder.Rendering.GovUk` (esbuild) builds the committed bundle from
+  `src/`, so consumers need no Node toolchain. Continuous integration rebuilds it and fails on
+  drift.
+- Tile source, attribution and default centre are optional `<meta>` tags the host adds
+  (`wayfinder-map-tile-url`, `wayfinder-map-attribution`, `wayfinder-map-default-centre`). The
+  default is the public OpenStreetMap tile server with its required attribution, suitable for
+  demos only. A production host configures its own provider (for the UK, the Ordnance Survey Maps
+  API). The host's Content Security Policy must allow the tile host under `img-src`.
 
 ### Tests
 
 The behaviour is tested through its outputs: validation of out-of-range, non-numeric and empty
-values, the rendered inputs with and without a value, the editor descriptor, and a Playwright test
-(semantic selectors) that sets the value through the text inputs and through the current-location
-button with the geolocation permission granted and denied.
+values, the rendered input with and without a value, the blueprint JSON round trip, the point
+rules the script shares with the server, and a real-browser test (semantic selectors, mocked
+device location, local tiles) that covers auto-fill, the button, clicking the map, typing, a
+declined permission, an existing value being kept, and the no-script fallback.
 
 ## 7. Capture behaviour on the device
 
@@ -203,8 +213,9 @@ button with the geolocation permission granted and denied.
   step 1 and the manual fallback.
 - **Provenance.** The record keeps where the location came from (device, photo metadata or
   entered by hand), the reported accuracy in metres, and the source of the capture time. The
-  confirm stage and later analysis both need to tell a measured position from a placed pin. How
-  the picker posts these alongside the point is an open question (section 12).
+  confirm stage and later analysis both need to tell a measured position from a placed pin. The
+  picker posts only the point. A small TestSite script listens for `wayfinder:location-changed` and
+  copies `source` and `accuracyMetres` into companion fields declared in the blueprint (section 12).
 
 ## 8. Identification through Umbraco Automate and Umbraco.AI
 
@@ -350,7 +361,10 @@ section 10.
 1. **This document** is reviewed.
 2. **Wayfinder**, one branch and pull request carrying the three changes (capture mode, location
    picker, file inputs in the configured webhook support system), with docs and tests. Released through the existing lockstep release chain.
-3. **Wayfinder.Umbraco** picks up the new Wayfinder versions.
+3. **Wayfinder.Umbraco** picks up the new Wayfinder versions and makes two small changes. Its
+   progressive-upload file input is its own markup, so it applies the capture mode through the
+   public `GovUkFileUploadField.CaptureAttribute`. Its question stage loads the picker module when
+   a stage contains a `location-picker`, as it does for the live-form script.
 4. **Prism `TestSite`** picks up the new versions and adds the Umbraco.AI packages, Media-backed
    storage, the support-system client, the seeder, the blueprint and the demo script. TestSite work
    can start against locally built Wayfinder packages while steps 2 and 3 are in review.
@@ -369,12 +383,12 @@ photo, to confirm the 17.x stack boots and returns structured output.
 2. **Media into the automation.** Confirm `inputs.photo.storageKey` from the webhook trigger can
    be bound to Run AI Agent's attachment as a media key, and whether Automate ships an action to
    create a media item (only needed if a step, not the storage, has to create it).
-3. **Provenance transport.** The picker posts one value, `lat,lng`. Accuracy and source need a
-   route into the record. The leading option is optional companion field keys on the picker
-   (`SourceFieldKey`, `AccuracyFieldKey`) that its script fills. To be settled in the Wayfinder
-   pull request.
-4. **Progressive upload script.** Confirm that the upload path TestSite uses honours the
-   `capture` attribute, which should hold because it is the same input element.
+3. **Provenance transport.** The picker posts one value, `lat,lng`, and announces source and
+   accuracy through `wayfinder:location-changed`. Confirm a small TestSite script can copy them
+   into companion fields that the blueprint declares (for example hidden or read-only inputs), and
+   that the validator's key whitelist accepts them as ordinary fields.
+4. **Progressive upload script.** Confirm in a browser that the progressive-upload script keeps
+   the `capture` attribute on the input it drives.
 5. **Capacitor permissions.** Confirm the generated bundle declares camera and location usage on
    both platforms.
 6. **Photo retention rule** for abandoned and rejected sightings.
