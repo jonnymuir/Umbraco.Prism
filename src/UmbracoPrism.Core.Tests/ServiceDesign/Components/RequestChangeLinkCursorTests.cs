@@ -162,31 +162,28 @@ public class RequestChangeLinkCursorTests
                 ]
             }
         ],
-        Metadata = new ServiceBlueprintMetadata
-        {
-            AuthoredServiceBlueprintId = new Guid("aaaabbbb-cccc-dddd-eeee-000000000090"),
-            Gateways =
-            [
-                new ServiceBlueprintGatewayDefinition
-                {
-                    Key = "gateway-1",
-                    DisplayName = "Gateway 1",
-                    GatewayType = "Join",
-                    QueueKey = "web-user",
-                    RequiredIncomingQueues = ["web-user"],
-                    Routes = [new ServiceBlueprintRouteDefinition { Id = "gateway-1--continue--property-address", Target = "property-address", Trigger = "continue" }]
-                },
-                new ServiceBlueprintGatewayDefinition
-                {
-                    Key = "gateway-2",
-                    DisplayName = "Gateway 2",
-                    GatewayType = "Join",
-                    QueueKey = "web-user",
-                    RequiredIncomingQueues = ["web-user"],
-                    Routes = [new ServiceBlueprintRouteDefinition { Id = "gateway-2--continue--collection-fee", Target = "collection-fee", Trigger = "continue" }]
-                }
-            ]
-        }
+        AuthoredServiceBlueprintId = new Guid("aaaabbbb-cccc-dddd-eeee-000000000090"),
+        Gateways =
+        [
+            new ServiceBlueprintGatewayDefinition
+            {
+                Key = "gateway-1",
+                DisplayName = "Gateway 1",
+                GatewayType = GatewayKind.Join,
+                QueueKey = "web-user",
+                RequiredIncomingQueues = ["web-user"],
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "gateway-1--continue--property-address", Target = "property-address", Trigger = "continue" }]
+            },
+            new ServiceBlueprintGatewayDefinition
+            {
+                Key = "gateway-2",
+                DisplayName = "Gateway 2",
+                GatewayType = GatewayKind.Join,
+                QueueKey = "web-user",
+                RequiredIncomingQueues = ["web-user"],
+                Routes = [new ServiceBlueprintRouteDefinition { Id = "gateway-2--continue--collection-fee", Target = "collection-fee", Trigger = "continue" }]
+            }
+        ]
     };
 
     /// <summary>

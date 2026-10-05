@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AwesomeAssertions;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Calculations;
@@ -112,30 +113,17 @@ public class ServiceBlueprintAuthoringServiceTests
     }
 
     [Fact]
-    public async Task SaveAsync_StateWithUnrecognisedStageType_RejectsWithoutSaving()
+    public void ABlueprintWithAnUnrecognisedStageType_IsRejectedWhenItIsRead()
     {
-        // Regression coverage: an MCP-authored workflow once saved successfully with
-        // stageType "Outcome" — a value no authoring surface actually recognises — because
-        // nothing in this pipeline checked it. The backoffice editor's own client-side lint
-        // was the only thing that ever caught it, so the invalid save reached persistence
-        // first and only surfaced as a confusing error much later when someone opened the
-        // workflow in the editor.
-        var store = new InMemoryServiceBlueprintSourceStore();
-        var service = new ServiceBlueprintAuthoringService(store);
-        var workflow = ProjectLinearWorkflow();
-        workflow = workflow with
-        {
-            Stages = workflow.Stages
-                .Select(s => s.StageKey == "done" ? s with { StageType = "Outcome" } : s)
-                .ToList()
-        };
+        // Regression coverage: an MCP-authored workflow once saved successfully with stageType
+        // "Outcome" — a value no authoring surface recognises — and only surfaced as a confusing
+        // error later in the editor. StageType is now an enum, so an unrecognised value can no
+        // longer reach the authoring service at all: it is refused where the JSON is read.
+        const string json = """{ "definitionKey": "x", "stages": [ { "stageKey": "done", "stageType": "Outcome" } ] }""";
 
-        var outcome = await service.SaveAsync(workflow, expectedVersion: 0);
+        var read = () => JsonSerializer.Deserialize<ServiceBlueprint>(json, ServiceBlueprintJson.ReadOptions);
 
-        outcome.Status.Should().Be(ServiceBlueprintSaveStatus.Invalid);
-        outcome.Diagnostics.Should().ContainSingle(d =>
-            d.Code == "STAGE_UNKNOWN_TYPE" && d.Message.Contains("'Outcome'"));
-        (await store.LoadAsync(workflow.DefinitionKey)).Should().BeNull();
+        read.Should().Throw<JsonException>();
     }
 
     private static ServiceBlueprint ProjectLinearWorkflow() => new()
@@ -152,7 +140,7 @@ public class ServiceBlueprintAuthoringServiceTests
             {
                 Key = "to-done",
                 DisplayName = "Route to done",
-                GatewayType = "Split",
+                GatewayType = GatewayKind.Split,
                 QueueKey = "applicant",
                 Routes = [new ServiceBlueprintRouteDefinition { Id = "release", Target = "done", Trigger = "submit" }]
             }
@@ -163,7 +151,7 @@ public class ServiceBlueprintAuthoringServiceTests
             {
                 StageKey = "start",
                 DisplayName = "Start",
-                StageType = "Question",
+                StageType = StageKind.Question,
                 QueueKey = "applicant",
                 Routes = [new ServiceBlueprintRouteDefinition { Id = "start-submit", Target = "to-done", Trigger = "submit" }]
             },
@@ -171,7 +159,7 @@ public class ServiceBlueprintAuthoringServiceTests
             {
                 StageKey = "done",
                 DisplayName = "Done",
-                StageType = "Confirmation",
+                StageType = StageKind.Confirmation,
                 QueueKey = "applicant"
             }
         ]
@@ -191,7 +179,7 @@ public class ServiceBlueprintAuthoringServiceTests
             {
                 StageKey = "start",
                 DisplayName = "Start",
-                StageType = "Question",
+                StageType = StageKind.Question,
                 QueueKey = "applicant",
                 Routes = [new ServiceBlueprintRouteDefinition { Id = "start-submit", Target = "done", Trigger = "submit" }]
             },
@@ -199,7 +187,7 @@ public class ServiceBlueprintAuthoringServiceTests
             {
                 StageKey = "done",
                 DisplayName = "Done",
-                StageType = "Confirmation",
+                StageType = StageKind.Confirmation,
                 QueueKey = "applicant"
             }
         ]

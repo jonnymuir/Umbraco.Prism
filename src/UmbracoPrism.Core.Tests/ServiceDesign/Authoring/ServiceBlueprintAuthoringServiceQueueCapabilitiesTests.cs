@@ -106,7 +106,7 @@ public class ServiceBlueprintAuthoringServiceQueueCapabilitiesTests
             {
                 StageKey = "review",
                 DisplayName = "Review",
-                StageType = "Question",
+                StageType = StageKind.Question,
                 QueueKey = "business-user",
                 Components =
                 [

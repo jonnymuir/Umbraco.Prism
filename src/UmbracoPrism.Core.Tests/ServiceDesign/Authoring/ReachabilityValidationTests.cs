@@ -34,7 +34,7 @@ public class ReachabilityValidationTests
                 {
                     Key = "gw",
                     DisplayName = "Gateway",
-                    GatewayType = "Split",
+                    GatewayType = GatewayKind.Split,
                     QueueKey = "web-user",
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
                 }
@@ -74,7 +74,7 @@ public class ReachabilityValidationTests
                 {
                     Key = "recalculate-loop",
                     DisplayName = "Recalculate",
-                    GatewayType = "Split",
+                    GatewayType = GatewayKind.Split,
                     QueueKey = "web-user",
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "back-to-model", Target = "model", Trigger = "continue" }]
                 },
@@ -82,7 +82,7 @@ public class ReachabilityValidationTests
                 {
                     Key = "to-end",
                     DisplayName = "To End",
-                    GatewayType = "Split",
+                    GatewayType = GatewayKind.Split,
                     QueueKey = "web-user",
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
                 }
@@ -124,7 +124,7 @@ public class ReachabilityValidationTests
                 {
                     Key = "still-gathering",
                     DisplayName = "Still gathering evidence",
-                    GatewayType = "Split",
+                    GatewayType = GatewayKind.Split,
                     QueueKey = "business-user",
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "back-to-assess", Target = "assess", Trigger = "continue" }]
                 }
@@ -168,7 +168,7 @@ public class ReachabilityValidationTests
                 {
                     Key = "gw",
                     DisplayName = "Gateway",
-                    GatewayType = "Split",
+                    GatewayType = GatewayKind.Split,
                     QueueKey = "web-user",
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
                 }

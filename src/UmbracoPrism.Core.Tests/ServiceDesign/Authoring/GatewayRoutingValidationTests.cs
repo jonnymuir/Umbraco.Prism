@@ -36,7 +36,7 @@ public class GatewayRoutingValidationTests
                 {
                     Key = "my-gateway",
                     DisplayName = "My Gateway",
-                    GatewayType = "Split",
+                    GatewayType = GatewayKind.Split,
                     QueueKey = "web-user",
                     Routes =
                     [
@@ -80,7 +80,7 @@ public class GatewayRoutingValidationTests
                 {
                     Key = "dead-end-gateway",
                     DisplayName = "Dead End",
-                    GatewayType = "Join",
+                    GatewayType = GatewayKind.Join,
                     QueueKey = "web-user",
                     Routes = []
                 }
@@ -148,7 +148,7 @@ public class GatewayRoutingValidationTests
                 {
                     Key = "gw",
                     DisplayName = "GW",
-                    GatewayType = "Split",
+                    GatewayType = GatewayKind.Split,
                     QueueKey = "web-user",
                     Routes =
                     [
@@ -190,7 +190,7 @@ public class GatewayRoutingValidationTests
                 {
                     Key = "split",
                     DisplayName = "Split",
-                    GatewayType = "Split",
+                    GatewayType = GatewayKind.Split,
                     QueueKey = "web-user",
                     Routes =
                     [
@@ -202,7 +202,7 @@ public class GatewayRoutingValidationTests
                 {
                     Key = "join",
                     DisplayName = "Join",
-                    GatewayType = "Join",
+                    GatewayType = GatewayKind.Join,
                     QueueKey = "web-user",
                     Routes =
                     [
@@ -300,7 +300,7 @@ public class GatewayRoutingValidationTests
                 {
                     Key = "",
                     DisplayName = "Unnamed gateway",
-                    GatewayType = "Split",
+                    GatewayType = GatewayKind.Split,
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "gw-to-end", Target = "end", Trigger = "continue" }]
                 }
             ]
@@ -358,7 +358,7 @@ public class GatewayRoutingValidationTests
                 {
                     Key = "gw",
                     DisplayName = "GW",
-                    GatewayType = "Split",
+                    GatewayType = GatewayKind.Split,
                     Routes = [new ServiceBlueprintRouteDefinition { Id = "gw-to-nowhere", Target = "ghost", Trigger = "continue" }]
                 }
             ]

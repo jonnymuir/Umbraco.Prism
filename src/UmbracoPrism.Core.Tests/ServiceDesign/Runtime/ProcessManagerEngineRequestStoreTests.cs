@@ -216,7 +216,7 @@ public class ProcessManagerEngineRequestStoreTests
             {
                 Key = "to-done",
                 DisplayName = "To done",
-                GatewayType = "Split",
+                GatewayType = GatewayKind.Split,
                 Routes = [new ServiceBlueprintRouteDefinition { Id = "to-done--continue--done", Target = "done", Trigger = "continue" }]
             }
         ]
