@@ -271,7 +271,9 @@ boot, following `JugglingLicenceDecisionAutomationSeeder`: create or update, the
 
 ### The model
 
-The default model is `gemini-3.8-flash`, configurable with `Prism:FieldRecording:GeminiModel`.
+The default model is `gemini-3.8-flash`, configurable with `Prism:FieldRecording:GeminiModel`. A model set there is
+applied on every boot, including to a profile that already exists; with none set, the profile keeps the model it has
+(for example one chosen in the backoffice).
 
 - The agent runtime always declares tools alongside a JSON output schema. `gemini-2.5-flash` rejects
   that combination outright (HTTP 400, "Function calling with a response mime type: 'application/json'
