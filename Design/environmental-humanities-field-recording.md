@@ -271,7 +271,7 @@ boot, following `JugglingLicenceDecisionAutomationSeeder`: create or update, the
 
 ### The model
 
-The default model is `gemini-3.6-flash`, configurable with `Prism:FieldRecording:GeminiModel`. A model set there is
+The default model is `gemini-3.5-flash`, configurable with `Prism:FieldRecording:GeminiModel`. A model set there is
 applied on every boot, including to a profile that already exists; with none set, the profile keeps the model it has
 (for example one chosen in the backoffice).
 
@@ -279,8 +279,9 @@ applied on every boot, including to a profile that already exists; with none set
   that combination outright (HTTP 400, "Function calling with a response mime type: 'application/json'
   is unsupported"). The Gemini 3 family accepts it.
 - Free-tier availability shifts quickly. A flash-lite model has already been withdrawn for new keys,
-  and several models intermittently answer 503 "high demand". The default is the fastest model that
-  answered a photo correctly when it was chosen (about 7 seconds).
+  and the newest models answer 503 "high demand" for long stretches. The default is a model that answered
+  every call in a repeated test (3 to 6 seconds with a photo, a tool declaration and a JSON schema) while the
+  newer ones failed half of theirs. Check again if it starts failing: the ranking moves through the day.
 - The free tier has a daily request quota per model per project
   (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`), observed at 20 requests a day. Each sighting
   costs at least one request, and every retry costs another, so a busy day or a long test session can
@@ -291,9 +292,9 @@ applied on every boot, including to a profile that already exists; with none set
 
 ### When the AI does not answer
 
-- The agent step retries once, five seconds apart, which rides out a transient 503. On a live run the
-  first attempt was a 503 and the retry succeeded. It does not retry more, because a quota error (429) is
-  not transient and every attempt spends the same exhausted allowance.
+- The agent step retries twice, ten seconds apart. An overload (503) comes in bursts that outlast a single
+  quick retry; a live run met the same 503 five seconds later. It does not retry more, because a quota
+  error (429) is not transient and every attempt spends the same exhausted allowance.
 - If the step still fails, Automate skips past it and runs the next step with empty bindings. The
   typed action treats a missing or unrecognised outcome as `unclear` with the note "No suggestion was
   available. Enter what you saw yourself.", so the practitioner reaches the confirm stage and types

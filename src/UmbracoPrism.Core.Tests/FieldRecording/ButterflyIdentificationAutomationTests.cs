@@ -55,13 +55,13 @@ public class ButterflyIdentificationAutomationTests
     }
 
     [Fact]
-    public void TheAgentStep_RetriesOnceAtMost_BecauseAQuotaErrorIsNotTransientAndEveryAttemptSpendsTheQuota()
+    public void TheAgentStep_RetriesTwiceWithAPause_BecauseGeminiOverloadsLastLongerThanASingleQuickRetry()
     {
         var run = RunAgent(Build());
 
         run.ErrorBehavior.Should().Be(StepErrorBehavior.Retry);
-        run.MaxRetries.Should().Be(1);
-        run.RetryInterval.Should().NotBeNull();
+        run.MaxRetries.Should().Be(2, "more would spend a quota error's exhausted daily allowance on every attempt");
+        run.RetryInterval.Should().Be(TimeSpan.FromSeconds(10));
     }
 
     [Fact]
