@@ -13,9 +13,10 @@ namespace UmbracoPrism.TestSite.FieldRecording;
 /// Creates the Umbraco.AI connection, chat profile and agent the butterfly identification
 /// automation runs, so the demo needs no clicking through the AI section. The connection and
 /// profile are only created when missing: swapping to another provider is an edit to that profile
-/// (the point of routing the call through Umbraco.AI), and a later boot must not undo it. The
-/// agent's instructions and output schema are the contract the automation depends on, so those are
-/// refreshed on every boot while its profile is left alone.
+/// (the point of routing the call through Umbraco.AI), and a later boot must not undo it. The one
+/// exception is a model set under <see cref="ModelConfigKey"/>, which is applied on every boot so
+/// that changing the setting takes effect. The agent's instructions and output schema are the
+/// contract the automation depends on, so those are refreshed on every boot too.
 /// </summary>
 public sealed class FieldRecordingAiSetup(
     IAIConnectionService connectionService,
@@ -87,16 +88,25 @@ public sealed class FieldRecordingAiSetup(
                 IsActive = true,
             }, cancellationToken);
 
+        var configuredModel = configuration[ModelConfigKey];
         var profile = await profileService.GetProfileByAliasAsync(ProfileAlias, cancellationToken)
             ?? await profileService.SaveProfileAsync(new AIProfile
             {
                 Alias = ProfileAlias,
                 Name = "Field recording vision",
                 Capability = AICapability.Chat,
-                Model = new AIModelRef("google", configuration[ModelConfigKey] ?? DefaultModel),
+                Model = new AIModelRef("google", configuredModel ?? DefaultModel),
                 ConnectionId = connection.Id,
                 Settings = new AIChatProfileSettings { Temperature = 0.2f },
             }, cancellationToken);
+
+        // A model set in configuration wins on every boot, like the agent's instructions below; with
+        // none set, the profile keeps whatever model it has (including one chosen in the backoffice).
+        if (!string.IsNullOrWhiteSpace(configuredModel) && profile.Model.ModelId != configuredModel)
+        {
+            profile.Model = new AIModelRef("google", configuredModel);
+            profile = await profileService.SaveProfileAsync(profile, cancellationToken);
+        }
 
         var agent = await agentService.GetAgentByAliasAsync(AgentAlias, cancellationToken)
             ?? new AIAgent
