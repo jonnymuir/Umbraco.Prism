@@ -24,7 +24,8 @@ internal sealed record MobileBundleSettings(
     bool ShowErrorDiagnostics,
     bool BiometricAuthEnabled,
     bool MobileDiagnosticsEnabled,
-    bool PushNotificationsEnabled)
+    bool PushNotificationsEnabled,
+    bool DeviceCaptureEnabled)
 {
     /// <exception cref="ArgumentException">Thrown when request input contains invalid app identifiers or URLs.</exception>
     public static MobileBundleSettings Resolve(PrismTenantSchema tenant, PrismMobileBundleRequest request)
@@ -44,6 +45,7 @@ internal sealed record MobileBundleSettings(
         var biometricAuthEnabled = request.BiometricAuthEnabled ?? false;
         var mobileDiagnosticsEnabled = request.MobileDiagnosticsEnabled ?? false;
         var pushNotificationsEnabled = request.PushNotificationsEnabled ?? false;
+        var deviceCaptureEnabled = request.DeviceCaptureEnabled ?? false;
 
         if (!IsValidAppId(appId))
         {
@@ -58,7 +60,7 @@ internal sealed record MobileBundleSettings(
         return new MobileBundleSettings(
             tenant, appName, appId, version, marker, startUrl, iconUrl, splashUrl,
             errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics,
-            biometricAuthEnabled, mobileDiagnosticsEnabled, pushNotificationsEnabled);
+            biometricAuthEnabled, mobileDiagnosticsEnabled, pushNotificationsEnabled, deviceCaptureEnabled);
     }
 
     private static string BuildStartUrl(string? startUrl, string hostname)

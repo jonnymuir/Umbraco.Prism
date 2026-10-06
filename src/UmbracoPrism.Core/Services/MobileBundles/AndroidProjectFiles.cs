@@ -15,9 +15,9 @@ internal static class AndroidProjectFiles
         var biometricAuthEnabled = settings.BiometricAuthEnabled;
         var pushNotificationsEnabled = settings.PushNotificationsEnabled;
 
-        var manifestInjection = biometricAuthEnabled
-            ? BundleTemplates.Read("android-biometric-manifest-injection.sh")
-            : string.Empty;
+        var manifestInjection =
+            (biometricAuthEnabled ? BundleTemplates.Read("android-biometric-manifest-injection.sh") : string.Empty)
+            + (settings.DeviceCaptureEnabled ? BundleTemplates.Read("android-device-capture-manifest-injection.sh") : string.Empty);
 
         // @capacitor-firebase/messaging's own Android gradle scripts apply the
         // com.google.gms.google-services plugin automatically once google-services.json is

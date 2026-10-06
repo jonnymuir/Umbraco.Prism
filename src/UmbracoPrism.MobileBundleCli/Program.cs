@@ -72,7 +72,8 @@ public static class Program
             SplashUrl = flags.GetValueOrDefault("splash-url"),
             BiometricAuthEnabled = ParseOptionalBool(flags.GetValueOrDefault("biometric-auth")),
             MobileDiagnosticsEnabled = ParseOptionalBool(flags.GetValueOrDefault("mobile-diagnostics")),
-            PushNotificationsEnabled = ParseOptionalBool(flags.GetValueOrDefault("push-notifications"))
+            PushNotificationsEnabled = ParseOptionalBool(flags.GetValueOrDefault("push-notifications")),
+            DeviceCaptureEnabled = ParseOptionalBool(flags.GetValueOrDefault("device-capture"))
         };
 
         try
@@ -159,6 +160,12 @@ public static class Program
                                             resources/google-services.json placed before running
                                             the bootstrap scripts — see README.md's own section
                                             once the bundle is generated with this flag on.
+              --device-capture <true|false>
+                                            Adds the camera and location usage descriptions (iOS
+                                            Info.plist) and permissions (Android manifest) so a
+                                            page in the app can take a photo or read the device's
+                                            location. Without them iOS shows no prompt at all and
+                                            the location is never available to the page.
             """);
     }
 }

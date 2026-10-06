@@ -50,9 +50,9 @@ fileprivate enum PrismOwnHost {
 
 """;
 
-        var infoPlistInjection = biometricAuthEnabled
-            ? BundleTemplates.Read("ios-info-plist-injection.sh")
-            : string.Empty;
+        var infoPlistInjection =
+            (biometricAuthEnabled ? BundleTemplates.Read("ios-info-plist-injection.sh") : string.Empty)
+            + (settings.DeviceCaptureEnabled ? BundleTemplates.Read("ios-info-plist-device-capture.sh") : string.Empty);
 
         // @capacitor-firebase/messaging needs: (1) UIBackgroundModes remote-notification so iOS
         // wakes the app for background pushes, (2) an aps-environment entitlement — "production"
