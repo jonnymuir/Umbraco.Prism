@@ -22,10 +22,16 @@ internal sealed record MobileBundleSettings(
     string ErrorTitle,
     string ErrorMessage,
     bool ShowErrorDiagnostics,
-    bool BiometricAuthEnabled,
-    bool MobileDiagnosticsEnabled,
-    bool PushNotificationsEnabled)
+    MobileBundleFeatures Features)
 {
+    public bool BiometricAuthEnabled => Features.Biometric;
+
+    public bool MobileDiagnosticsEnabled => Features.Diagnostics;
+
+    public bool PushNotificationsEnabled => Features.Push;
+
+    public bool DeviceCaptureEnabled => Features.DeviceCapture;
+
     /// <exception cref="ArgumentException">Thrown when request input contains invalid app identifiers or URLs.</exception>
     public static MobileBundleSettings Resolve(PrismTenantSchema tenant, PrismMobileBundleRequest request)
     {
@@ -41,9 +47,6 @@ internal sealed record MobileBundleSettings(
         var errorTitle = OrDefault(request.ErrorTitle, "We’re having trouble connecting");
         var errorMessage = OrDefault(request.ErrorMessage, "Please check your connection and try again.");
         var showErrorDiagnostics = request.ShowErrorDiagnostics ?? true;
-        var biometricAuthEnabled = request.BiometricAuthEnabled ?? false;
-        var mobileDiagnosticsEnabled = request.MobileDiagnosticsEnabled ?? false;
-        var pushNotificationsEnabled = request.PushNotificationsEnabled ?? false;
 
         if (!IsValidAppId(appId))
         {
@@ -58,7 +61,7 @@ internal sealed record MobileBundleSettings(
         return new MobileBundleSettings(
             tenant, appName, appId, version, marker, startUrl, iconUrl, splashUrl,
             errorBackgroundColor, errorTextColor, errorTitle, errorMessage, showErrorDiagnostics,
-            biometricAuthEnabled, mobileDiagnosticsEnabled, pushNotificationsEnabled);
+            MobileBundleFeatures.From(request));
     }
 
     private static string BuildStartUrl(string? startUrl, string hostname)

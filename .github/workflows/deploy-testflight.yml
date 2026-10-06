@@ -90,6 +90,7 @@ jobs:
           --version "${PRISM_APP_VERSION:-1.0.0}"
           --biometric-auth true
           --mobile-diagnostics true
+          --device-capture true
           --push-notifications "$PUSH_NOTIFICATIONS_ENABLED"
           --output mobile-bundle.zip
 

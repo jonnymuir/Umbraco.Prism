@@ -443,9 +443,12 @@ section 10.
    validator's key whitelist accepts them as ordinary fields.
 3. **Progressive upload script.** Confirm in a browser that the progressive-upload script keeps the
    `capture` attribute on the input it drives.
-4. **A real phone.** Camera capture, the location permission prompts and the last-modified heuristic
-   for a freshly taken photo have only been exercised in a desktop browser. Confirm on iOS and Android,
-   including that the generated Capacitor bundle declares camera and location usage on both.
+4. **A real phone.** The generated Capacitor bundle declares the camera and location usage (iOS `Info.plist`
+   strings, Android manifest permissions) when it is generated with `--device-capture true`, which both app
+   workflows now pass. Without those strings iOS shows no location prompt at all and the page never gets a fix.
+   This needs a new TestFlight (or Play) build, not a server deploy. Camera capture, both permission prompts and
+   the last-modified heuristic for a freshly taken photo are still to be confirmed on iOS and Android with that
+   build; the file input's own thumbnail is drawn by the system and has shown black in the iOS webview.
 5. **Support-call timeout.** Wayfinder has no timeout for a support-system call that never answers. A
    small Wayfinder feature (an outcome the engine resolves itself after a declared time) would close
    the gap the typed action only covers for a failed AI step.
