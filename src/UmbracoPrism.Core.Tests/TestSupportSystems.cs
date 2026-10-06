@@ -38,7 +38,7 @@ internal static class TestSupportSystems
         // Touching this type runs the static constructor above, once.
     }
 
-    private static string FindTestSiteDirectory()
+    internal static string FindTestSiteDirectory()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)

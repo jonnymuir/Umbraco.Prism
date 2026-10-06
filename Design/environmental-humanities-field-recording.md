@@ -183,6 +183,13 @@ accessibility. Proprietary SDKs that need API keys are not used.
   default is the public OpenStreetMap tile server with its required attribution, suitable for
   demos only. A production host configures its own provider (for the UK, the Ordnance Survey Maps
   API). The host's Content Security Policy must allow the tile host under `img-src`.
+- A place and postcode search sits above the map. It is sent only when the practitioner presses Search, to a
+  service set with the `wayfinder-map-search-url` meta tag (default OpenStreetMap's public Nominatim, demos
+  only; empty turns it off), so the host's Content Security Policy must allow that origin under `connect-src`.
+  What the practitioner types therefore leaves the site for a third party; a production host chooses a service
+  it is content to send that to (for the UK, Ordnance Survey Places).
+- The map takes one-finger drags on a phone and is capped at 55% of the screen so there is always page left to
+  scroll with.
 
 ### Tests
 
@@ -271,7 +278,7 @@ boot, following `JugglingLicenceDecisionAutomationSeeder`: create or update, the
 
 ### The model
 
-The default model is `gemini-3.6-flash`, configurable with `Prism:FieldRecording:GeminiModel`. A model set there is
+The default model is `gemini-3.5-flash`, configurable with `Prism:FieldRecording:GeminiModel`. A model set there is
 applied on every boot, including to a profile that already exists; with none set, the profile keeps the model it has
 (for example one chosen in the backoffice).
 
@@ -279,8 +286,9 @@ applied on every boot, including to a profile that already exists; with none set
   that combination outright (HTTP 400, "Function calling with a response mime type: 'application/json'
   is unsupported"). The Gemini 3 family accepts it.
 - Free-tier availability shifts quickly. A flash-lite model has already been withdrawn for new keys,
-  and several models intermittently answer 503 "high demand". The default is the fastest model that
-  answered a photo correctly when it was chosen (about 7 seconds).
+  and the newest models answer 503 "high demand" for long stretches. The default is a model that answered
+  every call in a repeated test (3 to 6 seconds with a photo, a tool declaration and a JSON schema) while the
+  newer ones failed half of theirs. Check again if it starts failing: the ranking moves through the day.
 - The free tier has a daily request quota per model per project
   (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`), observed at 20 requests a day. Each sighting
   costs at least one request, and every retry costs another, so a busy day or a long test session can
@@ -291,9 +299,9 @@ applied on every boot, including to a profile that already exists; with none set
 
 ### When the AI does not answer
 
-- The agent step retries once, five seconds apart, which rides out a transient 503. On a live run the
-  first attempt was a 503 and the retry succeeded. It does not retry more, because a quota error (429) is
-  not transient and every attempt spends the same exhausted allowance.
+- The agent step retries twice, ten seconds apart. An overload (503) comes in bursts that outlast a single
+  quick retry; a live run met the same 503 five seconds later. It does not retry more, because a quota
+  error (429) is not transient and every attempt spends the same exhausted allowance.
 - If the step still fails, Automate skips past it and runs the next step with empty bindings. The
   typed action treats a missing or unrecognised outcome as `unclear` with the note "No suggestion was
   available. Enter what you saw yourself.", so the practitioner reaches the confirm stage and types
@@ -401,7 +409,8 @@ section 10.
   back.
 - **Browser permissions.** The site's default `Permissions-Policy` forbids geolocation and its CSP
   blocks map tiles. The host widens exactly two things through Prism's existing options:
-  `geolocation=(self)` for this origin, and the tile host under `img-src`. Camera stays off, because a
+  `geolocation=(self)` for this origin, the tile host under `img-src` and the place search host under
+  `connect-src`. Camera stays off, because a
   file input's `capture` attribute does not use it.
 - **Automate webhook.** HMAC-SHA256 signed with a key from configuration, as for the existing
   support systems. The signing key and the Gemini key are never committed or logged.

@@ -35,8 +35,9 @@ public sealed class FieldRecordingAiSetup(
     // rejects that combination outright, the Gemini 3 family accepts it. Free-tier availability shifts
     // quickly (a flash-lite model has already been withdrawn for new keys, and the newest models answer
     // 503 "high demand" for long stretches while older ones stay quick), so this is a model that has
-    // answered a photo promptly and correctly, and it stays configurable.
-    public const string DefaultModel = "gemini-3.6-flash";
+    // answered a photo promptly and correctly in a run of repeated calls (it answered every one while the
+    // newer models were returning 503 half the time), and it stays configurable.
+    public const string DefaultModel = "gemini-3.5-flash";
 
     private const string AutomationsSurface = "automations";
 
