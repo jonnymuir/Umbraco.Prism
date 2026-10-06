@@ -306,8 +306,16 @@ applied on every boot, including to a profile that already exists; with none set
   typed action treats a missing or unrecognised outcome as `unclear` with the note "No suggestion was
   available. Enter what you saw yourself.", so the practitioner reaches the confirm stage and types
   the species instead of waiting.
-- Wayfinder has no timeout for a support-system call that never answers. A failed AI step is covered
-  as above, but an automation that never runs at all would leave the practitioner at the wait screen.
+- If the call to Automate cannot be sent at all (unreachable, or an error status), Wayfinder no longer
+  leaves the case waiting at the join. Its default is to stay on the stage with a try-again message
+  and save nothing. The identify stage opts into `onFailure`: it carries on as `unclear` with the same
+  "No suggestion was available" note, so the visitor types the species instead. There are no retries
+  on the dispatch (`retries` is opt-in), because Automate would run the identification twice.
+- Wayfinder has no timeout for a call that was sent but never answered. A failed AI step is covered
+  as above, but an automation that is accepted and then never completes would still leave the
+  practitioner at the wait screen.
+- The confirm stage's habitat tile asks for `width: "full"`, so the longer free text gets the whole
+  row on a phone instead of a narrow card.
 
 ### Files through the configured webhook support system (Wayfinder change 3)
 
