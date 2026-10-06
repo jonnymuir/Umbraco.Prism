@@ -183,6 +183,13 @@ accessibility. Proprietary SDKs that need API keys are not used.
   default is the public OpenStreetMap tile server with its required attribution, suitable for
   demos only. A production host configures its own provider (for the UK, the Ordnance Survey Maps
   API). The host's Content Security Policy must allow the tile host under `img-src`.
+- A place and postcode search sits above the map. It is sent only when the practitioner presses Search, to a
+  service set with the `wayfinder-map-search-url` meta tag (default OpenStreetMap's public Nominatim, demos
+  only; empty turns it off), so the host's Content Security Policy must allow that origin under `connect-src`.
+  What the practitioner types therefore leaves the site for a third party; a production host chooses a service
+  it is content to send that to (for the UK, Ordnance Survey Places).
+- The map takes one-finger drags on a phone and is capped at 55% of the screen so there is always page left to
+  scroll with.
 
 ### Tests
 
@@ -402,7 +409,8 @@ section 10.
   back.
 - **Browser permissions.** The site's default `Permissions-Policy` forbids geolocation and its CSP
   blocks map tiles. The host widens exactly two things through Prism's existing options:
-  `geolocation=(self)` for this origin, and the tile host under `img-src`. Camera stays off, because a
+  `geolocation=(self)` for this origin, the tile host under `img-src` and the place search host under
+  `connect-src`. Camera stays off, because a
   file input's `capture` attribute does not use it.
 - **Automate webhook.** HMAC-SHA256 signed with a key from configuration, as for the existing
   support systems. The signing key and the Gemini key are never committed or logged.
