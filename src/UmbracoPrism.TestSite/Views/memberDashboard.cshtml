@@ -10,6 +10,7 @@
     var contributionsUrl = TestSiteSeedContract.ContributionsPageUrl;
     var caseworkerQueueUrl = TestSiteSeedContract.CaseworkerQueuePageUrl;
     var jugglingLicenceUrl = TestSiteSeedContract.JugglingLicencePageUrl;
+    var environmentalHumanitiesUrl = TestSiteSeedContract.EnvironmentalHumanitiesPageUrl;
     // Every signed-in Prism member reaches this dashboard the same way, but only the NJF
     // Contributions Team roster (see NjfContributionsTeam's own remarks) actually has access to
     // the caseworker queue / contributions upload — most members are demo@prism.local, a plain
@@ -60,6 +61,12 @@
                     <a href="@jugglingLicenceUrl" class="btn btn-primary u-mt-12">Start application</a>
                 </div>
             }
+            <div class="dash-card dash-card--cta">
+                <div class="dash-card__icon dash-card__icon--service-request">🦋</div>
+                <h3>Environmental humanities</h3>
+                <p>Field recording services for practitioners, starting with recording a butterfly sighting.</p>
+                <a href="@environmentalHumanitiesUrl" class="btn btn-primary u-mt-12">Explore</a>
+            </div>
         </div>
 
         <!-- Wayfinder service design demo — service-design capability itself lives entirely in

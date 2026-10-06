@@ -35,11 +35,12 @@ public static class ButterflyIdentificationAutomation
                     ["attachments"] = "${trigger.body.inputs.photo.storageKey}",
                     ["toolPermissions"] = "ReadOnly",
                 },
-                // A free-tier model rate-limits and a field connection drops: ride out the transient
-                // failures. A step that still fails leaves the journey waiting (Wayfinder has no
-                // timeout for a support call), so the practitioner restarts the sighting.
+                // One retry rides out a transient 503. Retrying more is counterproductive: a quota
+                // error (429) is not transient, and every attempt spends the same exhausted daily
+                // allowance. A step that still fails is skipped by Automate and the next step hands
+                // the practitioner an "unclear" answer to correct by hand.
                 ErrorBehavior = StepErrorBehavior.Retry,
-                MaxRetries = 3,
+                MaxRetries = 1,
                 RetryInterval = TimeSpan.FromSeconds(5),
             },
             new()

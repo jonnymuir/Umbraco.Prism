@@ -55,12 +55,12 @@ public class ButterflyIdentificationAutomationTests
     }
 
     [Fact]
-    public void TheAgentStep_RetriesTransientFailures_BecauseAFreeTierModelRateLimits()
+    public void TheAgentStep_RetriesOnceAtMost_BecauseAQuotaErrorIsNotTransientAndEveryAttemptSpendsTheQuota()
     {
         var run = RunAgent(Build());
 
         run.ErrorBehavior.Should().Be(StepErrorBehavior.Retry);
-        run.MaxRetries.Should().BeGreaterThan(0);
+        run.MaxRetries.Should().Be(1);
         run.RetryInterval.Should().NotBeNull();
     }
 

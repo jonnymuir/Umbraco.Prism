@@ -1,0 +1,8 @@
+﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@{
+    Layout = "~/Views/Shared/Master.cshtml";
+}
+<main class="page">
+    <h1 class="govuk-heading-l">@Model.Name</h1>
+    @Model.Value("body")
+</main>

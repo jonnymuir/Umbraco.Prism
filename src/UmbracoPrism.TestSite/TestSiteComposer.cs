@@ -54,6 +54,9 @@ public class TestSiteComposer : IComposer
         // Vinyl Vault demo (Phase 2: Notifications)
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, VinylVaultContentTypes>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, VinylVaultSeeder>();
+
+        // Environmental humanities hub page (links to the field recording services)
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnvironmentalHumanitiesPage>();
         builder.Services.AddHostedService<LimitedEditionDropNotifier>();
 
         ComposeWayfinderServiceDesign(builder);

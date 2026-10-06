@@ -40,6 +40,10 @@ public static class TestSiteSeedContract
     public const string MoneyModellerPageUrl = "/money-modeller";
     public const string MoneyModellerBlueprintSlug = "money-modeller";
 
+    public const string EnvironmentalHumanitiesPageAlias = "environmentalHumanitiesPage";
+    public const string EnvironmentalHumanitiesPageName = "Environmental humanities";
+    public const string EnvironmentalHumanitiesPageUrl = "/environmental-humanities";
+
     public const string ButterflySightingPageName = "Record a butterfly sighting";
     public const string ButterflySightingPageUrl = "/record-a-butterfly-sighting";
     public const string ButterflySightingBlueprintSlug = "record-a-butterfly-sighting";
