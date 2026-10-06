@@ -124,6 +124,10 @@
               "sightingDate": "sightingDate",
               "sightingTime": "sightingTime",
               "notes": "notes"
+            },
+            "onFailure": {
+              "outcome": "unclear",
+              "outputs": { "habitatNotes": "No suggestion was available. Enter what you saw yourself." }
             }
           }
         }
@@ -161,7 +165,7 @@
             { "label": "Common name", "fieldKey": "commonName" },
             { "label": "Confidence", "fieldKey": "confidence" },
             { "label": "Life stage", "fieldKey": "lifeStage" },
-            { "label": "Habitat and surroundings", "fieldKey": "habitatNotes" }
+            { "label": "Habitat and surroundings", "fieldKey": "habitatNotes", "width": "full" }
           ]
         },
         {
