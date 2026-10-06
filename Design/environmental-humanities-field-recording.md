@@ -280,14 +280,18 @@ The default model is `gemini-3.8-flash`, configurable with `Prism:FieldRecording
   and several models intermittently answer 503 "high demand". The default is the fastest model that
   answered a photo correctly when it was chosen (about 7 seconds).
 - The free tier has a daily request quota per model per project
-  (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`). Each sighting costs at least one request, and
-  every retry costs another, so a busy day or a long test session can exhaust it (HTTP 429 until the
-  window resets).
+  (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`), observed at 20 requests a day. Each sighting
+  costs at least one request, and every retry costs another, so a busy day or a long test session can
+  exhaust it (HTTP 429, with a retry delay of many hours). The quota is per model, so switching
+  `Prism:FieldRecording:GeminiModel` to another Gemini 3 model gives a fresh allowance. Umbraco.AI
+  reports every Google client error as "Couldn't reach the AI service", so the real cause is only in
+  the site's log.
 
 ### When the AI does not answer
 
-- The agent step retries three times, five seconds apart, which rides out a transient 503. On the live
-  run that passed, the first attempt was a 503 and the retry succeeded.
+- The agent step retries once, five seconds apart, which rides out a transient 503. On a live run the
+  first attempt was a 503 and the retry succeeded. It does not retry more, because a quota error (429) is
+  not transient and every attempt spends the same exhausted allowance.
 - If the step still fails, Automate skips past it and runs the next step with empty bindings. The
   typed action treats a missing or unrecognised outcome as `unclear` with the note "No suggestion was
   available. Enter what you saw yourself.", so the practitioner reaches the confirm stage and types
@@ -418,16 +422,19 @@ section 10.
    `butterfly-identification` support system, the Umbraco.AI setup, the seeded automation, the typed
    hand-back action, the blueprint and its page. A phone-width headless-browser run over HTTPS goes from
    photo upload through device location, the signed webhook, Gemini and the confirm stage to the final
-   record.
+   record. An Environmental humanities page (a rich-text hub under Home) describes the services and links
+   to each one; it is in the desktop nav and on the member dashboard. The mobile bottom bar stays at four
+   tabs because its Block List data type allows at most four.
 4. **Iteration 2**: the GeoJSON endpoint and a QGIS walkthrough.
 5. **Iteration 3**: dataset research, then the overlay blueprint.
 
 ## 12. Open questions and things to verify
 
-1. **A photo with no butterfly, and notes that try to steer the model.** Both are meant to be handled
-   by the agent's instructions (`not-a-butterfly`, and notes treated as data). They have not been
-   confirmed against the live model: the runs hit Gemini 503s and then the free tier's daily quota, so
-   both took the graceful-degradation path instead. Re-run them when the quota resets.
+1. **Notes that try to steer the model.** The agent's instructions say to treat the notes as data. A
+   photo with no butterfly has been confirmed against the live model (`gemini-3.6-flash` answered
+   `not-a-butterfly` and the journey ended with nothing recorded). The hostile-notes case has not: every
+   attempt hit Gemini 503 "high demand" and took the graceful-degradation path. Re-run it when capacity
+   allows.
 2. **Provenance transport.** The picker posts one value, `lat,lng`, and announces source and accuracy
    through `wayfinder:location-changed`. Confirm a small TestSite script can copy them into companion
    fields that the blueprint declares (for example hidden or read-only inputs), and that the
