@@ -75,6 +75,25 @@ public class ButterflySightingBlueprintTests
     }
 
     [Fact]
+    public void TheDateAndTime_StartOnTheDevicesClock_BecauseARecordIsUsuallyMadeAtTheSighting()
+    {
+        var components = AllComponents(LoadDefinition()).ToList();
+
+        components.OfType<DateInputComponent>().Should().ContainSingle(d => d.FieldKey == "sightingDate").Which.DefaultToToday.Should().BeTrue();
+        components.OfType<TextInputComponent>().Should().ContainSingle(t => t.FieldKey == "sightingTime").Which.DefaultToCurrentTime.Should().BeTrue();
+    }
+
+    [Fact]
+    public void TheRecordedStage_ShowsWhereOnAMap_NotJustCoordinates()
+    {
+        var recorded = LoadDefinition().Stages.Single(s => s.StageKey == "recorded");
+
+        var where = AllComponents(recorded).OfType<StatGroupComponent>().SelectMany(g => g.Items).Should().ContainSingle(i => i.FieldKey == "location").Subject;
+
+        where.Display.Should().Be("map");
+    }
+
+    [Fact]
     public void TheIdentifyStage_SendsEachDeclaredInputFromARealFieldOnTheForm()
     {
         var definition = LoadDefinition();

@@ -73,7 +73,8 @@
               "fieldKey": "sightingDate",
               "label": "Date of the sighting",
               "hint": "For example, 27 3 2026",
-              "required": true
+              "required": true,
+              "defaultToToday": true
             },
             {
               "type": "text",
@@ -81,7 +82,8 @@
               "label": "Time of the sighting (optional)",
               "hint": "Use the 24-hour clock, for example 14:30",
               "maxLength": 5,
-              "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+              "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+              "defaultToCurrentTime": true
             },
             {
               "type": "textarea",
@@ -213,8 +215,8 @@
           "items": [
             { "label": "Common name", "fieldKey": "confirmedCommonName" },
             { "label": "Scientific name", "fieldKey": "confirmedScientificName" },
-            { "label": "Where", "fieldKey": "location" },
-            { "label": "Date", "fieldKey": "sightingDate" }
+            { "label": "Date", "fieldKey": "sightingDate" },
+            { "label": "Where", "fieldKey": "location", "display": "map" }
           ]
         },
         {

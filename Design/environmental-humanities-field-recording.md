@@ -271,7 +271,7 @@ boot, following `JugglingLicenceDecisionAutomationSeeder`: create or update, the
 
 ### The model
 
-The default model is `gemini-3.8-flash`, configurable with `Prism:FieldRecording:GeminiModel`. A model set there is
+The default model is `gemini-3.6-flash`, configurable with `Prism:FieldRecording:GeminiModel`. A model set there is
 applied on every boot, including to a profile that already exists; with none set, the profile keeps the model it has
 (for example one chosen in the backoffice).
 
