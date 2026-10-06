@@ -108,6 +108,11 @@ public class PrismSecurityHeadersOptions
     /// their own API). Value is one or more space-separated sources, e.g.
     /// <c>{ ["connect-src"] = "https://api.example.com" }</c>. A directive Prism doesn't already
     /// emit is added as a new one. Applied to whichever CSP header(s) are active.
+    /// <para>
+    /// A directive Prism doesn't emit is not extended, it is created: it replaces the <c>default-src</c> fallback
+    /// the browser would otherwise use, so list <c>'self'</c> as well or the page can no longer reach its own origin
+    /// (<c>{ ["connect-src"] = "'self' https://api.example.com" }</c>).
+    /// </para>
     /// </summary>
     public Dictionary<string, string> AdditionalContentSecurityPolicySources { get; set; } = new();
 
