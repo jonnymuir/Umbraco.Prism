@@ -61,20 +61,7 @@ public static class Program
             EntraTenantId = flags.GetValueOrDefault("entra-tenant-id")
         };
 
-        var request = new PrismMobileBundleRequest
-        {
-            AppName = flags.GetValueOrDefault("app-name"),
-            AppId = flags.GetValueOrDefault("app-id"),
-            Version = flags.GetValueOrDefault("version"),
-            StartUrl = flags.GetValueOrDefault("start-url"),
-            UserAgentMarker = flags.GetValueOrDefault("user-agent-marker"),
-            IconUrl = flags.GetValueOrDefault("icon-url"),
-            SplashUrl = flags.GetValueOrDefault("splash-url"),
-            BiometricAuthEnabled = ParseOptionalBool(flags.GetValueOrDefault("biometric-auth")),
-            MobileDiagnosticsEnabled = ParseOptionalBool(flags.GetValueOrDefault("mobile-diagnostics")),
-            PushNotificationsEnabled = ParseOptionalBool(flags.GetValueOrDefault("push-notifications")),
-            DeviceCaptureEnabled = ParseOptionalBool(flags.GetValueOrDefault("device-capture"))
-        };
+        var request = BuildRequest(flags);
 
         try
         {
@@ -96,6 +83,21 @@ public static class Program
             return 1;
         }
     }
+
+    private static PrismMobileBundleRequest BuildRequest(Dictionary<string, string> flags) => new()
+    {
+        AppName = flags.GetValueOrDefault("app-name"),
+        AppId = flags.GetValueOrDefault("app-id"),
+        Version = flags.GetValueOrDefault("version"),
+        StartUrl = flags.GetValueOrDefault("start-url"),
+        UserAgentMarker = flags.GetValueOrDefault("user-agent-marker"),
+        IconUrl = flags.GetValueOrDefault("icon-url"),
+        SplashUrl = flags.GetValueOrDefault("splash-url"),
+        BiometricAuthEnabled = ParseOptionalBool(flags.GetValueOrDefault("biometric-auth")),
+        MobileDiagnosticsEnabled = ParseOptionalBool(flags.GetValueOrDefault("mobile-diagnostics")),
+        PushNotificationsEnabled = ParseOptionalBool(flags.GetValueOrDefault("push-notifications")),
+        DeviceCaptureEnabled = ParseOptionalBool(flags.GetValueOrDefault("device-capture"))
+    };
 
     private static Dictionary<string, string> ParseFlags(string[] args)
     {
