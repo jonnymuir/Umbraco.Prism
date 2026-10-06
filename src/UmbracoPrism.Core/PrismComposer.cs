@@ -85,33 +85,7 @@ public class PrismComposer : IComposer
         builder.Services.Configure<PrismSecurityHeadersOptions>(
             builder.Config.GetSection(PrismSecurityHeadersOptions.SectionName));
 
-        // ASP.NET Core's own antiforgery middleware sets X-Frame-Options: SAMEORIGIN itself,
-        // automatically, on any response where a token gets issued (IAntiforgery
-        // .GetAndStoreTokens) — an easy-to-miss built-in behaviour, not something either
-        // Wayfinder.Umbraco or this repo's own code asks for. Found live: every page that
-        // mints an antiforgery token (the citizen stage form, the caseworker worklist) sent
-        // X-Frame-Options TWICE — once from here, once from the framework's own default.
-        // Two independent, identically-valued instances of the same header is a real
-        // clickjacking-protection regression, not a cosmetic duplicate: some browsers treat a
-        // header sent more than once as untrustworthy and ignore it entirely rather than pick
-        // one value. PrismSecurityHeadersOptions.FrameOptions already covers this
-        // (configurably, including the ability to omit it) — suppress the framework's own
-        // unconditional, unconfigurable copy so there is exactly one source of truth.
-        //
-        // A second, unrelated framework default fixed in the same place: AntiforgeryOptions's
-        // own Cookie.SecurePolicy defaults to CookieSecurePolicy.None, not SameAsRequest as its
-        // sibling cookie-auth handler does (confirmed: `new AntiforgeryOptions().Cookie
-        // .SecurePolicy` is `None` out of the box) — so the antiforgery cookie itself ships
-        // with no Secure flag on every page that mints a token, found live via the same DAST
-        // scan (Cookie Without Secure Flag [10011]) on both /apply-for-a-juggling-licence and
-        // /caseworker-queue. TestSite (and every real deployment) is HTTPS-only, so there is no
-        // legitimate plain-HTTP case this cookie needs to survive — Always, matching
-        // PrismMemberCookie's own SecurePolicy above.
-        builder.Services.Configure<AntiforgeryOptions>(options =>
-        {
-            options.SuppressXFrameOptionsHeader = true;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        });
+        ConfigureFrameworkCookieDefaults(builder.Services);
 
         builder.Services.Configure<UmbracoPipelineOptions>(options =>
         {
@@ -255,5 +229,47 @@ public class PrismComposer : IComposer
         {
             options.Filters.Add<PrismPageAccessFilter>();
         });
+    }
+
+    /// <summary>
+    /// Overrides ASP.NET Core framework defaults that the DAST baseline reports on every host:
+    /// the antiforgery middleware's own X-Frame-Options copy, and cookies that ship without Secure.
+    /// </summary>
+    private static void ConfigureFrameworkCookieDefaults(IServiceCollection services)
+    {
+        // ASP.NET Core's own antiforgery middleware sets X-Frame-Options: SAMEORIGIN itself,
+        // automatically, on any response where a token gets issued (IAntiforgery
+        // .GetAndStoreTokens) — an easy-to-miss built-in behaviour, not something either
+        // Wayfinder.Umbraco or this repo's own code asks for. Found live: every page that
+        // mints an antiforgery token (the citizen stage form, the caseworker worklist) sent
+        // X-Frame-Options TWICE — once from here, once from the framework's own default.
+        // Two independent, identically-valued instances of the same header is a real
+        // clickjacking-protection regression, not a cosmetic duplicate: some browsers treat a
+        // header sent more than once as untrustworthy and ignore it entirely rather than pick
+        // one value. PrismSecurityHeadersOptions.FrameOptions already covers this
+        // (configurably, including the ability to omit it) — suppress the framework's own
+        // unconditional, unconfigurable copy so there is exactly one source of truth.
+        //
+        // A second, unrelated framework default fixed in the same place: AntiforgeryOptions's
+        // own Cookie.SecurePolicy defaults to CookieSecurePolicy.None, not SameAsRequest as its
+        // sibling cookie-auth handler does (confirmed: `new AntiforgeryOptions().Cookie
+        // .SecurePolicy` is `None` out of the box) — so the antiforgery cookie itself ships
+        // with no Secure flag on every page that mints a token, found live via the same DAST
+        // scan (Cookie Without Secure Flag [10011]) on both /apply-for-a-juggling-licence and
+        // /caseworker-queue. TestSite (and every real deployment) is HTTPS-only, so there is no
+        // legitimate plain-HTTP case this cookie needs to survive — Always, matching
+        // PrismMemberCookie's own SecurePolicy above.
+        services.Configure<AntiforgeryOptions>(options =>
+        {
+            options.SuppressXFrameOptionsHeader = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        });
+
+        // The same default hides in MVC's TempData cookie (CookieTempDataProviderOptions's own
+        // Cookie.SecurePolicy is None): any host page that POSTs through Wayfinder's stage
+        // endpoint sets it, and the DAST baseline flagged it (Cookie Without Secure Flag [10011]
+        // on /umbraco/wayfinder-stage/advance). HTTPS-only, like the cookies above.
+        services.Configure<CookieTempDataProviderOptions>(options =>
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always);
     }
 }

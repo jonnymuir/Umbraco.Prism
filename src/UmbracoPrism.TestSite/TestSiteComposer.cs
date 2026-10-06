@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using UmbracoPrism.Core;
 using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Services;
@@ -59,11 +58,6 @@ public class TestSiteComposer : IComposer
         // Environmental humanities hub page (links to the field recording services)
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnvironmentalHumanitiesPage>();
         builder.Services.AddHostedService<LimitedEditionDropNotifier>();
-
-        // The stage POST sets MVC's TempData cookie, whose SecurePolicy defaults to None (DAST
-        // 10011, Cookie Without Secure Flag). TestSite is HTTPS-only, like the antiforgery cookie.
-        builder.Services.Configure<CookieTempDataProviderOptions>(options =>
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always);
 
         ComposeWayfinderServiceDesign(builder);
     }
