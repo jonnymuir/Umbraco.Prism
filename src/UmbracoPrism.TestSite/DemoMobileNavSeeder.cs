@@ -57,6 +57,7 @@ public class DemoMobileNavSeeder(
     private static readonly Guid WebCaseworkerQueueElementKey = new("e8f9a0b1-c2d3-4567-bcde-789012345678");
     private static readonly Guid WebJugglingLicenceElementKey = new("f9a0b1c2-d3e4-4678-cdef-890123456789");
     private static readonly Guid WebModellerElementKey = new("a0b1c2d3-e4f5-4789-defa-901234567890");
+    private static readonly Guid WebEnvironmentalHumanitiesElementKey = new("e2f3a4b5-c6d7-4890-9bcd-234567890abc");
 
     // Must match MobileNavSchemaSetup.MobileNavItemTypeKey.
     private static readonly Guid MobileNavItemTypeKey = new("a9f4b2c1-3d5e-6f70-8912-34abc5678def");
@@ -135,7 +136,7 @@ public class DemoMobileNavSeeder(
             settings.GetValue<string>("webNavLinks"),
             TestSiteSeedContract.HomePageUrl, TestSiteSeedContract.JugglingLicencePageUrl,
             TestSiteSeedContract.ContributionsPageUrl, TestSiteSeedContract.CaseworkerQueuePageUrl,
-            TestSiteSeedContract.MoneyModellerPageUrl);
+            TestSiteSeedContract.MoneyModellerPageUrl, TestSiteSeedContract.EnvironmentalHumanitiesPageUrl);
 
         if (!needsMobileUpdate && !needsWebUpdate)
         {
@@ -152,15 +153,21 @@ public class DemoMobileNavSeeder(
 
         if (needsWebUpdate)
         {
-            logger.LogInformation("DEMO SEEDER: Seeding webNavLinks with Home, Apply for a juggling licence, Submit contributions file, Caseworker queue, and Money Modeller items.");
+            logger.LogInformation("DEMO SEEDER: Seeding webNavLinks with Home, Apply for a juggling licence, Submit contributions file, Caseworker queue, Money Modeller, and Environmental humanities items.");
             var webBlockListJson = BuildWebNavBlockListJson();
             settings.SetValue("webNavLinks", webBlockListJson);
         }
 
         contentService.Save(settings, null, null!);
 #pragma warning disable CS0618
-        contentService.Publish(settings, Array.Empty<string>(), Constants.Security.SuperUserId);
+        var publish = contentService.Publish(settings, Array.Empty<string>(), Constants.Security.SuperUserId);
 #pragma warning restore CS0618
+        if (!publish.Success)
+        {
+            // A nav list over its data type's validation limit fails here and otherwise leaves the
+            // published settings without any nav, which 500s every page.
+            logger.LogWarning("DEMO SEEDER: Publishing the settings node failed: {Reason}", publish.Result);
+        }
 
         logger.LogInformation("DEMO SEEDER: Nav content seed complete.");
         return Task.CompletedTask;
@@ -395,6 +402,7 @@ public class DemoMobileNavSeeder(
         var caseworkerQueueKey = WebCaseworkerQueueElementKey.ToString();
         var jugglingLicenceKey = WebJugglingLicenceElementKey.ToString();
         var modellerKey = WebModellerElementKey.ToString();
+        var environmentalHumanitiesKey = WebEnvironmentalHumanitiesElementKey.ToString();
 
         var root = new JsonObject
         {
@@ -405,6 +413,7 @@ public class DemoMobileNavSeeder(
                     new JsonObject { ["contentKey"] = jugglingLicenceKey },
                     new JsonObject { ["contentKey"] = contributionsKey },
                     new JsonObject { ["contentKey"] = caseworkerQueueKey },
+                    new JsonObject { ["contentKey"] = environmentalHumanitiesKey },
                     new JsonObject { ["contentKey"] = modellerKey }
                 )
             },
@@ -413,6 +422,7 @@ public class DemoMobileNavSeeder(
                 BuildBlockItem(jugglingLicenceKey, TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicencePageUrl, mediaKey: null),
                 BuildBlockItem(contributionsKey, TestSiteSeedContract.ContributionsPageName, TestSiteSeedContract.ContributionsPageUrl, mediaKey: null),
                 BuildBlockItem(caseworkerQueueKey, TestSiteSeedContract.CaseworkerQueuePageName, TestSiteSeedContract.CaseworkerQueuePageUrl, mediaKey: null),
+                BuildBlockItem(environmentalHumanitiesKey, TestSiteSeedContract.EnvironmentalHumanitiesPageName, TestSiteSeedContract.EnvironmentalHumanitiesPageUrl, mediaKey: null),
                 BuildBlockItem(modellerKey, TestSiteSeedContract.MoneyModellerPageName, TestSiteSeedContract.MoneyModellerPageUrl, mediaKey: null)
             ),
             ["settingsData"] = new JsonArray(),
@@ -421,6 +431,7 @@ public class DemoMobileNavSeeder(
                 new JsonObject { ["contentKey"] = jugglingLicenceKey, ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = contributionsKey, ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = caseworkerQueueKey, ["culture"] = null, ["segment"] = null },
+                new JsonObject { ["contentKey"] = environmentalHumanitiesKey, ["culture"] = null, ["segment"] = null },
                 new JsonObject { ["contentKey"] = modellerKey, ["culture"] = null, ["segment"] = null }
             )
         };

@@ -76,37 +76,9 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             ? configuration[configuration[$"{authSection}:secretRef"] ?? "JUGGLING_LICENCE_SIGNING_KEY"]
             : null;
 
-        // Automate has no default workspace on a fresh install; an automation must belong to one,
-        // and publishing requires the workspace to have a service-account user with the sections
-        // its trigger and actions need. Reuse the first workspace if one already exists (Vinyl
-        // Vault/mobile demos never create one, so on a fresh TestSite this is the first Automate
-        // feature to run), otherwise stand up a plain one whose service account is TestSite's own
-        // unattended admin (an Administrator, so it has every section — a deliberate shortcut for
-        // a single-tenant demo, not a pattern for a real multi-user host).
-        Workspace workspace;
-        try
+        var workspace = await AutomateWorkspaceEnsurer.EnsureAsync(workspaceService, userService, configuration, ct);
+        if (workspace is null)
         {
-            var (workspaces, _) = await workspaceService.GetWorkspacesPagedAsync(take: 1, cancellationToken: ct);
-            workspace = workspaces.FirstOrDefault()
-                ?? await workspaceService.CreateWorkspaceAsync(
-                    new Workspace { Alias = "default", Name = "Default" }, cancellationToken: ct);
-
-            if (workspace.ServiceAccountKey == Guid.Empty)
-            {
-                var adminEmail = configuration["Umbraco:CMS:Unattended:UnattendedUserEmail"] ?? "admin@prism.local";
-                var admin = userService.GetByEmail(adminEmail);
-                if (admin is null)
-                {
-                    return false;
-                }
-
-                workspace.ServiceAccountKey = admin.Key;
-                await workspaceService.UpdateWorkspaceAsync(workspace, cancellationToken: ct);
-            }
-        }
-        catch
-        {
-            // Automate's own schema/services not ready yet — try again next tick.
             return false;
         }
 

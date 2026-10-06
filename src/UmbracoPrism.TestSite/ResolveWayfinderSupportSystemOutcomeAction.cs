@@ -73,25 +73,10 @@ public sealed class ResolveWayfinderSupportSystemOutcomeAction(
             }
         }
 
-        var result = engine.ResolveSupportSystemOutcome(settings.InvocationId, settings.OutcomeKey, payload);
+        var resolution = SupportSystemOutcomeResolver.Resolve(engine, logger, settings.InvocationId, settings.OutcomeKey, payload);
 
-        if (result.ResponseState == "error")
-        {
-            var message = result.Problems.Count > 0 ? result.Problems[0].Message : "Failed to resolve the outcome.";
-            var code = result.Problems.Count > 0 ? result.Problems[0].Code : "";
-
-            // An unknown / already-resolved invocation is a safe no-op, not a run failure.
-            if (code == "SUPPORT_SYSTEM_INVOCATION_NOT_FOUND")
-            {
-                logger.LogInformation(
-                    "Wayfinder support-system invocation {InvocationId} was already resolved or not found; no-op.",
-                    settings.InvocationId);
-                return Task.FromResult(Success(new Output { ResponseState = "no-op" }));
-            }
-
-            return Task.FromResult(ActionResult.Failed(new InvalidOperationException(message), StepRunErrorCategory.InvalidResponse));
-        }
-
-        return Task.FromResult(Success(new Output { ResponseState = result.ResponseState }));
+        return Task.FromResult(resolution.Error is null
+            ? Success(new Output { ResponseState = resolution.ResponseState })
+            : ActionResult.Failed(new InvalidOperationException(resolution.Error), StepRunErrorCategory.InvalidResponse));
     }
 }

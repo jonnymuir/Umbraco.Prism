@@ -31,6 +31,21 @@ public class TestSiteComposerResolveAccessProfileTests
             "the poll endpoint's own resolved blueprintKey must reach this resolver the same way the page's did — this is the exact bug that shipped a 404 for every signed-in applicant");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ButterflySightingBlueprintKey_AlwaysGetsPublicVisitorQueue_RegardlessOfAuthentication(bool isAuthenticated)
+    {
+        // A practitioner in the field may or may not be signed in, and an NJF caseworker who is
+        // also a practitioner must still be able to record their own sighting.
+        var ctx = BuildContext(isAuthenticated, email: isAuthenticated ? "njf-caseworker@prism.local" : null);
+
+        var profile = TestSiteComposer.ResolveAccessProfile(ctx, "record-a-butterfly-sighting");
+
+        profile.Should().BeSameAs(UmbracoPrism.TestSite.Services.ServiceDesign.PublicVisitorQueue.AccessProfile);
+        profile.RestrictToInstanceOwner.Should().BeTrue("a practitioner may only ever see their own sighting");
+    }
+
     [Fact]
     public void AnonymousVisitor_WithNoBlueprintKey_GetsPublicVisitorQueue()
     {

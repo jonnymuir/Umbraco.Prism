@@ -21,10 +21,10 @@
          dependency at all (see docs/guides/support-systems.md in the core Wayfinder repo).
          TestSite installs Wayfinder.Umbraco directly to demonstrate Prism + Wayfinder.Umbraco
          composed together. -->
-    <PackageReference Include="Wayfinder" Version="0.15.1" />
-    <PackageReference Include="Wayfinder.Engine" Version="0.15.1" />
+    <PackageReference Include="Wayfinder" Version="0.16.0" />
+    <PackageReference Include="Wayfinder.Engine" Version="0.16.0" />
     <PackageReference Include="Wayfinder.Engine.Http" Version="0.4.1" />
-    <PackageReference Include="Wayfinder.Umbraco" Version="2.1.9" />
+    <PackageReference Include="Wayfinder.Umbraco" Version="2.2.0" />
     <!-- Umbraco Automate (MIT) — the juggling-licence demo's "processing-application" stage
          calls out to a real Automate automation via Wayfinder's config-only webhook support
          system (see appsettings.json's Wayfinder:SupportSystems and
@@ -33,6 +33,17 @@
          a bare package reference is enough, no explicit AddUmbracoAutomate() call. -->
     <PackageReference Include="Umbraco.Automate" Version="17.4.0" />
     <PackageReference Include="Umbraco.Automate.Persistence.Sqlite" Version="17.4.0" />
+    <!-- Umbraco.AI and its Automate add-on (the Run AI Agent action), on the Umbraco 17 line, with the
+         Google provider for the field-recording demo's free Gemini profile. Each registers itself
+         through its own composer, so bare package references are enough. -->
+    <PackageReference Include="Umbraco.AI" Version="17.5.0" />
+    <PackageReference Include="Umbraco.AI.Agent" Version="17.3.0" />
+    <PackageReference Include="Umbraco.AI.Automate" Version="17.0.1" />
+    <PackageReference Include="Umbraco.AI.Google" Version="17.0.3" />
+    <!-- Newer than the 1.10.0 Umbraco.AI.Google resolves by default (its range allows any 1.x): 1.10.0
+         rejects an inline image part's displayName with a Gemini Developer API key, which breaks every
+         photo sent to a free AI Studio key. -->
+    <PackageReference Include="Google.GenAI" Version="1.24.0" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" Condition="$(RuntimeIdentifier.StartsWith('linux')) or $(RuntimeIdentifier.StartsWith('win')) or ('$(RuntimeIdentifier)' == '' and !$([MSBuild]::IsOSPlatform('osx')))" />
   </ItemGroup>
 
