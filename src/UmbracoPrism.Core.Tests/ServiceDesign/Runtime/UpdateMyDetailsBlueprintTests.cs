@@ -210,7 +210,7 @@ public class UpdateMyDetailsBlueprintTests
                     (definition.Calculations?.Fields ?? new Dictionary<string, Wayfinder.Models.ServiceDesign.Calculations.ServiceBlueprintCalculationField>())
                         .Where(field => string.Equals(field.Value.Source, "service", StringComparison.OrdinalIgnoreCase))
                         .ToDictionary(field => field.Key, field => instance.FieldValues.GetValueOrDefault(field.Key)),
-                supportSystemClients: [new MockBusinessAppProfileClient(httpClients.Object, new HttpContextAccessor { HttpContext = memberRequest })]);
+                supportSystemClients: [new MockBusinessAppProfileClient(httpClients.Object, new MemberBearerProvider(new HttpContextAccessor { HttpContext = memberRequest }))]);
         }
 
         public Page StartAndWaitForLookup()

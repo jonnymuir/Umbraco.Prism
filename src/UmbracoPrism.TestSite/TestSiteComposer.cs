@@ -275,10 +275,18 @@ public class TestSiteComposer : IComposer
             }
         }
 
-        builder.Services.AddHttpClient(MockBusinessAppContributionsClient.HttpClientName, ConfigureBaseAddress);
+        // The clients attach the member's bearer token to every call, so neither may follow a redirect:
+        // a response must never be able to send that token somewhere the request did not name.
+        void AddBusinessAppClient(string name) =>
+            builder.Services.AddHttpClient(name, ConfigureBaseAddress)
+                .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+
+        builder.Services.AddSingleton<MemberBearerProvider>();
+
+        AddBusinessAppClient(MockBusinessAppContributionsClient.HttpClientName);
         builder.Services.AddSingleton<ISupportSystemClient, MockBusinessAppContributionsClient>();
 
-        builder.Services.AddHttpClient(MockBusinessAppProfileClient.HttpClientName, ConfigureBaseAddress);
+        AddBusinessAppClient(MockBusinessAppProfileClient.HttpClientName);
         builder.Services.AddSingleton<ISupportSystemClient, MockBusinessAppProfileClient>();
     }
 

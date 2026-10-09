@@ -68,6 +68,17 @@
             "access.token.claim": "true",
             "claim.name": "role"
           }
+        },
+        {
+          "name": "business app audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "prism-business-app",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
         }
       ]
     }
