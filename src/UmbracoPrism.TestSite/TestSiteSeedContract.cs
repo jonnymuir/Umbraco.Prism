@@ -29,6 +29,10 @@ public static class TestSiteSeedContract
     // touching this code.
     public const string JugglingLicenceBlueprintSlug = "apply-for-a-juggling-licence";
 
+    public const string UpdateMyDetailsPageName = "Update my details";
+    public const string UpdateMyDetailsPageUrl = "/update-my-details";
+    public const string UpdateMyDetailsBlueprintSlug = "update-my-details";
+
     public const string ContributionsPageName = "Submit contributions file";
     public const string ContributionsPageUrl = "/submit-contributions-file";
     public const string ContributionsBlueprintSlug = "bulk-contributions";

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Wayfinder.Engine.Extensions;
+using UmbracoPrism.TestSite.Services.ServiceDesign;
 
 namespace UmbracoPrism.Core.Tests;
 
@@ -31,6 +32,9 @@ internal static class TestSupportSystems
             .Build();
 
         new ServiceCollection().AddConfiguredSupportSystems(configuration);
+
+        // Registered in code by TestSiteComposer, not from configuration, so it is added by hand here.
+        MockBusinessAppProfile.Register();
     }
 
     internal static void EnsureRegistered()

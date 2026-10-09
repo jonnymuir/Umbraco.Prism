@@ -12,6 +12,7 @@
     "test:playwright:localhost-auth": "node ../../scripts/validate-aspire-prereqs.mjs --localhost-auth-suite && playwright test -c playwright.localhost-auth.config.ts --reporter=line",
     "test:playwright:ui": "playwright test --ui",
     "demo:record": "playwright test tests/demo/garden-waste-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line",
+    "demo:record:update-my-details": "playwright test tests/demo/update-my-details-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line",
     "demo:record:tenancy-branding": "playwright test tests/demo/prism-tenancy-branding-demo.spec.ts -c playwright.demo-recording.config.ts --reporter=line",
     "test-storybook": "vitest run"
   },

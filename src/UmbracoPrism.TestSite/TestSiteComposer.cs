@@ -167,6 +167,7 @@ public class TestSiteComposer : IComposer
         // this composer's own registrations below never do, but a blueprint load/save does (see
         // MockBusinessAppContributions.Register's own remarks).
         MockBusinessAppContributions.Register();
+        MockBusinessAppProfile.Register();
 
         // Mock Business App's own resource address — same config key DownstreamDemoController
         // already reads (PrismBusinessApp:ApiBaseUrl, set by UmbracoPrism.AppHost).
@@ -179,6 +180,17 @@ public class TestSiteComposer : IComposer
             }
         });
         builder.Services.AddSingleton<ISupportSystemClient, MockBusinessAppContributionsClient>();
+
+        // The member-profile support system acts as the signed-in member: its client attaches the
+        // member's own bearer token (via IPrismContext) to each call. Same base address as above.
+        builder.Services.AddHttpClient(MockBusinessAppProfileClient.HttpClientName, client =>
+        {
+            if (!string.IsNullOrWhiteSpace(businessAppBaseUrl))
+            {
+                client.BaseAddress = new Uri(businessAppBaseUrl);
+            }
+        });
+        builder.Services.AddSingleton<ISupportSystemClient, MockBusinessAppProfileClient>();
         builder.Services.AddSingleton(sp =>
         {
             var membershipClient = sp.GetRequiredService<IJugglingSocietyMembershipClient>();
@@ -291,7 +303,8 @@ public class TestSiteComposer : IComposer
     internal static ActorProfile ResolveAccessProfile(HttpContext ctx, string? blueprintKey)
     {
         if (string.Equals(blueprintKey, TestSiteSeedContract.JugglingLicenceBlueprintSlug, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(blueprintKey, TestSiteSeedContract.ButterflySightingBlueprintSlug, StringComparison.OrdinalIgnoreCase))
+            || string.Equals(blueprintKey, TestSiteSeedContract.ButterflySightingBlueprintSlug, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(blueprintKey, TestSiteSeedContract.UpdateMyDetailsBlueprintSlug, StringComparison.OrdinalIgnoreCase))
         {
             return PublicVisitorQueue.AccessProfile;
         }

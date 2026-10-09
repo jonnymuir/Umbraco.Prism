@@ -46,6 +46,21 @@ public class TestSiteComposerResolveAccessProfileTests
         profile.RestrictToInstanceOwner.Should().BeTrue("a practitioner may only ever see their own sighting");
     }
 
+    [Theory]
+    [InlineData("demo@prism.local")]
+    [InlineData("njf-caseworker@prism.local")]
+    public void UpdateMyDetailsBlueprintKey_ForAnySignedInMember_GetsPublicVisitorQueue(string email)
+    {
+        // Found by running the journey live: a signed-in member who is not on the NJF roster fell
+        // through to NoAccessProfile and saw "Access denied to start this queue."
+        var ctx = BuildContext(isAuthenticated: true, email);
+
+        var profile = TestSiteComposer.ResolveAccessProfile(ctx, "update-my-details");
+
+        profile.Should().BeSameAs(UmbracoPrism.TestSite.Services.ServiceDesign.PublicVisitorQueue.AccessProfile);
+        profile.RestrictToInstanceOwner.Should().BeTrue("a member may only ever see their own update");
+    }
+
     [Fact]
     public void AnonymousVisitor_WithNoBlueprintKey_GetsPublicVisitorQueue()
     {

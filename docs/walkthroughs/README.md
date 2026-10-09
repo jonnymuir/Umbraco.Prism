@@ -16,6 +16,9 @@ How a user first encounters the Prism demo and navigates from the homepage hero,
 ### [Bulk Data Review](bulk-data-review.md)
 The NJF Contributions Team submits a monthly contributions file, gets back only the rows that need attention, corrects them in place, and resubmits, backed by a real downstream support system (Mock Business App).
 
+### [Calling a business app as the signed-in member](authenticated-business-app-call.md)
+A front-stage "update my details" journey that reads and writes a member's record in the business app using the member's own bearer token, scoped to their tenant, with the not-registered and rejected branches and the security checks that pin it down.
+
 ---
 
 ## Authoring & Operations
