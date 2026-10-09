@@ -163,34 +163,7 @@ public class TestSiteComposer : IComposer
         builder.Services.AddSingleton<IJugglingSocietyMembershipClient, JugglingSocietyMembershipClient>();
         builder.Services.AddSingleton<IMemberSavingsRecordService, MemberSavingsRecordService>();
 
-        // Freezes on first read — must run before anything reads SupportSystemRegistry, which
-        // this composer's own registrations below never do, but a blueprint load/save does (see
-        // MockBusinessAppContributions.Register's own remarks).
-        MockBusinessAppContributions.Register();
-        MockBusinessAppProfile.Register();
-
-        // Mock Business App's own resource address — same config key DownstreamDemoController
-        // already reads (PrismBusinessApp:ApiBaseUrl, set by UmbracoPrism.AppHost).
-        var businessAppBaseUrl = builder.Config["PrismBusinessApp:ApiBaseUrl"];
-        builder.Services.AddHttpClient(MockBusinessAppContributionsClient.HttpClientName, client =>
-        {
-            if (!string.IsNullOrWhiteSpace(businessAppBaseUrl))
-            {
-                client.BaseAddress = new Uri(businessAppBaseUrl);
-            }
-        });
-        builder.Services.AddSingleton<ISupportSystemClient, MockBusinessAppContributionsClient>();
-
-        // The member-profile support system acts as the signed-in member: its client attaches the
-        // member's own bearer token (via IPrismContext) to each call. Same base address as above.
-        builder.Services.AddHttpClient(MockBusinessAppProfileClient.HttpClientName, client =>
-        {
-            if (!string.IsNullOrWhiteSpace(businessAppBaseUrl))
-            {
-                client.BaseAddress = new Uri(businessAppBaseUrl);
-            }
-        });
-        builder.Services.AddSingleton<ISupportSystemClient, MockBusinessAppProfileClient>();
+        ComposeMockBusinessApp(builder);
         builder.Services.AddSingleton(sp =>
         {
             var membershipClient = sp.GetRequiredService<IJugglingSocietyMembershipClient>();
@@ -279,6 +252,37 @@ public class TestSiteComposer : IComposer
     }
 
     /// <summary>
+    /// Registers the two support systems backed by Mock Business App (contributions validation and
+    /// the member profile) and the named <see cref="HttpClient"/>s their clients use. Both clients
+    /// call as the signed-in member, so neither is configured with credentials of its own.
+    /// </summary>
+    private static void ComposeMockBusinessApp(IUmbracoBuilder builder)
+    {
+        // Freezes on first read: must run before anything reads SupportSystemRegistry, which
+        // this composer's own registrations never do, but a blueprint load/save does (see
+        // MockBusinessAppContributions.Register's own remarks).
+        MockBusinessAppContributions.Register();
+        MockBusinessAppProfile.Register();
+
+        // Mock Business App's own resource address, the same config key DownstreamDemoController
+        // already reads (PrismBusinessApp:ApiBaseUrl, set by UmbracoPrism.AppHost).
+        var businessAppBaseUrl = builder.Config["PrismBusinessApp:ApiBaseUrl"];
+        void ConfigureBaseAddress(HttpClient client)
+        {
+            if (!string.IsNullOrWhiteSpace(businessAppBaseUrl))
+            {
+                client.BaseAddress = new Uri(businessAppBaseUrl);
+            }
+        }
+
+        builder.Services.AddHttpClient(MockBusinessAppContributionsClient.HttpClientName, ConfigureBaseAddress);
+        builder.Services.AddSingleton<ISupportSystemClient, MockBusinessAppContributionsClient>();
+
+        builder.Services.AddHttpClient(MockBusinessAppProfileClient.HttpClientName, ConfigureBaseAddress);
+        builder.Services.AddSingleton<ISupportSystemClient, MockBusinessAppProfileClient>();
+    }
+
+    /// <summary>
     /// The butterfly sighting field-recording service: the sighting photo lives in the Umbraco media
     /// library (the form an Automate "Run AI Agent" attachment accepts), every other upload stays on
     /// disk, and one background service seeds the Umbraco.AI setup and the identification automation
@@ -295,6 +299,15 @@ public class TestSiteComposer : IComposer
         builder.Services.AddHostedService<ButterflyIdentificationSeeder>();
     }
 
+    // Blueprints every visitor, signed in or not, runs as their own instance owner on the public
+    // visitor queue. Anything not listed falls through to the NJF-team check below.
+    private static readonly HashSet<string> PublicVisitorBlueprints = new(StringComparer.OrdinalIgnoreCase)
+    {
+        TestSiteSeedContract.JugglingLicenceBlueprintSlug,
+        TestSiteSeedContract.ButterflySightingBlueprintSlug,
+        TestSiteSeedContract.UpdateMyDetailsBlueprintSlug,
+    };
+
     /// <summary>
     /// Wired as <see cref="Wayfinder.Umbraco.Configuration.WayfinderServiceDesignOptions.ResolveAccessProfile"/>
     /// above — extracted to its own testable method rather than an inline lambda, same reasoning
@@ -302,9 +315,7 @@ public class TestSiteComposer : IComposer
     /// </summary>
     internal static ActorProfile ResolveAccessProfile(HttpContext ctx, string? blueprintKey)
     {
-        if (string.Equals(blueprintKey, TestSiteSeedContract.JugglingLicenceBlueprintSlug, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(blueprintKey, TestSiteSeedContract.ButterflySightingBlueprintSlug, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(blueprintKey, TestSiteSeedContract.UpdateMyDetailsBlueprintSlug, StringComparison.OrdinalIgnoreCase))
+        if (blueprintKey is not null && PublicVisitorBlueprints.Contains(blueprintKey))
         {
             return PublicVisitorQueue.AccessProfile;
         }
