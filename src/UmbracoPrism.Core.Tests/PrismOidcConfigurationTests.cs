@@ -25,7 +25,7 @@ public class PrismOidcConfigurationTests
             OidcClientId = "prism-client"
         };
 
-        PrismOidcConfiguration.GetRequestedScope(tenant).Should().Be("openid profile");
+        PrismOidcConfiguration.GetRequestedScope(tenant).Should().Be("openid profile email");
     }
 
     [Fact]
@@ -364,7 +364,7 @@ public class PrismOidcConfigurationTests
 
         await options.Events.OnRedirectToIdentityProvider(context);
 
-        context.ProtocolMessage.Scope.Should().Be("openid profile");
+        context.ProtocolMessage.Scope.Should().Be("openid profile email");
     }
 
     /// <summary>
