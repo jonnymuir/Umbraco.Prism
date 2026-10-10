@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Extensions;
+using UmbracoPrism.MockBusinessApp.Services.Profile;
 using UmbracoPrism.MockBusinessApp.Services.SupportSystem;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +26,7 @@ builder.Services.AddHttpClient();
 // this app has no engine of its own any more.
 builder.Services.AddSingleton<SupportSystemStore>();
 builder.Services.AddSingleton<ContributionsStore>();
+builder.Services.AddSingleton<ProfileStore>();
 
 var app = builder.Build();
 
@@ -61,6 +63,10 @@ app.UseAuthorization();
 // reference-app posture in the core Wayfinder repo.
 app.MapSupportSystem();
 app.MapContributions();
+
+// Authenticated by the member's own bearer token (RequireAuthorization inside MapProfile), unlike
+// the support-system routes above: tenant and member come from the token's claims, never the request.
+app.MapProfile();
 
 app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user, HttpContext context, ILogger<Program> logger) =>
 {
