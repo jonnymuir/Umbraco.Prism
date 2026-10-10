@@ -49,6 +49,28 @@ Two branches show that a business answer is a route, not an error:
 - **`rejected`** returns the person to the form with the business app's reason (for example, an
   unverified email, or a tenant that has not opened registration).
 
+## What the person sees
+
+After registering at Keycloak and following the link in the verification email, they land in the journey, signed in as themselves:
+
+![The journey's start page, after registering and verifying](../images/walkthroughs/member-registration/01-become-a-member.png)
+
+The business app has been asked, as them, whether they already have a membership. They do not, so the form asks only what they are telling us about themselves. There is no field for the organisation or a role:
+
+![The details form](../images/walkthroughs/member-registration/02-your-details.png)
+
+The business app creates the membership from their verified token and the confirmation shows its membership id:
+
+![The confirmation, showing the business app's membership id](../images/walkthroughs/member-registration/03-member.png)
+
+Update my details now finds them, with the name and contact details they gave:
+
+![Their new record in Update my details](../images/walkthroughs/member-registration/04-their-record.png)
+
+Someone who is already a member is told so, and is not given a second membership:
+
+![Already a member](../images/walkthroughs/member-registration/05-already-a-member.png)
+
 ## Where each piece lives
 
 | Piece | File |

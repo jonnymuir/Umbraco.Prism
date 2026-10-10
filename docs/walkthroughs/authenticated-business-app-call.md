@@ -41,6 +41,26 @@ Two branches show that a business answer is a route, not an error:
 - **`rejected`**: the business system refused the change (for example a malformed phone number). The
   member returns to the form with the business system's own reason.
 
+## What the member sees
+
+![The start page of Update my details](../images/walkthroughs/authenticated-business-app-call/01-start.png)
+
+The member's record, read from the business app with their own token. The name, email, organisation and role are the business app's answer, and the phone number and contact preference prefill the form:
+
+![The member's record, prefilled from the business app](../images/walkthroughs/authenticated-business-app-call/02-your-record.png)
+
+A change the business app refuses comes back with its own reason, and the member returns to the form:
+
+![A refused change, with the business app's reason](../images/walkthroughs/authenticated-business-app-call/03-refused.png)
+
+An accepted change is confirmed with the business app's own reference:
+
+![The confirmation, showing the business app's reference](../images/walkthroughs/authenticated-business-app-call/04-updated.png)
+
+Someone who can sign in to the tenant but is not a member is told so instead of being shown a form:
+
+![Not a registered member](../images/walkthroughs/authenticated-business-app-call/05-not-registered.png)
+
 ## Where each piece lives
 
 | Piece | File |
