@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Services;
@@ -24,9 +25,24 @@ public class PrismUserContext(
     public bool IsAuthenticated => User?.Identity?.IsAuthenticated ?? false;
 
     /// <summary>
-    /// The user's email address.
+    /// The user's email address as the identity provider vouches for it, or <see langword="null"/>
+    /// when it does not (see <see cref="PrismIdentityExtensions.GetEmailAssertion"/>). This is the
+    /// identity that owns a visitor's service requests and is matched against rosters, so an
+    /// unverified or self-chosen name must not reach it.
     /// </summary>
-    public string? Email => User?.FindFirstValue("preferred_username") ?? User?.FindFirstValue(ClaimTypes.Email);
+    public string? Email
+    {
+        get
+        {
+            if (User is null)
+            {
+                return null;
+            }
+
+            var (email, verified) = User.GetEmailAssertion(!string.IsNullOrEmpty(CurrentTenant?.OidcAuthority));
+            return verified ? email : null;
+        }
+    }
 
     /// <summary>
     /// The user's name.

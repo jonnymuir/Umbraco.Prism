@@ -66,7 +66,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
 
         await options.Events.OnRedirectToIdentityProvider(context);
 
-        context.ProtocolMessage.Scope.Should().Be("openid profile offline_access",
+        context.ProtocolMessage.Scope.Should().Be("openid profile email offline_access",
             "because the localhost Keycloak demo needs restart-resilient refresh tokens for the live behavioural suite");
     }
 
@@ -89,7 +89,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
         await options.Events.OnRedirectToIdentityProvider(context);
 
         // Even with incomplete config, scope should stay minimal rather than assuming localhost demo semantics.
-        context.ProtocolMessage.Scope.Should().Be("openid profile");
+        context.ProtocolMessage.Scope.Should().Be("openid profile email");
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
         loginScope.Should().Be(refreshScope,
             "because scope mismatch between login and refresh causes 401 errors");
         
-        loginScope.Should().Be("openid profile offline_access",
+        loginScope.Should().Be("openid profile email offline_access",
             "because the localhost demo requires offline tokens to survive a full stack restart");
     }
 
@@ -416,7 +416,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
 
         genericScope.Should().NotContain("/.default",
             "because /.default is Entra-specific syntax");
-        genericScope.Should().Be("openid profile offline_access",
+        genericScope.Should().Be("openid profile email offline_access",
             "because the localhost demo explicitly opts into restart-resilient offline tokens");
     }
 

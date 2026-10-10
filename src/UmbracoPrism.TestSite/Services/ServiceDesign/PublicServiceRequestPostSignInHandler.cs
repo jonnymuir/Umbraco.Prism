@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using UmbracoPrism.Core.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using UmbracoPrism.Core.Auth;
@@ -38,9 +39,11 @@ public sealed class PublicServiceRequestPostSignInHandler(
             return;
         }
 
-        var newUserId = newIdentity.FindFirst("preferred_username")?.Value
-            ?? newIdentity.FindFirst(ClaimTypes.Email)?.Value;
-        if (string.IsNullOrWhiteSpace(newUserId))
+        // The same rule that decides who the signed-in user is on later requests: a login name the
+        // person chose, or an email the provider has not verified, must not claim anyone's cases.
+        var (newUserId, verified) = new ClaimsPrincipal(newIdentity)
+            .GetEmailAssertion(!string.IsNullOrEmpty(userContext.CurrentTenant?.OidcAuthority));
+        if (!verified || string.IsNullOrWhiteSpace(newUserId))
         {
             return;
         }
