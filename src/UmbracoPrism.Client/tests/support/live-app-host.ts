@@ -101,7 +101,9 @@ const readinessChecks = [
     url: 'https://localhost:8443/realms/prism-dev/.well-known/openid-configuration',
     bodyIncludes: ['"issuer":"https://localhost:8443/realms/prism-dev"']
   },
-  { name: 'MockBusinessApp', url: 'https://localhost:7245/api/backoffice/me', allowedStatuses: [401] }
+  { name: 'MockBusinessApp', url: 'https://localhost:7245/api/backoffice/me', allowedStatuses: [401] },
+  // The catcher for Keycloak's verification emails (registration walkthrough reads them from here).
+  { name: 'Mailpit', url: 'http://localhost:8025/api/v1/info', allowedStatuses: [200] }
 ] as const;
 
 const requiredPorts = [
@@ -112,7 +114,8 @@ const requiredPorts = [
   { name: 'Keycloak upstream', port: 8080 },
   { name: 'TestSite', port: 44345 },
   { name: 'Keycloak proxy', port: 8443 },
-  { name: 'MockBusinessApp', port: 7245 }
+  { name: 'MockBusinessApp', port: 7245 },
+  { name: 'Mailpit', port: 8025 }
 ] as const;
 
 type ProbeResult = {

@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.MockBusinessApp.Services;
+using UmbracoPrism.MockBusinessApp.Services.Members;
 using UmbracoPrism.MockBusinessApp.Services.Profile;
 using UmbracoPrism.MockBusinessApp.Services.SupportSystem;
 
@@ -55,6 +56,9 @@ builder.Services.AddRateLimiter(options =>
 // Wayfinder.Umbraco, in-process; this app has no engine of its own.
 builder.Services.AddSingleton<ContributionsStore>();
 builder.Services.AddSingleton<ProfileStore>();
+builder.Services.AddSingleton<MemberRegistry>();
+builder.Services.AddSingleton<MemberDirectory>();
+builder.Services.AddSingleton<MemberRegistrar>();
 
 var app = builder.Build();
 
@@ -117,8 +121,9 @@ app.UseAuthorization();
 // come from its claims, never the request. See also the fallback policy above.
 app.MapContributions();
 app.MapProfile();
+app.MapMembers();
 
-app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user, HttpContext context, ILogger<Program> logger) =>
+app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user, HttpContext context, MemberDirectory directory, ILogger<Program> logger) =>
 {
     logger.LogInformation(
         "BusinessApp handler entry: {Method} {Path} trace={TraceIdentifier} authHeaderPresent={AuthHeaderPresent} callerTraceId={CallerTraceId} userAuthenticated={UserAuthenticated}",
@@ -129,25 +134,16 @@ app.MapGet("/api/backoffice/me", (IConfiguration config, ClaimsPrincipal user, H
         GetCallerTraceId(context.Request),
         user.Identity?.IsAuthenticated ?? false);
 
-    var tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
+    var caller = CallerIdentity.From(user, config);
+    if (caller is null) return Results.Problem("Tenant not recognised, or the token carries no email.");
 
-    if (tenant == null) return Results.Problem("Tenant not recognised by Business Application.");
-
-    var email = user.GetEmail();
-
-    if (string.IsNullOrEmpty(email)) return Results.Problem("User email claim not found.");
-
-    // Resolve Member (Check email AND tenant ID)
-    var members = config.GetSection("PrismBusinessApp:Members").Get<List<BackOfficeMember>>();
-    var member = members?.FirstOrDefault(m =>
-        m.Email.Equals(email, StringComparison.OrdinalIgnoreCase) &&
-        m.TenantCode == tenant.Code);
+    var member = directory.Find(caller);
 
     return Results.Ok(new
     {
-        Tenant = tenant.DisplayName,
-        TenantCode = tenant.Code,
-        UserEmail = email,
+        Tenant = caller.Tenant.DisplayName,
+        TenantCode = caller.Tenant.Code,
+        UserEmail = caller.Email,
         IsRegistered = member != null,
         BackOfficeId = member?.BackOfficeId ?? "N/A",
         AssignedRole = member?.Role ?? "Guest"

@@ -66,7 +66,16 @@ var needsKeycloakSveWorkaround =
 // (e.g. adding a new demo user) has no effect until that directory is cleared, since Keycloak
 // won't re-import an already-existing realm. `rm -rf artifacts/aspire/keycloak-data/*` before the
 // next boot to force a fresh import.
-var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.0.0")
+// 26.1 or later: registration links use OIDC `prompt=create`, which 26.0 ignores (it shows the
+// ordinary sign-in page). The mail catcher below is where Keycloak's verification emails land.
+var mailpitPort = int.TryParse(Environment.GetEnvironmentVariable("PRISM_MAILPIT_PORT"), out var configuredMailpitPort)
+    ? configuredMailpitPort
+    : 8025;
+builder.AddContainer("mailpit", "axllent/mailpit", "v1.31")
+    .WithHttpEndpoint(port: mailpitPort, targetPort: 8025, name: "http")
+    .WithEndpoint(port: null, targetPort: 1025, name: "smtp", scheme: "tcp");
+
+var keycloak = builder.AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.1.4")
     .WithHttpEndpoint(port: null, targetPort: 8080, name: "http")
     .WithHttpHealthCheck("/realms/prism-dev/.well-known/openid-configuration")
     .WithEnvironment("KEYCLOAK_ADMIN", "admin")
