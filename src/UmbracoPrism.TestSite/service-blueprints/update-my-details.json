@@ -279,7 +279,7 @@
         },
         {
           "type": "body",
-          "content": "You are signed in, but you are not a registered member of this organisation. Contact your administrator if you think this is wrong."
+          "content": "You are signed in, but you are not a registered member of this organisation. If you have just created your account, use Register as a member to finish setting up your membership. Otherwise, contact your administrator if you think this is wrong."
         }
       ],
       "routes": []

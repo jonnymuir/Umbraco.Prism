@@ -314,6 +314,7 @@ public class TestSiteComposer : IComposer
         TestSiteSeedContract.JugglingLicenceBlueprintSlug,
         TestSiteSeedContract.ButterflySightingBlueprintSlug,
         TestSiteSeedContract.UpdateMyDetailsBlueprintSlug,
+        TestSiteSeedContract.RegisterAsAMemberBlueprintSlug,
     };
 
     /// <summary>

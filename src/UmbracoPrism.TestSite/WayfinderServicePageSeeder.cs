@@ -94,10 +94,12 @@ public class WayfinderServicePageSeeder(
             await EnsureDefinitionSeededAsync(TestSiteSeedContract.MoneyModellerBlueprintSlug, "money-modeller.json", cancellationToken);
             await EnsureDefinitionSeededAsync(TestSiteSeedContract.ButterflySightingBlueprintSlug, "record-a-butterfly-sighting.json", cancellationToken);
             await EnsureDefinitionSeededAsync(TestSiteSeedContract.UpdateMyDetailsBlueprintSlug, "update-my-details.json", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.RegisterAsAMemberBlueprintSlug, "register-as-a-member.json", cancellationToken);
 
             EnsureStagePage(TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicenceBlueprintSlug);
             EnsureStagePage(TestSiteSeedContract.ButterflySightingPageName, TestSiteSeedContract.ButterflySightingBlueprintSlug);
             EnsureStagePage(TestSiteSeedContract.UpdateMyDetailsPageName, TestSiteSeedContract.UpdateMyDetailsBlueprintSlug);
+            EnsureStagePage(TestSiteSeedContract.RegisterAsAMemberPageName, TestSiteSeedContract.RegisterAsAMemberBlueprintSlug);
             EnsureStagePage(TestSiteSeedContract.ContributionsPageName, TestSiteSeedContract.ContributionsBlueprintSlug);
             EnsureWorklistPage(TestSiteSeedContract.CaseworkerQueuePageName);
             // Money Modeller's own web-user queue is the citizen-facing part (model savings pot
@@ -121,6 +123,11 @@ public class WayfinderServicePageSeeder(
             // Update my details acts as the signed-in member (their bearer token goes to the
             // business app), so an anonymous visitor has nothing to act as.
             EnsureRequiresSignIn(TestSiteSeedContract.UpdateMyDetailsPageName);
+
+            // Register as a member is the step AFTER creating an account: the identity provider's
+            // registration page (/auth/register) sends the new person back here already signed in,
+            // and the membership is created with their token.
+            EnsureRequiresSignIn(TestSiteSeedContract.RegisterAsAMemberPageName);
         }
         catch (Exception ex)
         {

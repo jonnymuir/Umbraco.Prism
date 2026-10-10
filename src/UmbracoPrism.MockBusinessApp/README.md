@@ -71,6 +71,7 @@ Every route needs a valid bearer token. There is no anonymous route outside Deve
 | `GET /api/backoffice/me` | Resolves the caller's tenant and role from `PrismBusinessApp:Members`; proves auth propagation. |
 | `GET /api/backoffice/profile` | The caller's own member record, for their tenant. `registered: false` if they are not a member. |
 | `PUT /api/backoffice/profile` | Updates the caller's own contact details. Validated here; 422 with a reason if refused. |
+| `POST /api/backoffice/members` | Registers the caller as a member of their own tenant, after they have created an account at the identity provider. 201 when created, 200 if they already were; 403 with a reason if their email is unverified or the tenant has not opened registration. |
 | `POST /contributions/submissions` | Uploads a contributions CSV (max 1 MB). Owned by the caller. |
 | `GET /contributions/submissions/{id}` and `/file` | Status and annotated result. Only the submitter can read them; anyone else gets 404. |
 | `GET /debug/auth` | **Development only, not mapped elsewhere.** Anonymous by design: it diagnoses why bearer validation fails. |
@@ -109,6 +110,20 @@ Each of these is a decision you would otherwise have to rediscover. Where a test
    the route does not exist. *Tested.*
 10. **No secrets in source.** Real tenant ids, client ids and member emails go in the gitignored
     `appsettings.Local.json`.
+11. **Identify people by `sub` and a verified email, never by `preferred_username`.** `preferred_username`
+    is the account's login name, which a person chooses when they register, so one can be set to someone
+    else's email address. `CallerIdentity` reads the `email` claim for a tenant with its own identity
+    provider, and counts it only when `email_verified` is true. A pre-provisioned member is matched by that
+    verified email; a self-registered member is matched by `sub`, so a later email change at the provider
+    cannot hand their record to someone else. *Tested: a login name that looks like another member's email
+    grants nothing; an unverified claim to a member's email cannot read or edit their record.*
+12. **Registration is opt-in per tenant, and the token decides everything.** `POST /api/backoffice/members`
+    works only for tenants listed in `PrismBusinessApp:SelfRegistration:Tenants` (closed by default), only
+    for a verified email, and takes the tenant, identity and role from the token and the server, never the
+    body. It is safe to repeat and never overwrites an existing member. *Tested: unverified email, closed
+    tenant, Entra tenant, a body that names a tenant or role, repeat calls.*
+13. **Key stored data by an id the business owns, not by email.** Profiles are keyed by tenant plus the
+    member's back-office id, so a record never follows an email address from one person to another.
 
 ### `Audience`: tokens minted for this API
 
@@ -135,6 +150,22 @@ the setting is not used for them.
 > Keycloak admin console, Clients, `prism-client`, Client scopes, `prism-client-dedicated`, Add mapper,
 > By configuration, **Audience**, Included Custom Audience `prism-business-app`, Add to access token on,
 > Add to ID token off. CI starts fresh, so it is unaffected.
+>
+> The same applies to **registration**: `registrationAllowed`, email-as-username, `verifyEmail`, the
+> `VERIFY_EMAIL` required action and the SMTP server are all in the realm file, so an existing local
+> realm needs `artifacts/aspire/keycloak-data` cleared to pick them up. The stack also runs Keycloak
+> 26.1 or later, because registration links use `prompt=create`, which 26.0 ignores.
+
+### Registration and email verification
+
+A person registers at the identity provider (Prism's `/auth/register` sends the browser there with
+`prompt=create`), which holds the password; this app never sees one. Keycloak will not issue them a token
+until they have verified their email, using the `VERIFY_EMAIL` required action. In the realm file
+`verifyEmail: true` on its own does nothing: **the required action must also be registered**, or a new user
+signs in with `email_verified: false`. This app does not rely on that configuration. It checks
+`email_verified` itself before creating a membership, so a provider that is misconfigured, or a different
+provider, fails closed. The local stack runs Mailpit (http://localhost:8025) so the verification email can be
+read.
 
 ### The calling side
 

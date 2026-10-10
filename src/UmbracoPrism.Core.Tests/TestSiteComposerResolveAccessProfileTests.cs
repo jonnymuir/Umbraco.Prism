@@ -46,6 +46,17 @@ public class TestSiteComposerResolveAccessProfileTests
         profile.RestrictToInstanceOwner.Should().BeTrue("a practitioner may only ever see their own sighting");
     }
 
+    [Fact]
+    public void RegisterAsAMemberBlueprintKey_ForAPersonWhoJustCreatedAnAccount_GetsPublicVisitorQueue()
+    {
+        // The person has no membership and is on no roster yet; registering is how they get one.
+        var ctx = BuildContext(isAuthenticated: true, "robin.new@example.test");
+
+        var profile = TestSiteComposer.ResolveAccessProfile(ctx, "register-as-a-member");
+
+        profile.Should().BeSameAs(UmbracoPrism.TestSite.Services.ServiceDesign.PublicVisitorQueue.AccessProfile);
+    }
+
     [Theory]
     [InlineData("demo@prism.local")]
     [InlineData("njf-caseworker@prism.local")]

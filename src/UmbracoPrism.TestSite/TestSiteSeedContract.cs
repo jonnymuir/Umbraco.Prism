@@ -32,6 +32,9 @@ public static class TestSiteSeedContract
     public const string UpdateMyDetailsPageName = "Update my details";
     public const string UpdateMyDetailsPageUrl = "/update-my-details";
     public const string UpdateMyDetailsBlueprintSlug = "update-my-details";
+    public const string RegisterAsAMemberPageName = "Register as a member";
+    public const string RegisterAsAMemberPageUrl = "/register-as-a-member";
+    public const string RegisterAsAMemberBlueprintSlug = "register-as-a-member";
 
     public const string ContributionsPageName = "Submit contributions file";
     public const string ContributionsPageUrl = "/submit-contributions-file";

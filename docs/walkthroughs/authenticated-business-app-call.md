@@ -62,8 +62,9 @@ Two branches show that a business answer is a route, not an error:
    would be answered for nobody.
 5. The header goes on the outgoing request only. It is not put in the support-system inputs, in a
    field value, or in a log line, so it cannot be rendered to the member or stored with the case.
-6. The business app validates the JWT, reads the tenant from its issuer or `tid` claim and the email
-   from `preferred_username`, and looks the member up for **that tenant**.
+6. The business app validates the JWT, reads the tenant from its issuer or `tid` claim and the person
+   from the verified `email` claim (never `preferred_username`, which a person chooses when they
+   register), and looks the member up for **that tenant**.
 7. The answer comes back as an outcome (`registered` / `not-registered`, `updated` / `rejected`) plus
    a payload. The engine merges the payload into the case's field values and the matching route fires.
 

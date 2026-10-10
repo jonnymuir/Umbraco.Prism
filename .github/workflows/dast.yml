@@ -40,7 +40,7 @@ jobs:
       contents: read
     with:
       boot-command: |
-        docker pull quay.io/keycloak/keycloak:26.0.0
+        docker pull quay.io/keycloak/keycloak:26.1.4 && docker pull axllent/mailpit:v1.31
         mkdir -p artifacts/aspire/keycloak-data
         chmod 777 artifacts/aspire/keycloak-data
         dotnet dev-certs https

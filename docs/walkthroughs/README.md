@@ -19,6 +19,9 @@ The NJF Contributions Team submits a monthly contributions file, gets back only 
 ### [Calling a business app as the signed-in member](authenticated-business-app-call.md)
 A front-stage "update my details" journey that reads and writes a member's record in the business app using the member's own bearer token, scoped to their tenant, with the not-registered and rejected branches and the security checks that pin it down.
 
+### [Registering a member](member-registration.md)
+A new person creates an account at the identity provider, verifies their email, and a journey then creates their membership in the business app with their own bearer token, with the checks that stop anyone claiming someone else's membership.
+
 ---
 
 ## Authoring & Operations
