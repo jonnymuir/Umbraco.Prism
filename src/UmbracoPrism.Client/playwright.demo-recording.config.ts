@@ -5,7 +5,7 @@ import { defineConfig } from '@playwright/test';
 // playwright.localhost-auth.config.ts's testMatch, so they can never run there either.
 export default defineConfig({
   testDir: './tests/demo',
-  testMatch: /(garden-waste|licence-transfer|prism-tenancy-branding|update-my-details)-demo\.spec\.ts/,
+  testMatch: /(garden-waste|licence-transfer|prism-tenancy-branding|update-my-details|member-registration)-demo\.spec\.ts/,
   globalSetup: './tests/demo/support/demo-prereqs-setup.ts',
   fullyParallel: false,
   workers: 1,

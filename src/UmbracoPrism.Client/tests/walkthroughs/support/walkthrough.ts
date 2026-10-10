@@ -172,13 +172,13 @@ export async function enterScreenshotMode(page: Page): Promise<void> {
 }
 
 async function hideScreenshotOnlyUi(page: Page): Promise<void> {
-  await page.addStyleTag({
-    content: `
-      .prism-mobile-ua-demo {
-        display: none !important;
-        visibility: hidden !important;
-      }
-    `
+  // Through the CSS object model, not page.addStyleTag(): an injected <style> element is blocked by the
+  // site's enforced style-src 'self' policy, which made every capture fail. Setting a style from script is not.
+  await page.evaluate(() => {
+    for (const element of document.querySelectorAll<HTMLElement>('.prism-mobile-ua-demo')) {
+      element.style.setProperty('display', 'none', 'important');
+      element.style.setProperty('visibility', 'hidden', 'important');
+    }
   });
 }
 
