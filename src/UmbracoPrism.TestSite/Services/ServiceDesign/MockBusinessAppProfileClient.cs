@@ -2,11 +2,9 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.DependencyInjection;
 using Wayfinder.Engine.Abstractions;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Models.ServiceDesign.SupportSystems;
-using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.TestSite.Services.ServiceDesign;
 
@@ -91,10 +89,10 @@ public static class MockBusinessAppProfile
 
 /// <summary>
 /// Calls Mock Business App as the signed-in member. Both capabilities run in the member's own
-/// browser request (the stage is entered by their Advance), so <see cref="IPrismContext"/> can
-/// read their session cookie and release their access token, after the same tenant-binding check
-/// every other downstream call goes through. The token is attached to the outgoing request only:
-/// it is never put in the invocation envelope, a field value, or a log line.
+/// browser request (the stage is entered by their Advance), so <see cref="MemberBearerProvider"/>
+/// can release their access token after the tenant-binding check every downstream call goes
+/// through. The token is attached to the outgoing request only: it is never put in the invocation
+/// envelope, a field value, or a log line.
 /// <para/>
 /// The engine's contract is that <c>InvokeAsync</c> starts a call and a poll resolves it, so the
 /// result is held in memory against the invocation id until the next poll collects it. That is
@@ -103,7 +101,7 @@ public static class MockBusinessAppProfile
 /// </summary>
 public sealed class MockBusinessAppProfileClient(
     IHttpClientFactory httpClientFactory,
-    IHttpContextAccessor httpContextAccessor) : ISupportSystemClient
+    MemberBearerProvider memberBearer) : ISupportSystemClient
 {
     public const string HttpClientName = "mock-business-app-profile";
     private const string ProfilePath = "/api/backoffice/profile";
@@ -132,9 +130,8 @@ public sealed class MockBusinessAppProfileClient(
             _ => throw new InvalidOperationException($"Unknown capability '{capabilityKey}'."),
         };
 
-        request.Headers.Authorization = await GetMemberAuthorizationAsync();
-
         var client = httpClientFactory.CreateClient(HttpClientName);
+        request.Headers.Authorization = await memberBearer.GetForAsync(client);
         using var response = await client.SendAsync(request, ct);
 
         _resolved[context.InvocationId] = capabilityKey == MockBusinessAppProfile.LoadProfileCapability
@@ -149,16 +146,6 @@ public sealed class MockBusinessAppProfileClient(
         SupportSystemInvocationReceipt receipt,
         CancellationToken ct = default) =>
         Task.FromResult(_resolved.TryRemove(receipt.ExternalReference, out var outcome) ? outcome : null);
-
-    private async Task<System.Net.Http.Headers.AuthenticationHeaderValue> GetMemberAuthorizationAsync()
-    {
-        var prismContext = httpContextAccessor.HttpContext?.RequestServices.GetService<IPrismContext>()
-            ?? throw new InvalidOperationException("No signed-in request to act for: this capability can only run inside the member's own request.");
-
-        return await prismContext.GetAuthorizationHeaderAsync()
-            ?? throw new InvalidOperationException(
-                $"No bearer token could be released for the signed-in member ({prismContext.LastAuthorizationFailureReason ?? "unknown"}).");
-    }
 
     private static async Task<SupportSystemOutcome> ToLoadOutcomeAsync(HttpResponseMessage response, CancellationToken ct)
     {

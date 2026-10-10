@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 
@@ -183,16 +184,8 @@ public static class PrismAuthExtensions
                             !string.IsNullOrWhiteSpace(t.OidcAuthority) &&
                             string.Equals(t.OidcAuthority.TrimEnd('/'), tokenIssuer.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
 
-                        if (oidcTenant == null || string.IsNullOrWhiteSpace(oidcTenant.ClientId)) return false;
-
-                        var audienceMatches = audiences.Any(aud =>
-                            string.Equals(aud, oidcTenant.ClientId, StringComparison.OrdinalIgnoreCase));
-                        var authorizedPartyMatches = string.Equals(
-                            GetTokenAuthorizedParty(securityToken),
-                            oidcTenant.ClientId,
-                            StringComparison.OrdinalIgnoreCase);
-
-                        return audienceMatches || authorizedPartyMatches;
+                        return oidcTenant != null
+                            && PrismOidcAudience.IsAccepted(oidcTenant, audiences, GetTokenAuthorizedParty(securityToken));
                     },
 
                     IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>

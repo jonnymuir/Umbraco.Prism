@@ -75,6 +75,7 @@ public static class MockBusinessAppContributions
 /// </summary>
 public sealed class MockBusinessAppContributionsClient(
     IHttpClientFactory httpClientFactory,
+    MemberBearerProvider memberBearer,
     IServiceRequestFileStorage fileStorage) : ISupportSystemClient
 {
     public const string HttpClientName = "mock-business-app-contributions";
@@ -99,7 +100,9 @@ public sealed class MockBusinessAppContributionsClient(
         await AddFilePartAsync(form, inputs, ct);
 
         var client = httpClientFactory.CreateClient(HttpClientName);
-        var response = await client.PostAsync("/contributions/submissions", form, ct);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/contributions/submissions") { Content = form };
+        request.Headers.Authorization = await memberBearer.GetForAsync(client);
+        var response = await client.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadFromJsonAsync<JsonObject>(ct)
@@ -117,7 +120,9 @@ public sealed class MockBusinessAppContributionsClient(
         CancellationToken ct = default)
     {
         var client = httpClientFactory.CreateClient(HttpClientName);
-        var statusResponse = await client.GetAsync($"/contributions/submissions/{receipt.ExternalReference}", ct);
+        var bearer = await memberBearer.GetForAsync(client);
+
+        var statusResponse = await GetAsync(client, bearer, $"/contributions/submissions/{receipt.ExternalReference}", ct);
         statusResponse.EnsureSuccessStatusCode();
 
         var statusBody = await statusResponse.Content.ReadFromJsonAsync<JsonObject>(ct);
@@ -126,7 +131,7 @@ public sealed class MockBusinessAppContributionsClient(
             return null;
         }
 
-        var fileResponse = await client.GetAsync($"/contributions/submissions/{receipt.ExternalReference}/file", ct);
+        var fileResponse = await GetAsync(client, bearer, $"/contributions/submissions/{receipt.ExternalReference}/file", ct);
         fileResponse.EnsureSuccessStatusCode();
         var csvBytes = await fileResponse.Content.ReadAsByteArrayAsync(ct);
 
@@ -156,6 +161,14 @@ public sealed class MockBusinessAppContributionsClient(
                 [MockBusinessAppContributions.ContributionsResponseFileOutputKey] = System.Text.Json.JsonSerializer.SerializeToNode(fileReference)
             }
         };
+    }
+
+    private static async Task<HttpResponseMessage> GetAsync(
+        HttpClient client, System.Net.Http.Headers.AuthenticationHeaderValue bearer, string path, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Authorization = bearer;
+        return await client.SendAsync(request, ct);
     }
 
     private async Task AddFilePartAsync(

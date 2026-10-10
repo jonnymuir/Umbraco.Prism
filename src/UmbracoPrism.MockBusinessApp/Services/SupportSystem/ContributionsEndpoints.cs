@@ -1,29 +1,56 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
+
 namespace UmbracoPrism.MockBusinessApp.Services.SupportSystem;
 
 /// <summary>
-/// Contributions-file validation — a genuinely different interaction shape from
-/// <see cref="SupportSystemEndpoints"/>'s human-decided submissions above: no staff member
-/// decides anything here, <see cref="ContributionsValidation"/> applies deterministic rules
-/// automatically the moment the file arrives. Mirrors the core Wayfinder repo's own
-/// <c>SafetyNetUnderwriting/Program.cs</c> contributions endpoints — same shape, this app's own
-/// store/validation.
+/// Contributions-file validation: no staff member decides anything,
+/// <see cref="ContributionsValidation"/> applies deterministic rules automatically the moment the
+/// file arrives. Mirrors the core Wayfinder repo's own <c>SafetyNetUnderwriting/Program.cs</c>
+/// contributions endpoints, with this app's own store and validation.
+/// <para/>
+/// Every route needs a valid bearer token and acts only on the caller's own submissions: the
+/// submitter is read from the token, never the request, and a submission can only be read back by
+/// whoever made it. Uploads are size-limited.
 /// </summary>
 public static class ContributionsEndpoints
 {
+    /// <summary>
+    /// A contributions CSV is small. The limit is enforced here, in the handler, because
+    /// <c>[RequestSizeLimit]</c> is an MVC filter and does not apply to minimal-API routes; the host's
+    /// Kestrel body limit is a second, coarser line of defence.
+    /// </summary>
+    public const int MaxUploadBytes = 1_048_576;
+
+    // Room for the multipart boundaries and headers around a file of exactly MaxUploadBytes.
+    private const int MultipartOverheadBytes = 4_096;
+
     public static IEndpointRouteBuilder MapContributions(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/contributions/submissions", PostSubmission);
-        app.MapGet("/contributions/submissions/{id}", GetStatus);
-        app.MapGet("/contributions/submissions/{id}/file", GetFile);
+        app.MapPost("/contributions/submissions", PostSubmission).RequireAuthorization();
+        app.MapGet("/contributions/submissions/{id}", GetStatus).RequireAuthorization();
+        app.MapGet("/contributions/submissions/{id}/file", GetFile).RequireAuthorization();
 
         return app;
     }
 
-    private static async Task<IResult> PostSubmission(HttpRequest request, ContributionsStore store)
+    private static async Task<IResult> PostSubmission(
+        HttpRequest request, ClaimsPrincipal user, IConfiguration config, ContributionsStore store)
     {
+        var caller = CallerIdentity.From(user, config);
+        if (caller is null)
+        {
+            return Results.Forbid();
+        }
+
         if (!request.HasFormContentType)
         {
             return Results.BadRequest("Expected multipart/form-data.");
+        }
+
+        if (request.ContentLength > MaxUploadBytes + MultipartOverheadBytes)
+        {
+            return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
 
         var form = await request.ReadFormAsync();
@@ -31,6 +58,11 @@ public static class ContributionsEndpoints
         if (file is null)
         {
             return Results.BadRequest("Expected a 'file' part.");
+        }
+
+        if (file.Length > MaxUploadBytes)
+        {
+            return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
         }
 
         using var stream = new MemoryStream();
@@ -41,6 +73,7 @@ public static class ContributionsEndpoints
         store.Add(new ContributionsSubmission
         {
             Id = id,
+            OwnerKey = caller.OwnerKey,
             SubmittedAt = DateTimeOffset.UtcNow,
             // A short artificial delay so the demo genuinely shows a "please wait while we
             // process your file" screen instead of resolving on the very first poll — real batch
@@ -53,9 +86,10 @@ public static class ContributionsEndpoints
         return Results.Accepted($"/contributions/submissions/{id}", new { submissionId = id, status = "pending" });
     }
 
-    private static IResult GetStatus(string id, ContributionsStore store)
+    private static IResult GetStatus(string id, ClaimsPrincipal user, IConfiguration config, ContributionsStore store)
     {
-        var submission = store.Get(id);
+        var caller = CallerIdentity.From(user, config);
+        var submission = caller is null ? null : store.Get(id, caller.OwnerKey);
         if (submission is null)
         {
             return Results.NotFound();
@@ -65,9 +99,10 @@ public static class ContributionsEndpoints
         return Results.Ok(new { id = submission.Id, status });
     }
 
-    private static IResult GetFile(string id, ContributionsStore store)
+    private static IResult GetFile(string id, ClaimsPrincipal user, IConfiguration config, ContributionsStore store)
     {
-        var submission = store.Get(id);
+        var caller = CallerIdentity.From(user, config);
+        var submission = caller is null ? null : store.Get(id, caller.OwnerKey);
         if (submission is null || DateTimeOffset.UtcNow < submission.ReadyAt)
         {
             return Results.NotFound();
