@@ -4,7 +4,7 @@ name: Security
 # jobs run identically here, in Wayfinder, and in Wayfinder.Umbraco. See that repo's README.
 #
 # Local knobs that stay in this repo:
-#   * .github/allowed-advisories.txt — accepted High/Critical NuGet advisories (empty).
+#   * .github/allowed-advisories.txt — accepted High/Critical NuGet advisories.
 #   * .github/dependabot.yml         — version-update schedule (Dependabot reads only
 #                                      the file in this repo).
 #
