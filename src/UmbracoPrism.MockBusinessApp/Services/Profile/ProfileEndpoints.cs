@@ -1,8 +1,6 @@
 using System.Collections.Concurrent;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
-using UmbracoPrism.Core.Extensions;
-using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.MockBusinessApp.Services.Profile;
 
@@ -48,19 +46,25 @@ public static partial class ProfileEndpoints
 
     private static IResult GetProfile(ClaimsPrincipal user, IConfiguration config, ProfileStore store)
     {
-        var member = ResolveMember(user, config, out var tenant);
+        var caller = CallerIdentity.From(user, config);
+        if (caller is null)
+        {
+            return Results.Forbid();
+        }
+
+        var member = caller.FindMember(config);
         if (member is null)
         {
             // Authenticated and in a known tenant, but not a registered member there: a normal
             // business outcome the journey routes on, not an error.
-            return Results.Ok(new { registered = false, tenant = tenant?.DisplayName });
+            return Results.Ok(new { registered = false, tenant = caller.Tenant.DisplayName });
         }
 
         var profile = store.Get(member.TenantCode, member.Email);
         return Results.Ok(new
         {
             registered = true,
-            tenant = tenant!.DisplayName,
+            tenant = caller.Tenant.DisplayName,
             tenantCode = member.TenantCode,
             name = member.Email.Split('@')[0],
             email = member.Email,
@@ -72,7 +76,7 @@ public static partial class ProfileEndpoints
 
     private static IResult UpdateProfile(UpdateProfileRequest body, ClaimsPrincipal user, IConfiguration config, ProfileStore store)
     {
-        var member = ResolveMember(user, config, out _);
+        var member = CallerIdentity.From(user, config)?.FindMember(config);
         if (member is null)
         {
             return Results.Forbid();
@@ -97,19 +101,5 @@ public static partial class ProfileEndpoints
 
         store.Set(member.TenantCode, member.Email, new MemberProfile(phone, preference));
         return Results.Ok(new { reference = $"UPD-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}", tenantCode = member.TenantCode });
-    }
-
-    private static BackOfficeMember? ResolveMember(ClaimsPrincipal user, IConfiguration config, out BackOfficeTenant? tenant)
-    {
-        tenant = user.GetPrismTenant(PrismResolvers.FromConfig(config));
-        var email = user.GetEmail();
-        if (tenant is null || string.IsNullOrEmpty(email))
-        {
-            return null;
-        }
-
-        var tenantCode = tenant.Code;
-        return config.GetSection("PrismBusinessApp:Members").Get<List<BackOfficeMember>>()?
-            .FirstOrDefault(m => m.Email.Equals(email, StringComparison.OrdinalIgnoreCase) && m.TenantCode == tenantCode);
     }
 }

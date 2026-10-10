@@ -102,9 +102,16 @@ To see the rejected route, enter `not a number` as the phone number.
   fails if a write under one tenant is visible under the other.
 - **A write cannot be aimed at someone else.** `AWriteCannotBeAimedAtAnotherMember_ByNamingThemInTheRequest`
   names another member in the body and shows the body is ignored.
-- **Deny by default.** Both routes carry `RequireAuthorization()`; the first test in the endpoint suite
-  asserts a request with no credentials gets `401`. This is unlike the Mock Business App's
-  contributions routes, which are deliberately unauthenticated.
+- **Deny by default.** A fallback policy means a route with no policy of its own still demands a
+  token, and no route is anonymous outside Development. `MockBusinessAppHostSecurityTests` boots the
+  real app, enumerates every route, and fails if one is anonymous or answers without a valid token, so a
+  route added later is covered without anyone remembering to test it.
+- **Tokens minted for this API only.** The Keycloak tenant sets `Audience`, so a token issued to the
+  web client for something else, or its ID token, is rejected. See the app's README for the setting.
+- **The token only goes to HTTPS, and nowhere else.** `MemberBearerProvider` refuses any non-HTTPS
+  destination, and the clients do not follow redirects.
+
+The app's README lists each practice with the file and test that pins it, as a checklist to copy.
 
 ## Limits to know about
 
