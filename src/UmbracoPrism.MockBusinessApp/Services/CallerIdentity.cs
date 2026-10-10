@@ -38,17 +38,12 @@ public sealed record CallerIdentity(BackOfficeTenant Tenant, string Email, strin
             return null;
         }
 
-        var ownsIdentityProvider = !string.IsNullOrEmpty(tenant.OidcAuthority);
-        var email = ownsIdentityProvider
-            ? user.FindFirst("email")?.Value ?? user.FindFirst(ClaimTypes.Email)?.Value
-            : user.GetEmail();
+        var (email, verified) = user.GetEmailAssertion(!string.IsNullOrEmpty(tenant.OidcAuthority));
         if (string.IsNullOrWhiteSpace(email))
         {
             return null;
         }
 
-        var verified = !ownsIdentityProvider
-            || bool.TryParse(user.FindFirst("email_verified")?.Value, out var claimed) && claimed;
         var subject = user.FindFirst("sub")?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
         return new CallerIdentity(tenant, email, subject, verified);
     }

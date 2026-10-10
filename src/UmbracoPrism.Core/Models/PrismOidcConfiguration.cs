@@ -28,8 +28,8 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 {
 
     private const string PrismNoncePropertiesKey = ".prism_nonce";
-    private const string GenericOidcBrowserScopes = "openid profile";
-    private const string LocalDemoOfflineScopes = "openid profile offline_access";
+    private const string GenericOidcBrowserScopes = "openid profile email";
+    private const string LocalDemoOfflineScopes = "openid profile email offline_access";
     private const string LocalDemoHostname = "localhost";
     private const string LocalDemoClientId = "prism-client";
 
