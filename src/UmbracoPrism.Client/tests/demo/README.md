@@ -13,6 +13,20 @@ Keycloak, MockBusinessApp), same as `garden-waste-demo.spec.ts` below.
 
 ---
 
+## Update my details demo
+
+`update-my-details-demo.spec.ts` (`npm run demo:record:update-my-details`) is a UI-only recording of
+[`docs/walkthroughs/authenticated-business-app-call.md`](../../../../docs/walkthroughs/authenticated-business-app-call.md):
+a member signs in, the business app answers with their own record (called with their own bearer
+token), refuses a bad phone number, accepts a good one, and then a signed-in non-member is told
+there is no membership. About 90 seconds, no AI agent, no long wait. Needs the full Aspire stack
+warmed first, restarted after any TestSite change. Every run starts a fresh case
+(`?action=start-new`), because a finished case persists for the member, so it is safe to re-record
+without restarting. Put Homebrew's `ffmpeg` on `PATH` for the `.mp4` copy; the `.webm` is the real
+output either way.
+
+---
+
 # Garden waste permit: demo recording
 
 `garden-waste-demo.spec.ts` captures the "AI-assisted workflow authoring" walkthrough as one

@@ -1,0 +1,434 @@
+{
+  "definitionKey": "update-my-details",
+  "displayName": "Update my details",
+  "version": 1,
+  "schemaVersion": "1.0",
+  "description": "Reference example of a front-stage journey that calls a business app as the signed-in member: the member's own bearer token loads their record and saves their change, scoped to their tenant. See docs/walkthroughs/authenticated-business-app-call.md.",
+  "initialStage": "start",
+  "requestPolicy": "single",
+  "allowManualRestart": true,
+  "calculations": {
+    "fields": {
+      "profilePhone": {
+        "source": "service",
+        "valueKind": "string",
+        "default": ""
+      },
+      "profileContactPreference": {
+        "source": "service",
+        "valueKind": "string",
+        "default": ""
+      }
+    }
+  },
+  "queues": [
+    {
+      "key": "public-visitor",
+      "displayName": "Site visitor touchpoints",
+      "description": "The signed-in member updating their own details.",
+      "actor": "applicant"
+    },
+    {
+      "key": "automation",
+      "displayName": "Business app calls",
+      "description": "Never human-visible. Each stage here makes one call to the business app as the signed-in member.",
+      "actor": "system"
+    }
+  ],
+  "stages": [
+    {
+      "stageKey": "start",
+      "displayName": "Update your details",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "public-visitor",
+      "components": [
+        {
+          "type": "body",
+          "content": "We hold your contact details in our membership system. We will look them up as you, so you only see and change your own."
+        }
+      ],
+      "routes": [
+        {
+          "id": "start--continue--route-from-start",
+          "target": "route-from-start",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stageKey": "load-profile",
+      "displayName": "Loading your details",
+      "description": "Never human-visible. The member waits at the profile-loaded join while this stage's onEnter action reads their record from the business app with their own bearer token.",
+      "stageType": "Question",
+      "actor": "system",
+      "queueKey": "automation",
+      "components": [],
+      "actions": [
+        {
+          "type": "support-system-call",
+          "timing": "onEnter",
+          "params": {
+            "supportSystemKey": "mock-business-app-profile",
+            "capabilityKey": "load-profile",
+            "inputs": {}
+          }
+        }
+      ],
+      "routes": [
+        {
+          "id": "load-profile--registered--profile-loaded",
+          "target": "profile-loaded",
+          "trigger": "registered"
+        },
+        {
+          "id": "load-profile--not-registered--profile-loaded",
+          "target": "profile-loaded",
+          "trigger": "not-registered"
+        }
+      ]
+    },
+    {
+      "stageKey": "edit-details",
+      "displayName": "Your contact details",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "public-visitor",
+      "components": [
+        {
+          "type": "stat-group",
+          "title": "Your membership",
+          "items": [
+            {
+              "label": "Name",
+              "fieldKey": "profileName"
+            },
+            {
+              "label": "Email",
+              "fieldKey": "profileEmail"
+            },
+            {
+              "label": "Organisation",
+              "fieldKey": "profileTenant"
+            },
+            {
+              "label": "Role",
+              "fieldKey": "profileRole"
+            }
+          ]
+        },
+        {
+          "type": "fieldset",
+          "legend": "How can we reach you?",
+          "children": [
+            {
+              "type": "text",
+              "maxLength": 20,
+              "fieldKey": "phone",
+              "label": "Telephone number",
+              "hint": "For example, 01632 960 001. Leave blank if you do not want to give one.",
+              "defaultFrom": "profilePhone"
+            },
+            {
+              "type": "radio",
+              "fieldKey": "contactPreference",
+              "label": "How should we contact you?",
+              "options": [
+                "email",
+                "phone",
+                "post"
+              ],
+              "required": true,
+              "defaultFrom": "profileContactPreference"
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "edit-details--continue--route-from-edit-details",
+          "target": "route-from-edit-details",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stageKey": "check-answers",
+      "displayName": "Check your answers",
+      "stageType": "CheckAnswers",
+      "actor": "applicant",
+      "queueKey": "public-visitor",
+      "components": [
+        {
+          "type": "summary-list",
+          "children": [
+            {
+              "type": "text",
+              "fieldKey": "phone",
+              "label": "Telephone number",
+              "changeStateKey": "edit-details"
+            },
+            {
+              "type": "radio",
+              "fieldKey": "contactPreference",
+              "label": "Contact preference",
+              "options": [
+                "email",
+                "phone",
+                "post"
+              ],
+              "required": true,
+              "changeStateKey": "edit-details"
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "check-answers--submit--route-from-check-answers",
+          "target": "route-from-check-answers",
+          "trigger": "submit"
+        }
+      ]
+    },
+    {
+      "stageKey": "save-profile",
+      "displayName": "Saving your details",
+      "description": "Never human-visible. The member waits at the profile-saved join while this stage's onEnter action writes their change to the business app with their own bearer token.",
+      "stageType": "Question",
+      "actor": "system",
+      "queueKey": "automation",
+      "components": [],
+      "actions": [
+        {
+          "type": "support-system-call",
+          "timing": "onEnter",
+          "params": {
+            "supportSystemKey": "mock-business-app-profile",
+            "capabilityKey": "save-profile",
+            "inputs": {
+              "phone": "phone",
+              "contactPreference": "contactPreference"
+            }
+          }
+        }
+      ],
+      "routes": [
+        {
+          "id": "save-profile--updated--profile-saved",
+          "target": "profile-saved",
+          "trigger": "updated"
+        },
+        {
+          "id": "save-profile--rejected--profile-saved",
+          "target": "profile-saved",
+          "trigger": "rejected"
+        }
+      ]
+    },
+    {
+      "stageKey": "update-rejected",
+      "displayName": "We could not update your details",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "public-visitor",
+      "components": [
+        {
+          "type": "inset-text",
+          "content": "Your details have not been changed."
+        },
+        {
+          "type": "stat-group",
+          "title": "What went wrong",
+          "items": [
+            {
+              "label": "Reason",
+              "fieldKey": "profileUpdateNote"
+            }
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "id": "update-rejected--continue--route-from-update-rejected",
+          "target": "route-from-update-rejected",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stageKey": "not-registered",
+      "displayName": "We could not find your membership",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "public-visitor",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "We could not find your membership"
+        },
+        {
+          "type": "stat-group",
+          "title": "Where we looked",
+          "items": [
+            {
+              "label": "Organisation",
+              "fieldKey": "profileTenant"
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "content": "You are signed in, but you are not a registered member of this organisation. Contact your administrator if you think this is wrong."
+        }
+      ],
+      "routes": []
+    },
+    {
+      "stageKey": "confirmation",
+      "displayName": "Details updated",
+      "stageType": "Confirmation",
+      "actor": "applicant",
+      "queueKey": "public-visitor",
+      "components": [
+        {
+          "type": "panel",
+          "heading": "Details updated"
+        },
+        {
+          "type": "stat-group",
+          "title": "Your update",
+          "items": [
+            {
+              "label": "Reference",
+              "fieldKey": "profileUpdateReference"
+            },
+            {
+              "label": "Organisation",
+              "fieldKey": "profileTenant"
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "content": "We will use these details the next time we contact you."
+        }
+      ],
+      "routes": []
+    }
+  ],
+  "gateways": [
+    {
+      "key": "route-from-start",
+      "displayName": "Look up your details",
+      "gatewayType": "Split",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "route-from-start--continue--profile-loaded",
+          "target": "profile-loaded",
+          "trigger": "continue"
+        },
+        {
+          "id": "route-from-start--continue--load-profile",
+          "target": "load-profile",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "profile-loaded",
+      "displayName": "Details loaded",
+      "gatewayType": "Join",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "profile-loaded--registered--edit-details",
+          "target": "edit-details",
+          "trigger": "registered"
+        },
+        {
+          "id": "profile-loaded--not-registered--not-registered",
+          "target": "not-registered",
+          "trigger": "not-registered"
+        }
+      ],
+      "waitingContent": "We are looking up your details.",
+      "waitingExpectedSeconds": 5,
+      "waitingPollIntervalMs": 1000,
+      "requiredIncomingQueues": [
+        "public-visitor",
+        "automation"
+      ]
+    },
+    {
+      "key": "route-from-check-answers",
+      "displayName": "Save your details",
+      "gatewayType": "Split",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "route-from-check-answers--submit--profile-saved",
+          "target": "profile-saved",
+          "trigger": "submit"
+        },
+        {
+          "id": "route-from-check-answers--submit--save-profile",
+          "target": "save-profile",
+          "trigger": "submit"
+        }
+      ]
+    },
+    {
+      "key": "profile-saved",
+      "displayName": "Details saved",
+      "gatewayType": "Join",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "profile-saved--updated--confirmation",
+          "target": "confirmation",
+          "trigger": "updated"
+        },
+        {
+          "id": "profile-saved--rejected--update-rejected",
+          "target": "update-rejected",
+          "trigger": "rejected"
+        }
+      ],
+      "waitingContent": "We are saving your details.",
+      "waitingExpectedSeconds": 5,
+      "waitingPollIntervalMs": 1000,
+      "requiredIncomingQueues": [
+        "public-visitor",
+        "automation"
+      ]
+    },
+    {
+      "key": "route-from-edit-details",
+      "displayName": "Check your answers",
+      "gatewayType": "Split",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "route-from-edit-details--continue--check-answers",
+          "target": "check-answers",
+          "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "key": "route-from-update-rejected",
+      "displayName": "Try again",
+      "gatewayType": "Split",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "route-from-update-rejected--continue--edit-details",
+          "target": "edit-details",
+          "trigger": "continue"
+        }
+      ]
+    }
+  ]
+}

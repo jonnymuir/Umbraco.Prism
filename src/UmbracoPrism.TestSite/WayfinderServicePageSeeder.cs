@@ -93,9 +93,11 @@ public class WayfinderServicePageSeeder(
             await EnsureDefinitionSeededAsync(TestSiteSeedContract.ContributionsBlueprintSlug, "bulk-contributions.json", cancellationToken);
             await EnsureDefinitionSeededAsync(TestSiteSeedContract.MoneyModellerBlueprintSlug, "money-modeller.json", cancellationToken);
             await EnsureDefinitionSeededAsync(TestSiteSeedContract.ButterflySightingBlueprintSlug, "record-a-butterfly-sighting.json", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.UpdateMyDetailsBlueprintSlug, "update-my-details.json", cancellationToken);
 
             EnsureStagePage(TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicenceBlueprintSlug);
             EnsureStagePage(TestSiteSeedContract.ButterflySightingPageName, TestSiteSeedContract.ButterflySightingBlueprintSlug);
+            EnsureStagePage(TestSiteSeedContract.UpdateMyDetailsPageName, TestSiteSeedContract.UpdateMyDetailsBlueprintSlug);
             EnsureStagePage(TestSiteSeedContract.ContributionsPageName, TestSiteSeedContract.ContributionsBlueprintSlug);
             EnsureWorklistPage(TestSiteSeedContract.CaseworkerQueuePageName);
             // Money Modeller's own web-user queue is the citizen-facing part (model savings pot
@@ -114,7 +116,11 @@ public class WayfinderServicePageSeeder(
             // Settings → Advanced "Page access" backoffice screen like any other policy, not
             // hardcoded to this one page's URL. Enforced generically by PrismPageAccessFilter
             // (UmbracoPrism.Core) for every request, not by this seeder.
-            EnsureMoneyModellerRequiresSignIn();
+            EnsureRequiresSignIn(TestSiteSeedContract.MoneyModellerPageName);
+
+            // Update my details acts as the signed-in member (their bearer token goes to the
+            // business app), so an anonymous visitor has nothing to act as.
+            EnsureRequiresSignIn(TestSiteSeedContract.UpdateMyDetailsPageName);
         }
         catch (Exception ex)
         {
@@ -246,12 +252,12 @@ public class WayfinderServicePageSeeder(
         PublishOrLog(page, name);
     }
 
-    private void EnsureMoneyModellerRequiresSignIn()
+    private void EnsureRequiresSignIn(string pageName)
     {
-        var page = TestSiteSeedContract.FindWayfinderServicePageByName(contentService, TestSiteSeedContract.MoneyModellerPageName);
+        var page = TestSiteSeedContract.FindWayfinderServicePageByName(contentService, pageName);
         if (page is null)
         {
-            logger.LogDebug("WAYFINDER SERVICE PAGE SEEDER: Money Modeller page not found; skipping its page-access policy");
+            logger.LogDebug("WAYFINDER SERVICE PAGE SEEDER: {PageName} page not found; skipping its page-access policy", pageName);
             return;
         }
 
@@ -269,9 +275,9 @@ public class WayfinderServicePageSeeder(
             RequiresSignIn = true,
             TenantAllowListJson = null
         });
-        pageAccessResolver.Invalidate("money-modeller-seed");
+        pageAccessResolver.Invalidate("requires-sign-in-seed");
 
-        logger.LogInformation("WAYFINDER SERVICE PAGE SEEDER: Money Modeller page-access policy (requires sign-in) seeded");
+        logger.LogInformation("WAYFINDER SERVICE PAGE SEEDER: {PageName} page-access policy (requires sign-in) seeded", pageName);
     }
 
     private void EnsureWorklistPage(string name)
