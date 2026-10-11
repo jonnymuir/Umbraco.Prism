@@ -186,6 +186,13 @@ Leave the setting off anywhere the two are on different machines. The business a
 `__ClientId`, `__Code`, `__DisplayName`) and `PrismBusinessApp__SelfRegistration__Tenants__0=<Code>`.
 The members and profiles are in memory, so each deploy starts with an empty registry.
 
+**Assumption about the Entra sign-up flow.** Entra tenants are treated as managed: the business app reads
+the email from `preferred_username` (then `email`) without checking `email_verified`. That is only safe
+while the user flow's sign-up identifier is a verified email address, so a person cannot choose a
+username that looks like someone else's email. If the flow ever allows a username or phone number as the
+identifier, or another sign-up method, this trust rule must change first (as it already does for generic
+OIDC tenants, which require `email_verified`). Prism Tenant A is set up with email as the identifier.
+
 ### The calling side
 
 `MemberBearerProvider` (in `UmbracoPrism.TestSite`) is the one place a client gets the member's token: it
