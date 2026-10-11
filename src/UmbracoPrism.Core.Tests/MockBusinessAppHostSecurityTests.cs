@@ -125,6 +125,50 @@ public sealed class MockBusinessAppHostSecurityTests : IClassFixture<MockBusines
         response.Headers.Location.Should().BeNull();
     }
 
+    [Theory]
+    [InlineData(false, "127.0.0.1", null, HttpStatusCode.BadRequest)]
+    [InlineData(true, "127.0.0.1", null, HttpStatusCode.Unauthorized)]
+    [InlineData(true, "10.0.0.5", null, HttpStatusCode.BadRequest)]
+    [InlineData(true, "127.0.0.1", "X-Forwarded-For", HttpStatusCode.BadRequest)]
+    [InlineData(true, "127.0.0.1", "CF-Connecting-IP", HttpStatusCode.BadRequest)]
+    public async Task PlainHttp_IsAcceptedOnlyFromALoopbackSocket_WhenTheDeploymentOptsIn_AndNeverThroughAProxy(
+        bool optedIn, string remoteAddress, string? proxyHeader, HttpStatusCode expected)
+    {
+        using var host = _host.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("PrismBusinessApp:AllowLoopbackHttp", optedIn.ToString());
+            builder.ConfigureServices(services => services.AddTransient<IStartupFilter>(_ => new RemoteAddressFilter(remoteAddress)));
+        });
+        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("http://localhost"),
+            AllowAutoRedirect = false,
+        });
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/backoffice/me");
+        if (proxyHeader is not null)
+        {
+            request.Headers.TryAddWithoutValidation(proxyHeader, "203.0.113.9");
+        }
+
+        using var response = await client.SendAsync(request);
+
+        // 401 means the request got past the transport check and was stopped by authentication.
+        response.StatusCode.Should().Be(expected);
+    }
+
+    private sealed class RemoteAddressFilter(string address) : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            app.Use((context, nextMiddleware) =>
+            {
+                context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(address);
+                return nextMiddleware();
+            });
+            next(app);
+        };
+    }
+
     [Fact]
     public async Task TheDevelopmentDiagnosticsRoute_IsNotMappedAndNotServed_InADeployedEnvironment()
     {

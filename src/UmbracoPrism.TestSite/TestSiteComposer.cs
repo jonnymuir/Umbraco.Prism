@@ -281,7 +281,10 @@ public class TestSiteComposer : IComposer
             builder.Services.AddHttpClient(name, ConfigureBaseAddress)
                 .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 
-        builder.Services.AddSingleton<MemberBearerProvider>();
+        // Plain HTTP to the business app is allowed only when it runs on this same host and the deployment
+        // says so; MemberBearerProvider still refuses any non-loopback http address.
+        var allowLoopbackHttp = builder.Config.GetValue<bool>("PrismBusinessApp:AllowLoopbackHttp");
+        builder.Services.AddSingleton(sp => new MemberBearerProvider(sp.GetRequiredService<IHttpContextAccessor>(), allowLoopbackHttp));
 
         AddBusinessAppClient(MockBusinessAppContributionsClient.HttpClientName);
         builder.Services.AddSingleton<ISupportSystemClient, MockBusinessAppContributionsClient>();
