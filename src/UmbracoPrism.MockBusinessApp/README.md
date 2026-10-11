@@ -167,6 +167,25 @@ signs in with `email_verified: false`. This app does not rely on that configurat
 provider, fails closed. The local stack runs Mailpit (http://localhost:8025) so the verification email can be
 read.
 
+### Running it internally on the reference VPS
+
+`deploy-mock-business-app.yml` deploys it beside `prism-reference` as an internal-only service. It binds
+`127.0.0.1:5002` and has no Cloudflare route, so nothing outside the machine can reach it, and the only
+caller is TestSite. Because TestSite and the business app share a host, plain HTTP over loopback is
+allowed by one explicit setting, on both sides:
+
+| Setting | Where | Effect |
+|---|---|---|
+| `PrismBusinessApp__AllowLoopbackHttp=true` | business app env | Accepts plain HTTP only from a loopback socket, and refuses it if the request carries `X-Forwarded-*`, `Forwarded` or `CF-*` headers (a tunnel connector also arrives from loopback). |
+| `PrismBusinessApp__AllowLoopbackHttp=true` | TestSite env | `MemberBearerProvider` releases the token for an `http://` address only when it is loopback. Any other `http://` address is still refused. |
+| `PrismBusinessApp__ApiBaseUrl=http://127.0.0.1:5002` | TestSite env | Where TestSite calls. |
+
+Leave the setting off anywhere the two are on different machines. The business app's environment file
+(`/etc/prism-business-app/env`, kept on the VPS, never committed) sets `ASPNETCORE_ENVIRONMENT=Production`,
+`ASPNETCORE_URLS=http://127.0.0.1:5002`, the real tenant (`PrismBusinessApp__Tenants__0__EntraTenantId`,
+`__ClientId`, `__Code`, `__DisplayName`) and `PrismBusinessApp__SelfRegistration__Tenants__0=<Code>`.
+The members and profiles are in memory, so each deploy starts with an empty registry.
+
 ### The calling side
 
 `MemberBearerProvider` (in `UmbracoPrism.TestSite`) is the one place a client gets the member's token: it

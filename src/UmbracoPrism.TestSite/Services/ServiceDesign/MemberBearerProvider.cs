@@ -13,20 +13,22 @@ namespace UmbracoPrism.TestSite.Services.ServiceDesign;
 /// resolved tenant and refreshes it if it has expired. A caller with no session gets an exception,
 /// never an anonymous call.</item>
 /// <item>The destination must be HTTPS. A bearer token sent over plain HTTP is exposed to anyone on
-/// the path, so there is no development exception: the local stack serves the business app over
-/// HTTPS too.</item>
+/// the path. The one exception is a business app on this same host, reached on a loopback address,
+/// and only when the deployment opts in (<c>PrismBusinessApp:AllowLoopbackHttp</c>): the token then
+/// never leaves the machine.</item>
 /// </list>
 /// The token is returned for the outgoing request only. Callers must not put it in an invocation
 /// envelope, a field value or a log line.
 /// </summary>
-public sealed class MemberBearerProvider(IHttpContextAccessor httpContextAccessor)
+public sealed class MemberBearerProvider(IHttpContextAccessor httpContextAccessor, bool allowLoopbackHttp = false)
 {
     public async Task<AuthenticationHeaderValue> GetForAsync(HttpClient client)
     {
-        if (client.BaseAddress is not { Scheme: "https" })
+        if (!IsSafeDestination(client.BaseAddress))
         {
             throw new InvalidOperationException(
-                "Refusing to send the member's token: the business app address is not an HTTPS URL.");
+                "Refusing to send the member's token: the business app address is not an HTTPS URL"
+                + " (or, where explicitly allowed, a loopback address).");
         }
 
         var prismContext = httpContextAccessor.HttpContext?.RequestServices.GetService<IPrismContext>()
@@ -37,4 +39,11 @@ public sealed class MemberBearerProvider(IHttpContextAccessor httpContextAccesso
             ?? throw new InvalidOperationException(
                 $"No bearer token could be released for the signed-in member ({prismContext.LastAuthorizationFailureReason ?? "unknown"}).");
     }
+
+    private bool IsSafeDestination(Uri? address) => address switch
+    {
+        { Scheme: "https" } => true,
+        { Scheme: "http" } => allowLoopbackHttp && address.IsLoopback,
+        _ => false,
+    };
 }

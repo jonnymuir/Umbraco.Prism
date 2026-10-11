@@ -42,6 +42,31 @@ public class MemberBearerProviderTests
         (await act.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().NotContain(Token);
     }
 
+    [Theory]
+    [InlineData("http://localhost:5002")]
+    [InlineData("http://127.0.0.1:5002")]
+    public async Task WhenTheDeploymentOptsIn_TheTokenIsReleasedForABusinessAppOnThisHost(string address)
+    {
+        var provider = ProviderFor(new AuthenticationHeaderValue("Bearer", Token), allowLoopbackHttp: true);
+
+        var header = await provider.GetForAsync(BusinessApp(address));
+
+        header.ToString().Should().Be($"Bearer {Token}");
+    }
+
+    [Theory]
+    [InlineData("http://business.test")]
+    [InlineData("http://10.0.0.5:5002")]
+    [InlineData("http://localhost.evil.test")]
+    public async Task EvenWhenOptedIn_PlainHttpToAnotherHostNeverGetsTheToken(string address)
+    {
+        var provider = ProviderFor(new AuthenticationHeaderValue("Bearer", Token), allowLoopbackHttp: true);
+
+        var act = () => provider.GetForAsync(BusinessApp(address));
+
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
     [Fact]
     public async Task WithNoBaseAddressConfigured_TheTokenIsNotReleased()
     {
@@ -102,7 +127,7 @@ public class MemberBearerProviderTests
         business.Authorizations.Count.Should().BeGreaterThanOrEqualTo(2, "the submit and at least one poll were both made");
     }
 
-    private static MemberBearerProvider ProviderFor(AuthenticationHeaderValue? header, string? failureReason = null)
+    private static MemberBearerProvider ProviderFor(AuthenticationHeaderValue? header, string? failureReason = null, bool allowLoopbackHttp = false)
     {
         var prismContext = new Mock<IPrismContext>();
         prismContext.Setup(c => c.GetAuthorizationHeaderAsync(It.IsAny<bool>())).ReturnsAsync(header);
@@ -111,7 +136,7 @@ public class MemberBearerProviderTests
         {
             RequestServices = new ServiceCollection().AddSingleton(prismContext.Object).BuildServiceProvider(),
         };
-        return new MemberBearerProvider(new HttpContextAccessor { HttpContext = request });
+        return new MemberBearerProvider(new HttpContextAccessor { HttpContext = request }, allowLoopbackHttp);
     }
 
     private static HttpClient BusinessApp(string address) => new() { BaseAddress = new Uri(address) };

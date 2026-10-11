@@ -1,0 +1,96 @@
+name: Deploy Mock Business App
+
+# Manual dispatch only, same posture as deploy-prism-reference.yml. This puts UmbracoPrism.MockBusinessApp
+# on the reference VPS as an INTERNAL service: Kestrel binds 127.0.0.1:5002 and there is no Cloudflare
+# route to it, so the only caller is UmbracoPrism.TestSite on the same machine. Everything else it needs
+# (the Entra tenant, the self-registration allow-list, PrismBusinessApp__AllowLoopbackHttp=true,
+# ASPNETCORE_URLS, ASPNETCORE_ENVIRONMENT=Production) lives in /etc/prism-business-app/env on the VPS,
+# untouched by deploys, exactly like /etc/prism-reference/env. See src/UmbracoPrism.MockBusinessApp/README.md.
+#
+# The app keeps its members and profiles in memory, so a deploy restarts it with an empty registry.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Secrets via env first, never inlined into run: (zizmor template-injection convention).
+      PRISM_VPS_HOST: ${{ secrets.PRISM_VPS_HOST }}
+      PRISM_VPS_USERNAME: ${{ secrets.PRISM_VPS_USERNAME }}
+      PRISM_VPS_PASSWORD: ${{ secrets.PRISM_VPS_PASSWORD }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish UmbracoPrism.MockBusinessApp
+        run: >
+          dotnet publish src/UmbracoPrism.MockBusinessApp/UmbracoPrism.MockBusinessApp.csproj
+          -c Release --no-self-contained -o publish
+
+      - name: Stop the service (release file locks)
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ env.PRISM_VPS_HOST }}
+          username: ${{ env.PRISM_VPS_USERNAME }}
+          password: ${{ env.PRISM_VPS_PASSWORD }}
+          # The unit may not exist on the very first run, before the one-off VPS setup.
+          script: sudo systemctl stop prism-business-app || true
+
+      # scp only adds and overwrites, so wipe the previous build first. The app holds no state on disk.
+      - name: Clean the previous deployment
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ env.PRISM_VPS_HOST }}
+          username: ${{ env.PRISM_VPS_USERNAME }}
+          password: ${{ env.PRISM_VPS_PASSWORD }}
+          script: sudo mkdir -p /var/www/prism-business-app && sudo find /var/www/prism-business-app -mindepth 1 -delete
+
+      - name: Copy published files to the VPS
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
+        with:
+          host: ${{ env.PRISM_VPS_HOST }}
+          username: ${{ env.PRISM_VPS_USERNAME }}
+          password: ${{ env.PRISM_VPS_PASSWORD }}
+          source: "publish/*"
+          target: "/var/www/prism-business-app/"
+          strip_components: 1
+
+      - name: Fix permissions and start the service
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ env.PRISM_VPS_HOST }}
+          username: ${{ env.PRISM_VPS_USERNAME }}
+          password: ${{ env.PRISM_VPS_PASSWORD }}
+          script: |
+            sudo chown -R www-data:www-data /var/www/prism-business-app
+            sudo systemctl start prism-business-app
+
+      # Every route demands a token, so an unauthenticated request getting 401 proves the app is up,
+      # past the transport check (which would answer 400), and still refusing anonymous callers.
+      # The app is not reachable from outside the VPS, so the check runs on it.
+      - name: Wait for the app to answer, and refuse an anonymous caller
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        with:
+          host: ${{ env.PRISM_VPS_HOST }}
+          username: ${{ env.PRISM_VPS_USERNAME }}
+          password: ${{ env.PRISM_VPS_PASSWORD }}
+          script: |
+            for i in $(seq 1 24); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5002/api/backoffice/me || true)
+              if [ "$code" = "401" ]; then echo "Up after $((i * 5))s"; exit 0; fi
+              sleep 5
+            done
+            echo "Business app did not answer 401 in time (last status: $code)"
+            sudo journalctl -u prism-business-app -n 40 --no-pager
+            exit 1

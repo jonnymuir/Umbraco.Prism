@@ -89,11 +89,17 @@ app.Use(async (ctx, next) =>
 // A bearer token sent over plain HTTP is already compromised, so outside Development the app refuses
 // the request instead of redirecting it. Terminate TLS in front of the app (and configure forwarded
 // headers for that proxy) rather than serving HTTP.
+//
+// The one opt-in exception is a single-host deployment where the only caller is on the same machine
+// (PrismBusinessApp:AllowLoopbackHttp). Then plain HTTP is accepted only from a loopback socket, and
+// never when the request carries a forwarding header: a proxy such as a tunnel connector also arrives
+// from loopback, and a request that has come through one has crossed a network in the clear.
 if (!app.Environment.IsDevelopment())
 {
+    var allowLoopbackHttp = app.Configuration.GetValue<bool>("PrismBusinessApp:AllowLoopbackHttp");
     app.Use(async (context, next) =>
     {
-        if (!context.Request.IsHttps)
+        if (!context.Request.IsHttps && !(allowLoopbackHttp && IsDirectLoopbackRequest(context)))
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             return;
@@ -167,6 +173,14 @@ static string GetCallerTraceId(HttpRequest request)
 
     return "absent";
 }
+
+static bool IsDirectLoopbackRequest(HttpContext context) =>
+    context.Connection.RemoteIpAddress is { } remote
+    && System.Net.IPAddress.IsLoopback(remote)
+    && !context.Request.Headers.Keys.Any(name =>
+        name.StartsWith("X-Forwarded-", StringComparison.OrdinalIgnoreCase)
+        || name.Equals("Forwarded", StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith("CF-", StringComparison.OrdinalIgnoreCase));
 
 public record BackOfficeMember(string Email, string TenantCode, string BackOfficeId, string Role);
 
