@@ -14,6 +14,9 @@
         TestSiteSeedContract.FindPublishedByAlias(rootContent, TestSiteSeedContract.DashboardAlias),
         TestSiteSeedContract.DashboardUrl);
     var dashboardLoginUrl = $"/auth/login?returnUrl={System.Uri.EscapeDataString(dashboardUrl)}";
+    // Creating an account only makes the login. The membership is the next step, so a new person is
+    // sent straight on to it (it says so if they already are a member), not left on the home page.
+    var registerUrl = $"/auth/register?returnUrl={System.Uri.EscapeDataString(TestSiteSeedContract.RegisterAsAMemberPageUrl)}";
     var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
     var displayName = Context.User.FindFirst("name")?.Value
                       ?? Context.User.FindFirst("preferred_username")?.Value
@@ -36,6 +39,7 @@
                 <p>Your secure portal is ready. Head to your dashboard to manage your account.</p>
                 <div class="hero-actions">
                     <a href="@dashboardUrl" class="btn btn-primary">Go to Dashboard</a>
+                    <a href="@TestSiteSeedContract.RegisterAsAMemberPageUrl" class="btn btn-ghost">Become a member</a>
                     <form method="post" action="/auth/logout" class="form-inline">
                         @Html.AntiForgeryToken()
                         <button type="submit" class="btn btn-ghost">Sign Out</button>
@@ -55,7 +59,7 @@
                 </p>
                 <div class="hero-actions">
                     <a href="@dashboardLoginUrl" class="btn btn-primary">Sign In</a>
-                    <a href="/auth/register" class="btn btn-ghost">Create Account</a>
+                    <a href="@registerUrl" class="btn btn-ghost">Create Account</a>
                 </div>
             </header>
         }
