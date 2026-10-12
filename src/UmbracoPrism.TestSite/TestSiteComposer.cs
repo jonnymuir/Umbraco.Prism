@@ -110,7 +110,7 @@ public class TestSiteComposer : IComposer
             // 404'd on every single attempt. Reading the already-resolved key removes that whole
             // bug class — there's no longer any of Wayfinder.Umbraco's own routing to keep in sync
             // with by hand.
-            options.ResolveAccessProfile = ResolveAccessProfile;
+            options.ResolveAccessProfile = (ctx, blueprintKey) => Task.FromResult(ResolveAccessProfile(ctx, blueprintKey));
         });
 
         // ServiceRequestPollController (the join-gateway waiting screen's own poll endpoint)
