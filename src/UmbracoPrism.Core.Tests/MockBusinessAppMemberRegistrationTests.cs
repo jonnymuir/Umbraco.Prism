@@ -53,7 +53,8 @@ public sealed class MockBusinessAppMemberRegistrationTests : IAsyncDisposable
         profile["email"]!.GetValue<string>().Should().Be("robin@example.test");
         profile["phone"]!.GetValue<string>().Should().Be("01632 960 001");
         profile["contactPreference"]!.GetValue<string>().Should().Be("phone");
-        profile["backOfficeId"]?.ToString().Should().BeNull("the profile read does not need to expose it");
+        profile["backOfficeId"]!.GetValue<string>().Should().Be(created["backOfficeId"]!.GetValue<string>(),
+            "a journey that lost the registration reply recovers the membership id from the person's own profile");
     }
 
     [Fact]

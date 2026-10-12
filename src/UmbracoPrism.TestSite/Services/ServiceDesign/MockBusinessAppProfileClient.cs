@@ -190,18 +190,88 @@ public sealed class MockBusinessAppProfileClient(
         };
     }
 
-    public Task<SupportSystemOutcome?> CheckStatusAsync(
+    public async Task<SupportSystemOutcome?> CheckStatusAsync(
         string capabilityKey,
         SupportSystemInvocationReceipt receipt,
-        CancellationToken ct = default) =>
-        Task.FromResult(_resolved.TryRemove(receipt.ExternalReference, out var outcome) ? outcome : null);
+        CancellationToken ct = default)
+    {
+        if (_resolved.TryRemove(receipt.ExternalReference, out var outcome))
+        {
+            return outcome;
+        }
+
+        // Answers are held in memory only, so one sent before a restart (a deploy, a reboot) is gone
+        // while the business app has already acted, and a journey waiting on it would wait for ever.
+        // A read and a registration can both be settled by asking the business app where the person
+        // stands now. Anything else stays unanswered, as before.
+        return capabilityKey is MockBusinessAppProfile.LoadProfileCapability or MockBusinessAppProfile.RegisterMemberCapability
+            ? await RecoverFromBusinessAppAsync(capabilityKey, ct)
+            : null;
+    }
+
+    private async Task<SupportSystemOutcome?> RecoverFromBusinessAppAsync(string capabilityKey, CancellationToken ct)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, ProfilePath);
+            var client = httpClientFactory.CreateClient(HttpClientName);
+            request.Headers.Authorization = await memberBearer.GetForAsync(client);
+            using var response = await client.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var body = await response.Content.ReadFromJsonAsync<JsonObject>(ct);
+            if (body is null)
+            {
+                return null;
+            }
+
+            var profile = LoadOutcomeFrom(body);
+            if (capabilityKey == MockBusinessAppProfile.LoadProfileCapability)
+            {
+                return profile;
+            }
+
+            // A registration: if they are a member now it went through, whatever happened to the reply.
+            // If not, it never landed, and the person goes back to the form to send it again.
+            return profile.OutcomeKey == MockBusinessAppProfile.RegisteredOutcome
+                ? new SupportSystemOutcome
+                {
+                    OutcomeKey = MockBusinessAppProfile.RegisteredMemberOutcome,
+                    ResultPayload = new JsonObject
+                    {
+                        ["memberId"] = body["backOfficeId"]?.GetValue<string>(),
+                        ["memberRole"] = body["role"]?.GetValue<string>(),
+                        ["profileTenant"] = body["tenant"]?.GetValue<string>(),
+                    },
+                }
+                : new SupportSystemOutcome
+                {
+                    OutcomeKey = MockBusinessAppProfile.RejectedOutcome,
+                    ResultPayload = new JsonObject
+                    {
+                        ["registrationNote"] = "Your registration was interrupted. Check your details and try again.",
+                    },
+                };
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+    }
 
     private static async Task<SupportSystemOutcome> ToLoadOutcomeAsync(HttpResponseMessage response, CancellationToken ct)
     {
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadFromJsonAsync<JsonObject>(ct)
                    ?? throw new InvalidOperationException("Mock Business App returned an empty profile response.");
+        return LoadOutcomeFrom(body);
+    }
 
+    private static SupportSystemOutcome LoadOutcomeFrom(JsonObject body)
+    {
         if (body["registered"]?.GetValue<bool>() != true)
         {
             return new SupportSystemOutcome

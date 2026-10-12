@@ -86,6 +86,7 @@ public static partial class ProfileEndpoints
             registered = true,
             tenant = caller.Tenant.DisplayName,
             tenantCode = member.TenantCode,
+            backOfficeId = member.BackOfficeId,
             name = directory.FindRegistered(caller)?.Name ?? member.Email.Split('@')[0],
             email = member.Email,
             role = member.Role,
