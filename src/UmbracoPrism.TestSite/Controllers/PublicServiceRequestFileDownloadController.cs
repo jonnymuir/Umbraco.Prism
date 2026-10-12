@@ -42,7 +42,7 @@ public class PublicServiceRequestFileDownloadController(
         // No blueprintKey in this route (service-request/files/{instanceId}/{fieldKey}) — same
         // as before this parameter existed, this controller's own identity resolution never
         // varied by blueprint; the engine's own ownership check downstream is the real boundary.
-        var accessProfile = options.ResolveAccessProfile!(HttpContext, null);
+        var accessProfile = await options.ResolveAccessProfile!(HttpContext, null);
 
         var reference = engine.TryGetOwnedFileReference(instanceId, tenantId, userId, accessProfile, fieldKey);
         if (reference is null)
