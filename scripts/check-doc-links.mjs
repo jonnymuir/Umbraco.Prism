@@ -2,10 +2,30 @@
 // Fails when a Markdown file links to a repo file that doesn't exist, or to a heading anchor that
 // doesn't exist in the target. External URLs are not fetched. Archived docs and agent tooling
 // folders are skipped: they are kept for history, not as current documentation.
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, normalize, relative, resolve } from 'node:path';
 
 const root = resolve(process.argv[2] ?? '.');
+
+// A link must point at a file git tracks: a gitignored file exists on the author's machine but
+// not on GitHub, in CI, or in anyone else's checkout.
+const tracked = trackedPaths();
+function trackedPaths() {
+  try {
+    const files = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 })
+      .split('\0').filter(Boolean).map((file) => resolve(root, file));
+    const paths = new Set(files);
+    for (const file of files) {
+      for (let dir = dirname(file); dir.startsWith(root) && !paths.has(dir); dir = dirname(dir)) paths.add(dir);
+    }
+    paths.add(root);
+    return paths;
+  } catch {
+    return null; // not a git checkout: fall back to the filesystem
+  }
+}
+const isPresent = (path) => (tracked ? tracked.has(path.replace(/[\\/]+$/, '')) : existsSync(path));
 const skipDirs = new Set(['node_modules', 'bin', 'obj', '.git', 'artifacts', 'test-results', 'archive', '.claude', '.copilot', '.squad', '.agents', 'agents']);
 
 function* markdownFiles(dir) {
@@ -53,7 +73,7 @@ for (const file of markdownFiles(root)) {
       const [path, fragment] = target.split('#');
       const resolved = path ? normalize(join(dirname(file), decodeURIComponent(path.split('?')[0]))) : file;
       const where = `${relative(root, file)}:${index + 1}`;
-      if (!existsSync(resolved)) {
+      if (!isPresent(resolved)) {
         problems.push(`${where}: missing file ${target}`);
       } else if (fragment && resolved.endsWith('.md') && !anchorsOf(resolved).has(decodeURIComponent(fragment).toLowerCase())) {
         problems.push(`${where}: missing anchor ${target}`);
