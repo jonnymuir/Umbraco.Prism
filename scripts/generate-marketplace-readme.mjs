@@ -46,9 +46,26 @@ function transformMarkdown(sourceRelativePath, markdown) {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
   let inCodeFence = false;
   let centeredHtmlBlock = null;
+  let inMermaid = false;
 
   for (const line of lines) {
     const trimmed = line.trim();
+
+    // Mermaid only renders on GitHub; anywhere else it shows as raw code. Swap each diagram for
+    // a link to the README on GitHub, where it renders.
+    if (!inCodeFence && trimmed === '```mermaid') {
+      inMermaid = true;
+      output.push(`*[View this diagram on GitHub](${githubBlobBaseUrl}/${sourceRelativePath}).*`);
+      continue;
+    }
+
+    if (inMermaid) {
+      if (trimmed === '```') {
+        inMermaid = false;
+      }
+
+      continue;
+    }
 
     if (!inCodeFence && trimmed === '<div align="center">') {
       centeredHtmlBlock = [line];
@@ -135,7 +152,12 @@ function parseHtmlAttributes(attributeText) {
 }
 
 function rewriteMarkdownLinks(sourceRelativePath, line) {
-  return line.replace(/(!?\[[^\]]*])\(([^)\n]+)\)/g, (match, label, destination) => {
+  // A badge is an image nested inside a link, [![alt](image)](target): rewrite the outer target
+  // here, since the general pattern below only sees the inner image.
+  const withBadges = line.replace(/(\[!\[[^\]]*]\([^)\n]+\)])\(([^)\n]+)\)/g, (match, label, target) =>
+    isRelativeTarget(target.trim()) ? `${label}(${toAbsoluteUrl(sourceRelativePath, target.trim(), false)})` : match);
+
+  return withBadges.replace(/(!?\[[^\]]*])\(([^)\n]+)\)/g, (match, label, destination) => {
     const { target, title } = splitMarkdownDestination(destination.trim());
 
     if (target.startsWith('#')) {
