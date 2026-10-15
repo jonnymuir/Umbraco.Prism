@@ -1,52 +1,66 @@
-# Contributing to Umbraco.Prism
+# Contributing to Umbraco Prism
 
-Umbraco.Prism is a professional, versioned package distributed via the Umbraco Marketplace. Contributions are welcome but follow a structured review process.
+Umbraco Prism is a versioned package on NuGet and the Umbraco Marketplace, maintained by Jonny
+Muir. Contributions are welcome through pull requests and are reviewed before merging.
+Security-sensitive code (authentication, tenant isolation, biometric sign-in, secrets) gets
+particular scrutiny.
 
-## Before You Start
+## Reporting bugs
 
-- **Prism is actively maintained** by Jonny Muir 
-- **Biometric and security-sensitive code** requires additional scrutiny, expect thorough review.
-- **Marketplace impact:** Changes affect CMS instances. Backward compatibility matters.
+1. **Search the existing [issues](https://github.com/jonnymuir/Umbraco.Prism/issues) first.**
+2. **Open an issue** with steps to reproduce and your environment: Umbraco version, .NET version,
+   identity provider, and the browser or device for mobile and biometric problems. Include the
+   exact error message.
+3. **Found a security problem?** Don't open a public issue. Report it privately as described in
+   [SECURITY.md](SECURITY.md).
 
-## Reporting Bugs
+Questions are welcome as issues too; start the title with `[Question]`.
 
-1. **Use GitHub Issues.** Check existing issues first, search by keywords.
-2. **Include reproduction steps** and your environment:
-   - Umbraco version
-   - .NET version
-   - Browser/device (especially for mobile/biometric issues)
-   - Exact error message or unexpected behavior
-3. **Security issues?** Do NOT open a public issue. Email security concerns to the maintainer privately instead.
+## Submitting a pull request
 
-## Submitting Pull Requests
+1. **Fork the repo and branch from `main`.** Name the branch `{type}/{short-description}`, using a
+   Conventional Commits type: `feat/tenant-export`, `fix/biometric-banner-overlap`.
+2. **Keep it focused**: one feature or fix per pull request.
+3. **Write [Conventional Commits](https://www.conventionalcommits.org/).** The changelog is written
+   from them at release time, so make each subject understandable to someone using the package.
+   A breaking change needs a `BREAKING CHANGE:` line in the body that says how to upgrade.
+4. **Run the checks** that CI runs. See the [development guide](docs/development.md) for setup:
 
-1. **Fork and branch** from `main`. Use the naming convention: `feature/your-feature` or `fix/bug-description`.
-2. **Keep commits focused.** One feature or fix per PR. Avoid unrelated changes.
-3. **Run tests locally:**
-   - Core tests: `npm run test`
-   - Storybook: `npm run storybook`
-   - Full build: `npm run build`
-4. **Update CHANGELOG.md** if your change affects users:
-   - Add an entry under a new `[Unreleased]` section
-   - Use categories: New Features, Bug Fixes & Improvements, Chores
-5. **Write a clear PR title and description:**
-   - Link the related issue (e.g., "Closes #42")
-   - Explain *why* the change is needed, not just *what* changed
-6. **Expect review.** Maintainer will provide feedback or request changes before merging.
+   ```bash
+   # .NET build and tests
+   dotnet build UmbracoPrism.slnx -c Release
+   dotnet test UmbracoPrism.slnx -c Release --no-build \
+     --filter "FullyQualifiedName~UmbracoPrism.Core.Tests|FullyQualifiedName~UmbracoPrism.Core.IntegrationTests"
 
-## Code Standards
+   # Client: type check and bundle, then the Storybook component tests
+   cd src/UmbracoPrism.Client
+   npm ci
+   npm run build
+   npm run test:playwright
+   cd ../..
 
-- **C# / .NET:** Follow existing patterns in the codebase. No new abstractions without team discussion.
-- **TypeScript:** Strict mode required. Use the existing Storybook/Web Components patterns.
-- **Biometric/Security:** Comments required for non-obvious logic. Test on real devices if possible.
-- **No style-only PRs.** Focus on substance.
+   # The Marketplace readme is generated from README.md, and doc links must resolve
+   npm run check:marketplace
+   node scripts/check-doc-links.mjs
+   ```
 
-## Development Setup
+5. **Describe the pull request**: link the issue (`Closes #42`) and explain *why* the change is
+   needed, not just what changed. A change to a security boundary needs a test that fails if the
+   boundary regresses.
 
-See README.md "Setup & Development" for environment setup, dev tunnels, and testing.
+`main` is protected: every change, however small, goes through a pull request with passing
+checks.
 
-## Questions?
+## Code standards
 
-Open a GitHub Issue with `[Question]` in the title, or check existing issues for answers.
+[`CLAUDE.md`](CLAUDE.md) has the full conventions. In short:
 
-Thanks for contributing to Umbraco.Prism. 🙏
+- **C#**: idiomatic .NET 10 and Umbraco 17. Follow the existing patterns; no speculative
+  abstractions.
+- **TypeScript**: strict mode, Lit web components, `data-prism-*` attributes as test hooks.
+- **Tests** check behaviour through public seams: xUnit, Moq and AwesomeAssertions for C#, and
+  Playwright with semantic selectors (roles, labels, text) for the UI.
+- **Comments** only where the reason isn't obvious from the code.
+- **Docs** describe the current behaviour, in plain English, with no em dashes.
+
+Thanks for contributing.

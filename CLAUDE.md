@@ -19,12 +19,16 @@ Solo developer project, but every change reaches `main` through a pull request. 
 | `UmbracoPrism.Core` | The publishable Umbraco package, multi-tenant OIDC, branding, mobile, controllers/middleware/services for those. No service-design opinion of its own at all; carries no dependency on `Wayfinder`/`Wayfinder.Umbraco`. |
 | `UmbracoPrism.uSync` | uSync portability for Prism's own tenant configuration only (`PrismTenantHandler`/`PrismTenantSerializer`). Service blueprint uSync portability lives entirely in `Wayfinder.Umbraco` now (`ServiceBlueprintHandler`/`ServiceBlueprintSerializer`), with no Prism dependency. |
 | `UmbracoPrism.Client` | TypeScript/Lit web components, backoffice extensions (tenant management, branding, mobile), mobile shell. No longer builds any service blueprint editor bundle, that moved entirely to the `Wayfinder` repo's own `Wayfinder.Editor.Client`. |
-| `UmbracoPrism.MockBusinessApp` | Demo business API, hosts `IProcessManager`, loads service blueprint seed files, serves `/mockapp/` endpoints |
+| `UmbracoPrism.MockBusinessApp` | A separate downstream business API that journeys call as the signed-in member (member records, contributions-file validation) and that proves Prism's bearer-token identity propagation. Hosts no Wayfinder engine. Its `service-blueprints/*.json` are test fixtures read by `UmbracoPrism.Core.Tests`. |
 | `UmbracoPrism.TestSite` | Demo Umbraco site wired to Prism Core and MockBusinessApp. Also installs `Wayfinder.Umbraco` directly and owns its own small demo-queue implementation (`PublicVisitorQueue`, `PublicServiceRequestPageController`, file upload/download controllers), the reference pattern for any host wanting a Wayfinder.Umbraco-backed service blueprint page. |
 | `UmbracoPrism.AppHost` | .NET Aspire orchestrator for local dev (Keycloak + TestSite + MockBusinessApp) |
 | `UmbracoPrism.KeycloakProxy` | YARP reverse proxy for Keycloak in Aspire |
 | `UmbracoPrism.ServiceDefaults` | Shared Aspire service defaults |
-| `UmbracoPrism.Core.Tests` | XUnit unit/integration test suite |
+| `UmbracoPrism.Core.Tests` | xUnit unit/integration test suite. References `Wayfinder`, `Wayfinder.Engine` and `Wayfinder.Umbraco` to test the reference site's blueprints and demo queue. |
+
+Only `UmbracoPrism.Core` is packed and published (as the `UmbracoPrism` NuGet package).
+`UmbracoPrism.uSync` and `UmbracoPrism.Automate` (the "Send Prism push notification" Automate
+action) are consumed by the reference site as project references and do not ship.
 
 `Wayfinder`, `Wayfinder.Engine`/`.Api`/`.Mcp`, `Wayfinder.Editor`, and `Wayfinder.Umbraco` are no
 longer part of this repo, see [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder) and
@@ -36,8 +40,8 @@ authoritative workflow engine) was removed outright once `UmbracoPrism.MockBusin
 to a genuine downstream support system and Wayfinder.Umbraco itself became authoritative,
 in-process, natively multi-queue (front-stage + backstage in one host, no separate business app
 needed, see that repo's own `docs/guides/work-allocation.md`/`team-assignment.md`).
-`UmbracoPrism.TestSite` is the *only* project in this repo with a `PackageReference` to any
-Wayfinder package, for its own demo-queue implementation.
+`UmbracoPrism.TestSite` (and `UmbracoPrism.Core.Tests`, which tests it) are the only projects in
+this repo with a `PackageReference` to any Wayfinder package.
 
 ---
 
@@ -97,99 +101,36 @@ node scripts/validate-aspire-prereqs.mjs
 
 ## Architecture essentials
 
-### Service Blueprint model
+### Service blueprints (owned by Wayfinder)
 
-The canonical service blueprint contract is `ServiceBlueprint` (C#) / `AuthoredServiceBlueprint` (TypeScript). Key fields:
+This repo owns no service-design code. The `ServiceBlueprint` model, the engine, the calculation
+language, the editor and the MCP/REST authoring toolkit are all in
+[`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder); the Umbraco store, Block Grid
+blocks and backoffice **Settings → Advanced → Blueprints** screen are in
+[`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco). Read their
+`CLAUDE.md` and `docs/` before changing anything blueprint-shaped, and never copy their code here.
 
-- **`queues`**, named work queues (e.g. `web-user`, `admin`). Each stage belongs to one queue via `queueKey`.
-- **`stages`**, service blueprint stages, each owning their own `routes` array (replacing the old flat `transitions` array).
-- **`gateways`**, first-class Split/Join gateway nodes. Stage routes must target a gateway; gateway routes may target stages or other gateways.
-- **`initialStage`**, key of the starting stage.
-- **`requestPolicy`**, `"single"` (one active service request per user, resumed on every visit), `"multiple"` (a new instance every visit), or `"prompt"` (an active instance triggers an `instance_picker` response instead of the form).
+What this repo does have:
 
-Stage routes must always point to a gateway, never directly to another stage. `ValidateGatewayRouting()` enforces this at save time.
-
-**"Stage" vs "touchpoint":** a stage is the generic graph node, the thing that happens at one point in a blueprint, regardless of who or what is acting. "Touchpoint" is a narrower service-design term for a point of *customer contact*, so it doesn't fit every stage (a hypothetical future automated/system queue would have stages with no touchpoint at all). Queue `displayName`s may still say "touchpoints" where that's accurate, e.g. `web-user`/`business-user` queues are named "... touchpoints" in the demo seeds, because those queues genuinely are all customer- or staff-facing contact points, but the type name and field names are `Stage`/`stageKey` everywhere, not `Touchpoint`.
-
-**Response states:** `"render"` (show this step), `"defer"` (wait), `"complete"`, `"error"`.
-
-Persistence differs by authoring surface. `Wayfinder.Umbraco`'s own "Blueprints" entry under Settings (its `ServiceBlueprintAuthoringController`) is DB-backed, saves go through `UmbracoServiceBlueprintStore` to a real `wayfinderServiceBlueprint` table in the Umbraco content database, survive restarts, and are uSync-portable via `ServiceBlueprintHandler`/`ServiceBlueprintSerializer`, all of this carries no Prism dependency at all; `UmbracoPrism.Core` has no backoffice service-blueprint feature of its own anymore. `UmbracoPrism.TestSite`'s own demo queue (`PublicVisitorQueue`) adds only the single-queue constraint and tenant-scoping on top, enforced by `Wayfinder.Umbraco`'s own `SingleQueueStructuralValidator`, not by Prism. `MockBusinessApp`'s own demo/business blueprint authoring surface (used by the AI-ready MCP/REST toolkit against the reference app) is memory-only by design, POSTing writes to an in-memory store only, and a restart reloads from `service-blueprints/*.json`. Don't assume one behavior applies to the other.
-
-### Queue model
-
-Host apps decide what queues exist and who can access them:
-- `TestSite` exposes `"web-user"` queue, applicant-facing stages.
-- `MockBusinessApp` exposes `"admin"` queue, reviewer/admin stages.
-
-The shared runtime does NOT enforce queue-level access control, that's the host's responsibility.
-
-### Service Blueprint Editor (TypeScript)
-
-No longer part of this repo at all, the editor's TS source (`wayfinder-service-blueprint-editor.ts`, `wayfinder-service-blueprint-graph.ts`, `wayfinder-service-blueprint-editor-shell.ts`, etc.) lives in the `Wayfinder` repo's own `Wayfinder.Editor.Client`, compiled into the published `Wayfinder.Editor` NuGet package. `Wayfinder.Umbraco`'s own "Blueprints" entry under Settings consumes that package directly; this repo has no local copy to work on. See [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder) if you need to change the editor itself (canvas layout, lane bands, gateway nodes, route edges).
-
-### Seed files
-
-`src/UmbracoPrism.MockBusinessApp/service-blueprints/`, demo service blueprints:
-- `payment-demo.json`, two-queue, Split+Join gateways, payment flow
-- `planning.json`, single-queue, linear applicant flow
-- `planning-notification.json`, planning notification variant
-- `community-enquiry.json`, two-queue applicant/reviewer with approval loop
-- `information-request.json`, two-queue, SLA-driven review flow
-- `money-modeller.json`, fully declarative pension modeller: calculations block + live components (sliders, stat-group, chart, showWhen), recalculate self-loop, two-queue quote-request fan-out
-
-### Declarative calculations & live stages (Money Modeller pattern)
-
-Service Blueprints may carry a `calculations` block (tables + fields + series), the
-single source of any business maths. It is a total expression language (arithmetic,
-comparisons, boolean logic, `if/min/max/clamp/abs/floor/round/pow/lookup`; no eval, no
-loops, no side effects) with decimal semantics. **This repo owns none of that engine or
-its runtimes any more** — both live in `Wayfinder`: the authoritative C# evaluator
-(`Wayfinder/Services/Calculations`, run by `ProcessManagerEngine` on every render) and its
-conformant TypeScript counterpart (`Wayfinder.Rendering.GovUk/wwwroot/js/wayfinder-calculations.js`,
-checked against the same `Wayfinder/calculation-fixtures/calculation-golden.json` suite via
-`CalculationGoldenTests` (C#) and that repo's own JS conformance script). `UmbracoPrism.Client`
-previously shipped its own parallel TypeScript evaluator
-(`src/calculations/calculation-engine.ts`) — deleted once `wayfinder-calculations.js` became
-the canonical shared source both runtimes are checked against, so it stopped being anything
-more than a second copy to keep in sync by hand. Do NOT hand-write business maths in host
-services or client components, put it in the definition's `calculations` block (or declare a
-`service` field when it lives in an external system of record).
-
-The UI is equally declarative: stages compose generic components only. Calculated fields
-bind by name (`stat-group` items, `summary-list` rows, `chart` components bound to a
-series); any component may declare `showWhen` (an expression) for live visibility; input
-components declare `default` values that seed both the form and the calculation scope, or
-`defaultFrom` to suggest a *calculation-scope* value (a calculated field, or a `source:
-"service"` field, dotted paths like `member.tier` resolve too) instead of a static literal,
-while a saved value is always absent, a genuine overridable default, never a lock, and it
-falls back to `default` when the name doesn't resolve (e.g. an anonymous visitor with no
-member data); calculated fields may declare `format` ("gbp"). The server renders everything
-(works without JavaScript; the Recalculate self-loop re-renders authoritatively) and
-`Wayfinder.Rendering.GovUk`'s own `wayfinder-live-form.js` (loaded by `Wayfinder.Umbraco`'s
-`_Stage-Question.cshtml`, not anything in this repo) upgrades the page in place — Prism ships
-no live-form runtime of its own any more (`prism-live-form.ts` was deleted for the same reason
-as `calculation-engine.ts`: it duplicated, and had drifted from, Wayfinder's own script). There
-are no bespoke per-blueprint client components.
-
-### AI-ready service blueprint authoring
-
-Service blueprint authoring is exposed to AI agents (Claude Code or any MCP client) the same way
-the editor is exposed to humans: as a toolkit a host app wires into its own pipeline, not
-as AI built into Prism itself. `ServiceBlueprintAuthoringService`/`IServiceBlueprintSourceStore`
-(`Wayfinder.Engine`) are the reusable core; `Wayfinder.Engine.Api`
-(`MapServiceBlueprintAuthoringApi()`) and `Wayfinder.Engine.Mcp`
-(`MapServiceBlueprintAuthoringMcp()`) map the same list/read/validate/save/simulate
-operations as REST and MCP-over-HTTP respectively, both call the service in-process, so
-a save reaches a host's live engine immediately. `MockBusinessApp` is the reference
-implementation (`Program.cs`); see the
-[AI-Ready Service Blueprint Authoring guide](docs/guides/ai-service-blueprint-authoring.md) for the full
-integrator recipe. MCP hosting is HTTP-only by design, a stdio MCP server would be a
-separate spawned process with no access to a host's live state, and Aspire can't manage
-a stdio server as a background resource (nothing would drive its stdin).
+- **The reference site's runtime blueprints**, in `src/UmbracoPrism.TestSite/service-blueprints/`,
+  seeded into Wayfinder.Umbraco's database-backed store. Their queues are `public-visitor` (the
+  citizen side), `njf-upload` (the contributions team), `web-user`/`business-user` (the money
+  modeller), and `automation`/`identification` (system lanes).
+- **`PublicVisitorQueue`** in TestSite: the single-queue constraint and tenant scoping for the
+  public journeys, enforced through Wayfinder.Umbraco's `SingleQueueStructuralValidator`.
+- **Access control is the host's job.** Wayfinder.Umbraco calls TestSite's `ResolveAccessProfile`
+  (asynchronous since Wayfinder.Umbraco 3.0) to decide which queues a person can see and act on.
+- **Test fixtures** in `src/UmbracoPrism.MockBusinessApp/service-blueprints/`
+  (`community-enquiry`, `information-request`, `money-modeller`, `payment-demo`,
+  `planning-notification`), read from disk by `UmbracoPrism.Core.Tests`. Validated copies of the
+  same examples, used by the guides, live in Wayfinder's `docs/examples/`.
+- **Business maths** belongs in a blueprint's `calculations` block, never in a host service or a
+  client component. Prism ships no calculation or live-form runtime of its own; Wayfinder's
+  `wayfinder-calculations.js` and `wayfinder-live-form.js` are the only ones.
 
 ### Authentication
 
-OIDC via Keycloak. Stateless token handling; per-tenant JWKS validation; nonce hard-fail on mismatch. `IProcessManager` takes `ActorProfile` (derived from the authenticated user's claims) for queue-aware routing.
+Per-tenant OIDC against any compliant provider (Keycloak locally, Entra ID and others in production). Stateless token handling; per-tenant JWKS validation; nonce hard-fail on mismatch. Wayfinder journeys get an `ActorProfile` derived from the signed-in member's claims through TestSite's `ResolveAccessProfile`.
 
 ---
 
@@ -203,6 +144,18 @@ OIDC via Keycloak. Stateless token handling; per-tenant JWKS validation; nonce h
 - **Error assertions**: always check both `[role="alert"]` error summary AND field-level errors.
 - C# tests: XUnit + Moq + AwesomeAssertions. No database mocks, integration tests use a real test host.
 - Playwright configs: `playwright.config.ts` (Storybook tests) and `playwright.localhost-auth.config.ts` (live Aspire stack tests, run separately).
+
+### Documentation
+
+- `docs/README.md` indexes every current document; add new docs there. `docs/archive/` holds
+  superseded docs; never link to it from current documentation.
+- `README.md` is the source; `MARKETPLACE.md` is generated from it (`npm run generate:marketplace`)
+  and CI fails if it is stale.
+- `CHANGELOG.md` is written at release time by the `/release` command, from the Conventional
+  Commit history. So write commit subjects a package user can understand, and give a breaking
+  change a `BREAKING CHANGE:` body line that says how to upgrade.
+- `node scripts/check-doc-links.mjs` (CI) fails on a broken relative link or heading anchor.
+- Service-design documentation belongs in Wayfinder or Wayfinder.Umbraco, not here.
 
 ### Branch policy
 

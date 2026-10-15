@@ -2,7 +2,7 @@
 
 A guide to taking a Prism service blueprint and shipping it as a native iOS or Android app using Capacitor, covering the shell structure, biometric authentication, deep link handling, and the build pipeline.
 
-> **Prerequisites:** The Prism stack runs locally (or in Codespaces). You have completed at least one service blueprint walkthrough (e.g., [Planning Notification](planning-notification.md)) and are familiar with how service blueprints render in the browser. For iOS builds, Xcode 15+ is required. For Android, Android Studio.
+> **Prerequisites:** The Prism stack runs locally (or in Codespaces). You have walked through the reference site at least once (see [Home entry](home-entry.md)). For iOS builds, Xcode 15+ is required. For Android, Android Studio.
 
 ---
 
@@ -121,15 +121,15 @@ For key generation steps and configuration (local dev via user secrets, producti
 ### Configuring Biometric Auth in the Backoffice
 
 1. Log into the Umbraco backoffice (`https://localhost:44345/umbraco`).
-2. Navigate to **Settings → Prism Dashboard → [your tenant]**.
-3. Find the **Biometric Auth** toggle and enable it.
+2. Navigate to **Settings → Advanced → Tenants → [your tenant]**.
+3. Find the **Allow Biometric Login** toggle and enable it (it is on by default).
 4. Click **Save**.
 
 When the mobile app next connects, it checks this tenant setting and offers biometric enrollment after successful OIDC login.
 
-<!-- manual capture: Prism Dashboard biometric toggle requires Umbraco backoffice authentication -->
+<!-- manual capture: the tenant editor's biometric toggle requires Umbraco backoffice authentication -->
 
-💡 **What's happening:** The `prism-biometric-settings` web component (in `src/UmbracoPrism.Client/src/backoffice/prism-biometric-settings.ts`) reads the tenant's `biometricEnabled` flag from `GET /umbraco/api/prism/tenants/{id}` and saves it via `PATCH /umbraco/api/prism/tenants/{id}`. The mobile app reads the same flag on startup to decide whether to show the enrollment prompt.
+💡 **What's happening:** The toggle is part of the tenant editor (`prism-create-tenant-modal.ts`), which saves the tenant's `AllowBiometricLogin` flag with `PUT /umbraco/management/api/v1/prism/tenants/{id}`. When it is off, mobile users can't register or use biometric sign-in for that tenant.
 
 ### Wiring the Mobile Shell and Biometric Scripts into Your Layout
 
@@ -195,45 +195,23 @@ are always correct.
 
 ---
 
-## Part 4: Deep Link Handling
+## Part 4: Opening a page from a notification
 
-Deep links let external sources (emails, SMS, other apps) open your Prism mobile app at a specific service blueprint or content page.
+A generated app opens a specific page when someone taps a push notification. The sender supplies
+a site-relative path (the `deepLinkPath` argument to
+`IPrismNotificationService.SendNotificationToUserAsync`, or the **Deep link path** field of the
+**Send Prism push notification** Automate action). Prism sends it as the notification's `url`
+data, and the app's `prism-push-register.js` navigates the WebView there when the notification
+is tapped.
 
-### URL Scheme (Universal/Custom)
+> **Only ever pass a path on your own site**, such as `/apply-for-a-juggling-licence`. Nothing
+> currently checks that the value is site-relative, and the app navigates to whatever URL it
+> receives, so never build it from user input.
 
-In `capacitor.config.ts` you can configure a custom URL scheme:
-
-```typescript
-const config: CapacitorConfig = {
-  appId: 'com.prism.portal',
-  // ...
-  plugins: {
-    App: {
-      // Custom URL scheme (e.g., prism-portal://service-blueprint/planning-notification)
-      appUrlScheme: 'prism-portal',
-    },
-  },
-};
-```
-
-For Universal Links (iOS) and App Links (Android), you need:
-- An HTTPS association file at `/.well-known/apple-app-site-association` (iOS) or `/.well-known/assetlinks.json` (Android)
-- These files served by your Prism TestSite
-
-### Handling Deep Links in the Shell
-
-```typescript
-import { App, type URLOpenListenerEvent } from '@capacitor/app';
-
-App.addListener('appUrlOpen', (event: URLOpenListenerEvent) => {
-  const url = new URL(event.url);
-  // e.g., prism-portal://service-blueprint/planning-notification → navigate to /apply-for-planning-permission
-  const serviceBlueprintSlug = url.pathname.replace('/service-blueprint/', '');
-  window.location.href = `/${serviceBlueprintSlug}`;
-});
-```
-
-💡 **What's happening:** Capacitor's `App` plugin listens for URL events at the native level. When the OS hands a URL to your app (from a tap on a link in Safari or an email), `appUrlOpen` fires with the full URL. Your handler can then navigate the `WebView` to the appropriate page in the Prism TestSite.
+The generated apps don't register a custom URL scheme or Universal/App Links, so a link in an
+email or another app opens the site in the browser rather than in the app. Adding one is a change
+to the generated Capacitor project (see Capacitor's
+[deep links guide](https://capacitorjs.com/docs/guides/deep-links)).
 
 ---
 
@@ -279,7 +257,7 @@ Xcode opens with the generated project. Before building:
    <key>NSFaceIDUsageDescription</key>
    <string>Use Face ID to sign in to your Prism account.</string>
    ```
-4. If using push notifications, add the **Push Notifications** capability (see [PUSH_SETUP.md](../PUSH_SETUP.md#ios-setup-apns)).
+4. If using push notifications, add the **Push Notifications** capability (see [Push notification setup](../PUSH_SETUP.md#part-1--firebase-console-setup-you-do-this-once-per-app)).
 
 ### Step 4: Build and Run (iOS)
 
@@ -291,7 +269,7 @@ Xcode opens with the generated project. Before building:
 
 💡 **What's happening:** The native Xcode project (`ios/App/`) embeds your compiled web assets in a `WKWebView`. Capacitor bridges JavaScript calls from the web layer to native Swift/Obj-C plugin implementations, this is how `@aparajita/capacitor-biometric-auth` calls Face ID/Touch ID, and how `@capacitor/push-notifications` registers with APNs.
 
-For App Store distribution builds, change the `aps-environment` entitlement from `development` to `production` (see [PUSH_SETUP.md](../PUSH_SETUP.md#ios-setup-apns)).
+For App Store distribution builds, change the `aps-environment` entitlement from `development` to `production` (see [Push notification setup](../PUSH_SETUP.md#part-1--firebase-console-setup-you-do-this-once-per-app)).
 
 ---
 
@@ -311,7 +289,7 @@ Then sync:
 npx cap sync android
 ```
 
-See [PUSH_SETUP.md](../PUSH_SETUP.md#android-setup-fcm) for the full Firebase project setup steps.
+See [Push notification setup](../PUSH_SETUP.md#part-1--firebase-console-setup-you-do-this-once-per-app) for the full Firebase project setup steps.
 
 ### Step 6: Open and Build in Android Studio
 
@@ -348,7 +326,7 @@ server: {
 
 - **iOS:** Push notifications require a physical device, they do not work on the iOS Simulator.
 - **Android:** Emulators with Google Play Services installed support push notifications.
-- For troubleshooting token registration failures and delivery issues, see [Push Notifications walkthrough](push-notifications.md#troubleshooting).
+- For token registration failures and delivery issues, see [Push notification setup](../PUSH_SETUP.md#testing) and [Notifications](../notifications.md#when-firebase-isnt-configured).
 
 ### Biometric Auth During Development
 
@@ -370,7 +348,7 @@ adb shell pm clear com.prism.portal
 |---|---|
 | Biometric key configuration | [docs/biometric-setup.md](../biometric-setup.md) |
 | Native push setup (APNs, FCM) | [docs/PUSH_SETUP.md](../PUSH_SETUP.md) |
-| Push notifications walkthrough | [push-notifications.md](push-notifications.md) |
+| How Prism sends notifications | [docs/notifications.md](../notifications.md) |
 | Capacitor documentation | [capacitorjs.com/docs](https://capacitorjs.com/docs) |
 | Storybook: Mobile Nav story | `src/UmbracoPrism.Client/src/mobile/prism-mobile-nav.stories.ts` |
 

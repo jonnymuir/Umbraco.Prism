@@ -2,7 +2,7 @@
 
 An exploration of how Prism's design system works end-to-end: from GDS-aligned Lit web components in Storybook, through the branding annotation system, to CSS variables that update live on the tenant's frontend, all without a rebuild.
 
-> **Prerequisites:** Stack running. See [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#quick-start-local).
+> **Prerequisites:** Stack running. See [Codespaces](../../README.md#try-it-now-no-install-required) or [local setup](../../README.md#quick-start-local).
 
 ---
 
@@ -46,7 +46,7 @@ In the left sidebar, browse the component stories. You'll find components organi
 <!-- TODO: capture 02-storybook-sidebar.png via Storybook sidebar navigation -->
 <!-- pending capture -->
 
-Click on **Prism Dashboard** to open its story.
+Click **Prism → Dashboard** to open its story (the Tenants screen's component).
 
 💡 **What's happening:** Each Storybook story renders a standalone instance of a Lit web component. The components use Umbraco's backoffice element APIs (`UmbElementMixin`, `umbHttpClient`) but Storybook mocks these dependencies through story decorators, so you can work on the UI without running the full Umbraco stack.
 
@@ -94,21 +94,21 @@ Each `.ts` file is a `@customElement`-decorated `LitElement`. The accompanying `
 ### How Tokens Flow
 
 ```
-Backoffice editor (saves a tenant's brand colours)
+Backoffice tenant editor (saves a tenant's brand colours)
   ↓
-POST /umbraco/api/prism/tenants/{id}/branding
-  { "--prism-primary": "#e63946", "--prism-font-body": "\"Roboto\", sans-serif" }
+PUT /umbraco/management/api/v1/prism/tenants/{id}
+  { ..., "brandingOverrides": { "--prism-primary": "#e63946", "--prism-font-body": "\"Roboto\", sans-serif" } }
   ↓
-PrismBrandingService stores values in prismTenantBranding table
+Stored on the tenant's row in the prismTenants table, with the CSS declarations precomputed
   ↓
-GET /branding/tenant/{tenantId}/overrides.css  (served by Prism middleware)
+GET /umbraco/prism/branding.css  (PrismBrandingAssetsController, for the tenant resolved from the host)
   Returns:
     :root {
       --prism-primary: #e63946;
       --prism-font-body: "Roboto", sans-serif;
     }
   ↓
-<link rel="stylesheet" href="/branding/tenant/{tenantId}/overrides.css"> in <head>
+<link rel="stylesheet" href="/umbraco/prism/branding.css"> in your layout's <head>
   ↓
 CSS variables cascade to every element, including web components that use var(--prism-*)
 ```
@@ -118,18 +118,18 @@ CSS variables cascade to every element, including web components that use var(--
 1. Log into the Umbraco backoffice at `https://localhost:44345/umbraco`.
    - Username: `admin@prism.local`, Password: `PrismLocal!12345`
 
-2. Navigate to **Settings → Prism Dashboard**.
+2. Navigate to **Settings → Advanced → Tenants**.
 
 3. Click on the `localhost` tenant.
 
 4. Click the **Branding** tab.
 
-<!-- TODO: capture 04-branding-editor.png via backoffice: Prism Dashboard → localhost → Branding tab -->
+<!-- TODO: capture 04-branding-editor.png via backoffice: Settings → Advanced → Tenants → localhost → Branding tab -->
 <!-- pending capture -->
 
    You see sections: **Brand Colours**, **Typography**, **Imagery**, **Components**, **Layout**.
 
-5. 💡 **What's happening:** The branding editor fetches `GET /umbraco/api/prism/branding/metadata`, which returns the parsed metadata from all annotated CSS files in `wwwroot/branding/`. Each annotated variable becomes a typed form field, color pickers for `<color>` syntax, number inputs for `<length>`, etc.
+5. 💡 **What's happening:** The branding editor fetches `GET /umbraco/management/api/v1/prism/branding/metadata`, which returns the parsed metadata from all annotated CSS files in `wwwroot/branding/`. Each annotated variable becomes a typed form field, color pickers for `<color>` syntax, number inputs for `<length>`, etc.
 
    See [Branding Design System](../branding-design-system.md#the-annotation-format) for the full `@property` + `@prism` annotation syntax.
 
@@ -203,7 +203,7 @@ In `src/UmbracoPrism.Client/public/branding/prism-components.css`, add the `@pro
 }
 ```
 
-The next time the branding editor fetches `/umbraco/api/prism/branding/metadata` (or after the 1-hour cache expires), this variable will appear in the **Components** section of the tenant editor.
+The next time the branding editor fetches `/umbraco/management/api/v1/prism/branding/metadata` (or after the 1-hour cache expires), this variable will appear in the **Components** section of the tenant editor.
 
 ### Step 2: Create the Component
 
@@ -289,7 +289,7 @@ No errors should be reported for your new files.
 | Component stories | `src/UmbracoPrism.Client/src/**/*.stories.ts` |
 | Branding CSS files | `src/UmbracoPrism.Client/public/branding/*.css` |
 | Annotation syntax reference | [docs/branding-design-system.md](../branding-design-system.md) |
-| Token API | `GET /umbraco/api/prism/branding/metadata` |
+| Token API | `GET /umbraco/management/api/v1/prism/branding/metadata` |
 | Creating a tenant + branding | [Creating a Tenant walkthrough](creating-a-tenant.md) |
 
 ---

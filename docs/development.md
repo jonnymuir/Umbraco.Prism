@@ -216,7 +216,7 @@ Allows `SecretVaultService` to access Key Vault in local dev.
 
 ### 3. Tenant Setup
 
-In **Prism Dashboard** (backoffice):
+In **Settings → Advanced → Tenants** (backoffice):
 
 **For Keycloak (local dev):**
 - **Hostname:** `localhost:[PORT]`

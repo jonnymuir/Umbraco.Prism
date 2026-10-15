@@ -55,50 +55,22 @@ third:
   Vault Secrets User** role, with its Client ID/Secret/Tenant ID supplied as the standard
   `AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET`/`AZURE_TENANT_ID` environment variables.
 
-For fail-fast behavior (validate Key Vault at startup), optionally add this line to `Program.cs` **before** `builder.AddUmbraco()`:
-
-```csharp
-builder.AddPrismKeyVault();
-```
-
-**Full example `Program.cs` (with optional Key Vault fail-fast):**
+For fail-fast behaviour (validate Key Vault at startup rather than on first use), add one line to
+`Program.cs` before the Umbraco builder:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// Optional: Configure Key Vault for fail-fast validation at startup
-// (Key Vault loads automatically if Prism:VaultUri is in appsettings)
-builder.AddPrismKeyVault();
+builder.AddPrismKeyVault();   // optional: fail at startup if Key Vault isn't reachable
 
-// Register Umbraco and Prism services
-builder.Services.AddUmbraco(env, builder.Configuration)
+builder.CreateUmbracoBuilder()
     .AddBackOffice()
     .AddWebsite()
-    .AddComposers()
+    .AddComposers()           // picks up PrismComposer
     .Build();
 
-builder.Services.AddPrism(builder.Configuration);
-
 var app = builder.Build();
-// ... rest of Program.cs
-```
-
-**Minimal example `Program.cs` (no Key Vault line needed for local dev):**
-
-```csharp
-var builder = WebApplication.CreateBuilder(args);
-
-// Register Umbraco and Prism services
-builder.Services.AddUmbraco(env, builder.Configuration)
-    .AddBackOffice()
-    .AddWebsite()
-    .AddComposers()
-    .Build();
-
-builder.Services.AddPrism(builder.Configuration);
-
-var app = builder.Build();
-// ... rest of Program.cs
+// ... the rest of your Program.cs
 ```
 
 ## 3. What Happens Automatically on First Startup
@@ -137,7 +109,7 @@ If you have an existing Umbraco content tree:
 1. **Create a Home page** using the `homePage` document type (if you don't have one).
 2. **Create a Dashboard page** as a child of Home, using the `memberDashboard` document type.
 3. **Publish both pages.**
-4. **Configure your first tenant** in the Prism backoffice dashboard (see step 5 below).
+4. **Configure your first tenant** in the backoffice (see step 5 below).
 
 ### For New/Greenfield Sites (Auto-Seeding)
 
@@ -164,11 +136,11 @@ Your content tree is then ready to use. No manual page creation needed.
 
 Tenants are managed in the Umbraco backoffice. Navigate to:
 
-**Settings → Prism Dashboard**
+**Settings → Advanced → Tenants**
 
-In the Prism dashboard:
+On the Tenants screen:
 - **Add a new tenant** with a name and hostname (e.g., `localhost:44345` for local dev, or your production domain).
-- **Set the Entra configuration** (OIDC Client ID, Tenant ID, etc.) if using authentication.
+- **Set the identity provider** if using authentication. For Entra ID, give the Entra tenant ID and client ID; for any other OIDC provider (Keycloak, Auth0...), give its authority URL and client ID, which take precedence. Either way the client secret is a *reference* to a secret in your vault, never the secret itself; see [Secret management](secret-management.md).
 - **Configure branding** (logo, colors, theme) in the tenant editor.
 
 For local development without Azure Key Vault, you can test Prism without authentication. The site will render pages but without member sign-in.
@@ -222,32 +194,14 @@ exist on a real deploy" is a code-based reconciler like this one, not uSync. `Pr
 still exists for uSync's own manual export/import actions in the backoffice, just not as an
 auto-apply-on-deploy mechanism.)
 
-## 6. The MockBackOffice Demo (Optional)
+## 6. Calling your own API as the signed-in member (optional)
 
-Prism ships with a `MockBackOffice` example that demonstrates downstream credential flow, showing how Prism tenant credentials can be securely passed to a business API or microservice.
-
-### Running the Demo
-
-In one terminal, start your main Umbraco site:
-
-```bash
-dotnet run --project src/UmbracoPrism.TestSite
-```
-
-In another terminal, start the MockBackOffice service:
-
-```bash
-dotnet run --project src/UmbracoPrism.MockBackOffice
-```
-
-### Testing the Demo
-
-1. Navigate to the Umbraco site (e.g., `https://localhost:44345`).
-2. Log in or use the Sign In CTA.
-3. Once authenticated, visit `/dashboard?callApi=true` in the authenticated session.
-4. The dashboard will call the MockBackOffice API to fetch mock data, demonstrating the credential flow in action.
-
-This example shows how Prism isolates tenant identity and can safely propagate context to downstream services without exposing secrets.
+Prism can pass a member's identity on to your own business API, scoped to their tenant, without
+exposing any secret to the browser. The reference site shows this with
+`UmbracoPrism.MockBusinessApp`: run the full stack (`dotnet run --project src/UmbracoPrism.AppHost`),
+sign in, and on the dashboard choose **Call Mock Business App API**. See
+[Calling a business app as the signed-in member](walkthroughs/authenticated-business-app-call.md)
+for how it works and the security checks behind it.
 
 ## 7. Verify It's Working
 
@@ -256,7 +210,7 @@ After setup, you should see:
 - ✅ **Homepage loads** and displays Sign In / Register CTAs (if authentication is configured).
 - ✅ **Document types exist:** In Umbraco Settings → Document Types, you see `homePage` and `memberDashboard`.
 - ✅ **Content tree is correct:** Home page exists; Dashboard page exists as a child of Home.
-- ✅ **Tenant is configured:** In Settings → Prism Dashboard, your tenant is listed and assigned to the appropriate hostname.
+- ✅ **Tenant is configured:** In Settings → Advanced → Tenants, your tenant is listed and assigned to the appropriate hostname.
 - ✅ **Dashboard loads when authenticated:** Log in, navigate to `/dashboard`, and you see the member portal page.
 
 ## 8. Next Steps
@@ -264,11 +218,13 @@ After setup, you should see:
 Once Prism is running:
 
 - **Configure Key Vault (production only):** Add `Prism:VaultUri` to `appsettings.Production.json`. Secrets load automatically. Optionally call `builder.AddPrismKeyVault()` in `Program.cs` for fail-fast validation at startup.
-- **Configure Entra authentication** by providing your Entra app registration details in `appsettings.json` (Client ID, Tenant ID, etc.).
+- **Configure sign-in** for each tenant with your identity provider's details; see [Creating a tenant](walkthroughs/creating-a-tenant.md).
 - **Customize the dashboard** by editing the Dashboard Razor template (`memberDashboard.cshtml`).
 - **Add more pages** under Dashboard by creating new documents and assigning the `memberDashboard` type (or custom subtypes).
+- **Restrict pages to signed-in members or named tenants** from Settings → Advanced → Page access.
+- **Add service journeys** (citizen forms, caseworker queues) by installing [Wayfinder.Umbraco](https://github.com/jonnymuir/Wayfinder.Umbraco); Prism has no service-design features of its own.
 - **Add tenant branding overrides** by referencing `<link rel="stylesheet" href="/umbraco/prism/branding.css" />` in your layout — see [branding-design-system.md](branding-design-system.md#how-overrides-reach-the-live-site). Prism doesn't inject this for you.
-- **Generate a mobile app** from the Prism backoffice tenant editor to ship native iOS/Android apps for your portal. If you do, your layout needs a few more asset references — see [Wiring the Mobile Shell and Biometric Scripts into Your Layout](walkthroughs/building-a-mobile-app.md#wiring-the-mobile-shell-and-biometric-scripts-into-your-layout).
-- **Enable biometric auth** (optional) for returning users to skip OIDC on subsequent app launches. See `/docs/biometric-setup.md` for key configuration details.
+- **Generate a mobile app** from the tenant editor (Settings → Advanced → Tenants) to ship native iOS/Android apps for your portal. If you do, your layout needs a few more asset references; see [Wiring the Mobile Shell and Biometric Scripts into Your Layout](walkthroughs/building-a-mobile-app.md#wiring-the-mobile-shell-and-biometric-scripts-into-your-layout).
+- **Enable biometric auth** (optional) for returning users to skip OIDC on subsequent app launches. See [Biometric setup](biometric-setup.md) for key configuration details.
 
 For detailed feature walkthroughs, see the main [README.md](../README.md).

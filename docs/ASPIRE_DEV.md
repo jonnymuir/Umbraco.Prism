@@ -19,7 +19,7 @@ dotnet run --project src/UmbracoPrism.AppHost
 
 In VS Code, use **C#: Aspire (Full Stack)**. Its pre-launch task now checks for the .NET 10 SDK and Docker first. This repo uses the Aspire AppHost SDK and NuGet packages, so you do **not** need to run `dotnet workload install aspire`.
 
-> **New to Umbraco.Prism?** After the stack starts, see the [Interactive Walkthrough](docs/walkthroughs/planning-notification.md) for a guided tour of the demo workflow with behind-the-scenes explanations.
+> **New to Umbraco.Prism?** After the stack starts, follow the [Home entry walkthrough](walkthroughs/home-entry.md) for a guided tour of the reference site, with behind-the-scenes explanations.
 
 This launches:
 - **Aspire Dashboard** at `https://localhost:17214` (telemetry, logs, resources)
@@ -40,7 +40,7 @@ When Aspire launches `TestSite`, it now keeps its SQLite database and ASP.NET co
 
 The realm configuration is imported from `keycloak/realm-export.json`.
 The AppHost includes a lightweight HTTPS reverse proxy (`UmbracoPrism.KeycloakProxy`) that terminates TLS at `https://localhost:8443` and forwards requests to Keycloak's HTTP endpoint on port 8080. The proxy uses the .NET development certificate that is already trusted on most dev machines (via `dotnet dev-certs https --trust`). This setup ensures Safari/WebKit-compatible authentication flows that require secure cookies while keeping Keycloak's own configuration simple.
-The MockBusinessApp now defaults to its `https` launch profile, so both the workflow engine and the dashboard's downstream demo call the same trusted localhost origin (`https://localhost:7245`) that Aspire advertises.
+The MockBusinessApp defaults to its `https` launch profile, so the reference site's journeys and the dashboard's downstream demo call the same trusted localhost origin (`https://localhost:7245`) that Aspire advertises.
 For localhost auth, the Keycloak client is pinned to the TestSite sign-in and sign-out callback URLs because Keycloak does not accept `localhost:*` port wildcards for redirect URI validation.
 The local Prism login flow intentionally requests standard OIDC scopes (`openid profile`) from Keycloak instead of `offline_access`. Keycloak still issues a normal session refresh token for code flow, and fresh clones do not need extra offline-token grants on the user or client.
 
@@ -59,20 +59,26 @@ What it does:
 - validates Docker/.NET plus the Aspire-owned ports before it starts
 - boots its own `UmbracoPrism.AppHost` session (real Aspire stack, not a manually assembled subset)
 - resets the isolated Aspire `TestSite` runtime root on the first boot of the suite so every run starts from a clean SQLite database
-- waits for the Aspire dashboard, TestSite home marker, seeded route contract, Keycloak discovery, MockBusinessApp, and workflow auth challenge to be ready
-- signs into the seeded localhost Keycloak demo user
-- exercises dashboard + workflow navigation against the real app
+- waits for the Aspire dashboard, TestSite home marker, seeded route contract, Keycloak discovery, MockBusinessApp, and the caseworker queue's sign-in challenge to be ready
+- signs in as the seeded localhost Keycloak demo users (a plain member and an NJF caseworker)
+- exercises sign-in, the dashboard's Mock Business App call, the caseworker queue, and the juggling licence journey (including an anonymous request being claimed after sign-in) against the real app
 - restarts the whole localhost stack during the run against that same isolated runtime root to verify session persistence without seed drift
 
 ### Stable seeded content contract
 
-From a clean `src/UmbracoPrism.TestSite/umbraco/Data/Umbraco.sqlite.db`, Development startup now repairs the exact Umbraco content the auth/workflow browser flows depend on:
+From a clean database, Development startup creates or repairs the exact content the browser
+flows depend on (the routes are constants in `TestSiteSeedContract`):
 
-- root `homePage` named **Home** at `/`
-- child `memberDashboard` named **Dashboard** at `/dashboard`
-- `workflowPage` named **Get in Touch** with `workflowKey = community-enquiry` at `/get-in-touch`
-- `workflowHub` named **My Workflows** at `/my-workflows`
-- root `settings` node whose mobile nav includes **Home**, **Dashboard**, and **My Workflows**
+- root `homePage` named **Home** at `/`, and its child `memberDashboard` **Dashboard** at `/dashboard`
+- **Apply for a juggling licence** at `/apply-for-a-juggling-licence`
+- **Submit contributions file** at `/submit-contributions-file` and **Caseworker queue** at `/caseworker-queue`
+- **Update my details** at `/update-my-details` and **Register as a member** at `/register-as-a-member`
+- **Money Modeller** at `/money-modeller`
+- **Environmental humanities** at `/environmental-humanities`, with **Record a butterfly sighting** at `/record-a-butterfly-sighting`
+- a root `settings` node holding the site navigation
+
+The journey pages are Wayfinder.Umbraco Block Grid blocks over the blueprints in
+`src/UmbracoPrism.TestSite/service-blueprints/`.
 
 Because the suite owns startup, restart, and shutdown, it now fails fast if anything is already using the default Aspire ports (`17214`, `44345`, `7245`, `8443`) instead of attaching to an existing AppHost or partial stack.
 
@@ -82,9 +88,9 @@ The TestSite views resolve those links from published content instead of assumin
 
 To avoid the cold-start flake where seeded child routes briefly collapse back to `/`, keep the localhost auth suite layered:
 
-- **Layer 1, infrastructure readiness (before any browser interaction):** wait for machine-readable contracts only. In this repo that means the home-page ready marker, `/api/prism/downstream-demo/seed-contract-ready` returning `ready: true`, the protected workflow hub challenging to `/auth/login?ReturnUrl=%2Fmy-workflows`, Keycloak discovery, and MockBusinessApp's expected unauthenticated `401`.
-- **Layer 2, page readiness (before each click):** assert the authored `href` first, then click, then wait for page-specific affordances. Examples: `Go to Dashboard` must resolve to `/dashboard`; dashboard readiness is `View Workflows` + `Call Mock Business App API`; workflow readiness is the page heading and form fields. Do not treat shared text such as `Welcome back, Demo User` or a bare `200 OK` from `/` as proof that child routes are ready.
-- **Layer 3, behaviour under test:** only after layers 1 and 2 pass should the spec make assertions about sign-in, restart persistence, workflow navigation, or downstream API calls. If a scenario needs a direct deep link (`/get-in-touch`, `/my-workflows`), make that an explicit route contract assertion after readiness has converged, not the generic setup for unrelated tests.
+- **Layer 1, infrastructure readiness (before any browser interaction):** wait for machine-readable contracts only. In this repo that means the home-page ready marker, `/api/prism/downstream-demo/seed-contract-ready` returning `ready: true`, the protected caseworker queue challenging to `/auth/login?ReturnUrl=%2Fcaseworker-queue`, Keycloak discovery, and MockBusinessApp's expected unauthenticated `401`.
+- **Layer 2, page readiness (before each click):** assert the authored `href` first, then click, then wait for page-specific affordances. Examples: `Go to Dashboard` must resolve to `/dashboard`; dashboard readiness is the `Call Mock Business App API` button; a journey's readiness is its page heading and form fields. Do not treat shared text such as `Welcome back, Demo User` or a bare `200 OK` from `/` as proof that child routes are ready.
+- **Layer 3, behaviour under test:** only after layers 1 and 2 pass should the spec make assertions about sign-in, restart persistence, journey navigation, or downstream API calls. If a scenario needs a direct deep link (`/apply-for-a-juggling-licence`, `/caseworker-queue`), make that an explicit route contract assertion after readiness has converged, not the generic setup for unrelated tests.
 
 This split keeps cold-start infrastructure drift separate from product-behaviour failures: if the suite fails before interaction, it is a startup/readiness problem; if it fails after stable route and CTA assertions, it is a real auth or navigation regression.
 
@@ -171,8 +177,8 @@ The OIDC migrations add the authority/client columns and the provider/reference 
 - Verify the .NET dev certificate is trusted: `dotnet dev-certs https --trust`
 - If Keycloak shows `Invalid parameter: redirect_uri`, recreate the local Keycloak realm/container so it re-imports the exact localhost redirect URIs from `keycloak/realm-export.json`
 
-**Dashboard workflow or downstream API demo can't reach MockBusinessApp:**
-- Ensure `PrismBusinessApp:WorkflowApiBaseUrl` resolves to `https://localhost:7245`
+**A journey or the dashboard's downstream API demo can't reach MockBusinessApp:**
+- Ensure `PrismBusinessApp:ApiBaseUrl` resolves to `https://localhost:7245`
 - If running the Business App outside Aspire, `dotnet run --project src/UmbracoPrism.MockBusinessApp` now uses the HTTPS launch profile by default
 - Verify the .NET dev certificate is trusted: `dotnet dev-certs https --trust`
 - Keep the MockBusinessApp's trusted OIDC issuer aligned with the browser-facing Keycloak proxy (`https://localhost:8443/realms/prism-dev`), not Keycloak's internal container URL on port 8080

@@ -19,7 +19,7 @@ datasets (ancient hedgerows, woodland) to ask questions of them.
 5. [Wayfinder change 1: capture mode on file upload](#5-wayfinder-change-1-capture-mode-on-file-upload)
 6. [Wayfinder change 2: the location picker](#6-wayfinder-change-2-the-location-picker)
 7. [Capture behaviour on the device](#7-capture-behaviour-on-the-device)
-8. [Identification through Umbraco Automate and Umbraco.AI](#8-identification-through-umbraco-automate-and-umbraco-ai)
+8. [Identification through Umbraco Automate and Umbraco.AI](#8-identification-through-umbraco-automate-and-umbracoai)
 9. [The record and the GIS layer](#9-the-record-and-the-gis-layer)
 10. [Privacy and security](#10-privacy-and-security)
 11. [Delivery state](#11-delivery-state)

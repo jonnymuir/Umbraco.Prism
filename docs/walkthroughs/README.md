@@ -1,54 +1,46 @@
-# Service Blueprint Walkthroughs
+# Walkthroughs
 
-Screenshot-driven walkthroughs demonstrating Umbraco.Prism end-to-end, from end-user service blueprint journeys through authoring, operations, and mobile delivery.
+Screenshot-driven tours of the reference site (`UmbracoPrism.TestSite`), from what a member sees
+through to running a tenant and shipping a mobile app. Each one shows real pages and explains
+what Prism is doing behind the scenes. Start the stack first: see
+[Try it now](../../README.md#try-it-now-no-install-required) or
+[Quick start (local)](../../README.md#quick-start-local).
 
-Each walkthrough shows real pages running in the TestSite, the fluent builder API and polymorphic JSON schema that power them, and what Prism does behind the scenes at each step.
+## Member journeys
 
----
+The citizen journeys and caseworker queues on the reference site are
+[Wayfinder.Umbraco](https://github.com/jonnymuir/Wayfinder.Umbraco) Block Grid blocks on ordinary
+Prism pages, not Prism features. These walkthroughs show the two working together.
 
-## End-User Flows
+- **[Home entry](home-entry.md)**: how a visitor first meets the site, signs in, and reaches
+  the dashboard and the service journeys.
+- **[Bulk data review](bulk-data-review.md)**: a contributions team submits a monthly file, sees
+  only the rows that need attention, corrects them in place and resubmits, with the Mock Business
+  App as the validating system.
+- **[Calling a business app as the signed-in member](authenticated-business-app-call.md)**: an
+  "update my details" journey that reads and writes the member's record in a business API with
+  the member's own token, scoped to their tenant, and the security checks that pin it down.
+- **[Registering a member](member-registration.md)**: a person creates an account at the
+  identity provider, verifies their email, and a journey creates their membership, without
+  letting anyone claim someone else's.
 
-Service design itself, citizen-facing journeys, caseworker worklists, and downstream support systems, is entirely Wayfinder's job now, composed onto ordinary Prism content via Wayfinder.Umbraco's packaged Block Grid blocks (see `docs/guides/support-systems.md` in the core Wayfinder repo). TestSite hosts two worked examples this way: an anonymous-first "Apply for a juggling licence" citizen journey, and a "Submit contributions file" + caseworker queue demo backed by a real downstream support system (Mock Business App).
+## Running Prism
 
-### [Home Entry](home-entry.md)
-How a user first encounters the Prism demo and navigates from the homepage hero, through the dashboard, into Wayfinder's Block Grid-composed stage and worklist pages.
+- **[Creating a tenant](creating-a-tenant.md)**: add a tenant in the backoffice (hostname,
+  identity provider, branding), and how the site picks it up without a restart.
+- **[Design system](design-system.md)**: the Storybook components, the `@property` + `@prism` CSS
+  annotations, and how a tenant's tokens reach the live CSS.
 
-### [Bulk Data Review](bulk-data-review.md)
-The NJF Contributions Team submits a monthly contributions file, gets back only the rows that need attention, corrects them in place, and resubmits, backed by a real downstream support system (Mock Business App).
+## Mobile
 
-### [Calling a business app as the signed-in member](authenticated-business-app-call.md)
-A front-stage "update my details" journey that reads and writes a member's record in the business app using the member's own bearer token, scoped to their tenant, with the not-registered and rejected branches and the security checks that pin it down.
+- **[Building a mobile app](building-a-mobile-app.md)**: generate a Capacitor iOS/Android app
+  from a tenant, with biometric sign-in and deep links. For push notifications, see
+  [Notifications](../notifications.md) and [Push notification setup](../PUSH_SETUP.md).
 
-### [Registering a member](member-registration.md)
-A new person creates an account at the identity provider, verifies their email, and a journey then creates their membership in the business app with their own bearer token, with the checks that stop anyone claiming someone else's membership.
+## Where the service blueprints live
 
----
-
-## Authoring & Operations
-
-These walkthroughs are aimed at developers and operators building or administering a Prism deployment.
-
-### [Authoring a Service Blueprint](authoring-a-service-blueprint.md)
-How to wire the Prism Service Blueprint Editor into your Umbraco app, NuGet packages, DI registration, doctypes, route hijacking, Razor templates, and where to host the editor. The integration recipe for integrators starting from scratch.
-
-### [Creating a Tenant](creating-a-tenant.md)
-How to add a new tenant in the Umbraco backoffice (host binding, OIDC authority, branding) and how `PrismTenantMiddleware` picks it up without a restart.
-
-### [Design System](design-system.md)
-The Prism design system end-to-end: GDS-aligned Lit web components in Storybook, `@property` + `@prism` CSS annotations, and how design tokens flow from the backoffice into live CSS variables consumed by every component.
-
----
-
-## Mobile & Notifications
-
-### [Push Notifications](push-notifications.md)
-End-to-end push notifications: VAPID key generation, browser subscription UI, triggering from the backoffice, and receiving on device. Covers both web push and Capacitor native push (FCM → APNs/FCM), with links to the canonical architecture and decision docs.
-
-### [Building a Mobile App](building-a-mobile-app.md)
-Building a Capacitor iOS/Android app from a Prism service blueprint. Covers the shell structure, biometric authentication, deep link handling, and high-level build steps for both platforms.
-
----
-
-**Reference contract:** `src/UmbracoPrism.MockBusinessApp/service-blueprints/` holds five JSON fixtures (`community-enquiry`, `information-request`, `money-modeller`, `payment-demo`, `planning-notification`), these are **not** runtime-seeded demo blueprints any more (MockBusinessApp hosts no engine of its own; see that project's own README). They're kept purely as test fixtures several `UmbracoPrism.Core.Tests` read directly off disk (authoring/simulation/inference logic, not end-to-end journeys). The live, runtime-seeded service blueprints are `apply-for-a-juggling-licence` and `bulk-contributions`, both in `src/UmbracoPrism.TestSite/service-blueprints/` and hosted entirely by Wayfinder.Umbraco, see the End-User Flows walkthroughs above.
-
-**Authoring:** All service blueprints use the gateway-and-route model, every move from one stage to another happens through a gateway (see `docs/skills/canvas-editor/` in the core Wayfinder repo for a current, screenshot-backed tour). This repo's own `gateway-first-authoring.md` was deleted, it described a `PROJ###`-coded validator and a "Leave Request" reference blueprint from before the Wayfinder extraction, neither of which exists any more.
+The reference site's runtime blueprints are in `src/UmbracoPrism.TestSite/service-blueprints/`,
+hosted by Wayfinder.Umbraco. The JSON files in `src/UmbracoPrism.MockBusinessApp/service-blueprints/`
+are test fixtures that `UmbracoPrism.Core.Tests` reads from disk, not live services. To learn the
+blueprint format or the editor, use
+[Wayfinder's guides](https://github.com/jonnymuir/Wayfinder/blob/main/docs/guides/README.md).

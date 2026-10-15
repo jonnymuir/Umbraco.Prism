@@ -59,6 +59,22 @@ All notable changes to Umbraco Prism are documented here. This project follows [
 
 ---
 
+## [v5.0.0] — 2026-09-05
+
+### Breaking Changes
+
+- Enforces tenant binding on every request. A member's sign-in cookie is now rejected on a request that resolves to a different tenant, for generic OIDC providers (such as Keycloak) as well as Entra ID. Previously a session minted for one tenant could be replayed against another tenant's hostname on a shared backend.
+- `PrismContext` and `PrismTenantHandler` take a new required `IPrismTenantBindingValidator` constructor parameter, and `PrismTenantHandler` is now registered as a scoped authorization handler. Update any code that constructs either one directly.
+
+### Bug Fixes & Improvements
+
+- Escapes tenant branding override values before they reach the page's `<style>` block, closing a stored cross-site scripting route from a backoffice branding edit.
+- Requires each tenant's secret name to be unique on create and update, so two tenants can never read each other's cached Key Vault secret.
+- Requires the `vinyl-admin` role for the reference site's back-in-stock broadcast. Any signed-in member could previously send a notification to the whole tenant; copy the policy if you based an endpoint on it.
+- The reference site moves to Wayfinder 0.9.1 and Wayfinder.Umbraco 0.8.3, which fix a cross-tenant worklist leak and a file-download IDOR in the engine.
+
+---
+
 ## [v4.0.0] — 2026-08-21
 
 ### Breaking Changes

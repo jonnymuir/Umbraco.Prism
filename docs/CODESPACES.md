@@ -21,7 +21,7 @@ Go make a brew. ☕
 
 ## What's happening right now?
 
-The Aspire stack launches four services, **Keycloak** (identity), **MockBusinessApp** (workflow API), **TestSite** (the Umbraco site), and the **Aspire Dashboard**: all wired together automatically.
+The Aspire stack launches four services, **Keycloak** (identity), **MockBusinessApp** (a sample business API the journeys call), **TestSite** (the Umbraco site), and the **Aspire Dashboard**: all wired together automatically.
 
 **A browser tab will open automatically** on port 3000 with a live status page. Watch that tab, each service ticks from 🔄 to ✅ as it becomes ready.
 
@@ -42,6 +42,7 @@ The status page will show all four services green and surface direct links. Here
 | Account | Email | Password | Used for |
 |---|---|---|---|
 | Demo member | `demo@prism.local` | `password` | TestSite SSO login |
+| NJF caseworker | `njf-caseworker@prism.local` | `password` | TestSite SSO login, with the caseworker queue |
 | Umbraco admin | `admin@prism.local` | `PrismLocal!12345` | Umbraco backoffice |
 | Keycloak admin | `admin` | `admin` | Keycloak admin console |
 
@@ -49,10 +50,12 @@ The status page will show all four services green and surface direct links. Here
 
 ## 🗺️ Try the demo journey
 
-1. Go to the **TestSite** link in the status page
-2. Click **Sign in** and log in as `demo@prism.local` / `password`
-3. Navigate to **My Workflows** and start a planning application
-4. Complete the multi-step form, including the check-answers review at the end
+1. Go to the **TestSite** link in the status page.
+2. Open **Apply for a juggling licence** and work through the journey to the check-answers page
+   and confirmation. You don't need to sign in to apply.
+3. Click **Sign in** and log in as `njf-caseworker@prism.local` / `password`, then open
+   **Caseworker queue** to see the caseworker side.
+4. For the full tour, follow the [Bulk Data Review walkthrough](walkthroughs/bulk-data-review.md).
 
 ---
 

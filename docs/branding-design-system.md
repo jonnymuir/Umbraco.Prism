@@ -214,18 +214,16 @@ Real service request fields are rendered with GOV.UK Frontend's own native class
 Prism-specific field abstraction. `prism-forms.css` styles the layer around those: the stage page
 container and alerts, buttons, the error summary, the Service Request Hub, and the Money
 Modeller's slider/stat-group/chart components, plus a small character-count widget TestSite's own
-client-side JS injects. See the
-[service blueprint customisation guide](guides/service-request-customisation.md) for the full
-variable reference.
+client-side JS injects. The variables are declared at the top of the file itself.
 
 This file's `@property` custom properties (`--wayfinder-button-font-size` and the rest) are
 **deliberately not** annotated with `@prism` comments, so they don't appear in the tenant
 branding editor alongside Brand Colours/Typography/Layout/Imagery/Components. These tokens govern
 GDS-locked, accessibility-critical form chrome (hit-target sizes, contrast-safe defaults) that
 Prism intentionally keeps outside the self-service editor. A real host that wants to theme this
-layer overrides the variables in its own stylesheet, the same way
-[service-request-customisation.md](guides/service-request-customisation.md) describes, it just
-isn't exposed as a point-and-click editor field.
+layer overrides the variables in its own stylesheet; it just isn't exposed as a point-and-click
+editor field. To change a component's markup rather than its styling, see Wayfinder.Umbraco's
+[Customising how components render](https://github.com/jonnymuir/Wayfinder.Umbraco/blob/main/docs/customising-rendering.md).
 
 ### **`prism-govuk-bridge.css`** (GOV.UK Frontend Alignment)
 
@@ -252,7 +250,7 @@ The `PrismBrandingMetadataService` parses all CSS files and builds metadata for 
 4. **Group**: Organize by section name from `@prism section:`
 5. **Cache**: Store in memory (1-hour sliding expiration)
 
-### API Response: `GET /umbraco/api/prism/branding/metadata`
+### API Response: `GET /umbraco/management/api/v1/prism/branding/metadata`
 
 ```json
 [
@@ -318,7 +316,7 @@ The backoffice editor uses the metadata to render a design-system-style form.
 
 ### Example: Editing Primary Brand Colour
 
-1. Open **Prism Dashboard → Branding Editor**
+1. Open **Settings → Advanced → Tenants**, choose a tenant, and open its branding editor
 2. Click **Brand Colours** section
 3. Find **Primary Brand Colour** field (from `label:`)
 4. See help text below (from `description:`)
@@ -592,7 +590,7 @@ If the editor shows `type: text` when you expected `color`:
 ### Getting Metadata
 
 ```
-GET /umbraco/api/prism/branding/metadata
+GET /umbraco/management/api/v1/prism/branding/metadata
 ```
 
 Returns all branding sections and variables as JSON. Cached for 1 hour.
