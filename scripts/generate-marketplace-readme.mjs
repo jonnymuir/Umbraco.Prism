@@ -41,31 +41,20 @@ if (existingMarketplaceMarkdown === generatedMarkdown) {
 await fs.writeFile(marketplacePath, generatedMarkdown, 'utf8');
 console.log('Updated MARKETPLACE.md from README.md.');
 
+// Mermaid only renders on GitHub; anywhere else it shows as raw code. Swap each diagram for a
+// link to the README on GitHub, where it renders.
+function replaceMermaidBlocks(sourceRelativePath, markdown) {
+  return markdown.replace(/^```mermaid\n[\s\S]*?^```$/gm, `*[View this diagram on GitHub](${githubBlobBaseUrl}/${sourceRelativePath}).*`);
+}
+
 function transformMarkdown(sourceRelativePath, markdown) {
   const output = [];
-  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+  const lines = replaceMermaidBlocks(sourceRelativePath, markdown.replace(/\r\n/g, '\n')).split('\n');
   let inCodeFence = false;
   let centeredHtmlBlock = null;
-  let inMermaid = false;
 
   for (const line of lines) {
     const trimmed = line.trim();
-
-    // Mermaid only renders on GitHub; anywhere else it shows as raw code. Swap each diagram for
-    // a link to the README on GitHub, where it renders.
-    if (!inCodeFence && trimmed === '```mermaid') {
-      inMermaid = true;
-      output.push(`*[View this diagram on GitHub](${githubBlobBaseUrl}/${sourceRelativePath}).*`);
-      continue;
-    }
-
-    if (inMermaid) {
-      if (trimmed === '```') {
-        inMermaid = false;
-      }
-
-      continue;
-    }
 
     if (!inCodeFence && trimmed === '<div align="center">') {
       centeredHtmlBlock = [line];
