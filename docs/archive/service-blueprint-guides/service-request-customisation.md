@@ -1,3 +1,5 @@
+> **Archived.** This guide describes the service-blueprint engine from when it lived in Umbraco.Prism, and no longer matches the code. The current guides are in [Wayfinder](https://github.com/jonnymuir/Wayfinder/blob/main/docs/guides/README.md) and [Wayfinder.Umbraco](https://github.com/jonnymuir/Wayfinder.Umbraco#readme). See [the archive index](../README.md).
+
 # Customising Service Blueprint UI & Theme
 
 A guide to customising the appearance and behavior of service blueprint forms in Umbraco.Prism.

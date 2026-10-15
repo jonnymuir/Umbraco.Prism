@@ -1,3 +1,5 @@
+> **Archived.** This is the original notifications design, and much of it was built differently or not at all. For what Prism does today, see [Notifications](../../notifications.md) and [Push notification setup](../../PUSH_SETUP.md). See [the archive index](../README.md).
+
 # Walkthrough: End-to-End Push Notifications
 
 A complete guide to the Prism push notification system: from VAPID key generation and browser subscription through to sending a notification from the Umbraco backoffice and receiving it on a device.
