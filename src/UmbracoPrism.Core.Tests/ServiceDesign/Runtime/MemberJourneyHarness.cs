@@ -100,12 +100,6 @@ internal static class MemberJourneyHarness
                 NullLogger.Instance,
                 new SingleDefinitionServiceBlueprintStore(LoadDefinition(definitionKey)),
                 new PassthroughContentSanitizer(),
-                // Mirrors TestSiteComposer's generic fallback: a source: "service" field is whatever the
-                // support system last wrote into the instance's field values.
-                serviceInputsResolver: (instance, definition, _) =>
-                    (definition.Calculations?.Fields ?? new Dictionary<string, Wayfinder.Models.ServiceDesign.Calculations.ServiceBlueprintCalculationField>())
-                        .Where(field => string.Equals(field.Value.Source, "service", StringComparison.OrdinalIgnoreCase))
-                        .ToDictionary(field => field.Key, field => instance.FieldValues.GetValueOrDefault(field.Key)),
                 supportSystemClients: [new MockBusinessAppProfileClient(httpClients.Object, new MemberBearerProvider(new HttpContextAccessor { HttpContext = memberRequest }))]);
         }
 

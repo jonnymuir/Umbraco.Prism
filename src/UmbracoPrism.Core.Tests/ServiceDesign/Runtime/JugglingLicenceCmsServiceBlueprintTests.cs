@@ -238,7 +238,7 @@ public class JugglingLicenceCmsServiceBlueprintTests
         result.Calculations[^1]!.Fields["feeAmount"].Should().Be(20m, "the chosen licence type — not the member's own tier — decides the fee");
     }
 
-    // Mirrors what TestSiteComposer's own serviceInputsResolver actually supplies for a signed-in
+    // Mirrors what the TestSite's MemberServiceInputsResolver actually supplies for a signed-in
     // member: tier from the Juggling Society membership record, name/email from the current
     // claims principal (null for an anonymous visitor, never the anonymous correlation-cookie
     // GUID — see that resolver's own remarks).

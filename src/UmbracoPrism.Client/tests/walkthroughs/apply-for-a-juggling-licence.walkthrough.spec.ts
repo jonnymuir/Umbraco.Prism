@@ -2,7 +2,7 @@
 // mounted natively in the Umbraco backoffice, definitions are authored/persisted entirely
 // inside Umbraco (no separate business app), and one declarative definition serves both an
 // anonymous visitor and a logged-in Prism Member — the member's Juggling Society membership
-// (resolved via CmsServiceBlueprintEngine's serviceInputsResolver extension point) defaults part of the
+// (resolved by the TestSite's MemberServiceInputsResolver) defaults part of the
 // form and applies a fee discount, purely from calc-scope wiring, with zero special-casing in
 // the definition's JSON.
 import { test, expect } from '@playwright/test';
@@ -101,7 +101,7 @@ test.describe('Apply for a juggling licence (CMS ServiceBlueprint) walkthrough',
 
     // demo@prism.local is seeded as a Competitive-tier Juggling Society member — the same
     // definition that showed nothing for the anonymous visitor now shows this, driven entirely
-    // by CmsServiceBlueprintEngine's serviceInputsResolver resolving real membership data for a
+    // by the TestSite's MemberServiceInputsResolver resolving real membership data for a
     // logged-in member.
     await expect(page.getByRole('heading', { name: 'Licence type' })).toBeVisible({ timeout: 30_000 });
     const membershipStat = page.getByText('Your Juggling Society membership').locator('..');
