@@ -89,7 +89,7 @@ public class ProcessManagerEngineRequestStoreTests
     public void GetCurrent_StartNew_DefaultsIsAuthenticatedToFalse()
     {
         // The base engine has no identity model of its own — ResolveIsAuthenticated is only
-        // ever true when a host (e.g. CmsProcessManager) overrides it.
+        // ever true when a host (e.g. UmbracoProcessManagerEngine) overrides it.
         var store = new RecordingWorkflowInstanceStore();
         var engine = CreateEngine(store);
 
@@ -247,7 +247,7 @@ public class ProcessManagerEngineRequestStoreTests
     }
 
     /// <summary>Proves a host can override ResolveIsAuthenticated to stamp new instances —
-    /// mirrors how CmsProcessManager derives it from the live request's HttpContext.</summary>
+    /// mirrors how UmbracoProcessManagerEngine derives it from the live request's HttpContext.</summary>
     private sealed class AlwaysAuthenticatedWorkflowRuntimeEngine : ProcessManagerEngine
     {
         public AlwaysAuthenticatedWorkflowRuntimeEngine(

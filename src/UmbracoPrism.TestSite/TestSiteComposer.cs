@@ -1,6 +1,4 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using UmbracoPrism.Core;
 using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Services;
@@ -8,10 +6,8 @@ using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
-using Wayfinder.Services.Sanitization;
 using Wayfinder.Umbraco;
 using Wayfinder.Umbraco.Extensions;
 using Wayfinder.Umbraco.Services;
@@ -95,7 +91,7 @@ public class TestSiteComposer : IComposer
             // instance-owner-restricted queue with a team-wide one). Every persona can still reach
             // the juggling licence journey, though (an NJF caseworker is also a citizen; a plain
             // member gets their membership-tier fee discount — see
-            // apply-for-a-juggling-licence.json's serviceInputsResolver wiring): this resolver
+            // MemberServiceInputsResolver): this resolver
             // picks the persona from the blueprint the current call is scoped to, not just from
             // who's signed in.
             //
@@ -155,88 +151,13 @@ public class TestSiteComposer : IComposer
                 [MoneyModellerAccess.MemberQueueKey] = ComponentTypeRegistry.AllDiscriminators
             }));
 
-        // Demonstrates the service-sourced field extension point for a logged-in member.
-        // Re-registering UmbracoProcessManagerEngine here (after AddWayfinderUmbraco()'s own
-        // registration above) supplies the serviceInputsResolver delegate; last registration wins
-        // for single-instance resolution, and IProcessManager's factory (also registered by
-        // AddWayfinderUmbraco) resolves UmbracoProcessManagerEngine lazily, so it picks up this one.
+        // Demonstrates the service-sourced field extension point for a logged-in member: the
+        // engine picks up a registered IServiceInputsResolver.
         builder.Services.AddSingleton<IJugglingSocietyMembershipClient, JugglingSocietyMembershipClient>();
         builder.Services.AddSingleton<IMemberSavingsRecordService, MemberSavingsRecordService>();
+        builder.Services.AddSingleton<IServiceInputsResolver, MemberServiceInputsResolver>();
 
         ComposeMockBusinessApp(builder);
-        builder.Services.AddSingleton(sp =>
-        {
-            var membershipClient = sp.GetRequiredService<IJugglingSocietyMembershipClient>();
-            var memberRecordService = sp.GetRequiredService<IMemberSavingsRecordService>();
-            var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
-            return new UmbracoProcessManagerEngine(
-                sp.GetRequiredService<ILogger<UmbracoProcessManagerEngine>>(),
-                sp.GetRequiredService<IServiceBlueprintStore>(),
-                sp.GetRequiredService<IServiceContentSanitizer>(),
-                sp.GetRequiredService<IServiceRequestStore>(),
-                httpContextAccessor,
-                (instance, definition, _) =>
-                {
-                    if (string.Equals(definition.DefinitionKey, TestSiteSeedContract.JugglingLicenceBlueprintSlug, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var membership = membershipClient.GetForUser(instance.UserId);
-                        // Same claim types PrismUserContext itself reads — resolved directly
-                        // here rather than through that (request-)Scoped service, since this
-                        // resolver is captured once into a Singleton at startup. Gated on
-                        // IsAuthenticated because instance.UserId is only the applicant's real
-                        // email for a signed-in member (PublicVisitorIdentityResolver's scheme);
-                        // for an anonymous visitor it's an opaque correlation-cookie GUID, which
-                        // must never be suggested back to them as their own email address. Both
-                        // fall back to null for an anonymous visitor or a non-request caller
-                        // (e.g. an automation callback resuming the instance with no live
-                        // HttpContext), which defaultFrom already treats as "no suggestion".
-                        var user = httpContextAccessor.HttpContext?.User;
-                        var isAuthenticated = user?.Identity?.IsAuthenticated ?? false;
-                        return new Dictionary<string, object?>
-                        {
-                            ["member"] = new Dictionary<string, object?>
-                            {
-                                ["tier"] = membership.Tier,
-                                ["name"] = isAuthenticated ? user!.FindFirstValue("name") : null,
-                                ["email"] = isAuthenticated ? instance.UserId : null
-                            }
-                        };
-                    }
-
-                    if (string.Equals(definition.DefinitionKey, TestSiteSeedContract.MoneyModellerBlueprintSlug, StringComparison.OrdinalIgnoreCase))
-                    {
-                        var record = memberRecordService.GetForUser(instance.UserId);
-                        return new Dictionary<string, object?>
-                        {
-                            ["member"] = new Dictionary<string, object?>
-                            {
-                                ["name"] = record.Name,
-                                ["active"] = record.Active,
-                                ["age"] = record.Age,
-                                ["salary"] = record.Salary,
-                                ["accruedPension"] = record.AccruedPension,
-                                ["accruedLump"] = record.AccruedLump,
-                                ["dcPot"] = record.DcPot
-                            }
-                        };
-                    }
-
-                    // Generic fallback for every other blueprint's own source: "service" calc
-                    // fields — mirrors the core Wayfinder repo's own Wayfinder.ReferenceApp
-                    // resolver exactly. Most of these (e.g. bulk-contributions.json's
-                    // contributionsErrorCount/WarningCount/AcceptedCount/DirtyCount) aren't a true
-                    // external lookup a host needs to fetch at all — they're written into
-                    // FieldValues by the engine's own bulk-dataset-ingest action; the calc
-                    // evaluator still requires *something* supplied for every declared service
-                    // field or it throws CalculationException, so this passes through whatever's
-                    // already there (null before the action first runs, the real value after).
-                    return (definition.Calculations?.Fields ?? new Dictionary<string, Wayfinder.Models.ServiceDesign.Calculations.ServiceBlueprintCalculationField>())
-                        .Where(field => string.Equals(field.Value.Source, "service", StringComparison.OrdinalIgnoreCase))
-                        .ToDictionary(field => field.Key, field => instance.FieldValues.GetValueOrDefault(field.Key));
-                },
-                sp.GetServices<ISupportSystemClient>(),
-                sp.GetRequiredService<IBulkDatasetStore>());
-        });
 
         ComposeButterflySighting(builder);
 
