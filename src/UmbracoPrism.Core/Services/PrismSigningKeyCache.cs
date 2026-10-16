@@ -250,7 +250,7 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
 
     /// <summary>
     /// Wraps an <see cref="IDocumentRetriever"/> and rewrites any URL whose origin matches
-    /// <paramref name="publicOrigin"/> to the internal <paramref name="backchannelBase"/> before
+    /// <paramref name="publicAuthorityUri"/> to the internal <paramref name="backchannelBaseUri"/> before
     /// delegating. Covers both the discovery-document fetch and the transitive <c>jwks_uri</c>
     /// fetch made by <see cref="OpenIdConnectConfigurationRetriever"/>.
     /// </summary>

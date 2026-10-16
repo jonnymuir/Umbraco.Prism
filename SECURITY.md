@@ -17,10 +17,9 @@ Only the latest release receives security fixes.
 
 ## Scope
 
-In scope: the `UmbracoPrism` package (`src/UmbracoPrism.Core`), the mobile apps it generates,
-and the `UmbracoPrism.uSync` and `UmbracoPrism.Automate` projects that sites copy from this repo. Of particular interest: one tenant
-reaching another tenant's members, sessions, branding or secrets; bypassing sign-in or a page
-access policy; anything in the OIDC, token refresh or biometric sign-in flows that deviates from
+In scope: the `UmbracoPrism`, `UmbracoPrism.Automate` and `UmbracoPrism.uSync` packages, and the
+mobile apps Prism generates. Of particular interest: one tenant reaching another tenant's
+members, sessions, branding or secrets; bypassing sign-in or a page access policy; anything in the OIDC, token refresh or biometric sign-in flows that deviates from
 the specifications; and secrets reaching a response, a log or the browser.
 
 Out of scope: `UmbracoPrism.TestSite`, `UmbracoPrism.MockBusinessApp`, `UmbracoPrism.AppHost` and

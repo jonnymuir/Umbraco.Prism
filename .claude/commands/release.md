@@ -53,7 +53,7 @@ git checkout -b release/v{new_version}
 
 Keep these two files in sync — update both:
 
-- `src/UmbracoPrism.Core/UmbracoPrism.Core.csproj` → `<Version>{new_version}</Version>`
+- `Directory.Build.props` → `<Version>{new_version}</Version>` (one version for `UmbracoPrism`, `UmbracoPrism.Automate` and `UmbracoPrism.uSync`)
 - `src/UmbracoPrism.Client/package.json` → `"version": "{new_version}"`
 
 ## 7. Draft the CHANGELOG entry

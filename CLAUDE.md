@@ -17,7 +17,8 @@ Solo developer project, but every change reaches `main` through a pull request. 
 | Project | Purpose |
 |---|---|
 | `UmbracoPrism.Core` | The publishable Umbraco package, multi-tenant OIDC, branding, mobile, controllers/middleware/services for those. No service-design opinion of its own at all; carries no dependency on `Wayfinder`/`Wayfinder.Umbraco`. |
-| `UmbracoPrism.uSync` | uSync portability for Prism's own tenant configuration only (`PrismTenantHandler`/`PrismTenantSerializer`). Service blueprint uSync portability lives entirely in `Wayfinder.Umbraco` now (`ServiceBlueprintHandler`/`ServiceBlueprintSerializer`), with no Prism dependency. |
+| `UmbracoPrism.uSync` | Published as `UmbracoPrism.uSync`: uSync portability for Prism's own tenants and page access policies (`PrismTenantHandler`, `PrismPageAccessPolicyHandler`). Service blueprint uSync portability lives entirely in `Wayfinder.Umbraco` now (`ServiceBlueprintHandler`/`ServiceBlueprintSerializer`), with no Prism dependency. |
+| `UmbracoPrism.Automate` | Published as `UmbracoPrism.Automate`: the "Send Prism push notification" Umbraco Automate action. |
 | `UmbracoPrism.Client` | TypeScript/Lit web components, backoffice extensions (tenant management, branding, mobile), mobile shell. No longer builds any service blueprint editor bundle, that moved entirely to the `Wayfinder` repo's own `Wayfinder.Editor.Client`. |
 | `UmbracoPrism.MockBusinessApp` | A separate downstream business API that journeys call as the signed-in member (member records, contributions-file validation) and that proves Prism's bearer-token identity propagation. Hosts no Wayfinder engine. Its `service-blueprints/*.json` are test fixtures read by `UmbracoPrism.Core.Tests`. |
 | `UmbracoPrism.TestSite` | Demo Umbraco site wired to Prism Core and MockBusinessApp. Also installs `Wayfinder.Umbraco` directly and owns its own small demo-queue implementation (`PublicVisitorQueue`, `PublicServiceRequestPageController`, file upload/download controllers), the reference pattern for any host wanting a Wayfinder.Umbraco-backed service blueprint page. |
@@ -26,9 +27,11 @@ Solo developer project, but every change reaches `main` through a pull request. 
 | `UmbracoPrism.ServiceDefaults` | Shared Aspire service defaults |
 | `UmbracoPrism.Core.Tests` | xUnit unit/integration test suite. References `Wayfinder`, `Wayfinder.Engine` and `Wayfinder.Umbraco` to test the reference site's blueprints and demo queue. |
 
-Only `UmbracoPrism.Core` is packed and published (as the `UmbracoPrism` NuGet package).
-`UmbracoPrism.uSync` and `UmbracoPrism.Automate` (the "Send Prism push notification" Automate
-action) are consumed by the reference site as project references and do not ship.
+Three packages are published, together and with one version (`<Version>` in
+`Directory.Build.props`): `UmbracoPrism` (from `UmbracoPrism.Core`), `UmbracoPrism.Automate` and
+`UmbracoPrism.uSync`. The two add-ons depend on `UmbracoPrism`, so a site that doesn't use
+Automate or uSync never takes those dependencies. Each has its own `README.md`, which is its
+NuGet readme.
 
 `Wayfinder`, `Wayfinder.Engine`/`.Api`/`.Mcp`, `Wayfinder.Editor`, and `Wayfinder.Umbraco` are no
 longer part of this repo, see [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder) and

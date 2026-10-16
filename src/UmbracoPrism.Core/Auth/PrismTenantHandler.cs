@@ -13,7 +13,7 @@ namespace UmbracoPrism.Core.Auth;
 /// </summary>
 /// <param name="httpContextAccessor">
 /// Resolves the current request's scoped <see cref="IPrismContext"/> per call — matches
-/// <see cref="Models.PrismOidcConfiguration"/>'s own pattern for reaching a scoped service from a
+/// <see cref="PrismOidcConfiguration"/>'s own pattern for reaching a scoped service from a
 /// singleton, and keeps this handler a Singleton like every other <c>IAuthorizationHandler</c>
 /// registered alongside it (constructor-injecting <see cref="IPrismContext"/> directly, tried
 /// briefly, is what a Scoped registration would otherwise require — but ASP.NET Core's own

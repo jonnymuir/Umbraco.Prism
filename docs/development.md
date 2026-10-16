@@ -159,11 +159,15 @@ npm install
 npm run build
 ```
 
-**Pack the NuGet package:**
+**Pack the NuGet packages:**
 
 ```bash
 dotnet pack src/UmbracoPrism.Core/UmbracoPrism.Core.csproj -c Release -o artifacts
+dotnet pack src/UmbracoPrism.Automate/UmbracoPrism.Automate.csproj -c Release -o artifacts
+dotnet pack src/UmbracoPrism.uSync/UmbracoPrism.uSync.csproj -c Release -o artifacts
 ```
+
+All three share the version in `Directory.Build.props` and release together from one tag.
 
 **Marketplace metadata:**
 
