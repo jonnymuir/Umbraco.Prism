@@ -2,6 +2,28 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v6.1.0] — 2026-10-16
+
+### Check when upgrading
+
+- Identifies a person by an email their identity provider has verified, at a tenant with its own OIDC provider such as Keycloak. Before, Prism used the login name, which people choose when they register and could set to someone else's email address. `PrismUserContext.Email` is now `null` unless the provider sends `email_verified: true`, and sign-in now requests the `email` scope. Check that your provider releases a verified email claim. Entra tenants are unaffected.
+
+### New Features
+
+- Adds the `UmbracoPrism.uSync` package. It exports and imports tenants and page access policies with uSync, so they move between environments with the rest of your site instead of being set up by hand in each one.
+- Adds the `UmbracoPrism.Automate` package, with the "Send Prism push notification" action for Umbraco Automate.
+- Adds an optional `Audience` to each tenant a business API trusts. When it's set, the API accepts only access tokens issued for that audience.
+- Adds a device-capture option to mobile app generation (`--device-capture` in the CLI). The generated app declares camera and location use, so its pages can take photos and read the device's location.
+- Ships the XML documentation with the packages, so your editor shows Prism's API docs.
+
+### Bug Fixes & Improvements
+
+- Fixes push notification deep links accepting any URL. A tapped notification now only opens a page on the tenant's own site: Prism drops other links when sending, the Automate action rejects them, and the app ignores any that still arrive. Upgrading the package protects apps that are already installed.
+- Marks the antiforgery and TempData cookies `Secure`.
+- Updates `System.Security.Cryptography.Pkcs` to 10.0.13 for sites that install Prism, which clears two advisories against earlier versions.
+
+---
+
 ## [v6.0.0] — 2026-09-29
 
 ### Breaking Changes

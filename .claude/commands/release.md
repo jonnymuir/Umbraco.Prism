@@ -111,7 +111,7 @@ Wait for approval or edits. Apply any changes the user requests, then re-show th
 Stage only these files:
 
 ```bash
-git add src/UmbracoPrism.Core/UmbracoPrism.Core.csproj src/UmbracoPrism.Client/package.json CHANGELOG.md
+git add Directory.Build.props src/UmbracoPrism.Client/package.json CHANGELOG.md
 git commit -m "chore: release v{new_version}"
 ```
 
@@ -141,4 +141,4 @@ Return the PR URL and remind the user:
 > git push origin v{new_version}
 > ```
 >
-> This triggers `package-release.yml` which builds, packs, and publishes the NuGet package.
+> This triggers `package-release.yml`, which builds, packs and publishes the `UmbracoPrism`, `UmbracoPrism.Automate` and `UmbracoPrism.uSync` NuGet packages.
