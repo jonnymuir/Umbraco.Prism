@@ -165,6 +165,14 @@ public class PrismNotificationService : IPrismNotificationService
         string? deepLinkPath = null,
         CancellationToken ct = default)
     {
+        if (!string.IsNullOrEmpty(deepLinkPath) && !PrismDeepLinkPath.IsSitePath(deepLinkPath))
+        {
+            _logger.LogWarning(
+                "Deep link {DeepLinkPath} is not a path on this site, so it was dropped; the notification is sent without it (tenant: {TenantId}, title: {Title}).",
+                LogScrub.Line(deepLinkPath), tenantId, LogScrub.Line(title));
+            deepLinkPath = null;
+        }
+
         using var db = _databaseFactory.CreateDatabase();
 
         var tokens = GetPushTokensForUsers(db, tenantId, [userId]);

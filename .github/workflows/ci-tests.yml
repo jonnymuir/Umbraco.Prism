@@ -31,6 +31,9 @@ jobs:
       - name: Documentation links resolve
         run: node scripts/check-doc-links.mjs
 
+      - name: Mobile shell script tests
+        run: npm run test:mobile-shell
+
   storybook-tests:
     runs-on: ubuntu-latest
     permissions:

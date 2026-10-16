@@ -204,9 +204,16 @@ a site-relative path (the `deepLinkPath` argument to
 data, and the app's `prism-push-register.js` navigates the WebView there when the notification
 is tapped.
 
-> **Only ever pass a path on your own site**, such as `/apply-for-a-juggling-licence`. Nothing
-> currently checks that the value is site-relative, and the app navigates to whatever URL it
-> receives, so never build it from user input.
+The link must be a path on the tenant's own site, such as `/apply-for-a-juggling-licence`, so a
+notification can never send someone to another site or run script in their session:
+
+- `SendNotificationToUserAsync` drops any other value, logs a warning, and sends the notification
+  without a link.
+- The Automate action fails the step with a validation error, so the automation's author sees it.
+- The app itself only follows a link that resolves to its own site, so a link that reaches
+  Firebase some other way is ignored too.
+
+`PrismDeepLinkPath.IsSitePath` is the same check, if you want to validate a path before you send.
 
 The generated apps don't register a custom URL scheme or Universal/App Links, so a link in an
 email or another app opens the site in the browser rather than in the app. Adding one is a change

@@ -59,7 +59,9 @@ public interface IPrismNotificationService
     /// Optional site-relative path (e.g. <c>/apply-for-a-juggling-licence</c>) delivered to the
     /// device as the FCM message's <c>data.url</c> field, so the mobile shell can route straight
     /// to that page when the notification is tapped instead of just opening the app to wherever
-    /// it last was.
+    /// it last was. A value that isn't a path on this site (see
+    /// <see cref="PrismDeepLinkPath.IsSitePath"/>) is dropped with a warning and the notification
+    /// is sent without it.
     /// </param>
     /// <returns>
     /// <see langword="true"/> only if at least one device was actually sent to — never throws for
