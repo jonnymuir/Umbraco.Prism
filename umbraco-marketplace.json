@@ -22,12 +22,12 @@
   },
   "Screenshots": [
     {
-      "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/screenshots/backoffice.png",
-      "Caption": "Prism backoffice tenant management"
+      "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/docs/images/walkthroughs/home-entry/02-signed-in-hero.png",
+      "Caption": "A tenant's branded portal, signed in through its own identity provider"
     },
     {
-      "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/screenshots/downstream.png",
-      "Caption": "Downstream API flow"
+      "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/docs/images/walkthroughs/authenticated-business-app-call/02-your-record.png",
+      "Caption": "A journey reading the member's record from a business API with their own token"
     }
   ],
   "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/assets/logo-vertical-lockup.png"

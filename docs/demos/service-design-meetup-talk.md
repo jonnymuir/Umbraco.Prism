@@ -360,7 +360,7 @@ block.
 
 ### Beat B: multi-tenant, live (🎨, 2 min)
 
-Backoffice **Settings > Prism Dashboard**. Show the seeded tenant, then create a **new tenant**. Name it
+Backoffice **Settings > Advanced > Tenants**. Show the seeded tenant, then create a **new tenant**. Name it
 something the room will enjoy. Point its OIDC authority at the local Keycloak realm `prism-dev`, so it
 is a real working login.
 

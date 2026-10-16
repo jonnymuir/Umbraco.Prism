@@ -1,353 +1,188 @@
-# Extending Prism for Your Business Domain
+# Extending Prism for your business domain
 
-This guide explains how to extend Umbraco Prism Core with business-specific handlers, controllers, and domain models. The TestSite demonstrates this pattern with the vinyl record store example.
+How to build business features on top of Umbraco Prism: your own models, endpoints and
+notifications, running inside Prism's tenancy. The reference site's record shop (the "Vinyl
+Vault") is the worked example throughout.
 
-## The Prism Extension Model
+## What Prism gives you, and what you add
 
-Prism Core provides a **thin, reusable platform**. Your application adds the **business logic and domain-specific extensions**.
+**Prism Core provides:**
 
-### Prism Core Provides
+- Multi-tenancy: hostname-based tenant resolution, per-tenant OIDC sign-in and branding.
+- The current tenant for a request, through `IPrismContext.CurrentTenant`.
+- Page access policies (**Settings → Advanced → Page access**).
+- Push notifications to generated mobile apps (`IPrismNotificationService`), with device
+  registration, genre subscriptions and rate limiting. See [Notifications](../notifications.md).
+- Mobile app generation.
 
-- Multi-tenant infrastructure (hostname resolution, branding, OIDC)
-- Notification service foundation (`IPrismNotificationService`)
-- Config-driven event handling (`PrismContentPublishedHandler`)
-- Subscription persistence and rate limiting
-- Service Blueprint rendering and validation
-- Mobile app generation and push notifications
+**Your application adds:** your domain models, your own endpoints and handlers, your document
+types, and any service journeys. Prism has no service-design features of its own: for citizen
+journeys and caseworker queues, install
+[Wayfinder.Umbraco](https://github.com/jonnymuir/Wayfinder.Umbraco), as the reference site does.
 
-### Your Application Adds
+## Example: a "back in stock" notification
 
-- **Domain models**: Data structures specific to your business
-- **Notification handlers**: Controllers and endpoints triggered by events
-- **Service Blueprint endpoints**: State machines and business logic
-- **Custom API routes**: Domain-specific REST/GraphQL endpoints
-- **Umbraco content types**: Document types for your data
+### 1. Define your domain model
 
----
+[`PrismVinylBackInStockRequest.cs`](../../src/UmbracoPrism.TestSite/Controllers/Models/PrismVinylBackInStockRequest.cs)
+holds what the shop knows about a record: its title and, optionally, a genre. Prism knows nothing
+about records; it just sends the notification.
 
-## Example: Building a Vinyl Record Store Extension
+### 2. Add an endpoint that sends it
 
-The TestSite includes a vinyl record store example. Here's how it extends Prism:
-
-### 1. Define Your Domain Model
-
-**File:** `src/UmbracoPrism.TestSite/Controllers/Models/PrismVinylBackInStockRequest.cs`
-
-```csharp
-namespace UmbracoPrism.TestSite.Controllers.Models;
-
-public class PrismVinylBackInStockRequest
-{
-    public string VinylTitle { get; set; }
-    public string Genre { get; set; }
-}
-```
-
-This model is specific to your domain. Prism doesn't know about vinyl records, it just sends notifications.
-
-### 2. Create a Domain-Specific Notification Controller
-
-**File:** `src/UmbracoPrism.TestSite/Controllers/PrismVinylNotificationController.cs`
+Abridged from
+[`PrismVinylNotificationController.cs`](../../src/UmbracoPrism.TestSite/Controllers/PrismVinylNotificationController.cs):
 
 ```csharp
 [Route("umbraco/prism/vinyl")]
 [Authorize(AuthenticationSchemes = "PrismMemberCookie")]
-[IgnoreAntiforgeryToken]
+[IgnoreAntiforgeryToken] // a mobile-app API authenticated by the member cookie; see BiometricController
 public class PrismVinylNotificationController(
     IPrismNotificationService notificationService,
     IPrismContext prismContext,
     ILogger<PrismVinylNotificationController> logger) : Controller
 {
     [HttpPost("back-in-stock")]
+    [Authorize(Policy = "RequireVinylAdmin")] // broadcasting is a staff action, not any member's
     public async Task<IActionResult> BackInStock([FromBody] PrismVinylBackInStockRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request?.VinylTitle))
+            return BadRequest(new { error = "vinylTitle is required." });
+
         var tenant = prismContext.CurrentTenant;
-        var title = $"🎵 Back in Stock: {request.VinylTitle}";
-        var body = $"{request.VinylTitle} is back in stock at the Vinyl Vault!";
+        if (tenant == null)
+            return BadRequest(new { error = "Tenant context not available." });
+
+        var tenantId = tenant.Id.ToString();
+        var title = $"Back in stock: {request.VinylTitle}";
+        var body = $"{request.VinylTitle} is back in stock at the Vinyl Vault.";
 
         if (!string.IsNullOrWhiteSpace(request.Genre))
-        {
-            // Send to members subscribed to this genre
-            await notificationService.SendNotificationToGenreSubscribersAsync(
-                tenant.Id.ToString(),
-                request.Genre,
-                title,
-                body);
-        }
+            await notificationService.SendNotificationToGenreSubscribersAsync(tenantId, request.Genre, title, body);
         else
-        {
-            // Broadcast to all members
-            await notificationService.SendNotificationToAllMembersAsync(
-                tenant.Id.ToString(),
-                title,
-                body);
-        }
+            await notificationService.SendNotificationToAllMembersAsync(tenantId, title, body);
 
         return Ok();
     }
 }
 ```
 
-**Key design points:**
-- Inject `IPrismNotificationService` from Core
-- Use `IPrismContext` to get the current tenant (automatic)
-- Handle your business logic (genre filtering, message formatting)
-- Let Prism handle the low-level notification dispatch, rate limiting, and persistence
+What matters here:
 
-### 3. Wire Up Content-Published Events (Optional)
+- **Authorize the action, not just the controller.** The member cookie only proves someone is
+  signed in. Sending to every member of a tenant is a staff action, so the action also requires a
+  role (`RequireVinylAdmin`, registered in `TestSiteComposer` as `policy.RequireRole("vinyl-admin")`).
+  Without it, any member could broadcast to everyone.
+- **Take the tenant from `IPrismContext`, never from the request body.** The tenant comes from the
+  signed-in session, so a caller can't send into another tenant.
+- **Handle a missing tenant.** `CurrentTenant` is null outside a tenant-resolved request.
 
-If you want notifications to trigger automatically when content is published, extend `PrismContentPublishedHandler`:
+### 3. Notify when content is published
 
-**File:** `src/UmbracoPrism.TestSite/BackgroundServices/VinylPublishNotificationHandler.cs`
+For the common case you don't need code. List the document types that should notify under
+`Prism:Notifications:NotifiableContentTypes`, and give each one a `prismTenantId` property (and,
+optionally, `notificationGenre`). Prism's own handler does the rest; see
+[Notifications](../notifications.md#sending-notifications).
+
+For custom logic, write your own handler. A publish happens in the backoffice, so there is no
+tenant-resolved request: read the tenant from the content, not from `IPrismContext`.
 
 ```csharp
-public class VinylPublishNotificationHandler : INotificationHandler<ContentPublishedNotification>
+public class NewReleaseNotificationHandler(
+    IPrismNotificationService notifications,
+    ILogger<NewReleaseNotificationHandler> logger)
+    : INotificationAsyncHandler<ContentPublishedNotification>
 {
-    private readonly IPrismNotificationService _notificationService;
-    private readonly IPrismContext _prismContext;
-
-    public VinylPublishNotificationHandler(
-        IPrismNotificationService notificationService,
-        IPrismContext prismContext)
+    public async Task HandleAsync(ContentPublishedNotification notification, CancellationToken cancellationToken)
     {
-        _notificationService = notificationService;
-        _prismContext = prismContext;
-    }
-
-    public async Task Handle(ContentPublishedNotification notification, CancellationToken cancellationToken)
-    {
-        // Check if this is a vinyl record content type
-        if (notification.PublishedEntities.Any(e => e.ContentType.Alias == "vinyl"))
+        foreach (var record in notification.PublishedEntities.Where(e => e.ContentType.Alias == "vinyl"))
         {
-            var entity = notification.PublishedEntities.First(e => e.ContentType.Alias == "vinyl");
-            
-            var title = "🎵 New Vinyl Available";
-            var body = $"{entity.Name} is now available for purchase!";
+            var tenantId = record.GetValue<string>("prismTenantId");
+            if (string.IsNullOrWhiteSpace(tenantId))
+                continue;
 
-            // Send to all members in the current tenant
-            await _notificationService.SendNotificationToAllMembersAsync(
-                _prismContext.CurrentTenant.Id.ToString(),
-                title,
-                body);
+            try
+            {
+                await notifications.SendNotificationToAllMembersAsync(
+                    tenantId, "New release", $"{record.Name} is now available.", cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // A notification failure must never fail the editor's publish.
+                logger.LogError(ex, "New release notification failed in tenant {TenantId}.", tenantId);
+            }
         }
     }
 }
+
+// In your composer:
+builder.AddNotificationAsyncHandler<ContentPublishedNotification, NewReleaseNotificationHandler>();
 ```
 
-Register in your composer:
+### 4. Notify on a schedule
+
+[`LimitedEditionDropNotifier`](../../src/UmbracoPrism.TestSite/BackgroundServices/LimitedEditionDropNotifier.cs)
+is a `BackgroundService` that sends a notification on an interval
+(`Prism:Notifications:LimitedEditionDropIntervalMinutes`; `0` turns it off) to the tenant named in
+`Prism:Notifications:LimitedEditionTenantId`. A background service has no request, so it names its
+tenant in configuration and resolves its services from a fresh DI scope for each run.
+
+## Notify one person
+
+To notify a single member, for example when their order changes, call
+`SendNotificationToUserAsync`. It returns `false` when nothing was sent (no registered device, or
+Firebase not configured), so check it before telling anyone the notification went out:
 
 ```csharp
-public class VinylComposer : IComposer
+var sent = await notifications.SendNotificationToUserAsync(
+    userId, tenantId, "Order confirmed", $"Order #{orderId} is confirmed.", deepLinkPath: "/orders");
+if (!sent)
+    logger.LogInformation("No device to notify for user {UserId} in tenant {TenantId}.", userId, tenantId);
+```
+
+From an Umbraco Automate automation, use the **Send Prism push notification** action instead
+(see [Notifications](../notifications.md#sending-notifications) for where it lives).
+
+## Testing your extensions
+
+This repo tests behaviour through public seams with xUnit, Moq and AwesomeAssertions (see
+`CLAUDE.md`). For the controller above, set up a tenant and assert on what was handed to the
+notification service:
+
+```csharp
+[Fact]
+public async Task ABackInStockAlertWithAGenre_GoesOnlyToThatGenresSubscribers()
 {
-    public void Compose(IUmbracoBuilder builder)
-    {
-        builder.AddNotificationHandler<ContentPublishedNotification, VinylPublishNotificationHandler>();
-    }
+    var notifications = new Mock<IPrismNotificationService>();
+    var context = new Mock<IPrismContext>();
+    context.Setup(c => c.CurrentTenant).Returns(new PrismTenant { Id = 7 });
+    var controller = new PrismVinylNotificationController(
+        notifications.Object, context.Object, NullLogger<PrismVinylNotificationController>.Instance);
+
+    var result = await controller.BackInStock(new PrismVinylBackInStockRequest { VinylTitle = "The Wall", Genre = "rock" });
+
+    result.Should().BeOfType<OkResult>();
+    notifications.Verify(n => n.SendNotificationToGenreSubscribersAsync(
+        "7", "rock", It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
 }
 ```
 
----
+Also add a test that goes red if the authorization regresses. `Phase1SecurityRegressionTests`
+does this for the example: it checks that `BackInStock` keeps its `RequireVinylAdmin` policy, and
+that the policy refuses a member without the `vinyl-admin` role.
 
-## Best Practices for Extensions
+## Deployment
 
-### 1. Separate Core from Domain-Specific Code
+- Put domain secrets (API keys, credentials) in your secret store alongside Prism's; see
+  [Secret management](../secret-management.md).
+- Add your own tables with Umbraco package migrations.
+- Log with the tenant id in context, so a problem can be traced to one tenant.
 
-- **Core logic:** Use Prism services (`IPrismNotificationService`, `IPrismContext`)
-- **Domain logic:** Use your models and custom handlers
+## Further reading
 
-This separation makes your code easy to test and your business logic portable.
-
-### 2. Leverage Tenant Context
-
-Always use `IPrismContext.CurrentTenant` to ensure your handler respects multi-tenancy:
-
-```csharp
-var tenantId = prismContext.CurrentTenant.Id.ToString();
-await notificationService.SendNotificationToAllMembersAsync(tenantId, title, body);
-```
-
-### 3. Use Dependency Injection
-
-Inject services rather than accessing static instances. This makes testing easier:
-
-```csharp
-public class MyHandler(
-    IPrismNotificationService notificationService,
-    IPrismContext prismContext)
-{
-    // Testable constructor injection
-}
-```
-
-### 4. Log Meaningful Information
-
-Include context in your logs so you can debug multi-tenant scenarios:
-
-```csharp
-logger.LogInformation(
-    "Back-in-stock notification sent to genre '{Genre}' subscribers in tenant {TenantId}.",
-    request.Genre, tenantId);
-```
-
-### 5. Handle Errors Gracefully
-
-Notification failures shouldn't break your service blueprint. Catch exceptions and log them:
-
-```csharp
-try
-{
-    await notificationService.SendNotificationToAllMembersAsync(tenantId, title, body);
-}
-catch (Exception ex)
-{
-    logger.LogError(ex, "Failed to send notification in tenant {TenantId}.", tenantId);
-    return StatusCode(500, new { error = "Failed to send notification." });
-}
-```
-
----
-
-## Extending Service Blueprints
-
-Service Blueprints are defined in your Business App (the backend API), not in Prism Core. Your service blueprint defines:
-
-- **Stages, routes, and gateways** (the journey structure, see the [Reference Service Blueprint Contract](./reference-service-blueprint-contract.md))
-- **Components** (what data to collect, and what's shown)
-- **Validation rules** (business logic to enforce)
-
-Prism Core handles rendering, client-side validation, and form submission. Your Business App handles all the business logic.
-
-**Service request endpoints your app must implement:**
-- `POST /api/service-request/{blueprintKey}/current`, Return the current stage
-- `POST /api/service-request/{blueprintKey}/advance`, Process the action and return the next stage
-- `GET /api/service-request/instances`, Power the service request hub
-
-See [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md) for complete examples.
-
----
-
-## Extending Notifications
-
-Prism provides a generic notification foundation. Your app can extend by:
-
-### 1. Adding Subscription Filters
-
-Create custom queries to filter members by subscription preferences:
-
-```csharp
-public async Task SendVinylNotificationAsync(string tenantId, string vinylId, string genre)
-{
-    // Query your custom database for members subscribed to this genre
-    var subscribers = await GetSubscribersByGenreAsync(tenantId, genre);
-    
-    foreach (var subscriber in subscribers)
-    {
-        await notificationService.SendNotificationAsync(
-            tenantId,
-            subscriber.Id,
-            "New Vinyl",
-            $"Check out this {genre} vinyl!");
-    }
-}
-```
-
-### 2. Adding Notification Triggers
-
-Respond to Umbraco events, scheduled tasks, or API calls:
-
-```csharp
-[HttpPost("notify-purchase-complete")]
-public async Task<IActionResult> NotifyPurchaseComplete([FromBody] PurchaseNotification notification)
-{
-    var tenant = prismContext.CurrentTenant;
-    
-    await notificationService.SendNotificationAsync(
-        tenant.Id.ToString(),
-        notification.MemberId,
-        "Purchase Complete",
-        $"Your order #{notification.OrderId} has been confirmed.");
-    
-    return Ok();
-}
-```
-
-### 3. Rate Limiting Across Multiple Tenants
-
-Prism's rate limiting is built-in and tenant-aware. No additional configuration needed, it just works.
-
----
-
-## Testing Your Extensions
-
-### Unit Testing Your Handler
-
-```csharp
-[TestFixture]
-public class VinylNotificationControllerTests
-{
-    private Mock<IPrismNotificationService> _notificationService;
-    private Mock<IPrismContext> _prismContext;
-    private PrismVinylNotificationController _controller;
-
-    [SetUp]
-    public void Setup()
-    {
-        _notificationService = new Mock<IPrismNotificationService>();
-        _prismContext = new Mock<IPrismContext>();
-        _controller = new PrismVinylNotificationController(
-            _notificationService.Object,
-            _prismContext.Object,
-            new Logger<PrismVinylNotificationController>(...));
-    }
-
-    [Test]
-    public async Task BackInStock_SendsNotificationToGenreSubscribers()
-    {
-        var request = new PrismVinylBackInStockRequest 
-        { 
-            VinylTitle = "Pink Floyd - The Wall",
-            Genre = "Rock" 
-        };
-        
-        var result = await _controller.BackInStock(request);
-
-        _notificationService.Verify(
-            x => x.SendNotificationToGenreSubscribersAsync(
-                It.IsAny<string>(),
-                "Rock",
-                It.IsAny<string>(),
-                It.IsAny<string>()),
-            Times.Once);
-        
-        Assert.That(result, Is.TypeOf<OkResult>());
-    }
-}
-```
-
-### Integration Testing
-
-Use the TestSite as a reference:
-
-1. Seed test data (members, subscriptions)
-2. Call your handler endpoint
-3. Verify notifications were sent via Prism's API
-
----
-
-## Deployment Considerations
-
-When deploying your extended Prism application:
-
-1. **Database migrations**: If you add new content types or subscription models, create and run migrations
-2. **Secrets**: Domain-specific API keys or credentials should go in Azure Key Vault alongside Prism secrets
-3. **Health checks**: Include your custom notification endpoint in health checks
-4. **Monitoring**: Log failures and track notification delivery rates per tenant
-
----
-
-## Further Reading
-
-- [Notification Architecture](../design/notifications-architecture.md), Deep dive into Prism's notification system
-- [Notification API Reference](../notifications-design.md), Complete API documentation
-- [Setting Up a Prism Service Blueprint](./service-blueprint-setup.md), Service Blueprint and endpoints
-- [TestSite Reference](../../src/UmbracoPrism.TestSite/README.md), Complete working example
+- [Notifications](../notifications.md): what Prism's notification service does.
+- [Push notification setup](../PUSH_SETUP.md): Firebase and the generated app.
+- [Calling a business app as the signed-in member](../walkthroughs/authenticated-business-app-call.md):
+  calling your own API with the member's token.
+- [Wayfinder.Umbraco](https://github.com/jonnymuir/Wayfinder.Umbraco#readme): service journeys
+  and caseworker queues.

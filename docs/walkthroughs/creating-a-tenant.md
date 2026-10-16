@@ -2,7 +2,7 @@
 
 A step-by-step guide to adding a new tenant in the Umbraco backoffice, binding it to a hostname, configuring its OIDC authority, and verifying that the Prism middleware routes requests to it correctly.
 
-> **Prerequisites:** The Prism stack is running. See [Codespaces](../../README.md#try-it-now--no-install-required) or [local setup](../../README.md#quick-start-local). You should also be familiar with the core concepts in [docs/umbraco-setup.md](../umbraco-setup.md).
+> **Prerequisites:** The Prism stack is running. See [Codespaces](../../README.md#try-it-now-no-install-required) or [local setup](../../README.md#quick-start-local). You should also be familiar with the core concepts in [docs/umbraco-setup.md](../umbraco-setup.md).
 
 ---
 
@@ -35,19 +35,19 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 
 ---
 
-## Part 2: Navigate to the Prism Dashboard
+## Part 2: Open the Tenants screen
 
-### Step 2: Open Settings → Prism Dashboard
+### Step 2: Open Settings → Advanced → Tenants
 
-1. In the left navigation, click **Settings**.
+1. In the top navigation, click **Settings**.
 
-2. Under the Settings section, find and click **Prism Dashboard**.
+2. In the **Advanced** group of the Settings tree, click **Tenants**.
 
-<!-- manual capture: Prism Dashboard backoffice section requires manual Umbraco BFF authentication and navigation -->
+<!-- manual capture: the Tenants screen requires manual Umbraco backoffice authentication and navigation -->
 
    You see a list of currently configured tenants. The demo stack has one: `localhost`.
 
-3. 💡 **What's happening:** The Prism Dashboard is a custom Umbraco backoffice section registered by `PrismComposer` using the Umbraco Extension Registry. It is implemented as a Lit web component (`prism-dashboard`) in `src/UmbracoPrism.Client/src/backoffice/`. The list you see is fetched from `GET /umbraco/api/prism/tenants`.
+3. 💡 **What's happening:** Tenants is a workspace Prism adds to Umbraco's own **Advanced** settings menu (declared in `UmbracoPrism.Core/wwwroot/umbraco-package.json`), not a custom section. It is a Lit web component (`prism-dashboard`) in `src/UmbracoPrism.Client/src/backoffice/`. The list you see is fetched from the Management API, `GET /umbraco/management/api/v1/prism/tenants`.
 
 ---
 
@@ -59,7 +59,7 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 
    A modal dialog opens with the tenant creation form.
 
-<!-- manual capture: Prism Dashboard modal requires manual Umbraco backoffice interaction -->
+<!-- manual capture: the create-tenant modal requires manual Umbraco backoffice interaction -->
 
 2. ✅ **What you're about to fill in:**
    - **Tenant name**: a human-readable label (internal only, not shown to end users).
@@ -115,7 +115,7 @@ This walkthrough adds a second local tenant (`tenant2.localhost`) alongside the 
 
 <!-- manual capture: Branding tab requires manual Umbraco backoffice interaction with modal form -->
 
-4. 💡 **What's happening:** The branding editor reads CSS variable metadata from `GET /umbraco/api/prism/branding/metadata`, the same endpoint described in [Branding Design System](../branding-design-system.md). Each variable annotated with `/* @prism section: ... | label: ... */` appears as a typed form field. Changes are saved per-tenant and served as a tenant-specific CSS override on the frontend.
+4. 💡 **What's happening:** The branding editor reads CSS variable metadata from `GET /umbraco/management/api/v1/prism/branding/metadata`, the same endpoint described in [Branding Design System](../branding-design-system.md). Each variable annotated with `/* @prism section: ... | label: ... */` appears as a typed form field. Changes are saved per-tenant and served as a tenant-specific CSS override on the frontend.
 
 5. ✅ **For a deep dive on branding:** See the [Design System walkthrough](design-system.md) for how tokens flow from the backoffice through to CSS variables consumed by web components.
 
@@ -181,7 +181,7 @@ If no tenant matches the host, `CurrentTenant` is `null` and a `LogWarning` is e
 
 ## Part 6: What the Backoffice User Controls
 
-Once a tenant exists, an Umbraco editor can update it at any time from **Settings → Prism Dashboard → [Tenant name]**:
+Once a tenant exists, an Umbraco editor can update it at any time from **Settings → Advanced → Tenants → [Tenant name]**:
 
 | Setting | Effect |
 |---|---|

@@ -18,7 +18,7 @@ Both keys are required. Without them, the app throws `InvalidOperationException`
 Before configuring biometric keys:
 
 - Your Umbraco Prism site is running (see `/docs/umbraco-setup.md`).
-- Biometric auth is enabled in your tenant settings (Backoffice → Settings → Prism Dashboard → Tenant Editor → "Biometric Auth Enabled").
+- Biometric auth is enabled in your tenant settings (Backoffice → Settings → Advanced → Tenants → your tenant → "Allow Biometric Login", on by default).
 - For local development: You have access to .NET User Secrets setup.
 - For production: You have access to your Azure Key Vault and the necessary permissions to add/update secrets.
 
@@ -344,7 +344,7 @@ In production:
 
 ## See Also
 
-- [Biometric Authentication in README](../README.md#9-biometric-authentication-mobile), Overview and usage.
+- [Building a mobile app](walkthroughs/building-a-mobile-app.md): enabling biometric sign-in in a generated app.
 - [Umbraco Setup](./umbraco-setup.md), Installing and configuring Prism in Umbraco.
 - [Azure Key Vault Documentation](https://learn.microsoft.com/en-us/azure/key-vault/), Vault management and best practices.
 - [DefaultAzureCredential](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.defaultazurecredential), Managed identity authentication patterns.

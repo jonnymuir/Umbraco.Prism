@@ -6,7 +6,7 @@ This document (`workflow-forms-engine-redesign.md`) was the v1→v2 transition p
 
 **For the v2 architecture this proposal became,** now itself archived alongside this document
 since the service-blueprint engine moved entirely to [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder)/[`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco)
-(see `docs/design/README.md`), see:
+(see this folder's [README](./README.md)), see:
 - [service-request-forms-engine.md](./service-request-forms-engine.md) - v2 architecture as it stood in this repo
 - [service-request-forms-engine-backend.md](./service-request-forms-engine-backend.md) - Backend implementation
 - [service-request-forms-engine-client.md](./service-request-forms-engine-client.md) - Client rendering

@@ -1,3 +1,5 @@
+> **Archived.** This is the original notifications design, and much of it was built differently or not at all. For what Prism does today, see [Notifications](../../notifications.md) and [Push notification setup](../../PUSH_SETUP.md). See [the archive index](../README.md).
+
 # Push Notifications: Design Document
 
 > **Note:** This is an **internal design document** for contributors and maintainers. For user-facing setup instructions, see [PUSH_SETUP.md](PUSH_SETUP.md).

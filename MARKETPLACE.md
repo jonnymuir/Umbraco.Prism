@@ -16,16 +16,13 @@ branding. Add a native mobile app with one click.
 
 ## How it fits together
 
-```mermaid
-graph LR
-  PRISM["UmbracoPrism.Core<br/>multi-tenant OIDC, branding, mobile<br/>(this repo)"] --> WFU["Wayfinder.Umbraco<br/>CMS-hosted service design<br/>(consumed as a package)"]
-  WFU --> WF["Wayfinder<br/>core state-machine engine"]
-```
+*[View this diagram on GitHub](https://github.com/jonnymuir/Umbraco.Prism/blob/main/README.md).*
 
-`UmbracoPrism.Core` carries no service-design opinion of its own — it's tenancy, branding, and
-mobile, full stop. `UmbracoPrism.TestSite` (the reference site in this repo) installs
-[`Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) directly for its own
-citizen-journey and caseworker-queue pages, exactly the way any other Prism-hosted site would.
+Each arrow points from a project to the one it builds on. The `UmbracoPrism` package itself has
+no Wayfinder dependency and no service-design features: it's tenancy, branding and mobile.
+`UmbracoPrism.TestSite` (the reference site in this repo) installs
+[`Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) for its citizen-journey
+and caseworker-queue pages, exactly the way any other Prism-hosted site would.
 
 ## Try it Now: No Install Required
 
@@ -62,12 +59,12 @@ Needs .NET 10 SDK, Docker Desktop running, and Node 20+. Open the Aspire dashboa
 above. See [docs/development.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/development.md) for the full prerequisites list and
 troubleshooting, and [docs/ASPIRE_DEV.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/ASPIRE_DEV.md) for what the Aspire stack wires up.
 
-**Installing the published package into your own site?** See [Full Setup Guide](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/umbraco-setup.md) —
+**Installing the published package into your own site?** See the [full setup guide](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/umbraco-setup.md):
 `dotnet add package UmbracoPrism`, add a `Prism:VaultUri` (or use the local Keycloak demo
-exception — see [Secret Management](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/secret-management.md)), then add your first tenant from
-**Settings → Prism Dashboard**.
+exception; see [Secret Management](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/secret-management.md)), then add your first tenant from
+**Settings → Advanced → Tenants**. Prism needs Umbraco 17 and .NET 10.
 
-![Branded portal example](https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/screenshots/testsite.png)
+![The reference site's home page for a signed-in member, branded for its local Keycloak tenant](https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/docs/images/walkthroughs/home-entry/02-signed-in-hero.png)
 
 ## What you get
 
@@ -80,10 +77,12 @@ exception — see [Secret Management](https://github.com/jonnymuir/Umbraco.Prism
 - **Produce Mobile**: turn tenant settings into an iOS/Android app — biometric login, push
   notifications, offline-ready layouts, tenant branding at runtime. See [Mobile Setup](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/PUSH_SETUP.md) /
   [Biometric Auth](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/biometric-setup.md).
-- **Notification infrastructure**: a generic, extensible notification service
-  (`IPrismNotificationService`), config-driven publish-event handling, subscription persistence,
-  and rate limiting — your app adds business-specific handlers on top. See
-  [Notifications Architecture](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/design/notifications-architecture.md).
+- **Push notifications**: `IPrismNotificationService` sends to generated mobile apps through
+  Firebase, to one member, a genre's subscribers, or a whole tenant. Notify on content publish
+  from configuration alone, from an Umbraco Automate action, or from your own code. See
+  [Notifications](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/notifications.md).
+- **Page access policies**: require sign-in for any page and limit it to named tenants, from
+  **Settings → Advanced → Page access**.
 - **Secure-by-default secrets**: production tenants resolve confidential-client secrets through
   Key Vault; nothing raw ever appears in a management API response. See
   [Secret Management](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/secret-management.md).
@@ -93,20 +92,28 @@ exception — see [Secret Management](https://github.com/jonnymuir/Umbraco.Prism
 **[Full documentation index →](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/README.md)** — setup, branding, mobile, notifications, and
 design docs.
 
-- **[Development Guide](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/development.md)** — prerequisites, architecture, testing
+- **[Development Guide](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/development.md)**: prerequisites, architecture, testing
   (Storybook/Playwright/xUnit), packaging, the local-auth walkthrough, and the Cloudflare tunnel
   setup for phone testing. Start here if you're contributing to this repo.
-- **[Bulk Data Review Walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/bulk-data-review.md)** and
-  **[Home Entry Walkthrough](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/home-entry.md)** — guided tours of the reference site.
+- **[Walkthroughs](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/README.md)**: guided tours of the reference site, starting
+  with [Home Entry](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/home-entry.md) and
+  [Bulk Data Review](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/walkthroughs/bulk-data-review.md).
 - **Service design itself** (the engine, the calculation language, the visual editor) lives in
   [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder) and
-  [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) — see their own
+  [`jonnymuir/Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco); see their own
   READMEs, not this one.
+- **[Changelog](https://github.com/jonnymuir/Umbraco.Prism/blob/main/CHANGELOG.md)**: what changed in each release, and how to upgrade.
 
 ## Stack
 
 .NET 10 · Umbraco 17+ · Stateless OIDC (any compliant provider) · Azure Key Vault · Capacitor/TypeScript/Storybook for mobile.
 
+## Contributing and security
+
+See [CONTRIBUTING.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/CONTRIBUTING.md). To report a vulnerability, use
+[GitHub's private reporting](https://github.com/jonnymuir/Umbraco.Prism/security/advisories/new)
+as described in [SECURITY.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/SECURITY.md), not a public issue.
+
 ## License
 
-See [LICENSE](https://github.com/jonnymuir/Umbraco.Prism/blob/main/LICENSE).
+MIT. See [LICENSE](https://github.com/jonnymuir/Umbraco.Prism/blob/main/LICENSE).

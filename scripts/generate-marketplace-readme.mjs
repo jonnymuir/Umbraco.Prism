@@ -41,9 +41,15 @@ if (existingMarketplaceMarkdown === generatedMarkdown) {
 await fs.writeFile(marketplacePath, generatedMarkdown, 'utf8');
 console.log('Updated MARKETPLACE.md from README.md.');
 
+// Mermaid only renders on GitHub; anywhere else it shows as raw code. Swap each diagram for a
+// link to the README on GitHub, where it renders.
+function replaceMermaidBlocks(sourceRelativePath, markdown) {
+  return markdown.replace(/^```mermaid\n[\s\S]*?^```$/gm, `*[View this diagram on GitHub](${githubBlobBaseUrl}/${sourceRelativePath}).*`);
+}
+
 function transformMarkdown(sourceRelativePath, markdown) {
   const output = [];
-  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+  const lines = replaceMermaidBlocks(sourceRelativePath, markdown.replace(/\r\n/g, '\n')).split('\n');
   let inCodeFence = false;
   let centeredHtmlBlock = null;
 
@@ -135,7 +141,12 @@ function parseHtmlAttributes(attributeText) {
 }
 
 function rewriteMarkdownLinks(sourceRelativePath, line) {
-  return line.replace(/(!?\[[^\]]*])\(([^)\n]+)\)/g, (match, label, destination) => {
+  // A badge is an image nested inside a link, [![alt](image)](target): rewrite the outer target
+  // here, since the general pattern below only sees the inner image.
+  const withBadges = line.replace(/(\[!\[[^\]]*]\([^)\n]+\)])\(([^)\n]+)\)/g, (match, label, target) =>
+    isRelativeTarget(target.trim()) ? `${label}(${toAbsoluteUrl(sourceRelativePath, target.trim(), false)})` : match);
+
+  return withBadges.replace(/(!?\[[^\]]*])\(([^)\n]+)\)/g, (match, label, destination) => {
     const { target, title } = splitMarkdownDestination(destination.trim());
 
     if (target.startsWith('#')) {
