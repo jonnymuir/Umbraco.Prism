@@ -171,7 +171,7 @@ All three share the version in `Directory.Build.props` and release together from
 
 **Marketplace metadata:**
 
-See [umbraco-marketplace.json](../umbraco-marketplace.json) for the listing metadata (icon, screenshots, tags, description).
+See [umbraco-marketplace.json](../umbraco-marketplace.json) for the listing metadata (description, tags and screenshots). The listing's icon is the NuGet package icon. The file must validate against its `$schema`, which allows no other properties.
 
 **Accessibility (WCAG) checks:**
 

@@ -1,6 +1,5 @@
 {
   "$schema": "https://marketplace.umbraco.com/umbraco-marketplace-schema.json",
-  "version": "1.9.1",
   "Title": "Umbraco Prism",
   "Description": "Multi-tenancy platform for Umbraco (v17+) enabling a single CMS instance to serve hundreds of distinct client portals with dynamic branding, stateless OIDC identity, and native mobile app generation. Prism resolves branding, identity, and content context at runtime based on the incoming domain.",
   "Category": "Developer Tools",
@@ -29,6 +28,5 @@
       "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/docs/images/walkthroughs/authenticated-business-app-call/02-your-record.png",
       "Caption": "A journey reading the member's record from a business API with their own token"
     }
-  ],
-  "ImageUrl": "https://raw.githubusercontent.com/jonnymuir/Umbraco.Prism/main/assets/logo-vertical-lockup.png"
+  ]
 }
