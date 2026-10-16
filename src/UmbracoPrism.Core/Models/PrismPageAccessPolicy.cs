@@ -5,7 +5,7 @@ namespace UmbracoPrism.Core.Models;
 /// type owns that node (deliberately not a property on any one content type; see
 /// <see cref="IPrismContext"/>'s own tenant-scoping for the same "Prism config, not content
 /// schema" placement). Two independent axes: <see cref="RequiresSignIn"/> (global, no tenant
-/// variation) and <see cref="AllowedTenantIds"/> (per-tenant availability — an empty list means
+/// variation) and <see cref="AllowedTenantNames"/> (per-tenant availability: an empty list means
 /// available to every tenant).
 /// </summary>
 public class PrismPageAccessPolicy

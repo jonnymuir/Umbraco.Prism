@@ -79,6 +79,13 @@ jobs:
       - name: Run core tests
         run: dotnet test UmbracoPrism.slnx -c Release --filter "FullyQualifiedName~UmbracoPrism.Core.Tests|FullyQualifiedName~UmbracoPrism.Core.IntegrationTests"
 
+      # UmbracoPrism itself packs only after the client build (its static web assets), which this
+      # job doesn't run; package-release.yml packs all three.
+      - name: Pack UmbracoPrism.Automate and UmbracoPrism.uSync
+        run: |
+          dotnet pack src/UmbracoPrism.Automate/UmbracoPrism.Automate.csproj -c Release --no-build -o artifacts
+          dotnet pack src/UmbracoPrism.uSync/UmbracoPrism.uSync.csproj -c Release --no-build -o artifacts
+
   localhost-auth-playwright:
     runs-on: ubuntu-latest
     # 60, not 30: this lane boots Keycloak + MockBusinessApp + TestSite (SQLite) + a browser on a

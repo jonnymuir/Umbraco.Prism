@@ -44,7 +44,7 @@ When asked to cut a release (e.g. "Mabel, cut a release"):
    - **patch** (`v{major}.{minor}.{N+1}`): `fix:`, `perf:`, `docs:`, `chore:`, or other non-breaking commits only
    - If no conventional commit signals, default to **patch** and note uncertainty
 4. **Update version numbers** in ALL of these files (keep them in sync):
-   - `src/UmbracoPrism.Core/UmbracoPrism.Core.csproj` → `<Version>{new_version}</Version>`
+   - `Directory.Build.props` → `<Version>{new_version}</Version>` (one version for `UmbracoPrism`, `UmbracoPrism.Automate` and `UmbracoPrism.uSync`)
    - `src/UmbracoPrism.Client/package.json` → `"version": "{new_version}"`
 5. **Create/update `CHANGELOG.md`** at the repo root. Format:
    ```markdown
@@ -100,7 +100,7 @@ Mermaid renders natively in GitHub, is screen-reader friendly, and is far more m
 - Walkthrough screenshots: `/docs/images/walkthroughs/`
 - Marketplace: `/umbraco-marketplace.json`
 - Changelog: `/CHANGELOG.md`
-- NuGet version: `src/UmbracoPrism.Core/UmbracoPrism.Core.csproj` → `<Version>`
+- NuGet version (all three packages): `Directory.Build.props` → `<Version>`
 - NPM version: `src/UmbracoPrism.Client/package.json` → `"version"`
 - Current version: `1.1.2` (as of 2026-03-28)
 - Git history: `git log --oneline`, tags: `git tag --list 'v*'`

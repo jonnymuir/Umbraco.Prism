@@ -4,6 +4,16 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <!-- Ship the /// XML doc comments. Set here, not in Directory.Build.props: that file is read
+         before IsPackable is known. Stage 1: undocumented public members don't fail the build. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <PackageId>UmbracoPrism.uSync</PackageId>
+    <Title>Umbraco Prism for uSync</Title>
+    <Description>uSync handlers for Umbraco Prism: export and import tenants and page access policies between environments.</Description>
+    <PackageTags>Umbraco;uSync;Multi-tenancy</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +23,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\UmbracoPrism.Core\UmbracoPrism.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
 </Project>

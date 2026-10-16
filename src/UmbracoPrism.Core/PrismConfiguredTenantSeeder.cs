@@ -18,7 +18,7 @@ namespace UmbracoPrism.Core;
 /// changed secret name) take effect on the next deploy/restart with no manual step.
 ///
 /// Found necessary live: a uSync-file-based approach (a committed <c>PrismTenant</c> config,
-/// <see cref="UmbracoPrism.uSync.SyncHandlers.PrismTenantHandler"/>) was tried first for
+/// <c>UmbracoPrism.uSync.SyncHandlers.PrismTenantHandler</c>) was tried first for
 /// deploying the production reference app's own tenant, but never actually created the row —
 /// this codebase's own established pattern for "content that needs to exist on a real deploy" is
 /// a code-based reconciler on <see cref="UmbracoApplicationStartedNotification"/> (see also
