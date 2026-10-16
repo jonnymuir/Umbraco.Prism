@@ -33,8 +33,15 @@
     Cap.Plugins.FirebaseMessaging.addListener('notificationActionPerformed', function (event) {
       try {
         var url = event && event.notification && event.notification.data && event.notification.data.url;
-        if (url) {
-          window.location.href = url;
+        // Only ever a page on this site: another origin would be a phishing link, and a
+        // javascript: URL would run in the member's signed-in session. The server already drops
+        // such links (PrismDeepLinkPath); this also covers anything that reaches FCM another way.
+        // Resolving first means /\host and //host are judged by where they really lead.
+        var target = typeof url === 'string' && url.charAt(0) === '/' ? new URL(url, window.location.origin) : null;
+        if (target && target.origin === window.location.origin) {
+          window.location.href = target.href;
+        } else if (url) {
+          console.log('[Prism Push] ignored a notification link that is not on this site');
         }
       } catch (e) {
         console.log('[Prism Push] notification tap handling threw: ' + (e && (e.message || String(e))));

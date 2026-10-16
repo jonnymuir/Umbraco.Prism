@@ -70,6 +70,14 @@ public sealed class PrismSendPushNotificationAction(
                 StepRunErrorCategory.Validation);
         }
 
+        // Often bound from trigger data, so it can carry whatever the trigger's caller sent.
+        if (!string.IsNullOrEmpty(settings.DeepLinkPath) && !PrismDeepLinkPath.IsSitePath(settings.DeepLinkPath))
+        {
+            return ActionResult.Failed(
+                new ArgumentException("Deep link path must be a path on this site, such as /orders."),
+                StepRunErrorCategory.Validation);
+        }
+
         var sent = await notificationService.SendNotificationToUserAsync(
             settings.UserId, settings.TenantId, settings.Title, settings.Body, settings.DeepLinkPath, cancellationToken);
 
