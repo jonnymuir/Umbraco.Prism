@@ -35,7 +35,7 @@ public class PrismPartialsComposer : IComposer
 
 /// <summary>
 /// Startup filter that injects the embedded Prism partials into the
-/// <see cref="Microsoft.AspNetCore.Hosting.IWebHostEnvironment.ContentRootFileProvider"/>
+/// <see cref="Microsoft.Extensions.Hosting.IHostEnvironment.ContentRootFileProvider"/>
 /// so Razor can locate them at runtime.
 /// Physical files in the consuming project's Views/ folder are checked first
 /// because they appear first in the <see cref="CompositeFileProvider"/>.

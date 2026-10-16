@@ -55,6 +55,10 @@ public interface IPrismNotificationService
     /// <see cref="SendNotificationToAllMembersAsync"/>'s broadcast delivery. A no-op if the user
     /// has no registered push token.
     /// </summary>
+    /// <param name="userId">The member to notify: the id their device registered under.</param>
+    /// <param name="tenantId">The tenant the member belongs to.</param>
+    /// <param name="title">The notification's title.</param>
+    /// <param name="body">The notification's text.</param>
     /// <param name="deepLinkPath">
     /// Optional site-relative path (e.g. <c>/apply-for-a-juggling-licence</c>) delivered to the
     /// device as the FCM message's <c>data.url</c> field, so the mobile shell can route straight
@@ -71,6 +75,7 @@ public interface IPrismNotificationService
     /// result logged "sent" and reported success regardless of whether anything was actually
     /// delivered.
     /// </returns>
+    /// <param name="ct">Cancels the send.</param>
     Task<bool> SendNotificationToUserAsync(
         string userId,
         string tenantId,

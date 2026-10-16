@@ -68,6 +68,13 @@ troubleshooting, and [docs/ASPIRE_DEV.md](docs/ASPIRE_DEV.md) for what the Aspir
 exception; see [Secret Management](docs/secret-management.md)), then add your first tenant from
 **Settings → Advanced → Tenants**. Prism needs Umbraco 17 and .NET 10.
 
+Two optional add-ons, released alongside it with the same version:
+
+| Package | Adds |
+|---|---|
+| [`UmbracoPrism.uSync`](src/UmbracoPrism.uSync/README.md) | uSync export and import of tenants and page access policies, so they move between environments with the rest of your site. |
+| [`UmbracoPrism.Automate`](src/UmbracoPrism.Automate/README.md) | A "Send Prism push notification" action for Umbraco Automate. |
+
 ![The reference site's home page for a signed-in member, branded for its local Keycloak tenant](docs/images/walkthroughs/home-entry/02-signed-in-hero.png)
 
 ## What you get

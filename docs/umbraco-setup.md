@@ -10,6 +10,15 @@ In your Umbraco project:
 dotnet add package UmbracoPrism
 ```
 
+Two optional add-ons, released with the same version as `UmbracoPrism`:
+
+- **`UmbracoPrism.uSync`** exports and imports tenants and page access policies with uSync. Install
+  it if you move settings between environments with uSync: without it, each environment's tenants
+  and access rules have to be set up by hand. See its
+  [README](../src/UmbracoPrism.uSync/README.md).
+- **`UmbracoPrism.Automate`** adds a "Send Prism push notification" action to Umbraco Automate.
+  See its [README](../src/UmbracoPrism.Automate/README.md).
+
 ## 2. Nothing to Configure in Program.cs
 
 Prism registers itself via `PrismComposer`, an Umbraco `IComposer` that `.AddComposers()` — the
@@ -187,12 +196,10 @@ Entra tenant/app registration genuinely differs per environment): since this rea
 at deploy time, etc.), rather than in a committed `appsettings.json` — no code or template
 placeholders needed, it's the same mechanism any other environment-specific setting already uses.
 
-(A uSync-file-based version of this — a committed `PrismTenant` `.config`, using
-`PrismTenantHandler`/`PrismTenantSerializer` — was tried first for the actual production reference
-app, but never created the row: this codebase's own established pattern for "content that must
-exist on a real deploy" is a code-based reconciler like this one, not uSync. `PrismTenantHandler`
-still exists for uSync's own manual export/import actions in the backoffice, just not as an
-auto-apply-on-deploy mechanism.)
+Use this seeding, not uSync, for a tenant that must exist as soon as an environment first boots.
+The optional `UmbracoPrism.uSync` package moves tenants and page access policies between existing
+environments through uSync's export and import; a committed tenant file is not applied on a
+fresh deploy.
 
 ## 6. Calling your own API as the signed-in member (optional)
 

@@ -6,20 +6,16 @@
     <Nullable>enable</Nullable>
     <OutputType>Library</OutputType>
     <IsPackable>true</IsPackable>
+    <!-- Ship the /// XML doc comments. Set here, not in Directory.Build.props: that file is read
+         before IsPackable is known. Stage 1: undocumented public members don't fail the build. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>UmbracoPrism</PackageId>
     <Title>Umbraco Prism</Title>
-    <Version>6.0.0</Version>
-    <Authors>Jonny Muir</Authors>
-    <Company>Umbraco Prism</Company>
     <Description>Multi-tenancy for Umbraco (v17+) with dynamic branding and stateless identity.</Description>
     <PackageTags>Umbraco;Multi-tenancy;OIDC;Azure;Backoffice;umbraco-marketplace</PackageTags>
-    <PackageProjectUrl>https://github.com/jonnymuir/Umbraco.Prism</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/jonnymuir/Umbraco.Prism</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>MARKETPLACE.md</PackageReadmeFile>
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <PackageIcon>assets/logo-vertical-lockup.png</PackageIcon>
     <StaticWebAssetBasePath>App_Plugins/UmbracoPrism</StaticWebAssetBasePath>
   </PropertyGroup>
 
@@ -52,8 +48,6 @@
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
     <None Include="../../MARKETPLACE.md" Pack="true" PackagePath="/" />
-    <None Include="../../assets/logo-vertical-lockup.png" Pack="true" PackagePath="assets/" />
-    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
     <Content Update="wwwroot/**" Pack="true" PackagePath="/" />
   </ItemGroup>
 

@@ -42,10 +42,8 @@ There are three ways to send, all through `IPrismNotificationService`:
   tapped. The link must be a path on the tenant's site, such as `/orders`; anything else fails the
   step (see
   [Opening a page from a notification](walkthroughs/building-a-mobile-app.md#part-4-opening-a-page-from-a-notification)).
-  It lives in this repo's `UmbracoPrism.Automate` project, which the reference site uses
-  but which isn't published as a package yet; copy
-  [`PrismSendPushNotificationAction.cs`](../src/UmbracoPrism.Automate/PrismSendPushNotificationAction.cs)
-  into your own site to use it.
+  Install it with `dotnet add package UmbracoPrism.Automate`; its
+  [README](../src/UmbracoPrism.Automate/README.md) lists the settings and the step's output.
 - **From your own code.** Inject `IPrismNotificationService`:
 
   ```csharp
