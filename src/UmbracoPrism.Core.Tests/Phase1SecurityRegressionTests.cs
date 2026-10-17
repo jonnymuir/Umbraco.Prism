@@ -81,11 +81,11 @@ public class Phase1SecurityRegressionTests : IDisposable
     // ------------------------------------------------------------------
 
     [Fact]
-    public void AccountController_Login_DefaultsOidcChallengeToRoot_WhenReturnUrlIsOmitted()
+    public async Task AccountController_Login_DefaultsOidcChallengeToRoot_WhenReturnUrlIsOmitted()
     {
         var controller = BuildAccountController();
 
-        var result = controller.Login();
+        var result = await controller.Login();
 
         var challenge = result.Should().BeOfType<ChallengeResult>().Subject;
         challenge.AuthenticationSchemes.Should().ContainSingle().Which.Should().Be("PrismEntraID");
@@ -94,11 +94,11 @@ public class Phase1SecurityRegressionTests : IDisposable
     }
 
     [Fact]
-    public void AccountController_Login_PreservesRequestedLocalReturnUrl_ForTheOidcRoundTrip()
+    public async Task AccountController_Login_PreservesRequestedLocalReturnUrl_ForTheOidcRoundTrip()
     {
         var controller = BuildAccountController();
 
-        var result = controller.Login(returnUrl: "/dashboard");
+        var result = await controller.Login(returnUrl: "/dashboard");
 
         var challenge = result.Should().BeOfType<ChallengeResult>().Subject;
         challenge.Properties?.RedirectUri.Should().Be("/dashboard",
@@ -159,11 +159,11 @@ public class Phase1SecurityRegressionTests : IDisposable
     }
 
     [Fact]
-    public void AccountController_Login_NormalizesBlankReturnUrl_ToRoot()
+    public async Task AccountController_Login_NormalizesBlankReturnUrl_ToRoot()
     {
         var controller = BuildAccountController();
 
-        var result = controller.Login(returnUrl: string.Empty);
+        var result = await controller.Login(returnUrl: string.Empty);
 
         var challenge = result.Should().BeOfType<ChallengeResult>().Subject;
         challenge.Properties?.RedirectUri.Should().Be("/",
@@ -539,24 +539,29 @@ public class Phase1SecurityRegressionTests : IDisposable
         public string EnvironmentName { get; set; }
     }
 
-    private static UmbracoPrism.Core.Controllers.AccountController BuildAccountController(bool isAuthenticated = false)
+    // An anonymous visitor on the hostname of a tenant with sign-in configured.
+    private static UmbracoPrism.Core.Controllers.AccountController BuildAccountController()
     {
-        var identity = isAuthenticated
-            ? new ClaimsIdentity([new Claim(ClaimTypes.Name, "Tangy")], authenticationType: "PrismMemberCookie")
-            : new ClaimsIdentity();
+        var tenant = new PrismTenant
+        {
+            Hostname = "northwind.example",
+            OidcAuthority = "https://idp.northwind.example/realms/members",
+            OidcClientId = "northwind-members"
+        };
 
-        var controller = new UmbracoPrism.Core.Controllers.AccountController(NullLogger<UmbracoPrism.Core.Controllers.AccountController>.Instance)
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new RecordingAuthenticationService())
+            .BuildServiceProvider();
+
+        return new UmbracoPrism.Core.Controllers.AccountController(
+            NullLogger<UmbracoPrism.Core.Controllers.AccountController>.Instance,
+            new TestPrismContext { CurrentTenant = tenant })
         {
             ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = new ClaimsPrincipal(identity)
-                }
+                HttpContext = new DefaultHttpContext { RequestServices = services }
             }
         };
-
-        return controller;
     }
 
     private static async Task<string> ExecutePostLoginRedirectAsync(string? returnUrl, LoopbackOidcProvider oidcProvider)

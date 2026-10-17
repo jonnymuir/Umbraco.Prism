@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -144,6 +145,10 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
         options.Authority = "https://login.microsoftonline.com/common/v2.0";
         options.MapInboundClaims = false;
 
+        // Always Prism's own tenant-bound cookie, never the application's default sign-in
+        // scheme: that belongs to the host, and a Prism sign-in must not become a host session.
+        options.SignInScheme = PrismAuthenticationSchemes.MemberCookie;
+
         // Defense-in-depth: the base default is fail-safe (true), not fail-open. The normal login
         // flow never actually validates a token against this base TokenValidationParameters
         // instance at all — OnAuthorizationCodeReceived below exchanges and validates the ID
@@ -222,6 +227,16 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
         {
             var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
+
+            // No identity provider for this hostname: answer 404 rather than redirect anywhere
+            // with the placeholder authority and client ID. AccountController already refuses to
+            // start a sign-in here; this holds for any other caller too.
+            if (tenant?.HasSignInConfigured() != true)
+            {
+                context.HandleResponse();
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
 
             if (tenant != null)
             {
@@ -542,6 +557,15 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
 
+            // No identity provider for this hostname, so no provider session to end: finish the
+            // local sign-out here instead of redirecting to the placeholder authority.
+            if (tenant?.HasSignInConfigured() != true)
+            {
+                context.HandleResponse();
+                context.Response.Redirect(context.Options.SignedOutRedirectUri);
+                return;
+            }
+
             // TEMPORARY diagnostic — see AccountController.Logout()'s own remarks for the full
             // context. This handler is what's actually supposed to build the redirect to Entra's
             // (or a generic provider's) end-session endpoint; client-side navigation logs have
@@ -595,8 +619,9 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                     var baseUri = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}";
                     context.ProtocolMessage.IssuerAddress = $"{baseUri}/oauth2/v2.0/logout";
 
-                    var userEmail = context.HttpContext.User.FindFirst("preferred_username")?.Value
-                                    ?? context.HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+                    var member = (await context.HttpContext.AuthenticateAsync(PrismAuthenticationSchemes.MemberCookie)).Principal;
+                    var userEmail = member?.FindFirst("preferred_username")?.Value
+                                    ?? member?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
 
                     if (!string.IsNullOrEmpty(userEmail))
                     {

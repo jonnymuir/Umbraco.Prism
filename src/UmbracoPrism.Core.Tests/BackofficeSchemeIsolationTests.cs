@@ -10,20 +10,10 @@ using System.Text.Encodings.Web;
 namespace UmbracoPrism.Core.Tests;
 
 /// <summary>
-/// SEC-PT2-005 regression: DefaultAuthenticateScheme = "PrismMemberCookie" made unconditional
-/// in commit 42b85e5.
-///
-/// Copper's concern: with DefaultAuthenticateScheme set unconditionally, UseAuthentication()
-/// populates HttpContext.User with a member identity on ALL routes — including Umbraco backoffice
-/// routes. Could a PrismMemberCookie inadvertently satisfy backoffice authorization?
-///
-/// Conclusion: CONFIRMED SAFE. Umbraco's backoffice uses [Authorize(AuthenticationSchemes =
-/// "UmbracoBackOffice")] which explicitly names its scheme. ASP.NET Core's authorization
-/// middleware authenticates via the named scheme exclusively — it does NOT fall through to the
-/// default scheme. A PrismMemberCookie cannot satisfy a UmbracoBackOffice scheme challenge.
-///
-/// These tests lock that property in so that any future change to the auth defaults, scheme
-/// names, or handler wiring breaks loudly here rather than silently at the backoffice surface.
+/// SEC-PT2-005: a Prism member session can never satisfy the Umbraco backoffice. The backoffice
+/// names its own scheme ([Authorize(AuthenticationSchemes = "UmbracoBackOffice")]), and ASP.NET
+/// Core authenticates a named scheme exclusively, never falling through to the application's
+/// default. Which scheme is the default per hostname is covered end to end by PrismSignInScopeTests.
 /// </summary>
 public class BackofficeSchemeIsolationTests
 {
@@ -31,64 +21,6 @@ public class BackofficeSchemeIsolationTests
     private const string UmbracoBackOfficeAuthenticationType = "UmbracoBackOffice";
     private const string PrismMemberCookieScheme = "PrismMemberCookie";
     private const string PrismEntraIdScheme = "PrismEntraID";
-
-    // ------------------------------------------------------------------
-    // TEST A — DefaultAuthenticateScheme is PrismMemberCookie (guards 42b85e5)
-    //
-    // Before 42b85e5, DefaultAuthenticateScheme was only set when Prism:VaultUri was
-    // configured. The fix made it unconditional. This test guards against regression:
-    // if the default is re-gated on config, member-area auth silently breaks.
-    // ------------------------------------------------------------------
-
-    [Fact]
-    public void AuthDefaults_DefaultAuthenticateScheme_IsPrismMemberCookie()
-    {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddDataProtection();
-        services.AddAuthentication(options =>
-        {
-            options.DefaultAuthenticateScheme = PrismMemberCookieScheme;
-            options.DefaultSignInScheme = PrismMemberCookieScheme;
-            options.DefaultChallengeScheme = PrismEntraIdScheme;
-        });
-
-        var sp = services.BuildServiceProvider();
-        var opts = sp.GetRequiredService<IOptionsMonitor<AuthenticationOptions>>().CurrentValue;
-
-        opts.DefaultAuthenticateScheme.Should().Be(PrismMemberCookieScheme,
-            "because commit 42b85e5 made DefaultAuthenticateScheme unconditional — " +
-            "member authentication must not be gated on Prism:VaultUri (SEC-PT2-005)");
-    }
-
-    // ------------------------------------------------------------------
-    // TEST B — DefaultChallengeScheme is PrismEntraID
-    //
-    // Completes the unconditional-defaults picture: unauthenticated requests on
-    // member routes must challenge via PrismEntraID (OIDC), not via Umbraco's
-    // backoffice challenge handler.
-    // ------------------------------------------------------------------
-
-    [Fact]
-    public void AuthDefaults_DefaultChallengeScheme_IsPrismEntraID()
-    {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddDataProtection();
-        services.AddAuthentication(options =>
-        {
-            options.DefaultAuthenticateScheme = PrismMemberCookieScheme;
-            options.DefaultSignInScheme = PrismMemberCookieScheme;
-            options.DefaultChallengeScheme = PrismEntraIdScheme;
-        });
-
-        var sp = services.BuildServiceProvider();
-        var opts = sp.GetRequiredService<IOptionsMonitor<AuthenticationOptions>>().CurrentValue;
-
-        opts.DefaultChallengeScheme.Should().Be(PrismEntraIdScheme,
-            "because unauthenticated member-area requests must trigger an OIDC challenge, " +
-            "not the Umbraco backoffice login redirect (SEC-PT2-005)");
-    }
 
     // ------------------------------------------------------------------
     // TEST C — Umbraco's backoffice scheme is distinct from PrismMemberCookie
@@ -116,8 +48,8 @@ public class BackofficeSchemeIsolationTests
     //
     // Core regression for SEC-PT2-005: proves that requesting authentication via the
     // explicit "UmbracoBackOffice" scheme does NOT fall through to PrismMemberCookie,
-    // even though PrismMemberCookie is the DefaultAuthenticateScheme and its handler
-    // would succeed for the same request.
+    // even when PrismMemberCookie is the default authenticate scheme for the request and its
+    // handler would succeed.
     //
     // This is the key safety property: ASP.NET Core's authorization middleware, when
     // processing [Authorize(AuthenticationSchemes = "UmbracoBackOffice")], calls

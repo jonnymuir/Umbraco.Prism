@@ -91,6 +91,18 @@ migration, and adds its screens under **Settings → Advanced** in the backoffic
 It never creates or changes your document types, templates, content or media. Your content model
 is yours, so installing Prism on an existing site leaves every page as it was.
 
+Member sign-in applies only on the hostname of a tenant with sign-in configured: a generic OIDC
+authority and client ID, or an Entra tenant ID and client ID. On every other hostname your site's
+own authentication stays exactly as it was: your `[Authorize]` endpoints challenge and
+authenticate with your own defaults, Prism's `/auth/login` and `/auth/register` return 404, and
+Prism's member cookie is not honoured.
+
+On a tenant's hostname, Prism's member session is the default. If your site also serves its own
+signed-in areas there (an admin area, say), name your scheme on them, for example
+`[Authorize(AuthenticationSchemes = IdentityConstants.ApplicationScheme, Roles = "Administrator")]`,
+so a member signed in through the tenant's identity provider can never satisfy them, whatever
+role claims that provider issues.
+
 ## 4. Your Content
 
 Prism works with whatever pages your site already has:

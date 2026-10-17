@@ -115,63 +115,8 @@ public class PrismComposer : IComposer
         // it acts on the 'options' object passed in per-request.
         builder.Services.AddSingleton<IPostConfigureOptions<OpenIdConnectOptions>, PrismOidcConfiguration>();
         
-        // 6. Authentication & Cookie Setup
-        // Auth defaults are unconditional: PrismMemberCookie handles all member
-        // requests regardless of whether an Azure Key Vault URI is configured.
-        // Vault presence is an optional secret-provider detail, not a feature flag.
-        var authBuilder = builder.Services.AddAuthentication(options =>
-        {
-            options.DefaultAuthenticateScheme = "PrismMemberCookie";
-            options.DefaultSignInScheme = "PrismMemberCookie";
-            options.DefaultChallengeScheme = "PrismEntraID";
-        });
-
-        authBuilder.AddMicrosoftIdentityWebApp(identityOptions =>
-        {
-            // Placeholders satisfy startup validation. 
-            // Our CredentialProvider and OidcConfiguration will swap these out at runtime.
-            identityOptions.Instance = "https://login.microsoftonline.com/";
-            identityOptions.TenantId = "common";
-            identityOptions.ClientId = "DYNAMIC_PLACEHOLDER";
-            identityOptions.CallbackPath = "/signin-oidc";
-            identityOptions.SignedOutCallbackPath = "/signout-callback-oidc";
-            
-            // Note: We no longer need TEMPORARY_PLACEHOLDER for the secret 
-            // because the presence of an IClientAssertionProvider tells MSAL to use that instead.
-        }, cookieOptions =>
-        {
-            cookieOptions.Cookie.Name = "PrismMemberCookie";
-            cookieOptions.LoginPath = "/auth/login";
-            cookieOptions.Cookie.SameSite = SameSiteMode.Lax;
-            cookieOptions.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-
-            // Tenant-binding enforcement, applied automatically to every PrismMemberCookie
-            // request, not opt-in per controller. Runs on every request that carries the
-            // cookie; PrismTenantMiddleware (registered as a PrePipeline filter, above any
-            // Umbraco middleware including this one) has already resolved IPrismContext.CurrentTenant
-            // by the time this fires. A principal whose own tenant claims don't match the
-            // hostname-resolved tenant is rejected — the request continues as anonymous rather
-            // than as the wrong tenant's member. Endpoints that want a hard 403 instead of an
-            // anonymous fallback declare the "PrismStrictIsolation" policy explicitly on top
-            // of this (see PrismTenantHandler), sharing the same IPrismTenantBindingValidator
-            // check rather than reimplementing it.
-            cookieOptions.Events.OnValidatePrincipal = context =>
-            {
-                var validator = context.HttpContext.RequestServices.GetRequiredService<IPrismTenantBindingValidator>();
-                var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
-
-                if (prismContext.CurrentTenant is null ||
-                    context.Principal is null ||
-                    !validator.IsBound(context.Principal, prismContext.CurrentTenant))
-                {
-                    context.RejectPrincipal();
-                }
-
-                return Task.CompletedTask;
-            };
-        }, openIdConnectScheme: "PrismEntraID", cookieScheme: "PrismMemberCookie")
-        .EnableTokenAcquisitionToCallDownstreamApi()
-        .AddInMemoryTokenCaches();
+        // 6. Member sign-in, confined to tenants that have it configured
+        builder.Services.AddPrismMemberSignIn();
 
         // 7. Authorization Policy
         builder.Services.Configure<AuthorizationOptions>(options =>
