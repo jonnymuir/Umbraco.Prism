@@ -23,23 +23,25 @@ namespace UmbracoPrism.TestSite;
 /// Registers TestSite-specific notification handlers, plus TestSite's own identity/authorization
 /// wiring for Wayfinder.Umbraco (a bare package reference supplies none of that — see
 /// <see cref="Wayfinder.Umbraco.Configuration.WayfinderServiceDesignOptions"/>'s own remarks).
-/// <see cref="MobileNavSchemaSetup"/> runs before <see cref="DemoMobileNavSeeder"/>
-/// so the Block List element type exists before the seeder inspects the Settings node.
-/// Vinyl Vault: <see cref="VinylVaultContentTypes"/> runs before <see cref="VinylVaultSeeder"/>
-/// to ensure content types exist before seeding content.
-/// <para>
-/// <see cref="ComposeAfterAttribute"/> on <see cref="PrismComposer"/> guarantees that
-/// <see cref="PrismContentTypeSeeder"/> is registered — and therefore runs — before any
-/// handler registered here.
-/// Umbraco dispatches <see cref="UmbracoApplicationStartedNotification"/> handlers
-/// sequentially in registration order, so composer ordering is the correct coordination mechanism.
-/// </para>
+/// Umbraco dispatches <see cref="UmbracoApplicationStartedNotification"/> handlers sequentially in
+/// registration order, so the order here is the coordination mechanism:
+/// <see cref="StarterContentTypeSeeder"/> and <see cref="StarterContentSeeder"/> run first, so the
+/// site's own document types and Home/Settings nodes exist before anything below reads them;
+/// <see cref="MobileNavSchemaSetup"/> runs before <see cref="DemoMobileNavSeeder"/> so the Block
+/// List element type exists before the seeder inspects the Settings node; Vinyl Vault's
+/// <see cref="VinylVaultContentTypes"/> runs before <see cref="VinylVaultSeeder"/>.
 /// </summary>
 [ComposeAfter(typeof(PrismComposer))]
 public class TestSiteComposer : IComposer
 {
     public void Compose(IUmbracoBuilder builder)
     {
+        builder.Services.Configure<TestSiteOptions>(builder.Config.GetSection(TestSiteOptions.SectionName));
+
+        // The site's own document types and starter content
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, StarterContentTypeSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, StarterContentSeeder>();
+
         // Mobile navigation demo
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, MobileNavSchemaSetup>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, DemoMobileNavSeeder>();

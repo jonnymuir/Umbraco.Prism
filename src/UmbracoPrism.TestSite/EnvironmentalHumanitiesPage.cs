@@ -23,7 +23,7 @@ public class EnvironmentalHumanitiesPage(
     IDataTypeService dataTypeService,
     ITemplateService templateService,
     IShortStringHelper shortStringHelper,
-    IOptions<PrismConfiguration> prismConfig,
+    IOptions<TestSiteOptions> testSiteOptions,
     IRuntimeState runtimeState,
     ILogger<EnvironmentalHumanitiesPage> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
@@ -46,7 +46,7 @@ public class EnvironmentalHumanitiesPage(
     public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
         if (runtimeState.Level < RuntimeLevel.Run) return;
-        if (!prismConfig.Value.SeedStarterContent) return;
+        if (!testSiteOptions.Value.SeedStarterContent) return;
 
         try
         {

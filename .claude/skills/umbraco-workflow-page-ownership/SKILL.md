@@ -27,8 +27,8 @@ Use this skill when reviewing or building Prism workflow pages, member dashboard
 
 ## Examples
 
-- `src/UmbracoPrism.Core/PrismContentTypeSeeder.cs`
-- `src/UmbracoPrism.Core/Controllers/MemberDashboardController.cs`
+- `src/UmbracoPrism.TestSite/StarterContentTypeSeeder.cs`
+- `src/UmbracoPrism.TestSite/Controllers/MemberDashboardController.cs`
 - `src/UmbracoPrism.Core/Controllers/WorkflowHubController.cs`
 - `src/UmbracoPrism.TestSite/Controllers/WorkflowPageController.cs`
 - `src/UmbracoPrism.TestSite/Views/HomePage.cshtml`

@@ -20,7 +20,7 @@ namespace UmbracoPrism.TestSite;
 /// each backed by an SVG icon written to /media/prism-nav-icons/ and registered in the
 /// Umbraco media library under a "Prism Navigation Icons" folder.
 ///
-/// Runs idempotently whenever <c>Prism:SeedStarterContent</c> is enabled (see
+/// Runs idempotently whenever <c>TestSite:SeedStarterContent</c> is enabled (see
 /// <see cref="MobileNavSchemaSetup"/> for why this moved off a Development-only gate) and
 /// repairs stale/missing nav contracts.
 /// </summary>
@@ -29,7 +29,7 @@ public class DemoMobileNavSeeder(
     IContentService contentService,
     IContentTypeService contentTypeService,
     IMediaService mediaService,
-    IOptions<PrismConfiguration> prismConfig,
+    IOptions<TestSiteOptions> testSiteOptions,
     IRuntimeState runtimeState,
     ILogger<DemoMobileNavSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
@@ -98,7 +98,7 @@ public class DemoMobileNavSeeder(
         CancellationToken cancellationToken)
     {
         if (runtimeState.Level < RuntimeLevel.Run) return;
-        if (!prismConfig.Value.SeedStarterContent) return;
+        if (!testSiteOptions.Value.SeedStarterContent) return;
 
         try
         {

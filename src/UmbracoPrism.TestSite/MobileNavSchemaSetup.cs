@@ -20,8 +20,8 @@ namespace UmbracoPrism.TestSite;
 /// the desktop header nav can be authored independently of the mobile bottom bar — the two
 /// surfaces genuinely carry different content today (see <c>DemoMobileNavSeeder</c>), and this
 /// makes that difference backoffice-editable instead of one being hardcoded HTML.
-/// Runs idempotently whenever <c>Prism:SeedStarterContent</c> is enabled (the same flag
-/// <c>PrismStarterContentSeeder</c> uses, already on in every environment's config) — skip if
+/// Runs idempotently whenever <c>TestSite:SeedStarterContent</c> is enabled (the same flag
+/// <see cref="StarterContentSeeder"/> uses, already on in every environment's config) — skip if
 /// element type already exists. Previously gated to Development only, found live on the
 /// production reference app: nothing about this schema setup is actually dev-specific (unlike
 /// e.g. DemoTenantSeeder's hardcoded local Keycloak secrets), it was just never given a way to
@@ -33,7 +33,7 @@ public class MobileNavSchemaSetup(
     IShortStringHelper shortStringHelper,
     PropertyEditorCollection propertyEditorCollection,
     IConfigurationEditorJsonSerializer configurationEditorJsonSerializer,
-    IOptions<PrismConfiguration> prismConfig,
+    IOptions<TestSiteOptions> testSiteOptions,
     IRuntimeState runtimeState,
     ILogger<MobileNavSchemaSetup> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
@@ -53,7 +53,7 @@ public class MobileNavSchemaSetup(
         CancellationToken cancellationToken)
     {
         if (runtimeState.Level < RuntimeLevel.Run) return;
-        if (!prismConfig.Value.SeedStarterContent) return;
+        if (!testSiteOptions.Value.SeedStarterContent) return;
 
         logger.LogInformation("MOBILE NAV SCHEMA: Starting setup");
         await Task.Run(SetupSchemaAsync, cancellationToken);

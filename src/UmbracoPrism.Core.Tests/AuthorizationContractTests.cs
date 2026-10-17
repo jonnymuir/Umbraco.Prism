@@ -84,8 +84,8 @@ public class AuthorizationContractTests
     /// <summary>Controllers whose auth decision is a deliberate imperative check, not an attribute.</summary>
     private static readonly Dictionary<Type, string> KnownImperativeAuth = new()
     {
-        [typeof(MemberDashboardController)] =
-            "Index() redirects an unauthenticated caller to the PrismMemberCookie scheme's configured " +
+        [typeof(global::UmbracoPrism.TestSite.Controllers.MemberDashboardController)] =
+            "Never-ships TestSite. Index() redirects an unauthenticated caller to the PrismMemberCookie scheme's configured " +
             "login path (RenderController route-hijack; the [Authorize] challenge cannot build that " +
             "redirect for a route-hijacked doc type). Fail-closed redirect is asserted by a booted-host " +
             "test (Layer 2).",
@@ -122,7 +122,7 @@ public class AuthorizationContractTests
     {
         AllControllers().Should().Contain(new[]
         {
-            typeof(AccountController), typeof(MemberDashboardController), typeof(DeviceAdminController),
+            typeof(AccountController), typeof(global::UmbracoPrism.TestSite.Controllers.MemberDashboardController), typeof(DeviceAdminController),
             typeof(TenantManagementController), typeof(BiometricController), typeof(PrismNotificationController),
         }, "reflection discovery is how a new controller is forced through this contract");
     }

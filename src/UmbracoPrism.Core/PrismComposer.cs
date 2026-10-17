@@ -215,8 +215,6 @@ public class PrismComposer : IComposer
         // Umbraco reaching Run and the old PrismMigrationHandler's migration finishing. This
         // registration makes that race structurally impossible instead of papering over it.
         builder.PackageMigrationPlans().Add<PrismMigrationPlan>();
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismContentTypeSeeder>();
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismStarterContentSeeder>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismConfiguredTenantSeeder>();
         builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>();
         builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismPageAccessRouteRefreshHandler>();
