@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using AwesomeAssertions;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
@@ -18,12 +20,45 @@ public class PrismUserContextEmailTests
 {
     private const string Roster = "njf-caseworker@prism.local";
 
-    private static PrismUserContext ContextFor(PrismTenant? tenant, params Claim[] claims)
+    // claims: the Prism member session (Prism's own cookie). hostUser: what HttpContext.User holds,
+    // which on a hostname without Prism sign-in is the host application's own login.
+    private static PrismUserContext ContextFor(PrismTenant? tenant, params Claim[] claims) =>
+        ContextFor(tenant, member: new ClaimsPrincipal(new ClaimsIdentity(claims, "PrismMemberCookie")), hostUser: null);
+
+    private static PrismUserContext ContextFor(PrismTenant? tenant, ClaimsPrincipal? member, ClaimsPrincipal? hostUser)
     {
-        var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test")) };
+        var authentication = new Mock<IAuthenticationService>();
+        authentication
+            .Setup(a => a.AuthenticateAsync(It.IsAny<HttpContext>(), "PrismMemberCookie"))
+            .ReturnsAsync(member is null
+                ? AuthenticateResult.NoResult()
+                : AuthenticateResult.Success(new AuthenticationTicket(member, "PrismMemberCookie")));
+
+        var http = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection().AddSingleton(authentication.Object).BuildServiceProvider(),
+            User = hostUser ?? new ClaimsPrincipal(new ClaimsIdentity())
+        };
         var prism = new Mock<IPrismContext>();
         prism.SetupGet(c => c.CurrentTenant).Returns(tenant);
         return new PrismUserContext(new HttpContextAccessor { HttpContext = http }, prism.Object);
+    }
+
+    [Fact]
+    public void AHostApplicationLogin_IsNotASignedInPrismMember_EvenWithAVerifiedRosterEmail()
+    {
+        // The application's default scheme can be the host's own login (on a hostname without
+        // Prism sign-in). Whatever it vouches for, it is not a Prism member: its email must never
+        // be matched against a roster or own a member's service requests.
+        var hostLogin = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("email", Roster), new Claim("email_verified", "true"), new Claim("name", "Host Admin")],
+            "HostCookie"));
+
+        var context = ContextFor(OwnIdentityProvider, member: null, hostUser: hostLogin);
+
+        context.IsAuthenticated.Should().BeFalse();
+        context.Email.Should().BeNull();
+        context.Name.Should().BeNull();
     }
 
     private static readonly PrismTenant OwnIdentityProvider = new() { OidcAuthority = "https://idp.example/realms/prod" };

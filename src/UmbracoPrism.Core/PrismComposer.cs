@@ -11,8 +11,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Identity.Web;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Notifications;
@@ -64,37 +62,12 @@ public class PrismComposer : IComposer
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
         // 3. Middleware Registration
-        // ForwardedHeaders must run before any middleware that reads RemoteIpAddress
-        // (e.g. biometric rate limiting in BiometricController). Trust is opt-in, via
-        // Prism:ForwardedHeaders (see PrismForwardedHeadersOptions) — ASP.NET Core's own
-        // loopback-only default applies to any address a deployment doesn't explicitly name,
-        // so RemoteIpAddress stays trustworthy (and the biometric-exchange rate limiter
-        // meaningful) until a deployment actually sits behind a real, named proxy.
-        builder.Services.Configure<PrismForwardedHeadersOptions>(
-            builder.Config.GetSection(PrismForwardedHeadersOptions.SectionName));
-        builder.Services.AddOptions<ForwardedHeadersOptions>()
-            .Configure<IOptions<PrismForwardedHeadersOptions>>(
-                (options, prismOptions) => prismOptions.Value.ApplyTo(options));
-
-        // SEC-PT2-004: Security response headers — configurable via Prism:SecurityHeaders.
-        // Defaults: X-Content-Type-Options, X-Frame-Options (SAMEORIGIN), Referrer-Policy,
-        // Permissions-Policy, HSTS (HTTPS only), an enforced Content-Security-Policy (self
-        // only, no unsafe-inline — safe because Prism's own branding/mobile-shell/biometric
-        // assets, and the TestSite reference host's own pages, are all real external
-        // resources, never spliced inline). Backoffice paths excluded by default.
-        builder.Services.Configure<PrismSecurityHeadersOptions>(
-            builder.Config.GetSection(PrismSecurityHeadersOptions.SectionName));
-
-        ConfigureFrameworkCookieDefaults(builder.Services);
-
         builder.Services.Configure<UmbracoPipelineOptions>(options =>
         {
             options.AddFilter(new UmbracoPipelineFilter(
                 "PrismTenantResolution",
                 app =>
                 {
-                    app.UseForwardedHeaders();
-                    app.UseMiddleware<PrismSecurityHeadersMiddleware>();
                     app.UseMiddleware<PrismTenantMiddleware>();
                     app.UseMiddleware<PrismMobileCookieMiddleware>();
                 }
@@ -115,63 +88,8 @@ public class PrismComposer : IComposer
         // it acts on the 'options' object passed in per-request.
         builder.Services.AddSingleton<IPostConfigureOptions<OpenIdConnectOptions>, PrismOidcConfiguration>();
         
-        // 6. Authentication & Cookie Setup
-        // Auth defaults are unconditional: PrismMemberCookie handles all member
-        // requests regardless of whether an Azure Key Vault URI is configured.
-        // Vault presence is an optional secret-provider detail, not a feature flag.
-        var authBuilder = builder.Services.AddAuthentication(options =>
-        {
-            options.DefaultAuthenticateScheme = "PrismMemberCookie";
-            options.DefaultSignInScheme = "PrismMemberCookie";
-            options.DefaultChallengeScheme = "PrismEntraID";
-        });
-
-        authBuilder.AddMicrosoftIdentityWebApp(identityOptions =>
-        {
-            // Placeholders satisfy startup validation. 
-            // Our CredentialProvider and OidcConfiguration will swap these out at runtime.
-            identityOptions.Instance = "https://login.microsoftonline.com/";
-            identityOptions.TenantId = "common";
-            identityOptions.ClientId = "DYNAMIC_PLACEHOLDER";
-            identityOptions.CallbackPath = "/signin-oidc";
-            identityOptions.SignedOutCallbackPath = "/signout-callback-oidc";
-            
-            // Note: We no longer need TEMPORARY_PLACEHOLDER for the secret 
-            // because the presence of an IClientAssertionProvider tells MSAL to use that instead.
-        }, cookieOptions =>
-        {
-            cookieOptions.Cookie.Name = "PrismMemberCookie";
-            cookieOptions.LoginPath = "/auth/login";
-            cookieOptions.Cookie.SameSite = SameSiteMode.Lax;
-            cookieOptions.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-
-            // Tenant-binding enforcement, applied automatically to every PrismMemberCookie
-            // request, not opt-in per controller. Runs on every request that carries the
-            // cookie; PrismTenantMiddleware (registered as a PrePipeline filter, above any
-            // Umbraco middleware including this one) has already resolved IPrismContext.CurrentTenant
-            // by the time this fires. A principal whose own tenant claims don't match the
-            // hostname-resolved tenant is rejected — the request continues as anonymous rather
-            // than as the wrong tenant's member. Endpoints that want a hard 403 instead of an
-            // anonymous fallback declare the "PrismStrictIsolation" policy explicitly on top
-            // of this (see PrismTenantHandler), sharing the same IPrismTenantBindingValidator
-            // check rather than reimplementing it.
-            cookieOptions.Events.OnValidatePrincipal = context =>
-            {
-                var validator = context.HttpContext.RequestServices.GetRequiredService<IPrismTenantBindingValidator>();
-                var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
-
-                if (prismContext.CurrentTenant is null ||
-                    context.Principal is null ||
-                    !validator.IsBound(context.Principal, prismContext.CurrentTenant))
-                {
-                    context.RejectPrincipal();
-                }
-
-                return Task.CompletedTask;
-            };
-        }, openIdConnectScheme: "PrismEntraID", cookieScheme: "PrismMemberCookie")
-        .EnableTokenAcquisitionToCallDownstreamApi()
-        .AddInMemoryTokenCaches();
+        // 6. Member sign-in, confined to tenants that have it configured
+        builder.Services.AddPrismMemberSignIn();
 
         // 7. Authorization Policy
         builder.Services.Configure<AuthorizationOptions>(options =>
@@ -215,8 +133,6 @@ public class PrismComposer : IComposer
         // Umbraco reaching Run and the old PrismMigrationHandler's migration finishing. This
         // registration makes that race structurally impossible instead of papering over it.
         builder.PackageMigrationPlans().Add<PrismMigrationPlan>();
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismContentTypeSeeder>();
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismStarterContentSeeder>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, PrismConfiguredTenantSeeder>();
         builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismContentPublishedHandler>();
         builder.AddNotificationAsyncHandler<ContentPublishedNotification, PrismPageAccessRouteRefreshHandler>();
@@ -229,47 +145,5 @@ public class PrismComposer : IComposer
         {
             options.Filters.Add<PrismPageAccessFilter>();
         });
-    }
-
-    /// <summary>
-    /// Overrides ASP.NET Core framework defaults that the DAST baseline reports on every host:
-    /// the antiforgery middleware's own X-Frame-Options copy, and cookies that ship without Secure.
-    /// </summary>
-    private static void ConfigureFrameworkCookieDefaults(IServiceCollection services)
-    {
-        // ASP.NET Core's own antiforgery middleware sets X-Frame-Options: SAMEORIGIN itself,
-        // automatically, on any response where a token gets issued (IAntiforgery
-        // .GetAndStoreTokens) — an easy-to-miss built-in behaviour, not something either
-        // Wayfinder.Umbraco or this repo's own code asks for. Found live: every page that
-        // mints an antiforgery token (the citizen stage form, the caseworker worklist) sent
-        // X-Frame-Options TWICE — once from here, once from the framework's own default.
-        // Two independent, identically-valued instances of the same header is a real
-        // clickjacking-protection regression, not a cosmetic duplicate: some browsers treat a
-        // header sent more than once as untrustworthy and ignore it entirely rather than pick
-        // one value. PrismSecurityHeadersOptions.FrameOptions already covers this
-        // (configurably, including the ability to omit it) — suppress the framework's own
-        // unconditional, unconfigurable copy so there is exactly one source of truth.
-        //
-        // A second, unrelated framework default fixed in the same place: AntiforgeryOptions's
-        // own Cookie.SecurePolicy defaults to CookieSecurePolicy.None, not SameAsRequest as its
-        // sibling cookie-auth handler does (confirmed: `new AntiforgeryOptions().Cookie
-        // .SecurePolicy` is `None` out of the box) — so the antiforgery cookie itself ships
-        // with no Secure flag on every page that mints a token, found live via the same DAST
-        // scan (Cookie Without Secure Flag [10011]) on both /apply-for-a-juggling-licence and
-        // /caseworker-queue. TestSite (and every real deployment) is HTTPS-only, so there is no
-        // legitimate plain-HTTP case this cookie needs to survive — Always, matching
-        // PrismMemberCookie's own SecurePolicy above.
-        services.Configure<AntiforgeryOptions>(options =>
-        {
-            options.SuppressXFrameOptionsHeader = true;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        });
-
-        // The same default hides in MVC's TempData cookie (CookieTempDataProviderOptions's own
-        // Cookie.SecurePolicy is None): any host page that POSTs through Wayfinder's stage
-        // endpoint sets it, and the DAST baseline flagged it (Cookie Without Secure Flag [10011]
-        // on /umbraco/wayfinder-stage/advance). HTTPS-only, like the cookies above.
-        services.Configure<CookieTempDataProviderOptions>(options =>
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always);
     }
 }

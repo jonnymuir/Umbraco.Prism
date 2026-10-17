@@ -6,7 +6,7 @@ using Umbraco.Cms.Web.Common.Controllers;
 using Umbraco.Extensions;
 using UmbracoPrism.Core.Models;
 
-namespace UmbracoPrism.Core.Controllers;
+namespace UmbracoPrism.TestSite.Controllers;
 
 /// <summary>
 /// Umbraco route-hijacking controller for the Member Dashboard document type.

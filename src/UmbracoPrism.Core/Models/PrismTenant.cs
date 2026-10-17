@@ -85,4 +85,15 @@ public class PrismTenant
     /// For Key Vault this is the secret name; for the localhost demo it is the repo-owned inline secret.
     /// </summary>
     public string? OidcClientSecretReference { get; set; }
+
+    /// <summary>
+    /// Whether member sign-in is configured for this tenant: a generic OIDC authority and client
+    /// ID, or (when no generic authority is set) an Entra tenant ID and client ID. Prism's sign-in
+    /// applies only on the hostname of a tenant where this is true; everywhere else the host
+    /// application's own authentication stays in charge.
+    /// </summary>
+    public bool HasSignInConfigured() =>
+        !string.IsNullOrWhiteSpace(OidcAuthority)
+            ? !string.IsNullOrWhiteSpace(OidcClientId)
+            : !string.IsNullOrWhiteSpace(EntraTenantId) && !string.IsNullOrWhiteSpace(EntraClientId);
 }

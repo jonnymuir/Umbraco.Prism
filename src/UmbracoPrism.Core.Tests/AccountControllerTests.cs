@@ -1,12 +1,16 @@
 using AwesomeAssertions;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using System.Linq;
 using System.Reflection;
 using System.Security.Claims;
 using UmbracoPrism.Core.Controllers;
+using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Tests;
 
@@ -17,11 +21,11 @@ public class AccountControllerTests
     [InlineData("//evil.com")]
     [InlineData("http://phishing.example.com/steal-tokens")]
     [InlineData("javascript:alert('xss')")]
-    public void Login_NormalizesExternalReturnUrl_BeforeChallenge(string maliciousReturnUrl)
+    public async Task Login_NormalizesExternalReturnUrl_BeforeChallenge(string maliciousReturnUrl)
     {
-        var controller = BuildController(isAuthenticated: false);
+        var controller = BuildController(isMember: false);
 
-        var result = controller.Login(maliciousReturnUrl).Should().BeOfType<ChallengeResult>().Subject;
+        var result = (await controller.Login(maliciousReturnUrl)).Should().BeOfType<ChallengeResult>().Subject;
 
         result.Properties?.RedirectUri.Should().Be("/");
     }
@@ -30,11 +34,11 @@ public class AccountControllerTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Login_NormalizesBlankReturnUrl_BeforeChallenge(string? returnUrl)
+    public async Task Login_NormalizesBlankReturnUrl_BeforeChallenge(string? returnUrl)
     {
-        var controller = BuildController(isAuthenticated: false);
+        var controller = BuildController(isMember: false);
 
-        var result = controller.Login(returnUrl!).Should().BeOfType<ChallengeResult>().Subject;
+        var result = (await controller.Login(returnUrl!)).Should().BeOfType<ChallengeResult>().Subject;
 
         result.Properties?.RedirectUri.Should().Be("/");
     }
@@ -44,11 +48,11 @@ public class AccountControllerTests
     [InlineData("/dashboard")]
     [InlineData("/content/page")]
     [InlineData("~/dashboard")]
-    public void Login_PreservesSafeLocalReturnUrl_BeforeChallenge(string safeReturnUrl)
+    public async Task Login_PreservesSafeLocalReturnUrl_BeforeChallenge(string safeReturnUrl)
     {
-        var controller = BuildController(isAuthenticated: false);
+        var controller = BuildController(isMember: false);
 
-        var result = controller.Login(safeReturnUrl).Should().BeOfType<ChallengeResult>().Subject;
+        var result = (await controller.Login(safeReturnUrl)).Should().BeOfType<ChallengeResult>().Subject;
 
         result.Properties?.RedirectUri.Should().Be(safeReturnUrl);
     }
@@ -56,11 +60,11 @@ public class AccountControllerTests
     [Theory]
     [InlineData("https://evil.com")]
     [InlineData("//evil.com")]
-    public void Login_FallsBackToRoot_ForAuthenticatedUsers_WhenReturnUrlIsExternal(string maliciousReturnUrl)
+    public async Task Login_FallsBackToRoot_ForAuthenticatedUsers_WhenReturnUrlIsExternal(string maliciousReturnUrl)
     {
-        var controller = BuildController(isAuthenticated: true);
+        var controller = BuildController(isMember: true);
 
-        var result = controller.Login(maliciousReturnUrl).Should().BeOfType<LocalRedirectResult>().Subject;
+        var result = (await controller.Login(maliciousReturnUrl)).Should().BeOfType<LocalRedirectResult>().Subject;
 
         result.Url.Should().Be("/");
     }
@@ -68,32 +72,130 @@ public class AccountControllerTests
     [Theory]
     [InlineData("https://evil.com")]
     [InlineData("//evil.com")]
-    public void Register_NormalizesExternalReturnUrl_BeforeChallenge(string maliciousReturnUrl)
+    public async Task Register_NormalizesExternalReturnUrl_BeforeChallenge(string maliciousReturnUrl)
     {
-        var controller = BuildController(isAuthenticated: false);
+        var controller = BuildController(isMember: false);
 
-        var result = controller.Register(maliciousReturnUrl).Should().BeOfType<ChallengeResult>().Subject;
+        var result = (await controller.Register(maliciousReturnUrl)).Should().BeOfType<ChallengeResult>().Subject;
 
         result.Properties?.RedirectUri.Should().Be("/");
         result.Properties?.Items.Should().ContainKey("PrismPrompt").WhoseValue.Should().Be("create");
     }
 
-    private static AccountController BuildController(bool isAuthenticated)
+    private static readonly PrismTenant SigningInTenant = new()
     {
-        var controller = new AccountController(NullLogger<AccountController>.Instance);
-        var identity = isAuthenticated
-            ? new ClaimsIdentity(authenticationType: "PrismMemberCookie")
-            : new ClaimsIdentity();
+        Hostname = "members.example.test",
+        OidcAuthority = "https://idp.example.test/realms/members",
+        OidcClientId = "members",
+    };
 
-        controller.ControllerContext = new ControllerContext
+    /// <summary>
+    /// A controller on <paramref name="tenant"/>'s hostname (a signing-in tenant by default).
+    /// <paramref name="isMember"/> is whether Prism's own cookie holds a member session;
+    /// <paramref name="hostSession"/> puts a host-application login in HttpContext.User, which is
+    /// what the application's default scheme yields on a hostname without Prism sign-in.
+    /// </summary>
+    private static AccountController BuildController(
+        bool isMember, PrismTenant? tenant = null, bool useDefaultTenant = true, bool hostSession = false)
+    {
+        var prismContext = new Mock<IPrismContext>();
+        prismContext.SetupGet(c => c.CurrentTenant).Returns(useDefaultTenant ? tenant ?? SigningInTenant : tenant);
+
+        var member = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "PrismMemberCookie"));
+        var authentication = new Mock<IAuthenticationService>();
+        authentication
+            .Setup(a => a.AuthenticateAsync(It.IsAny<HttpContext>(), "PrismMemberCookie"))
+            .ReturnsAsync(isMember
+                ? AuthenticateResult.Success(new AuthenticationTicket(member, "PrismMemberCookie"))
+                : AuthenticateResult.NoResult());
+
+        var services = new ServiceCollection()
+            .AddSingleton(authentication.Object)
+            .BuildServiceProvider();
+
+        var controller = new AccountController(NullLogger<AccountController>.Instance, prismContext.Object)
         {
-            HttpContext = new DefaultHttpContext
+            ControllerContext = new ControllerContext
             {
-                User = new ClaimsPrincipal(identity)
+                HttpContext = new DefaultHttpContext
+                {
+                    RequestServices = services,
+                    User = hostSession
+                        ? new ClaimsPrincipal(new ClaimsIdentity([new Claim("email", "admin@host.example")], "HostCookie"))
+                        : new ClaimsPrincipal(new ClaimsIdentity())
+                }
             }
         };
 
+        // Lets a test add claims to the member session after building.
+        controller.ControllerContext.HttpContext.Items["member"] = member;
         return controller;
+    }
+
+    private static ClaimsIdentity MemberIdentity(AccountController controller) =>
+        (ClaimsIdentity)((ClaimsPrincipal)controller.ControllerContext.HttpContext.Items["member"]!).Identity!;
+
+    // ── Prism sign-in exists only where a tenant has configured it ─────────
+
+    /// <summary>A hostname where Prism sign-in must not exist, described for the test report.</summary>
+    public sealed record HostnameWithoutSignIn(PrismTenant? Tenant)
+    {
+        public string Description => Tenant switch
+        {
+            null => "no tenant for this hostname",
+            { OidcAuthority: not null } => "a generic OIDC authority without a client ID",
+            { EntraTenantId: not null } => "an Entra tenant ID without a client ID",
+            _ => "a tenant with no identity provider",
+        };
+
+        public override string ToString() => Description;
+    }
+
+    public static TheoryData<HostnameWithoutSignIn> HostnamesWithoutSignIn() => new()
+    {
+        new(null),
+        new(new PrismTenant { Hostname = "plain.example.test" }),
+        new(new PrismTenant { Hostname = "half.example.test", OidcAuthority = "https://idp.example.test" }),
+        new(new PrismTenant { Hostname = "half.example.test", EntraTenantId = "00000000-0000-0000-0000-000000000001" }),
+    };
+
+    [Theory]
+    [MemberData(nameof(HostnamesWithoutSignIn))]
+    public async Task Login_IsNotFound_AndNeverChallenges_OnAHostnameWithoutSignIn(HostnameWithoutSignIn hostname)
+    {
+        var controller = BuildController(isMember: false, hostname.Tenant, useDefaultTenant: false);
+
+        (await controller.Login("/")).Should().BeOfType<NotFoundResult>(hostname.Description);
+    }
+
+    [Theory]
+    [MemberData(nameof(HostnamesWithoutSignIn))]
+    public async Task Register_IsNotFound_AndNeverChallenges_OnAHostnameWithoutSignIn(HostnameWithoutSignIn hostname)
+    {
+        var controller = BuildController(isMember: false, hostname.Tenant, useDefaultTenant: false);
+
+        (await controller.Register("/")).Should().BeOfType<NotFoundResult>(hostname.Description);
+    }
+
+    [Fact]
+    public async Task Login_TreatsAHostApplicationSession_AsNotSignedIn()
+    {
+        // HttpContext.User holds the host's own login; Prism's cookie holds nothing. That is not
+        // a Prism member, so the visitor is sent to the tenant's identity provider, not waved on.
+        var controller = BuildController(isMember: false, hostSession: true);
+
+        (await controller.Login("/dashboard")).Should().BeOfType<ChallengeResult>()
+            .Which.AuthenticationSchemes.Should().Equal("PrismEntraID");
+    }
+
+    [Theory]
+    [MemberData(nameof(HostnamesWithoutSignIn))]
+    public async Task Logout_SignsOutOfTheLocalCookieOnly_OnAHostnameWithoutSignIn(HostnameWithoutSignIn hostname)
+    {
+        var controller = BuildController(isMember: true, hostname.Tenant, useDefaultTenant: false);
+
+        (await controller.Logout()).Should().BeOfType<SignOutResult>()
+            .Which.AuthenticationSchemes.Should().BeEquivalentTo(["PrismMemberCookie"], hostname.Description);
     }
 
     // ── SEC-PT2-003 regression: logout must be POST-only + antiforgery ─────
@@ -131,28 +233,27 @@ public class AccountControllerTests
     // ── Skip the Entra redirect for a session that never went through it ───
 
     [Fact]
-    public void Logout_SignsOutOfBothSchemes_ForAnOrdinaryInteractiveSession()
+    public async Task Logout_SignsOutOfBothSchemes_ForAnOrdinaryInteractiveSession()
     {
-        var controller = BuildController(isAuthenticated: true);
+        var controller = BuildController(isMember: true);
 
-        var result = controller.Logout().Should().BeOfType<SignOutResult>().Subject;
+        var result = (await controller.Logout()).Should().BeOfType<SignOutResult>().Subject;
 
         result.AuthenticationSchemes.Should().BeEquivalentTo("PrismMemberCookie", "PrismEntraID");
     }
 
     [Fact]
-    public void Logout_SignsOutOfTheLocalCookieOnly_ForABiometricSession()
+    public async Task Logout_SignsOutOfTheLocalCookieOnly_ForABiometricSession()
     {
         // A biometric session was established entirely via BiometricController's own backchannel
         // refresh_token grant — "PrismEntraID" never ran its interactive OIDC challenge in this
         // WebView, so it has no session there for Entra to end and no id_token_hint to offer.
         // Signing out of it anyway just shows Entra's own account-chooser for nothing (see
         // BiometricController's own remarks on the "prism_auth_method" claim this checks).
-        var controller = BuildController(isAuthenticated: true);
-        controller.ControllerContext.HttpContext.User.Identities.First().AddClaim(
-            new Claim("prism_auth_method", "biometric"));
+        var controller = BuildController(isMember: true);
+        MemberIdentity(controller).AddClaim(new Claim("prism_auth_method", "biometric"));
 
-        var result = controller.Logout().Should().BeOfType<SignOutResult>().Subject;
+        var result = (await controller.Logout()).Should().BeOfType<SignOutResult>().Subject;
 
         result.AuthenticationSchemes.Should().BeEquivalentTo("PrismMemberCookie");
     }

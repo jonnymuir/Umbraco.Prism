@@ -81,11 +81,11 @@ public class Phase1SecurityRegressionTests : IDisposable
     // ------------------------------------------------------------------
 
     [Fact]
-    public void AccountController_Login_DefaultsOidcChallengeToRoot_WhenReturnUrlIsOmitted()
+    public async Task AccountController_Login_DefaultsOidcChallengeToRoot_WhenReturnUrlIsOmitted()
     {
         var controller = BuildAccountController();
 
-        var result = controller.Login();
+        var result = await controller.Login();
 
         var challenge = result.Should().BeOfType<ChallengeResult>().Subject;
         challenge.AuthenticationSchemes.Should().ContainSingle().Which.Should().Be("PrismEntraID");
@@ -94,11 +94,11 @@ public class Phase1SecurityRegressionTests : IDisposable
     }
 
     [Fact]
-    public void AccountController_Login_PreservesRequestedLocalReturnUrl_ForTheOidcRoundTrip()
+    public async Task AccountController_Login_PreservesRequestedLocalReturnUrl_ForTheOidcRoundTrip()
     {
         var controller = BuildAccountController();
 
-        var result = controller.Login(returnUrl: "/dashboard");
+        var result = await controller.Login(returnUrl: "/dashboard");
 
         var challenge = result.Should().BeOfType<ChallengeResult>().Subject;
         challenge.Properties?.RedirectUri.Should().Be("/dashboard",
@@ -159,11 +159,11 @@ public class Phase1SecurityRegressionTests : IDisposable
     }
 
     [Fact]
-    public void AccountController_Login_NormalizesBlankReturnUrl_ToRoot()
+    public async Task AccountController_Login_NormalizesBlankReturnUrl_ToRoot()
     {
         var controller = BuildAccountController();
 
-        var result = controller.Login(returnUrl: string.Empty);
+        var result = await controller.Login(returnUrl: string.Empty);
 
         var challenge = result.Should().BeOfType<ChallengeResult>().Subject;
         challenge.Properties?.RedirectUri.Should().Be("/",
@@ -478,7 +478,7 @@ public class Phase1SecurityRegressionTests : IDisposable
     public void BiometricRateLimit_PartitionKey_UsesRemoteIpAddress_NotRawForwardedForHeader()
     {
         // SECURITY: Behind a reverse proxy, HttpContext.Connection.RemoteIpAddress is the
-        // proxy's IP, not the client's. ForwardedHeadersMiddleware (configured in PrismComposer)
+        // proxy's IP, not the client's. ForwardedHeadersMiddleware (configured by the host)
         // rewrites RemoteIpAddress from X-Forwarded-For before requests reach BiometricController.
         //
         // This test verifies the partition key contract: CheckIpLimit is called with the
@@ -539,24 +539,67 @@ public class Phase1SecurityRegressionTests : IDisposable
         public string EnvironmentName { get; set; }
     }
 
-    private static UmbracoPrism.Core.Controllers.AccountController BuildAccountController(bool isAuthenticated = false)
+    // An anonymous visitor on the hostname of a tenant with sign-in configured.
+    private static UmbracoPrism.Core.Controllers.AccountController BuildAccountController()
     {
-        var identity = isAuthenticated
-            ? new ClaimsIdentity([new Claim(ClaimTypes.Name, "Tangy")], authenticationType: "PrismMemberCookie")
-            : new ClaimsIdentity();
+        var tenant = new PrismTenant
+        {
+            Hostname = "northwind.example",
+            OidcAuthority = "https://idp.northwind.example/realms/members",
+            OidcClientId = "northwind-members"
+        };
 
-        var controller = new UmbracoPrism.Core.Controllers.AccountController(NullLogger<UmbracoPrism.Core.Controllers.AccountController>.Instance)
+        var services = new ServiceCollection()
+            .AddSingleton<IAuthenticationService>(new RecordingAuthenticationService())
+            .BuildServiceProvider();
+
+        return new UmbracoPrism.Core.Controllers.AccountController(
+            NullLogger<UmbracoPrism.Core.Controllers.AccountController>.Instance,
+            new TestPrismContext { CurrentTenant = tenant })
         {
             ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = new ClaimsPrincipal(identity)
-                }
+                HttpContext = new DefaultHttpContext { RequestServices = services }
             }
         };
+    }
 
-        return controller;
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PrismOidcConfiguration_RefusesACallback_OnAHostnameWithoutSignInConfigured(bool tenantWithAuthorityOnly)
+    {
+        // A sign-in callback for a hostname with no configured identity provider cannot be one
+        // Prism started. It is refused outright: nobody is signed in, and the default code
+        // redemption never runs with the placeholder settings.
+        var tenant = tenantWithAuthorityOnly
+            ? new PrismTenant { Hostname = "half.example", OidcAuthority = "https://idp.half.example/realms/members" }
+            : null;
+
+        var authService = new RecordingAuthenticationService();
+        var services = new ServiceCollection()
+            .AddSingleton<IPrismContext>(new TestPrismContext { CurrentTenant = tenant })
+            .AddSingleton<ISecretVaultService>(new StubSecretVaultService("vault-backed-secret"))
+            .AddSingleton<IAuthenticationService>(authService)
+            .BuildServiceProvider();
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("half.example");
+
+        var options = ConfigureOidcOptions(httpContext);
+        var callback = new AuthorizationCodeReceivedContext(
+            httpContext, CreatePrismEntraIdScheme(), options, new AuthenticationProperties { RedirectUri = "/" })
+        {
+            ProtocolMessage = new OpenIdConnectMessage { Code = "attacker-supplied-code" }
+        };
+
+        await options.Events.OnAuthorizationCodeReceived(callback);
+
+        callback.HandledCodeRedemption.Should().BeFalse();
+        callback.Result.Should().NotBeNull();
+        callback.Result!.Handled.Should().BeTrue("the request must stop here, before any default code redemption");
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        authService.LastSignInScheme.Should().BeNull("nobody may be signed in by a callback Prism could not have started");
     }
 
     private static async Task<string> ExecutePostLoginRedirectAsync(string? returnUrl, LoopbackOidcProvider oidcProvider)

@@ -1,19 +1,19 @@
 using AwesomeAssertions;
 using Microsoft.AspNetCore.HttpOverrides;
-using UmbracoPrism.Core.Configuration;
+using UmbracoPrism.TestSite.Security;
 
 namespace UmbracoPrism.Core.Tests;
 
 /// <summary>
-/// SECURITY REGRESSION: <see cref="PrismComposer"/> used to unconditionally clear
+/// SECURITY REGRESSION: Prism's composer used to unconditionally clear
 /// <see cref="ForwardedHeadersOptions.KnownProxies"/>/<see cref="ForwardedHeadersOptions.KnownIPNetworks"/>
 /// for every host installing this package, making <c>HttpContext.Connection.RemoteIpAddress</c>
-/// entirely attacker-controlled via a spoofed <c>X-Forwarded-For</c> header — which defeated the
-/// anonymous biometric-exchange IP rate limiter. <see cref="PrismForwardedHeadersOptions.ApplyTo"/>
-/// is the exact logic <see cref="PrismComposer"/> now wires into DI; these tests exercise it
+/// entirely attacker-controlled via a spoofed <c>X-Forwarded-For</c> header, which defeated the
+/// anonymous biometric-exchange IP rate limiter. <see cref="ForwardedHeadersTrustOptions.ApplyTo"/>
+/// is the exact logic the reference site's ForwardedHeadersRegistration wires into DI; these tests exercise it
 /// directly rather than a re-derivation of it.
 /// </summary>
-public sealed class PrismForwardedHeadersOptionsTests
+public sealed class ForwardedHeadersTrustOptionsTests
 {
     [Fact]
     public void ApplyTo_PreservesTheFrameworksLoopbackOnlyTrust_WhenNoProxiesAreConfigured()
@@ -22,7 +22,7 @@ public sealed class PrismForwardedHeadersOptionsTests
         var defaultKnownProxyCount = options.KnownProxies.Count;
         var defaultKnownNetworkCount = options.KnownIPNetworks.Count;
 
-        new PrismForwardedHeadersOptions().ApplyTo(options);
+        new ForwardedHeadersTrustOptions().ApplyTo(options);
 
         options.KnownProxies.Should().HaveCount(defaultKnownProxyCount,
             "an unconfigured deployment must keep ASP.NET Core's own loopback-only trust, not an empty (trust-everyone) allowlist");
@@ -37,7 +37,7 @@ public sealed class PrismForwardedHeadersOptionsTests
     {
         var options = new ForwardedHeadersOptions();
 
-        new PrismForwardedHeadersOptions { KnownProxies = ["10.0.0.5"] }.ApplyTo(options);
+        new ForwardedHeadersTrustOptions { KnownProxies = ["10.0.0.5"] }.ApplyTo(options);
 
         options.KnownProxies.Should().Contain(System.Net.IPAddress.Parse("10.0.0.5"));
     }
@@ -47,7 +47,7 @@ public sealed class PrismForwardedHeadersOptionsTests
     {
         var options = new ForwardedHeadersOptions();
 
-        new PrismForwardedHeadersOptions { KnownNetworks = ["10.0.0.0/8"] }.ApplyTo(options);
+        new ForwardedHeadersTrustOptions { KnownNetworks = ["10.0.0.0/8"] }.ApplyTo(options);
 
         options.KnownIPNetworks.Should().Contain(System.Net.IPNetwork.Parse("10.0.0.0/8"));
     }
@@ -57,7 +57,7 @@ public sealed class PrismForwardedHeadersOptionsTests
     {
         var options = new ForwardedHeadersOptions();
 
-        var act = () => new PrismForwardedHeadersOptions
+        var act = () => new ForwardedHeadersTrustOptions
         {
             KnownProxies = ["not-an-ip-address"],
             KnownNetworks = ["not-a-cidr-range"],

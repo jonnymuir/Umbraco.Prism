@@ -1,18 +1,19 @@
-namespace UmbracoPrism.Core.Configuration;
+namespace UmbracoPrism.TestSite.Security;
 
 /// <summary>
-/// Controls the security response headers added by <see cref="UmbracoPrism.Core.Middleware.PrismSecurityHeadersMiddleware"/>.
-/// Registered via <c>IOptions&lt;PrismSecurityHeadersOptions&gt;</c>; configure under <c>Prism:SecurityHeaders</c>.
+/// Controls the security response headers the reference site adds with
+/// <see cref="SecurityHeadersMiddleware"/>; configure under <c>TestSite:SecurityHeaders</c>.
 ///
-/// SEC-PT2-004: security headers are applied automatically by PrismComposer.
-/// Consumers can disable or tune per-environment via configuration.
+/// SEC-PT2-004. A site-wide header policy is the host's decision, so it lives here in the
+/// reference site rather than in the Prism package. Prism's own pages and assets are built to
+/// work under a policy this strict (no inline script or style).
 /// </summary>
-public class PrismSecurityHeadersOptions
+public class SecurityHeadersOptions
 {
-    public const string SectionName = "Prism:SecurityHeaders";
+    public const string SectionName = "TestSite:SecurityHeaders";
 
     /// <summary>
-    /// Set to false to disable all Prism security headers (e.g. for environments
+    /// Set to false to disable all of these security headers (e.g. for environments
     /// where a reverse proxy or WAF already supplies them).
     /// </summary>
     public bool Enabled { get; set; } = true;

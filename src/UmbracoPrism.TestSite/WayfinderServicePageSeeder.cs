@@ -27,7 +27,7 @@ namespace UmbracoPrism.TestSite;
 /// Wayfinder.Umbraco.ReferenceApp's own ReferenceContentSeeder: C# seeders own initial demo data;
 /// uSync only captures subsequent portable edits made through the backoffice.
 ///
-/// Runs whenever <c>Prism:SeedStarterContent</c> is enabled (see
+/// Runs whenever <c>TestSite:SeedStarterContent</c> is enabled (see
 /// <see cref="MobileNavSchemaSetup"/> for why this moved off a Development-only gate).
 /// </summary>
 /// <remarks>
@@ -38,7 +38,7 @@ namespace UmbracoPrism.TestSite;
 /// runs) would never become visible to the running engine.
 ///
 /// KNOWN LATENT RACE, pre-existing (not introduced by the config-gate change above): this class
-/// depends on <c>PrismStarterContentSeeder</c> (Core) having already created the <c>homePage</c>
+/// depends on <see cref="StarterContentSeeder"/> having already created the <c>homePage</c>
 /// node and <see cref="WayfinderServicePageContentType"/> having already created the
 /// <c>wayfinderServicePage</c> content type — both react to the same
 /// <see cref="UmbracoApplicationStartedNotification"/>, and despite correct composer/DI
@@ -59,7 +59,7 @@ public class WayfinderServicePageSeeder(
     IContentTypeService contentTypeService,
     IServiceBlueprintSourceStore workflowSourceStore,
     IWebHostEnvironment env,
-    IOptions<PrismConfiguration> prismConfig,
+    IOptions<TestSiteOptions> testSiteOptions,
     IRuntimeState runtimeState,
     IUmbracoDatabaseFactory databaseFactory,
     IPrismPageAccessResolver pageAccessResolver,
@@ -85,7 +85,7 @@ public class WayfinderServicePageSeeder(
     public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
         if (runtimeState.Level < RuntimeLevel.Run) return;
-        if (!prismConfig.Value.SeedStarterContent) return;
+        if (!testSiteOptions.Value.SeedStarterContent) return;
 
         try
         {

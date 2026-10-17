@@ -12,13 +12,13 @@ namespace UmbracoPrism.TestSite;
 /// Seeds Vinyl Vault demo content on application startup.
 /// Creates genre landing pages and sample vinyl records per the design spec.
 /// Idempotent — checks if content exists before creating.
-/// Runs whenever <c>Prism:SeedStarterContent</c> is enabled (see
+/// Runs whenever <c>TestSite:SeedStarterContent</c> is enabled (see
 /// <see cref="MobileNavSchemaSetup"/> for why this moved off a Development-only gate).
 /// </summary>
 public class VinylVaultSeeder : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     private readonly IContentService _contentService;
-    private readonly IOptions<PrismConfiguration> _prismConfig;
+    private readonly IOptions<TestSiteOptions> _testSiteOptions;
     private readonly IRuntimeState _runtimeState;
     private readonly ILogger<VinylVaultSeeder> _logger;
 
@@ -83,12 +83,12 @@ public class VinylVaultSeeder : INotificationAsyncHandler<UmbracoApplicationStar
 
     public VinylVaultSeeder(
         IContentService contentService,
-        IOptions<PrismConfiguration> prismConfig,
+        IOptions<TestSiteOptions> testSiteOptions,
         IRuntimeState runtimeState,
         ILogger<VinylVaultSeeder> logger)
     {
         _contentService = contentService;
-        _prismConfig = prismConfig;
+        _testSiteOptions = testSiteOptions;
         _runtimeState = runtimeState;
         _logger = logger;
     }
@@ -96,7 +96,7 @@ public class VinylVaultSeeder : INotificationAsyncHandler<UmbracoApplicationStar
     public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
         if (_runtimeState.Level < RuntimeLevel.Run) return;
-        if (!_prismConfig.Value.SeedStarterContent) return;
+        if (!_testSiteOptions.Value.SeedStarterContent) return;
 
         try
         {

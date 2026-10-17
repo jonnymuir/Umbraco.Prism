@@ -21,8 +21,7 @@ namespace UmbracoPrism.Core;
 /// <c>UmbracoPrism.uSync.SyncHandlers.PrismTenantHandler</c>) was tried first for
 /// deploying the production reference app's own tenant, but never actually created the row —
 /// this codebase's own established pattern for "content that needs to exist on a real deploy" is
-/// a code-based reconciler on <see cref="UmbracoApplicationStartedNotification"/> (see also
-/// <see cref="PrismStarterContentSeeder"/>), not uSync. This does that, generically, for one
+/// a code-based reconciler on <see cref="UmbracoApplicationStartedNotification"/>, not uSync. This does that, generically, for one
 /// configured tenant, rather than hardcoding another one-off seeder per environment.
 /// </summary>
 public class PrismConfiguredTenantSeeder(

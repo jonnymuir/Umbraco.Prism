@@ -71,16 +71,14 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
     }
 
     [Fact]
-    public async Task Login_UsesMinimalStandardScopes_EvenWithIncompleteConfig()
+    public async Task Login_RefusesToRedirect_WhenTheTenantHasNoClientId()
     {
-        // EDGE CASE: If a tenant is misconfigured (missing client ID), ensure we use
-        // standard minimal scopes consistently.
-        
+        // A generic authority without a client ID is not configured sign-in: Prism answers 404
+        // rather than send anyone to a provider with an incomplete request.
         var incompleteTenant = new PrismTenant
         {
             Hostname = "localhost",
             OidcAuthority = "https://localhost:8443/realms/prism-dev",
-            // Missing OidcClientId - should still get standard scope from GetRequestedScope
         };
 
         var options = ConfigureOptions(incompleteTenant);
@@ -88,8 +86,22 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
 
         await options.Events.OnRedirectToIdentityProvider(context);
 
-        // Even with incomplete config, scope should stay minimal rather than assuming localhost demo semantics.
-        context.ProtocolMessage.Scope.Should().Be("openid profile email");
+        context.Handled.Should().BeTrue();
+        context.HttpContext.Response.StatusCode.Should().Be(404);
+        context.ProtocolMessage.IssuerAddress.Should().NotStartWith(incompleteTenant.OidcAuthority);
+    }
+
+    [Fact]
+    public void GetRequestedScope_StaysMinimal_WhenTheTenantHasNoClientId()
+    {
+        var incompleteTenant = new PrismTenant
+        {
+            Hostname = "localhost",
+            OidcAuthority = "https://localhost:8443/realms/prism-dev",
+        };
+
+        PrismOidcConfiguration.GetRequestedScope(incompleteTenant).Should().Be("openid profile email",
+            "an incomplete configuration must not be mistaken for the localhost demo");
     }
 
     [Fact]

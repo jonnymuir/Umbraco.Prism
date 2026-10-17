@@ -8,13 +8,15 @@ using Umbraco.Cms.Core.Serialization;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Strings;
 
-namespace UmbracoPrism.Core;
+namespace UmbracoPrism.TestSite;
 
 /// <summary>
-/// Ensures required Prism document types (and their templates) exist on startup.
-/// Runs idempotently — only creates types/templates if they don't already exist.
+/// The reference site's own document types (and their templates): <c>homePage</c> with its hero
+/// image, <c>memberDashboard</c> and <c>settings</c> with the mobile nav links. Runs idempotently on
+/// every startup. Site-specific, so it lives here rather than in the package: Prism never creates
+/// or changes a host's document types.
 /// </summary>
-public class PrismContentTypeSeeder(
+public class StarterContentTypeSeeder(
     IContentTypeService contentTypeService,
     ITemplateService templateService,
     IShortStringHelper shortStringHelper,
@@ -22,7 +24,7 @@ public class PrismContentTypeSeeder(
     IConfigurationEditorJsonSerializer configurationEditorJsonSerializer,
     PropertyEditorCollection propertyEditorCollection,
     IRuntimeState runtimeState,
-    ILogger<PrismContentTypeSeeder> logger)
+    ILogger<StarterContentTypeSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     // Deterministic project-specific GUID for the Prism Mobile Nav data type.
@@ -35,14 +37,14 @@ public class PrismContentTypeSeeder(
     {
         if (runtimeState.Level < RuntimeLevel.Run) return;
 
-        logger.LogInformation("PRISM ContentTypeSeeder: Starting");
+        logger.LogInformation("StarterContentTypeSeeder: Starting");
 
         await EnsureDocumentTypeAsync("homePage", "Home Page", allowedAsRoot: true);
         await EnsureDocumentTypeAsync("memberDashboard", "Member Dashboard", allowedAsRoot: false);
         await EnsureSettingsDocumentTypeAsync();
         await EnsureHomeAllowedChildrenAsync();
 
-        logger.LogInformation("PRISM ContentTypeSeeder: Complete");
+        logger.LogInformation("StarterContentTypeSeeder: Complete");
     }
 
     private async Task EnsureDocumentTypeAsync(string alias, string name, bool allowedAsRoot)
@@ -102,7 +104,7 @@ public class PrismContentTypeSeeder(
         contentTypeService.Save(homePage);
 #pragma warning restore CS0618
 
-        logger.LogInformation("PRISM: homePage now allows memberDashboard as a child");
+        logger.LogInformation("StarterContentTypeSeeder: homePage now allows memberDashboard as a child");
         await Task.CompletedTask;
     }
 
@@ -122,7 +124,7 @@ public class PrismContentTypeSeeder(
             var editor = propertyEditorCollection[editorAlias];
             if (editor == null)
             {
-                logger.LogWarning("PRISM: Editor '{EditorAlias}' not found; skipping heroImage property", editorAlias);
+                logger.LogWarning("StarterContentTypeSeeder: Editor '{EditorAlias}' not found; skipping heroImage property", editorAlias);
                 return;
             }
 
@@ -163,7 +165,7 @@ public class PrismContentTypeSeeder(
         contentTypeService.Save(contentType);
 #pragma warning restore CS0618
 
-        logger.LogInformation("PRISM: heroImage property added to homePage content type");
+        logger.LogInformation("StarterContentTypeSeeder: heroImage property added to homePage content type");
     }
 
     private async Task EnsureSettingsDocumentTypeAsync()
@@ -213,11 +215,11 @@ public class PrismContentTypeSeeder(
         {
             if (existingProperty.DataTypeKey == newDataType.Key)
             {
-                logger.LogDebug("PRISM: mobileNavLinks already uses correct data type {Key}", newDataType.Key);
+                logger.LogDebug("StarterContentTypeSeeder: mobileNavLinks already uses correct data type {Key}", newDataType.Key);
                 return contentType;
             }
 
-            logger.LogInformation("PRISM: mobileNavLinks has wrong data type {OldKey}, removing and re-adding with {NewKey}",
+            logger.LogInformation("StarterContentTypeSeeder: mobileNavLinks has wrong data type {OldKey}, removing and re-adding with {NewKey}",
                 existingProperty.DataTypeKey, newDataType.Key);
 
             // Remove the property type entirely and fall through to re-create it correctly
@@ -254,7 +256,7 @@ public class PrismContentTypeSeeder(
 #pragma warning restore CS0618
 
         var savedProperty = contentType.PropertyTypes.FirstOrDefault(p => p.Alias == propertyAlias);
-        logger.LogInformation("PRISM: mobileNavLinks property data type key: {Key}", savedProperty?.DataTypeKey);
+        logger.LogInformation("StarterContentTypeSeeder: mobileNavLinks property data type key: {Key}", savedProperty?.DataTypeKey);
 
         return contentType;
     }
@@ -264,7 +266,7 @@ public class PrismContentTypeSeeder(
         const string editorAlias = "Umbraco.MultiUrlPicker";
         const string dataTypeName = "Prism Mobile Nav Links";
 
-        logger.LogInformation("PRISM: Getting or creating data type. Fixed key: {Key}", PrismMobileNavDataTypeKey);
+        logger.LogInformation("StarterContentTypeSeeder: Getting or creating data type. Fixed key: {Key}", PrismMobileNavDataTypeKey);
 
         // Try to find by our deterministic fixed GUID
         var existing = await dataTypeService.GetAsync(PrismMobileNavDataTypeKey);
@@ -276,20 +278,20 @@ public class PrismContentTypeSeeder(
                 // Fix EditorUiAlias if it's wrong (covers existing installations created before this fix)
                 if (existing.EditorUiAlias != "Umb.PropertyEditorUi.MultiUrlPicker")
                 {
-                    logger.LogInformation("PRISM: Fixing EditorUiAlias on existing data type (was '{Old}')", existing.EditorUiAlias);
+                    logger.LogInformation("StarterContentTypeSeeder: Fixing EditorUiAlias on existing data type (was '{Old}')", existing.EditorUiAlias);
                     existing.EditorUiAlias = "Umb.PropertyEditorUi.MultiUrlPicker";
                     await dataTypeService.UpdateAsync(existing, Constants.Security.SuperUserKey);
                 }
-                logger.LogInformation("PRISM: Data type found/created with editor {EditorAlias}", existing.EditorAlias);
+                logger.LogInformation("StarterContentTypeSeeder: Data type found/created with editor {EditorAlias}", existing.EditorAlias);
                 return existing;
             }
 
             // Found but wrong editor — delete it (safe here as it's our own GUID, pre-content-type creation path)
-            logger.LogWarning("PRISM: Data type at fixed key has wrong editor {WrongAlias}. Deleting and recreating.", existing.EditorAlias);
+            logger.LogWarning("StarterContentTypeSeeder: Data type at fixed key has wrong editor {WrongAlias}. Deleting and recreating.", existing.EditorAlias);
             var deleteAttempt = await dataTypeService.DeleteAsync(PrismMobileNavDataTypeKey, Constants.Security.SuperUserKey);
             if (!deleteAttempt.Success)
             {
-                logger.LogError("PRISM: Failed to delete wrong data type: {Error}", deleteAttempt.Exception?.Message);
+                logger.LogError("StarterContentTypeSeeder: Failed to delete wrong data type: {Error}", deleteAttempt.Exception?.Message);
             }
         }
 
@@ -297,7 +299,7 @@ public class PrismContentTypeSeeder(
         var editor = propertyEditorCollection[editorAlias];
         if (editor == null)
         {
-            logger.LogError("PRISM: Editor '{EditorAlias}' not found in PropertyEditorCollection", editorAlias);
+            logger.LogError("StarterContentTypeSeeder: Editor '{EditorAlias}' not found in PropertyEditorCollection", editorAlias);
             return null;
         }
 
@@ -311,7 +313,7 @@ public class PrismContentTypeSeeder(
         };
 
         await dataTypeService.CreateAsync(newDataType, Constants.Security.SuperUserKey);
-        logger.LogInformation("PRISM: Data type found/created with editor {EditorAlias}", newDataType.EditorAlias);
+        logger.LogInformation("StarterContentTypeSeeder: Data type found/created with editor {EditorAlias}", newDataType.EditorAlias);
         return newDataType;
     }
 

@@ -229,7 +229,7 @@ test.describe.serial('garden waste permit demo', () => {
     );
 
     // "Home" allows serviceBlueprintPage/serviceBlueprintHub/memberDashboard as children (see
-    // PrismContentTypeSeeder.EnsureHomeAllowedChildrenAsync). The "+" button only renders on
+    // the TestSite's StarterContentTypeSeeder.EnsureHomeAllowedChildrenAsync). The "+" button only renders on
     // hover — hovering the row first is required, not just a visual nicety.
     await page.getByText('Home', { exact: true }).first().hover();
     await humanClick(page, page.getByRole('button', { name: 'Create item for Home' }));

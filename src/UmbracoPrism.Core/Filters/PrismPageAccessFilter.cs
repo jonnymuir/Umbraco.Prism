@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Umbraco.Cms.Web.Common.Routing;
+using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 
@@ -33,8 +35,13 @@ public class PrismPageAccessFilter(
             return;
         }
 
-        var isAuthenticated = context.HttpContext.User.Identity?.IsAuthenticated == true;
-        var result = resolver.Resolve(content.Key, prismContext.CurrentTenant, isAuthenticated);
+        // Signed in means a Prism member session for this tenant, asked of Prism's own cookie,
+        // never HttpContext.User: that comes from the application's default scheme, which on a
+        // hostname without Prism sign-in is the host's, and a host session must not open a
+        // Prism-protected page.
+        var tenant = prismContext.CurrentTenant;
+        var member = await context.HttpContext.AuthenticateAsync(PrismAuthenticationSchemes.MemberCookie);
+        var result = resolver.Resolve(content.Key, tenant, member.Succeeded);
 
         if (result == PrismPageAccessResult.Unavailable)
         {
@@ -48,7 +55,14 @@ public class PrismPageAccessFilter(
         if (result == PrismPageAccessResult.RequiresSignIn)
         {
             // The resolver only ever returns this when isAuthenticated is false, by its own
-            // contract — no need to re-check here.
+            // contract, so no need to re-check here. Without sign-in configured for this hostname
+            // nobody can ever sign in to see the page, so it is unavailable, exactly as above.
+            if (tenant?.HasSignInConfigured() != true)
+            {
+                context.Result = new NotFoundResult();
+                return;
+            }
+
             var returnUrl = context.HttpContext.Request.Path + context.HttpContext.Request.QueryString;
             context.Result = new RedirectResult("/auth/login?returnUrl=" + Uri.EscapeDataString(returnUrl));
             return;

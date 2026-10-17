@@ -10,9 +10,9 @@ namespace UmbracoPrism.Core.Services;
 /// side effect, so it's left stale in the WebView's persistent cookie store until something else
 /// clears it).
 ///
-/// Deliberately concrete hosts only, no wildcard patterns — unlike
-/// <c>PrismSecurityHeadersMiddleware.BuildOidcFormActionSources</c>, which needs the <c>*.</c>
-/// form for its CSP directive. Kept as its own small list rather than shared with that one
+/// Deliberately concrete hosts only, no wildcard patterns, unlike
+/// <see cref="Auth.PrismContentSecurityPolicy.SignInSources"/>, which needs the <c>*.</c>
+/// form for a CSP directive. Kept as its own small list rather than shared with that one
 /// because the two callers need different shapes of the same underlying tenant data.
 /// </summary>
 public static class PrismIdentityProviderHosts

@@ -23,4 +23,4 @@ Use this when a protected server-rendered page is doing eager downstream token w
 
 ## Example
 
-- `src/UmbracoPrism.Core/Controllers/MemberDashboardController.cs` no longer warms Prism bearer tokens during the initial `/dashboard` render.
+- `src/UmbracoPrism.TestSite/Controllers/MemberDashboardController.cs` no longer warms Prism bearer tokens during the initial `/dashboard` render.

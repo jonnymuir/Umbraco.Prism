@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Middleware;
+using UmbracoPrism.TestSite.Security;
 using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Tests;
@@ -19,11 +20,11 @@ namespace UmbracoPrism.Core.Tests;
 ///
 /// 1. Duplicate X-Frame-Options: the framework's own antiforgery middleware sets
 ///    X-Frame-Options: SAMEORIGIN automatically whenever IAntiforgery.GetAndStoreTokens issues a
-///    token — independently of, and in addition to, PrismSecurityHeadersMiddleware's own copy.
+///    token, independently of and in addition to SecurityHeadersMiddleware's own copy.
 ///    Every page that mints a token sent the header twice, which some browsers treat as
 ///    untrustworthy and ignore entirely, silently disabling clickjacking protection on exactly
 ///    the pages that most need it (real forms). Originally fixed via explicit suppression
-///    (AntiforgeryOptions.SuppressXFrameOptionsHeader); PrismSecurityHeadersMiddleware's later
+///    (AntiforgeryOptions.SuppressXFrameOptionsHeader); SecurityHeadersMiddleware's later
 ///    move to setting headers via the indexer (replacing, not Append-ing) closes the same
 ///    vulnerability class more generally, independently of that specific suppression flag — see
 ///    XFrameOptions_IsSentExactlyOnce_EvenWhenTheFrameworksOwnCopyIsNotSuppressed below.
@@ -33,14 +34,14 @@ namespace UmbracoPrism.Core.Tests;
 ///    itself shipped with no Secure flag on every token-minting page (ZAP: "Cookie Without
 ///    Secure Flag [10011]").
 ///
-/// This exercises the real ASP.NET Core antiforgery middleware and PrismSecurityHeadersMiddleware
+/// This exercises the real ASP.NET Core antiforgery middleware and SecurityHeadersMiddleware
 /// together through a minimal TestServer pipeline — not a mock, and not just an assertion that
 /// an options flag is set — to prove the framework's own documented behaviour (suppressed only
 /// when explicitly configured) is what this repo is actually relying on. UmbracoPrism.Core.
 /// IntegrationTests' own booted TestSite fixture can't reach this: it seeds no front-end
 /// content, so nothing there ever mints a token to reproduce the bugs against.
 /// </summary>
-public class PrismAntiforgeryXFrameOptionsTests
+public class AntiforgeryXFrameOptionsTests
 {
     private static async Task<IHost> BuildHostAsync(bool applyPrismAntiforgeryConfiguration)
     {
@@ -61,8 +62,8 @@ public class PrismAntiforgeryXFrameOptionsTests
                         });
                     }
 
-                    services.Configure<PrismSecurityHeadersOptions>(_ => { });
-                    // PrismSecurityHeadersMiddleware.InvokeAsync now takes IPrismContext via
+                    services.Configure<SecurityHeadersOptions>(_ => { });
+                    // SecurityHeadersMiddleware.InvokeAsync now takes IPrismContext via
                     // per-request method injection (for its tenant-derived form-action
                     // widening) — the real pipeline resolves it from PrismComposer's own
                     // AddScoped registration; this minimal host needs its own stand-in.
@@ -70,7 +71,7 @@ public class PrismAntiforgeryXFrameOptionsTests
                 });
                 webBuilder.Configure(app =>
                 {
-                    app.UseMiddleware<PrismSecurityHeadersMiddleware>();
+                    app.UseMiddleware<SecurityHeadersMiddleware>();
                     app.Run(async context =>
                     {
                         // Stands in for any page that renders a form with an antiforgery
@@ -109,7 +110,7 @@ public class PrismAntiforgeryXFrameOptionsTests
 
         response.Headers.TryGetValues("X-Frame-Options", out var values).Should().BeTrue();
         values.Should().ContainSingle(
-            "PrismSecurityHeadersOptions.FrameOptions is the one source of truth — the " +
+            "SecurityHeadersOptions.FrameOptions is the one source of truth; the " +
             "framework's own antiforgery-triggered copy must be suppressed, not merely present " +
             "alongside it");
     }
@@ -118,7 +119,7 @@ public class PrismAntiforgeryXFrameOptionsTests
     public async Task XFrameOptions_IsSentExactlyOnce_EvenWhenTheFrameworksOwnCopyIsNotSuppressed()
     {
         // This used to be "IsSentTwice" — proving the duplicate was real when
-        // SuppressXFrameOptionsHeader wasn't set. PrismSecurityHeadersMiddleware now SETS its
+        // SuppressXFrameOptionsHeader wasn't set. SecurityHeadersMiddleware now SETS its
         // headers via the indexer (replacing any existing value) rather than Append, deferred to
         // OnStarting — which fires after GetAndStoreTokens' own synchronous, non-deferred header
         // write in this pipeline, so Prism's copy always wins regardless of suppression. That's a
@@ -133,7 +134,7 @@ public class PrismAntiforgeryXFrameOptionsTests
 
         response.Headers.TryGetValues("X-Frame-Options", out var values).Should().BeTrue();
         values.Should().ContainSingle(
-            "PrismSecurityHeadersMiddleware's indexer-based, OnStarting-deferred header set " +
+            "SecurityHeadersMiddleware's indexer-based, OnStarting-deferred header set " +
             "overwrites the framework's own earlier copy, independently of explicit suppression");
     }
 
@@ -183,7 +184,7 @@ public class PrismAntiforgeryXFrameOptionsTests
     /// <summary>
     /// This test's own minimal stand-in for the real (Umbraco-backed) IPrismContext — no tenant
     /// is ever resolved in this bare TestServer pipeline (there's no PrismTenantMiddleware here),
-    /// which is fine: it only needs to exist so PrismSecurityHeadersMiddleware's per-request
+    /// which is fine: it only needs to exist so SecurityHeadersMiddleware's per-request
     /// IPrismContext parameter resolves at all. GetAuthorizationHeaderAsync is never reached by
     /// anything in this test.
     /// </summary>

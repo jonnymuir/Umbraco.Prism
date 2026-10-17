@@ -13,7 +13,7 @@ namespace UmbracoPrism.TestSite;
 /// <summary>
 /// Creates Vinyl Vault document types on application startup.
 /// Runs once to ensure content types are registered before seeder runs.
-/// Runs whenever <c>Prism:SeedStarterContent</c> is enabled (see
+/// Runs whenever <c>TestSite:SeedStarterContent</c> is enabled (see
 /// <see cref="MobileNavSchemaSetup"/> for why this moved off a Development-only gate —
 /// TestSite's own demo seeders had simply never run anywhere but local dev until this repo's
 /// reference app got a real, permanent deployment; nothing here is dev-specific).
@@ -23,7 +23,7 @@ public class VinylVaultContentTypes : INotificationAsyncHandler<UmbracoApplicati
     private readonly IContentTypeService _contentTypeService;
     private readonly IDataTypeService _dataTypeService;
     private readonly IShortStringHelper _shortStringHelper;
-    private readonly IOptions<PrismConfiguration> _prismConfig;
+    private readonly IOptions<TestSiteOptions> _testSiteOptions;
     private readonly IRuntimeState _runtimeState;
     private readonly ILogger<VinylVaultContentTypes> _logger;
 
@@ -39,14 +39,14 @@ public class VinylVaultContentTypes : INotificationAsyncHandler<UmbracoApplicati
         IContentTypeService contentTypeService,
         IDataTypeService dataTypeService,
         IShortStringHelper shortStringHelper,
-        IOptions<PrismConfiguration> prismConfig,
+        IOptions<TestSiteOptions> testSiteOptions,
         IRuntimeState runtimeState,
         ILogger<VinylVaultContentTypes> logger)
     {
         _contentTypeService = contentTypeService;
         _dataTypeService = dataTypeService;
         _shortStringHelper = shortStringHelper;
-        _prismConfig = prismConfig;
+        _testSiteOptions = testSiteOptions;
         _runtimeState = runtimeState;
         _logger = logger;
     }
@@ -54,7 +54,7 @@ public class VinylVaultContentTypes : INotificationAsyncHandler<UmbracoApplicati
     public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
         if (_runtimeState.Level < RuntimeLevel.Run) return;
-        if (!_prismConfig.Value.SeedStarterContent) return;
+        if (!_testSiteOptions.Value.SeedStarterContent) return;
 
         _logger.LogInformation("VINYL VAULT SCHEMA: Starting setup");
         await Task.Run(SetupSchemaAsync, cancellationToken);

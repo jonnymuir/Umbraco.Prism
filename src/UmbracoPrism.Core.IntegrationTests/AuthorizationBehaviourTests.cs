@@ -1,5 +1,8 @@
 using System.Net;
 using AwesomeAssertions;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.DependencyInjection;
+using UmbracoPrism.Core.Auth;
 using UmbracoPrism.TestSite;
 
 namespace UmbracoPrism.Core.IntegrationTests;
@@ -157,4 +160,50 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
         res.Content.Headers.ContentDisposition.Should().BeNull("no file may be served for an unowned instance");
     }
 
+
+    // ---- Prism's sign-in applies only on a signing-in tenant's hostname ----
+
+    [Fact]
+    public async Task In_a_real_Umbraco_host_the_application_defaults_are_Prisms_per_hostname_selectors()
+    {
+        // Nothing Umbraco or another package configures afterwards may put a fixed default back
+        // in place: that would hand every hostname's sign-in to one scheme again.
+        var schemes = factory.Services.GetRequiredService<IAuthenticationSchemeProvider>();
+
+        (await schemes.GetDefaultAuthenticateSchemeAsync())!.Name.Should().Be(PrismAuthenticationSchemes.DefaultAuthenticate);
+        (await schemes.GetDefaultChallengeSchemeAsync())!.Name.Should().Be(PrismAuthenticationSchemes.DefaultChallenge);
+    }
+
+    [Theory]
+    [InlineData("/auth/login")]
+    [InlineData("/auth/register")]
+    public async Task On_a_hostname_with_no_tenant_Prisms_sign_in_is_not_found(string path)
+    {
+        using var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://unknown.example.test")
+        });
+
+        var res = await client.GetAsync(path);
+
+        res.StatusCode.Should().Be(HttpStatusCode.NotFound,
+            "with no identity provider for this hostname there is nowhere to send anyone");
+    }
+
+    // ---- The reference site's own response-security policy ----
+
+    [Fact]
+    public async Task The_reference_site_sends_its_own_security_headers()
+    {
+        // The policy belongs to the host (UmbracoPrism.TestSite's SecurityHeadersMiddleware), not
+        // the Prism package; this proves the host's own registration is what puts it on a page.
+        using var client = Anonymous();
+
+        var res = await client.GetAsync("/");
+
+        res.Headers.TryGetValues("Content-Security-Policy", out var csp).Should().BeTrue();
+        csp!.Single().Should().Contain("default-src 'self'");
+        res.Headers.GetValues("X-Frame-Options").Should().ContainSingle().Which.Should().Be("SAMEORIGIN");
+    }
 }

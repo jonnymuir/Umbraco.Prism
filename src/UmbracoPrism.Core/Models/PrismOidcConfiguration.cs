@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -144,6 +145,10 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
         options.Authority = "https://login.microsoftonline.com/common/v2.0";
         options.MapInboundClaims = false;
 
+        // Always Prism's own tenant-bound cookie, never the application's default sign-in
+        // scheme: that belongs to the host, and a Prism sign-in must not become a host session.
+        options.SignInScheme = PrismAuthenticationSchemes.MemberCookie;
+
         // Defense-in-depth: the base default is fail-safe (true), not fail-open. The normal login
         // flow never actually validates a token against this base TokenValidationParameters
         // instance at all — OnAuthorizationCodeReceived below exchanges and validates the ID
@@ -223,24 +228,31 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
 
-            if (tenant != null)
+            // No identity provider for this hostname: answer 404 rather than redirect anywhere
+            // with the placeholder authority and client ID. AccountController already refuses to
+            // start a sign-in here; this holds for any other caller too.
+            if (tenant?.HasSignInConfigured() != true)
             {
-                // Support both generic OIDC (Keycloak, Okta, etc.) and Entra-specific paths
-                if (!string.IsNullOrEmpty(tenant.OidcAuthority))
-                {
-                    // Generic OIDC provider path (e.g., Keycloak)
-                    context.ProtocolMessage.IssuerAddress = $"{tenant.OidcAuthority}/protocol/openid-connect/auth";
-                    context.ProtocolMessage.ClientId = tenant.OidcClientId;
-                    context.Options.Authority = tenant.OidcAuthority;
-                }
-                else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
-                {
-                    // Entra-specific path (existing behavior)
-                    var baseUri = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}";
-                    context.ProtocolMessage.IssuerAddress = $"{baseUri}/oauth2/v2.0/authorize";
-                    context.ProtocolMessage.ClientId = tenant.EntraClientId;
-                    context.Options.Authority = $"{baseUri}/v2.0";
-                }
+                context.HandleResponse();
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            // Support both generic OIDC (Keycloak, Okta, etc.) and Entra-specific paths
+            if (!string.IsNullOrEmpty(tenant.OidcAuthority))
+            {
+                // Generic OIDC provider path (e.g., Keycloak)
+                context.ProtocolMessage.IssuerAddress = $"{tenant.OidcAuthority}/protocol/openid-connect/auth";
+                context.ProtocolMessage.ClientId = tenant.OidcClientId;
+                context.Options.Authority = tenant.OidcAuthority;
+            }
+            else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
+            {
+                // Entra-specific path (existing behavior)
+                var baseUri = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}";
+                context.ProtocolMessage.IssuerAddress = $"{baseUri}/oauth2/v2.0/authorize";
+                context.ProtocolMessage.ClientId = tenant.EntraClientId;
+                context.Options.Authority = $"{baseUri}/v2.0";
             }
 
             logger.LogDebug("Prism OIDC redirecting to {IssuerAddress} for client {ClientId}", context.ProtocolMessage.IssuerAddress, context.ProtocolMessage.ClientId);
@@ -252,22 +264,19 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
             // 3. Post-processing: Respect prompt from challenge properties (e.g. "create" for
             //    registration), otherwise default to "select_account".
-            if (tenant != null)
+            if (!string.IsNullOrEmpty(tenant.OidcAuthority))
             {
-                if (!string.IsNullOrEmpty(tenant.OidcAuthority))
-                {
-                    // The repo-owned localhost demo opts into offline tokens so downstream calls can
-                    // survive a full local AppHost restart. Other generic OIDC tenants keep the
-                    // standard minimal browser scopes unless product requirements say otherwise.
-                    context.ProtocolMessage.Scope = GetRequestedScope(tenant);
-                }
-
-                var promptOverride = context.Properties.Items.TryGetValue(
-                    "PrismPrompt", out var p) ? p : null;
-                context.ProtocolMessage.Prompt = !string.IsNullOrEmpty(promptOverride)
-                    ? promptOverride
-                    : "select_account";
+                // The repo-owned localhost demo opts into offline tokens so downstream calls can
+                // survive a full local AppHost restart. Other generic OIDC tenants keep the
+                // standard minimal browser scopes unless product requirements say otherwise.
+                context.ProtocolMessage.Scope = GetRequestedScope(tenant);
             }
+
+            var promptOverride = context.Properties.Items.TryGetValue(
+                "PrismPrompt", out var p) ? p : null;
+            context.ProtocolMessage.Prompt = !string.IsNullOrEmpty(promptOverride)
+                ? promptOverride
+                : "select_account";
 
             context.Properties.Items["Prism_PKCE_Verifier"] = context.Properties.Items.TryGetValue("code_verifier", out var verifier)
                 ? verifier
@@ -285,253 +294,259 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
 
-            if (tenant != null && (!string.IsNullOrEmpty(tenant.OidcAuthority) || !string.IsNullOrEmpty(tenant.EntraTenantId)))
+            // A callback for a hostname without sign-in configured cannot be ours: refuse it
+            // rather than fall through to the default code redemption with placeholder settings.
+            if (tenant?.HasSignInConfigured() != true)
             {
-                string authority;
-                string clientId;
-                string secret;
-                string scope;
-                var vault = context.HttpContext.RequestServices.GetRequiredService<ISecretVaultService>();
+                context.HandleResponse();
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
 
-                // Determine which OIDC provider we're using
-                if (!string.IsNullOrEmpty(tenant.OidcAuthority))
+            string authority;
+            string clientId;
+            string secret;
+            string scope;
+            var vault = context.HttpContext.RequestServices.GetRequiredService<ISecretVaultService>();
+
+            // Determine which OIDC provider we're using
+            if (!string.IsNullOrEmpty(tenant.OidcAuthority))
+            {
+                // Generic OIDC provider (Keycloak, Okta, etc.)
+                // KEYCLOAK_BACKCHANNEL_URL allows server-side token exchange to use an internal URL
+                // (e.g. http://localhost:8080) while OidcAuthority remains the external URL used for
+                // browser redirects and token validation. This is needed in GitHub Codespaces where
+                // the forwarded port proxy blocks unauthenticated server-side backchannel calls.
+                var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+                if (!string.IsNullOrEmpty(backchannelBase))
                 {
-                    // Generic OIDC provider (Keycloak, Okta, etc.)
-                    // KEYCLOAK_BACKCHANNEL_URL allows server-side token exchange to use an internal URL
-                    // (e.g. http://localhost:8080) while OidcAuthority remains the external URL used for
-                    // browser redirects and token validation. This is needed in GitHub Codespaces where
-                    // the forwarded port proxy blocks unauthenticated server-side backchannel calls.
+                    var oidcPath = new Uri(tenant.OidcAuthority!).AbsolutePath.TrimEnd('/');
+                    authority = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/token";
+                }
+                else
+                {
+                    authority = $"{tenant.OidcAuthority}/protocol/openid-connect/token";
+                }
+                clientId = tenant.OidcClientId ?? string.Empty;
+                secret = await ResolveClientSecretAsync(tenant, vault);
+                scope = GetRequestedScope(tenant);
+
+                if (string.IsNullOrWhiteSpace(secret))
+                {
+                    throw new AuthenticationException(
+                        "Generic OIDC client secret is not configured. Use SecretKeyName for managed secrets, or keep inline secrets limited to the repo-owned localhost demo tenant.");
+                }
+            }
+            else
+            {
+                // Entra-specific path (existing behavior with Key Vault)
+                secret = await ResolveClientSecretAsync(tenant, vault);
+                authority = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/oauth2/v2.0/token";
+                clientId = tenant.EntraClientId ?? string.Empty;
+                scope = GetRequestedScope(tenant);
+            }
+
+            var redirectUri = $"{context.Request.Scheme}://{context.Request.Host}{context.Request.PathBase}{options.CallbackPath}";
+
+            string? verifier = null;
+            context.Properties?.Items.TryGetValue("Prism_PKCE_Verifier", out verifier);
+
+            logger.LogDebug(
+                "Prism: token exchange POST → {Authority} | redirect_uri={RedirectUri} | client_id={ClientId} | scope={Scope}",
+                LogScrub.Line(authority), LogScrub.Line(redirectUri), LogScrub.Line(clientId), LogScrub.Line(scope));
+
+            // 1. Manually exchange the code for tokens via simple HTTP
+            using var client = new HttpClient();
+            var response = await client.PostAsync(authority, new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                { "client_id", clientId },
+                { "client_secret", secret },
+                { "grant_type", "authorization_code" },
+                { "code", context.ProtocolMessage.Code },
+                { "redirect_uri", redirectUri },
+                { "code_verifier", verifier ?? "" },
+                { "scope", scope }
+            }));
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                var statusCode = (int)response.StatusCode;
+                var detail = string.IsNullOrWhiteSpace(body) ? "(empty body)" : body;
+
+                // Capture response headers to distinguish proxy rejections from Keycloak errors.
+                // Keycloak always sets WWW-Authenticate on 401; a missing header fingerprints a proxy block.
+                var headers = string.Join("; ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"));
+                logger.LogError(
+                    "Prism: token exchange failed. Status={Status} Authority={Authority} Body={Body} ResponseHeaders=[{Headers}] RedirectUri={RedirectUri}",
+                    statusCode, LogScrub.Line(authority), LogScrub.Line(detail), LogScrub.Line(headers), LogScrub.Line(redirectUri));
+
+                throw new AuthenticationException(
+                    $"Token exchange failed. Status: {statusCode}, Authority: {authority}, Body: {detail}");
+            }
+
+            var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var payload = json.RootElement;
+
+            var tokens = CreateAuthenticationTokens(payload, DateTimeOffset.UtcNow);
+
+            // Use the existing properties from the context (which contain the PKCE verifier, etc.)
+            var props = context.Properties ?? new AuthenticationProperties();
+            props.IssuedUtc = DateTimeOffset.UtcNow;
+            props.StoreTokens(tokens);
+
+            // Validate the ID token — parse header first to get kid for cache lookup (no claim trust at this stage)
+            var idToken = payload.GetProperty("id_token").GetString();
+            var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+            var parsedHeader = handler.ReadJwtToken(idToken);
+            var kid = parsedHeader.Header.Kid;
+
+            // Hard nonce validation — fail closed if nonce is absent from authentication properties
+            if (!props.Items.TryGetValue(PrismNoncePropertiesKey, out var expectedNonce) || string.IsNullOrEmpty(expectedNonce))
+            {
+                throw new AuthenticationException("Nonce is missing from authentication properties.");
+            }
+
+            System.IdentityModel.Tokens.Jwt.JwtSecurityToken jwt;
+            
+            if (!string.IsNullOrEmpty(tenant.OidcAuthority))
+            {
+                // Generic OIDC provider - use standard OIDC discovery
+                try
+                {
+                    // When KEYCLOAK_BACKCHANNEL_URL is set, fetch JWKS signing keys directly from
+                    // the internal Keycloak HTTP address rather than using ConfigurationManager.
+                    // ConfigurationManager fetches the discovery doc then follows the jwks_uri
+                    // embedded within it — but Keycloak sets jwks_uri using its frontend URL,
+                    // which in Codespaces is the external proxy address and is unreachable from
+                    // inside the container server-side. Fetching the JWKS directly from the known
+                    // Keycloak JWKS path bypasses that entirely.
                     var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+                    IEnumerable<SecurityKey> signingKeys;
                     if (!string.IsNullOrEmpty(backchannelBase))
                     {
                         var oidcPath = new Uri(tenant.OidcAuthority!).AbsolutePath.TrimEnd('/');
-                        authority = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/token";
+                        var jwksUrl = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/certs";
+                        logger.LogDebug("Prism: fetching JWKS from backchannel URL {JwksUrl}", jwksUrl);
+                        using var jwksClient = new HttpClient();
+                        var jwksJson = await jwksClient.GetStringAsync(jwksUrl);
+                        var jwks = new Microsoft.IdentityModel.Tokens.JsonWebKeySet(jwksJson);
+                        signingKeys = jwks.GetSigningKeys();
                     }
                     else
                     {
-                        authority = $"{tenant.OidcAuthority}/protocol/openid-connect/token";
+                        var metadataAddress = $"{tenant.OidcAuthority}/.well-known/openid-configuration";
+                        var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+                        var configurationManager = new Microsoft.IdentityModel.Protocols.ConfigurationManager<OpenIdConnectConfiguration>(
+                            metadataAddress,
+                            new OpenIdConnectConfigurationRetriever(),
+                            new HttpDocumentRetriever(new HttpClient()) { RequireHttps = requireHttps });
+                        var oidcConfig = await configurationManager.GetConfigurationAsync(CancellationToken.None);
+                        signingKeys = oidcConfig.SigningKeys;
                     }
-                    clientId = tenant.OidcClientId ?? string.Empty;
-                    secret = await ResolveClientSecretAsync(tenant, vault);
-                    scope = GetRequestedScope(tenant);
 
-                    if (string.IsNullOrWhiteSpace(secret))
+                    var validationParameters = new TokenValidationParameters
                     {
-                        throw new AuthenticationException(
-                            "Generic OIDC client secret is not configured. Use SecretKeyName for managed secrets, or keep inline secrets limited to the repo-owned localhost demo tenant.");
-                    }
+                        ValidIssuer = tenant.OidcAuthority,
+                        ValidAudience = tenant.OidcClientId,
+                        IssuerSigningKeys = signingKeys,
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.FromMinutes(5),
+                        RequireSignedTokens = true,
+                        RequireExpirationTime = true
+                    };
+
+                    handler.ValidateToken(idToken, validationParameters, out var validatedToken);
+                    jwt = (System.IdentityModel.Tokens.Jwt.JwtSecurityToken)validatedToken;
                 }
-                else
+                catch (SecurityTokenException ex)
                 {
-                    // Entra-specific path (existing behavior with Key Vault)
-                    secret = await ResolveClientSecretAsync(tenant, vault);
-                    authority = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/oauth2/v2.0/token";
-                    clientId = tenant.EntraClientId ?? string.Empty;
-                    scope = GetRequestedScope(tenant);
+                    logger.LogError(ex, "ID token signature/claims validation failed for OIDC tenant {Authority}", tenant.OidcAuthority);
+                    context.HandleResponse();
+                    context.Response.Redirect("/error?reason=token_validation_failed");
+                    return;
                 }
-
-                var redirectUri = $"{context.Request.Scheme}://{context.Request.Host}{context.Request.PathBase}{options.CallbackPath}";
-
-                string? verifier = null;
-                context.Properties?.Items.TryGetValue("Prism_PKCE_Verifier", out verifier);
-
-                logger.LogDebug(
-                    "Prism: token exchange POST → {Authority} | redirect_uri={RedirectUri} | client_id={ClientId} | scope={Scope}",
-                    LogScrub.Line(authority), LogScrub.Line(redirectUri), LogScrub.Line(clientId), LogScrub.Line(scope));
-
-                // 1. Manually exchange the code for tokens via simple HTTP
-                using var client = new HttpClient();
-                var response = await client.PostAsync(authority, new FormUrlEncodedContent(new Dictionary<string, string>
-                {
-                    { "client_id", clientId },
-                    { "client_secret", secret },
-                    { "grant_type", "authorization_code" },
-                    { "code", context.ProtocolMessage.Code },
-                    { "redirect_uri", redirectUri },
-                    { "code_verifier", verifier ?? "" },
-                    { "scope", scope }
-                }));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var body = await response.Content.ReadAsStringAsync();
-                    var statusCode = (int)response.StatusCode;
-                    var detail = string.IsNullOrWhiteSpace(body) ? "(empty body)" : body;
-
-                    // Capture response headers to distinguish proxy rejections from Keycloak errors.
-                    // Keycloak always sets WWW-Authenticate on 401; a missing header fingerprints a proxy block.
-                    var headers = string.Join("; ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"));
-                    logger.LogError(
-                        "Prism: token exchange failed. Status={Status} Authority={Authority} Body={Body} ResponseHeaders=[{Headers}] RedirectUri={RedirectUri}",
-                        statusCode, LogScrub.Line(authority), LogScrub.Line(detail), LogScrub.Line(headers), LogScrub.Line(redirectUri));
-
-                    throw new AuthenticationException(
-                        $"Token exchange failed. Status: {statusCode}, Authority: {authority}, Body: {detail}");
-                }
-
-                var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-                var payload = json.RootElement;
-
-                var tokens = CreateAuthenticationTokens(payload, DateTimeOffset.UtcNow);
-
-                // Use the existing properties from the context (which contain the PKCE verifier, etc.)
-                var props = context.Properties ?? new AuthenticationProperties();
-                props.IssuedUtc = DateTimeOffset.UtcNow;
-                props.StoreTokens(tokens);
-
-                // Validate the ID token — parse header first to get kid for cache lookup (no claim trust at this stage)
-                var idToken = payload.GetProperty("id_token").GetString();
-                var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-                var parsedHeader = handler.ReadJwtToken(idToken);
-                var kid = parsedHeader.Header.Kid;
-
-                // Hard nonce validation — fail closed if nonce is absent from authentication properties
-                if (!props.Items.TryGetValue(PrismNoncePropertiesKey, out var expectedNonce) || string.IsNullOrEmpty(expectedNonce))
-                {
-                    throw new AuthenticationException("Nonce is missing from authentication properties.");
-                }
-
-                System.IdentityModel.Tokens.Jwt.JwtSecurityToken jwt;
-                
-                if (!string.IsNullOrEmpty(tenant.OidcAuthority))
-                {
-                    // Generic OIDC provider - use standard OIDC discovery
-                    try
-                    {
-                        // When KEYCLOAK_BACKCHANNEL_URL is set, fetch JWKS signing keys directly from
-                        // the internal Keycloak HTTP address rather than using ConfigurationManager.
-                        // ConfigurationManager fetches the discovery doc then follows the jwks_uri
-                        // embedded within it — but Keycloak sets jwks_uri using its frontend URL,
-                        // which in Codespaces is the external proxy address and is unreachable from
-                        // inside the container server-side. Fetching the JWKS directly from the known
-                        // Keycloak JWKS path bypasses that entirely.
-                        var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
-                        IEnumerable<SecurityKey> signingKeys;
-                        if (!string.IsNullOrEmpty(backchannelBase))
-                        {
-                            var oidcPath = new Uri(tenant.OidcAuthority!).AbsolutePath.TrimEnd('/');
-                            var jwksUrl = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/certs";
-                            logger.LogDebug("Prism: fetching JWKS from backchannel URL {JwksUrl}", jwksUrl);
-                            using var jwksClient = new HttpClient();
-                            var jwksJson = await jwksClient.GetStringAsync(jwksUrl);
-                            var jwks = new Microsoft.IdentityModel.Tokens.JsonWebKeySet(jwksJson);
-                            signingKeys = jwks.GetSigningKeys();
-                        }
-                        else
-                        {
-                            var metadataAddress = $"{tenant.OidcAuthority}/.well-known/openid-configuration";
-                            var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
-                            var configurationManager = new Microsoft.IdentityModel.Protocols.ConfigurationManager<OpenIdConnectConfiguration>(
-                                metadataAddress,
-                                new OpenIdConnectConfigurationRetriever(),
-                                new HttpDocumentRetriever(new HttpClient()) { RequireHttps = requireHttps });
-                            var oidcConfig = await configurationManager.GetConfigurationAsync(CancellationToken.None);
-                            signingKeys = oidcConfig.SigningKeys;
-                        }
-
-                        var validationParameters = new TokenValidationParameters
-                        {
-                            ValidIssuer = tenant.OidcAuthority,
-                            ValidAudience = tenant.OidcClientId,
-                            IssuerSigningKeys = signingKeys,
-                            ValidateLifetime = true,
-                            ClockSkew = TimeSpan.FromMinutes(5),
-                            RequireSignedTokens = true,
-                            RequireExpirationTime = true
-                        };
-
-                        handler.ValidateToken(idToken, validationParameters, out var validatedToken);
-                        jwt = (System.IdentityModel.Tokens.Jwt.JwtSecurityToken)validatedToken;
-                    }
-                    catch (SecurityTokenException ex)
-                    {
-                        logger.LogError(ex, "ID token signature/claims validation failed for OIDC tenant {Authority}", tenant.OidcAuthority);
-                        context.HandleResponse();
-                        context.Response.Redirect("/error?reason=token_validation_failed");
-                        return;
-                    }
-                }
-                else
-                {
-                    // Entra-specific validation using cached signing keys
-                    if (string.IsNullOrEmpty(tenant.EntraTenantId))
-                    {
-                        logger.LogError("ID token validation failed: no OIDC authority or Entra tenant ID configured");
-                        context.HandleResponse();
-                        context.Response.Redirect("/error?reason=token_validation_failed");
-                        return;
-                    }
-
-                    var snapshot = signingKeyCache.GetSnapshot(tenant.EntraTenantId, kid);
-                    if (snapshot.ShouldRefresh)
-                    {
-                        await signingKeyCache.WarmAsync(tenant.EntraTenantId, forceRefresh: true, CancellationToken.None);
-                        snapshot = signingKeyCache.GetSnapshot(tenant.EntraTenantId, kid);
-                    }
-
-                    if (snapshot.IsExpired || !snapshot.ContainsRequestedKey)
-                    {
-                        logger.LogError("ID token validation failed for tenant {TenantId}: signing key '{Kid}' not found in cache", tenant.EntraTenantId, kid);
-                        context.HandleResponse();
-                        context.Response.Redirect("/error?reason=token_validation_failed");
-                        return;
-                    }
-
-                    try
-                    {
-                        var validationParameters = new TokenValidationParameters
-                        {
-                            ValidIssuer = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/v2.0",
-                            ValidAudience = tenant.EntraClientId,
-                            IssuerSigningKeys = snapshot.Keys,
-                            ValidateLifetime = true,
-                            ClockSkew = TimeSpan.FromMinutes(5),
-                            RequireSignedTokens = true,
-                            RequireExpirationTime = true
-                        };
-
-                        handler.ValidateToken(idToken, validationParameters, out var validatedToken);
-                        jwt = (System.IdentityModel.Tokens.Jwt.JwtSecurityToken)validatedToken;
-                    }
-                    catch (SecurityTokenException ex)
-                    {
-                        logger.LogError(ex, "ID token signature/claims validation failed for tenant {TenantId}", tenant.EntraTenantId);
-                        context.HandleResponse();
-                        context.Response.Redirect("/error?reason=token_validation_failed");
-                        return;
-                    }
-                }
-
-                // Hard nonce validation — fail closed if nonce claim absent or mismatched
-                var tokenNonce = jwt.Payload.Nonce;
-                if (string.IsNullOrEmpty(tokenNonce))
-                {
-                    throw new AuthenticationException("Nonce claim is missing from the ID token.");
-                }
-
-                if (!string.Equals(expectedNonce, tokenNonce, StringComparison.Ordinal))
-                {
-                    throw new AuthenticationException("Nonce mismatch: token nonce does not match authentication properties nonce.");
-                }
-
-                var identity = new ClaimsIdentity(jwt.Claims, "PrismEntraID", "name", "role");
-                var principal = new ClaimsPrincipal(identity);
-                var returnUrl = PrismReturnUrl.Normalize(props.RedirectUri);
-
-                // Persist the Prism member session without carrying the one-off post-login
-                // redirect target forward into later authenticated requests.
-                props.RedirectUri = null;
-                await context.HttpContext.SignInAsync("PrismMemberCookie", principal, props);
-
-                ClaimAnonymousServiceRequests(context.HttpContext, identity);
-
-                // Tell the OIDC middleware to STOP.
-                // If we don't call HandleResponse, it will try to sign in again and overwrite our cookie.
-                context.HandleResponse();
-
-                // Redirect manually after framework-backed local URL normalization.
-                context.Response.Redirect(returnUrl);
             }
+            else
+            {
+                // Entra-specific validation using cached signing keys
+                if (string.IsNullOrEmpty(tenant.EntraTenantId))
+                {
+                    logger.LogError("ID token validation failed: no OIDC authority or Entra tenant ID configured");
+                    context.HandleResponse();
+                    context.Response.Redirect("/error?reason=token_validation_failed");
+                    return;
+                }
+
+                var snapshot = signingKeyCache.GetSnapshot(tenant.EntraTenantId, kid);
+                if (snapshot.ShouldRefresh)
+                {
+                    await signingKeyCache.WarmAsync(tenant.EntraTenantId, forceRefresh: true, CancellationToken.None);
+                    snapshot = signingKeyCache.GetSnapshot(tenant.EntraTenantId, kid);
+                }
+
+                if (snapshot.IsExpired || !snapshot.ContainsRequestedKey)
+                {
+                    logger.LogError("ID token validation failed for tenant {TenantId}: signing key '{Kid}' not found in cache", tenant.EntraTenantId, kid);
+                    context.HandleResponse();
+                    context.Response.Redirect("/error?reason=token_validation_failed");
+                    return;
+                }
+
+                try
+                {
+                    var validationParameters = new TokenValidationParameters
+                    {
+                        ValidIssuer = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/v2.0",
+                        ValidAudience = tenant.EntraClientId,
+                        IssuerSigningKeys = snapshot.Keys,
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.FromMinutes(5),
+                        RequireSignedTokens = true,
+                        RequireExpirationTime = true
+                    };
+
+                    handler.ValidateToken(idToken, validationParameters, out var validatedToken);
+                    jwt = (System.IdentityModel.Tokens.Jwt.JwtSecurityToken)validatedToken;
+                }
+                catch (SecurityTokenException ex)
+                {
+                    logger.LogError(ex, "ID token signature/claims validation failed for tenant {TenantId}", tenant.EntraTenantId);
+                    context.HandleResponse();
+                    context.Response.Redirect("/error?reason=token_validation_failed");
+                    return;
+                }
+            }
+
+            // Hard nonce validation — fail closed if nonce claim absent or mismatched
+            var tokenNonce = jwt.Payload.Nonce;
+            if (string.IsNullOrEmpty(tokenNonce))
+            {
+                throw new AuthenticationException("Nonce claim is missing from the ID token.");
+            }
+
+            if (!string.Equals(expectedNonce, tokenNonce, StringComparison.Ordinal))
+            {
+                throw new AuthenticationException("Nonce mismatch: token nonce does not match authentication properties nonce.");
+            }
+
+            var identity = new ClaimsIdentity(jwt.Claims, "PrismEntraID", "name", "role");
+            var principal = new ClaimsPrincipal(identity);
+            var returnUrl = PrismReturnUrl.Normalize(props.RedirectUri);
+
+            // Persist the Prism member session without carrying the one-off post-login
+            // redirect target forward into later authenticated requests.
+            props.RedirectUri = null;
+            await context.HttpContext.SignInAsync("PrismMemberCookie", principal, props);
+
+            ClaimAnonymousServiceRequests(context.HttpContext, identity);
+
+            // Tell the OIDC middleware to STOP.
+            // If we don't call HandleResponse, it will try to sign in again and overwrite our cookie.
+            context.HandleResponse();
+
+            // Redirect manually after framework-backed local URL normalization.
+            context.Response.Redirect(returnUrl);
         };
 
         var onRedirectToIdentityProviderForSignOut = options.Events.OnRedirectToIdentityProviderForSignOut;
@@ -541,6 +556,15 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
             var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
+
+            // No identity provider for this hostname, so no provider session to end: finish the
+            // local sign-out here instead of redirecting to the placeholder authority.
+            if (tenant?.HasSignInConfigured() != true)
+            {
+                context.HandleResponse();
+                context.Response.Redirect(context.Options.SignedOutRedirectUri);
+                return;
+            }
 
             // TEMPORARY diagnostic — see AccountController.Logout()'s own remarks for the full
             // context. This handler is what's actually supposed to build the redirect to Entra's
@@ -552,56 +576,54 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             logger.LogInformation(
                 "Prism OIDC sign-out: authenticated={IsAuthenticated}, tenant={Tenant}, oidcAuthority={OidcAuthority}, entraTenantId={EntraTenantId}",
                 context.HttpContext.User.Identity?.IsAuthenticated == true,
-                tenant?.Name ?? "(null)",
-                tenant?.OidcAuthority ?? "(none)",
-                tenant?.EntraTenantId ?? "(none)");
+                tenant.Name,
+                tenant.OidcAuthority ?? "(none)",
+                tenant.EntraTenantId ?? "(none)");
 
-            if (tenant != null)
+            if (!string.IsNullOrEmpty(tenant.OidcAuthority))
             {
-                if (!string.IsNullOrEmpty(tenant.OidcAuthority))
+                // Generic OIDC provider logout
+                context.ProtocolMessage.IssuerAddress = $"{tenant.OidcAuthority}/protocol/openid-connect/logout";
+                if (string.IsNullOrWhiteSpace(context.ProtocolMessage.ClientId))
                 {
-                    // Generic OIDC provider logout
-                    context.ProtocolMessage.IssuerAddress = $"{tenant.OidcAuthority}/protocol/openid-connect/logout";
-                    if (string.IsNullOrWhiteSpace(context.ProtocolMessage.ClientId))
+                    context.ProtocolMessage.ClientId = tenant.OidcClientId;
+                }
+
+                if (string.IsNullOrWhiteSpace(context.ProtocolMessage.IdTokenHint))
+                {
+                    var authResult = await context.HttpContext.AuthenticateAsync("PrismMemberCookie");
+                    var idToken = authResult.Properties?.GetTokens()
+                        ?.FirstOrDefault(token => token.Name == "id_token")
+                        ?.Value;
+
+                    if (!string.IsNullOrWhiteSpace(idToken))
                     {
-                        context.ProtocolMessage.ClientId = tenant.OidcClientId;
+                        context.ProtocolMessage.IdTokenHint = idToken;
+                        logger.LogDebug(
+                            "Prism OIDC logout restored id_token_hint from PrismMemberCookie for generic authority {Authority}",
+                            tenant.OidcAuthority);
                     }
-
-                    if (string.IsNullOrWhiteSpace(context.ProtocolMessage.IdTokenHint))
+                    else
                     {
-                        var authResult = await context.HttpContext.AuthenticateAsync("PrismMemberCookie");
-                        var idToken = authResult.Properties?.GetTokens()
-                            ?.FirstOrDefault(token => token.Name == "id_token")
-                            ?.Value;
-
-                        if (!string.IsNullOrWhiteSpace(idToken))
-                        {
-                            context.ProtocolMessage.IdTokenHint = idToken;
-                            logger.LogDebug(
-                                "Prism OIDC logout restored id_token_hint from PrismMemberCookie for generic authority {Authority}",
-                                tenant.OidcAuthority);
-                        }
-                        else
-                        {
-                            logger.LogWarning(
-                                "Prism OIDC logout is missing id_token_hint for generic authority {Authority}; logout will fall back to client_id only",
-                                tenant.OidcAuthority);
-                        }
+                        logger.LogWarning(
+                            "Prism OIDC logout is missing id_token_hint for generic authority {Authority}; logout will fall back to client_id only",
+                            tenant.OidcAuthority);
                     }
                 }
-                else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
+            }
+            else if (!string.IsNullOrEmpty(tenant.EntraTenantId))
+            {
+                // Entra-specific logout
+                var baseUri = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}";
+                context.ProtocolMessage.IssuerAddress = $"{baseUri}/oauth2/v2.0/logout";
+
+                var member = (await context.HttpContext.AuthenticateAsync(PrismAuthenticationSchemes.MemberCookie)).Principal;
+                var userEmail = member?.FindFirst("preferred_username")?.Value
+                                ?? member?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+
+                if (!string.IsNullOrEmpty(userEmail))
                 {
-                    // Entra-specific logout
-                    var baseUri = $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}";
-                    context.ProtocolMessage.IssuerAddress = $"{baseUri}/oauth2/v2.0/logout";
-
-                    var userEmail = context.HttpContext.User.FindFirst("preferred_username")?.Value
-                                    ?? context.HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
-
-                    if (!string.IsNullOrEmpty(userEmail))
-                    {
-                        context.ProtocolMessage.SetParameter("logout_hint", userEmail);
-                    }
+                    context.ProtocolMessage.SetParameter("logout_hint", userEmail);
                 }
             }
 
