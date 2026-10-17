@@ -564,6 +564,44 @@ public class Phase1SecurityRegressionTests : IDisposable
         };
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PrismOidcConfiguration_RefusesACallback_OnAHostnameWithoutSignInConfigured(bool tenantWithAuthorityOnly)
+    {
+        // A sign-in callback for a hostname with no configured identity provider cannot be one
+        // Prism started. It is refused outright: nobody is signed in, and the default code
+        // redemption never runs with the placeholder settings.
+        var tenant = tenantWithAuthorityOnly
+            ? new PrismTenant { Hostname = "half.example", OidcAuthority = "https://idp.half.example/realms/members" }
+            : null;
+
+        var authService = new RecordingAuthenticationService();
+        var services = new ServiceCollection()
+            .AddSingleton<IPrismContext>(new TestPrismContext { CurrentTenant = tenant })
+            .AddSingleton<ISecretVaultService>(new StubSecretVaultService("vault-backed-secret"))
+            .AddSingleton<IAuthenticationService>(authService)
+            .BuildServiceProvider();
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        httpContext.Request.Scheme = "https";
+        httpContext.Request.Host = new HostString("half.example");
+
+        var options = ConfigureOidcOptions(httpContext);
+        var callback = new AuthorizationCodeReceivedContext(
+            httpContext, CreatePrismEntraIdScheme(), options, new AuthenticationProperties { RedirectUri = "/" })
+        {
+            ProtocolMessage = new OpenIdConnectMessage { Code = "attacker-supplied-code" }
+        };
+
+        await options.Events.OnAuthorizationCodeReceived(callback);
+
+        callback.HandledCodeRedemption.Should().BeFalse();
+        callback.Result.Should().NotBeNull();
+        callback.Result!.Handled.Should().BeTrue("the request must stop here, before any default code redemption");
+        httpContext.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        authService.LastSignInScheme.Should().BeNull("nobody may be signed in by a callback Prism could not have started");
+    }
+
     private static async Task<string> ExecutePostLoginRedirectAsync(string? returnUrl, LoopbackOidcProvider oidcProvider)
     {
         // These redirect-contract tests intentionally execute the real callback path so PrismOidcConfiguration

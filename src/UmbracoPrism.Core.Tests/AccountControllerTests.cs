@@ -137,30 +137,44 @@ public class AccountControllerTests
 
     // ── Prism sign-in exists only where a tenant has configured it ─────────
 
-    public static TheoryData<string, PrismTenant?> HostnamesWithoutSignIn() => new()
+    /// <summary>A hostname where Prism sign-in must not exist, described for the test report.</summary>
+    public sealed record HostnameWithoutSignIn(PrismTenant? Tenant)
     {
-        { "no tenant for this hostname", null },
-        { "a tenant with no identity provider", new PrismTenant { Hostname = "plain.example.test" } },
-        { "a generic OIDC authority without a client ID", new PrismTenant { Hostname = "half.example.test", OidcAuthority = "https://idp.example.test" } },
-        { "an Entra tenant ID without a client ID", new PrismTenant { Hostname = "half.example.test", EntraTenantId = "00000000-0000-0000-0000-000000000001" } },
+        public string Description => Tenant switch
+        {
+            null => "no tenant for this hostname",
+            { OidcAuthority: not null } => "a generic OIDC authority without a client ID",
+            { EntraTenantId: not null } => "an Entra tenant ID without a client ID",
+            _ => "a tenant with no identity provider",
+        };
+
+        public override string ToString() => Description;
+    }
+
+    public static TheoryData<HostnameWithoutSignIn> HostnamesWithoutSignIn() => new()
+    {
+        new(null),
+        new(new PrismTenant { Hostname = "plain.example.test" }),
+        new(new PrismTenant { Hostname = "half.example.test", OidcAuthority = "https://idp.example.test" }),
+        new(new PrismTenant { Hostname = "half.example.test", EntraTenantId = "00000000-0000-0000-0000-000000000001" }),
     };
 
     [Theory]
     [MemberData(nameof(HostnamesWithoutSignIn))]
-    public async Task Login_IsNotFound_AndNeverChallenges_OnAHostnameWithoutSignIn(string because, PrismTenant? tenant)
+    public async Task Login_IsNotFound_AndNeverChallenges_OnAHostnameWithoutSignIn(HostnameWithoutSignIn hostname)
     {
-        var controller = BuildController(isMember: false, tenant, useDefaultTenant: false);
+        var controller = BuildController(isMember: false, hostname.Tenant, useDefaultTenant: false);
 
-        (await controller.Login("/")).Should().BeOfType<NotFoundResult>(because);
+        (await controller.Login("/")).Should().BeOfType<NotFoundResult>(hostname.Description);
     }
 
     [Theory]
     [MemberData(nameof(HostnamesWithoutSignIn))]
-    public async Task Register_IsNotFound_AndNeverChallenges_OnAHostnameWithoutSignIn(string because, PrismTenant? tenant)
+    public async Task Register_IsNotFound_AndNeverChallenges_OnAHostnameWithoutSignIn(HostnameWithoutSignIn hostname)
     {
-        var controller = BuildController(isMember: false, tenant, useDefaultTenant: false);
+        var controller = BuildController(isMember: false, hostname.Tenant, useDefaultTenant: false);
 
-        (await controller.Register("/")).Should().BeOfType<NotFoundResult>(because);
+        (await controller.Register("/")).Should().BeOfType<NotFoundResult>(hostname.Description);
     }
 
     [Fact]
@@ -176,12 +190,12 @@ public class AccountControllerTests
 
     [Theory]
     [MemberData(nameof(HostnamesWithoutSignIn))]
-    public async Task Logout_SignsOutOfTheLocalCookieOnly_OnAHostnameWithoutSignIn(string because, PrismTenant? tenant)
+    public async Task Logout_SignsOutOfTheLocalCookieOnly_OnAHostnameWithoutSignIn(HostnameWithoutSignIn hostname)
     {
-        var controller = BuildController(isMember: true, tenant, useDefaultTenant: false);
+        var controller = BuildController(isMember: true, hostname.Tenant, useDefaultTenant: false);
 
         (await controller.Logout()).Should().BeOfType<SignOutResult>()
-            .Which.AuthenticationSchemes.Should().BeEquivalentTo(["PrismMemberCookie"], because);
+            .Which.AuthenticationSchemes.Should().BeEquivalentTo(["PrismMemberCookie"], hostname.Description);
     }
 
     // ── SEC-PT2-003 regression: logout must be POST-only + antiforgery ─────
