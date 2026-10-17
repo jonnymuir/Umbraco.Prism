@@ -13,6 +13,7 @@ using Wayfinder.Umbraco.Extensions;
 using Wayfinder.Umbraco.Services;
 using UmbracoPrism.TestSite.BackgroundServices;
 using UmbracoPrism.TestSite.FieldRecording;
+using UmbracoPrism.TestSite.Security;
 using UmbracoPrism.TestSite.Services;
 using UmbracoPrism.TestSite.Services.ServiceDesign;
 using Wayfinder.Engine.Abstractions;
@@ -37,6 +38,7 @@ public class TestSiteComposer : IComposer
     public void Compose(IUmbracoBuilder builder)
     {
         builder.Services.Configure<TestSiteOptions>(builder.Config.GetSection(TestSiteOptions.SectionName));
+        builder.AddSecurityHeaders();
 
         // The site's own document types and starter content
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, StarterContentTypeSeeder>();

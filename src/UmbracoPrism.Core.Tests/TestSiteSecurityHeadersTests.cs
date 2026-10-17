@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Microsoft.Extensions.Configuration;
 using UmbracoPrism.Core.Configuration;
+using UmbracoPrism.TestSite.Security;
 
 namespace UmbracoPrism.Core.Tests;
 
@@ -18,8 +19,8 @@ public class TestSiteSecurityHeadersTests
             .SetBasePath(TestSupportSystems.FindTestSiteDirectory())
             .AddJsonFile("appsettings.json")
             .Build()
-            .GetSection("Prism:SecurityHeaders")
-            .Get<PrismSecurityHeadersOptions>()!;
+            .GetSection("TestSite:SecurityHeaders")
+            .Get<SecurityHeadersOptions>()!;
 
         return CspPolicyBuilder.WithAdditionalSources(options.ContentSecurityPolicy!, options.AdditionalContentSecurityPolicySources);
     }

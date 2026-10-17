@@ -1,14 +1,14 @@
 using System.Text;
 
-namespace UmbracoPrism.Core.Configuration;
+namespace UmbracoPrism.TestSite.Security;
 
 /// <summary>
-/// Merges a host's additional CSP sources (<see cref="PrismSecurityHeadersOptions
-/// .AdditionalContentSecurityPolicySources"/>) into Prism's own base policy string, so a host
+/// Merges additional CSP sources (<see cref="SecurityHeadersOptions
+/// .AdditionalContentSecurityPolicySources"/>, and Prism's sign-in sources) into the base policy string, so a host
 /// that needs e.g. an extra <c>connect-src</c> for a third-party API doesn't have to fork and
 /// hand-maintain the whole policy — only the one directive it actually needs to extend.
 /// </summary>
-internal static class CspPolicyBuilder
+public static class CspPolicyBuilder
 {
     public static string WithAdditionalSources(string basePolicy, IReadOnlyDictionary<string, string> additionalSources)
     {

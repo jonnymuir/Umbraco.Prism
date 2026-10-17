@@ -1,5 +1,5 @@
 using AwesomeAssertions;
-using UmbracoPrism.Core.Configuration;
+using UmbracoPrism.TestSite.Security;
 
 namespace UmbracoPrism.Core.Tests;
 

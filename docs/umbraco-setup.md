@@ -88,8 +88,16 @@ Prism creates its own database tables (`prismTenants`, `prismPageAccessPolicies`
 `prismDeviceCredentials` and `prismNotificationSubscriptions`) through an Umbraco package
 migration, and adds its screens under **Settings → Advanced** in the backoffice.
 
-It never creates or changes your document types, templates, content or media. Your content model
-is yours, so installing Prism on an existing site leaves every page as it was.
+It never creates or changes your document types, templates, content or media, and it sets no
+site-wide response headers. Your content model and your security policy are yours, so installing
+Prism on an existing site leaves every page as it was.
+
+If your site sends a Content-Security-Policy, merge in the sources Prism's sign-in needs for the
+current tenant: `PrismContentSecurityPolicy.SignInSources(prismContext.CurrentTenant)` returns the
+`form-action` and `frame-src` additions for its identity provider (empty when the tenant has no
+sign-in configured). Prism's own pages and assets need nothing else: they use no inline script or
+style. The reference site's `SecurityHeadersMiddleware` (in `UmbracoPrism.TestSite/Security`) is a
+worked example of a strict policy.
 
 Member sign-in applies only on the hostname of a tenant with sign-in configured: a generic OIDC
 authority and client ID, or an Entra tenant ID and client ID. On every other hostname your site's
