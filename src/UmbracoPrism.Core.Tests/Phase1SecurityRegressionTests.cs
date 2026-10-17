@@ -478,7 +478,7 @@ public class Phase1SecurityRegressionTests : IDisposable
     public void BiometricRateLimit_PartitionKey_UsesRemoteIpAddress_NotRawForwardedForHeader()
     {
         // SECURITY: Behind a reverse proxy, HttpContext.Connection.RemoteIpAddress is the
-        // proxy's IP, not the client's. ForwardedHeadersMiddleware (configured in PrismComposer)
+        // proxy's IP, not the client's. ForwardedHeadersMiddleware (configured by the host)
         // rewrites RemoteIpAddress from X-Forwarded-For before requests reach BiometricController.
         //
         // This test verifies the partition key contract: CheckIpLimit is called with the

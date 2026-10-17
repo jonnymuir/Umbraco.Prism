@@ -99,6 +99,12 @@ sign-in configured). Prism's own pages and assets need nothing else: they use no
 style. The reference site's `SecurityHeadersMiddleware` (in `UmbracoPrism.TestSite/Security`) is a
 worked example of a strict policy.
 
+Proxy handling is yours too. If your site sits behind a reverse proxy, tunnel or load balancer,
+configure ASP.NET Core's forwarded headers (`X-Forwarded-For` and `X-Forwarded-Proto`, trusting only
+your real proxies): Prism's biometric-exchange rate limiter keys on the client IP, and its OIDC
+redirect URIs follow the request scheme, so both must be the client's. The reference site's
+`ForwardedHeadersRegistration` shows one way.
+
 Member sign-in applies only on the hostname of a tenant with sign-in configured: a generic OIDC
 authority and client ID, or an Entra tenant ID and client ID. On every other hostname your site's
 own authentication stays exactly as it was: your `[Authorize]` endpoints challenge and

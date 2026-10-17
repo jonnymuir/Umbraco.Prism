@@ -11,7 +11,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Identity.Web;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using UmbracoPrism.Core.Configuration;
 using UmbracoPrism.Core.Notifications;
@@ -63,25 +62,12 @@ public class PrismComposer : IComposer
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
         // 3. Middleware Registration
-        // ForwardedHeaders must run before any middleware that reads RemoteIpAddress
-        // (e.g. biometric rate limiting in BiometricController). Trust is opt-in, via
-        // Prism:ForwardedHeaders (see PrismForwardedHeadersOptions) — ASP.NET Core's own
-        // loopback-only default applies to any address a deployment doesn't explicitly name,
-        // so RemoteIpAddress stays trustworthy (and the biometric-exchange rate limiter
-        // meaningful) until a deployment actually sits behind a real, named proxy.
-        builder.Services.Configure<PrismForwardedHeadersOptions>(
-            builder.Config.GetSection(PrismForwardedHeadersOptions.SectionName));
-        builder.Services.AddOptions<ForwardedHeadersOptions>()
-            .Configure<IOptions<PrismForwardedHeadersOptions>>(
-                (options, prismOptions) => prismOptions.Value.ApplyTo(options));
-
         builder.Services.Configure<UmbracoPipelineOptions>(options =>
         {
             options.AddFilter(new UmbracoPipelineFilter(
                 "PrismTenantResolution",
                 app =>
                 {
-                    app.UseForwardedHeaders();
                     app.UseMiddleware<PrismTenantMiddleware>();
                     app.UseMiddleware<PrismMobileCookieMiddleware>();
                 }

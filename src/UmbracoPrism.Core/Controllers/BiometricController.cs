@@ -637,9 +637,10 @@ public class BiometricController(
         }
     }
 
-    // Use RemoteIpAddress as the partition key — ForwardedHeadersMiddleware (configured in
-    // PrismComposer) rewrites RemoteIpAddress from the X-Forwarded-For header before this
-    // controller is reached, so this is already proxy-aware.
+    // Use RemoteIpAddress as the partition key. The host's forwarded-headers configuration
+    // (the reference site's ForwardedHeadersRegistration, for example) rewrites
+    // RemoteIpAddress from the X-Forwarded-For header before this controller is reached, so
+    // this is already proxy-aware.
     // PRODUCTION: configure ForwardedHeadersOptions.KnownProxies / KnownNetworks to limit
     // which upstream proxies are trusted (prevents IP spoofing by end clients).
     private string GetClientIp() =>

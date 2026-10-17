@@ -38,6 +38,7 @@ public class TestSiteComposer : IComposer
     public void Compose(IUmbracoBuilder builder)
     {
         builder.Services.Configure<TestSiteOptions>(builder.Config.GetSection(TestSiteOptions.SectionName));
+        builder.AddTrustedForwardedHeaders();
         builder.AddSecurityHeaders();
 
         // The site's own document types and starter content
