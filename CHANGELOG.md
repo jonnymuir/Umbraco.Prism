@@ -2,6 +2,23 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v6.1.1] — 2026-10-17
+
+### Check when upgrading
+
+- Prism no longer sends security headers, and `Prism:SecurityHeaders` is ignored. The Content-Security-Policy, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy and no-store caching it added to every response, and the `Secure` flag it set on the antiforgery and TempData cookies, are now your site's to configure. If you relied on them, add your own: the reference site's `SecurityHeadersMiddleware` is a worked example. Merge `PrismContentSecurityPolicy.SignInSources(tenant)` into your policy so sign-in keeps working.
+- Prism no longer configures forwarded headers, and `Prism:ForwardedHeaders` is ignored. If your site is behind a proxy, configure ASP.NET Core's forwarded headers yourself and trust only your own proxies. Prism's biometric rate limiting uses the client IP, and its sign-in redirects use the request scheme.
+- Prism no longer creates the `homePage`, `memberDashboard` and `settings` document types, seeds starter content or renders `memberDashboard` pages, and `Prism:SeedStarterContent` is gone. If you used any of these, define your own. The reference site's `StarterContentTypeSeeder`, `StarterContentSeeder` and `MemberDashboardController` show how.
+
+### Bug Fixes & Improvements
+
+- Fixes installing Prism on an existing site that has its own `homePage` document type. Prism used to add a property to it on every startup, which could stop the site starting.
+- Applies Prism's sign-in only on the hostname of a tenant with an identity provider configured. Everywhere else your site's own login works as before: Prism no longer takes over the `[Authorize]` defaults, `/auth/login` returns 404 and Prism's member cookie isn't accepted.
+- Stops treating your site's own login as a Prism member. Page access policies, `IPrismUserContext` and Prism's account pages now recognise only a Prism member session.
+- Fixes `umbraco-marketplace.json` so it validates against the Umbraco Marketplace schema.
+
+---
+
 ## [v6.1.0] — 2026-10-16
 
 ### Check when upgrading
