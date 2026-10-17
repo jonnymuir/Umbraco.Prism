@@ -84,62 +84,29 @@ var app = builder.Build();
 
 ## 3. What Happens Automatically on First Startup
 
-When your Umbraco site starts, Prism's `PrismContentTypeSeeder` runs automatically:
+Prism creates its own database tables (`prismTenants`, `prismPageAccessPolicies`,
+`prismDeviceCredentials` and `prismNotificationSubscriptions`) through an Umbraco package
+migration, and adds its screens under **Settings → Advanced** in the backoffice.
 
-- **Creates two document types** (if they don't exist):
-  - `homePage`, the root/landing page type
-  - `memberDashboard`, the authenticated member portal page type
-- **Non-destructive:** If either type already exists, Prism skips creation and uses what's there.
-- **No breaking changes:** Existing content, members, and navigation remain untouched.
+It never creates or changes your document types, templates, content or media. Your content model
+is yours, so installing Prism on an existing site leaves every page as it was.
 
-**What Prism does NOT touch:**
-- Your existing content tree (if any)
-- Your existing member records
-- Navigation menus or other templates
-- Any document types outside `homePage` and `memberDashboard`
+## 4. Your Content
 
-## 4. Content Tree Structure
+Prism works with whatever pages your site already has:
 
-Prism expects a simple content hierarchy:
+- **Restrict a page** to signed-in members, or to members of named tenants, from
+  **Settings → Advanced → Page access**. The policy applies to the page wherever it moves.
+- **Read the signed-in member** in your own templates and controllers through `IPrismContext`
+  (the current tenant) and the member's claims.
+- **Send push notifications on publish** by listing the document types that should trigger them in
+  `Prism:Notifications:NotifiableContentTypes`; see [Notifications](notifications.md).
 
-```mermaid
-graph TD
-    A["Content/"] --> B["Home<br/>document type: homePage"]
-    B --> C["Dashboard<br/>document type: memberDashboard"]
-```
-
-- **Home page:** The public landing page. Users see "Sign In" and "Register" CTAs here.
-- **Dashboard page:** A child of Home. Renders only for authenticated members. Shows the member portal with personalized content.
-
-### For Existing Sites (Manual Setup)
-
-If you have an existing Umbraco content tree:
-
-1. **Create a Home page** using the `homePage` document type (if you don't have one).
-2. **Create a Dashboard page** as a child of Home, using the `memberDashboard` document type.
-3. **Publish both pages.**
-4. **Configure your first tenant** in the backoffice (see step 5 below).
-
-### For New/Greenfield Sites (Auto-Seeding)
-
-If you're starting fresh, set the optional auto-seed flag:
-
-```json
-{
-  "Prism": {
-    "SeedStarterContent": true
-  }
-}
-```
-
-On the next startup, Prism will:
-- Create the `homePage` document type
-- Create the `memberDashboard` document type
-- Auto-create a **Home** page (document type: `homePage`)
-- Auto-create a **Dashboard** page (child of Home, document type: `memberDashboard`)
-- Auto-create a **Content Blueprint** so editors can use "Create from Blueprint" for additional member portal pages
-
-Your content tree is then ready to use. No manual page creation needed.
+The reference site, `UmbracoPrism.TestSite`, shows one way to build a member portal on top: a
+`homePage` with a member `Dashboard` child, defined and seeded by its own
+`StarterContentTypeSeeder` and `StarterContentSeeder` (switched on by its
+`TestSite:SeedStarterContent` setting), with `MemberDashboardController` rendering the dashboard.
+Copy as much or as little of it as suits your site.
 
 ## 5. Configure Your First Tenant
 
@@ -161,7 +128,7 @@ usually wants a tenant that just exists automatically once the app boots — no 
 safe to redeploy repeatedly. Set `Prism:SeedTenant` in configuration and
 `PrismConfiguredTenantSeeder` (registered automatically, no `Program.cs` change needed) creates
 it — and **reconciles** it back to these values on every boot, the same idempotent pattern
-`PrismStarterContentSeeder` already uses for starter content: a config change takes effect on the
+the reference site uses for its starter content: a config change takes effect on the
 next deploy/restart, no migration step required.
 
 ```json
@@ -214,11 +181,9 @@ for how it works and the security checks behind it.
 
 After setup, you should see:
 
-- ✅ **Homepage loads** and displays Sign In / Register CTAs (if authentication is configured).
-- ✅ **Document types exist:** In Umbraco Settings → Document Types, you see `homePage` and `memberDashboard`.
-- ✅ **Content tree is correct:** Home page exists; Dashboard page exists as a child of Home.
+- ✅ **Your site loads** exactly as it did before installing Prism.
 - ✅ **Tenant is configured:** In Settings → Advanced → Tenants, your tenant is listed and assigned to the appropriate hostname.
-- ✅ **Dashboard loads when authenticated:** Log in, navigate to `/dashboard`, and you see the member portal page.
+- ✅ **Sign-in works:** a page restricted under Page access sends an anonymous visitor to your identity provider and shows the page once they sign in.
 
 ## 8. Next Steps
 
@@ -226,8 +191,6 @@ Once Prism is running:
 
 - **Configure Key Vault (production only):** Add `Prism:VaultUri` to `appsettings.Production.json`. Secrets load automatically. Optionally call `builder.AddPrismKeyVault()` in `Program.cs` for fail-fast validation at startup.
 - **Configure sign-in** for each tenant with your identity provider's details; see [Creating a tenant](walkthroughs/creating-a-tenant.md).
-- **Customize the dashboard** by editing the Dashboard Razor template (`memberDashboard.cshtml`).
-- **Add more pages** under Dashboard by creating new documents and assigning the `memberDashboard` type (or custom subtypes).
 - **Restrict pages to signed-in members or named tenants** from Settings → Advanced → Page access.
 - **Add service journeys** (citizen forms, caseworker queues) by installing [Wayfinder.Umbraco](https://github.com/jonnymuir/Wayfinder.Umbraco); Prism has no service-design features of its own.
 - **Add tenant branding overrides** by referencing `<link rel="stylesheet" href="/umbraco/prism/branding.css" />` in your layout — see [branding-design-system.md](branding-design-system.md#how-overrides-reach-the-live-site). Prism doesn't inject this for you.

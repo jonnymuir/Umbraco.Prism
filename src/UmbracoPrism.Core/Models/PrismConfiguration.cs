@@ -12,13 +12,6 @@ public class PrismConfiguration
     public const string SectionName = "Prism";
 
     /// <summary>
-    /// Opt-in flag to seed starter content (Home and Dashboard pages) on first run.
-    /// Only applies if the content tree is empty.
-    /// Default: false.
-    /// </summary>
-    public bool SeedStarterContent { get; set; } = false;
-
-    /// <summary>
     /// Opt-in: seeds (and reconciles on every boot) a single tenant record from configuration.
     /// Only runs if <see cref="PrismSeedTenantOptions.Hostname"/> is set. See
     /// <see cref="PrismSeedTenantOptions"/> for the fields and

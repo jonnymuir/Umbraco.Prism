@@ -7,23 +7,22 @@ using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Extensions;
-using UmbracoPrism.Core.Models;
 
-namespace UmbracoPrism.Core;
+namespace UmbracoPrism.TestSite;
 
 /// <summary>
-/// Opt-in seeder for Prism starter content (Home page + Member Dashboard).
+/// Opt-in seeder for the reference site's starter content (Home page + Member Dashboard).
 /// Only runs if:
-///  1. PrismConfiguration.SeedStarterContent is true, AND
+///  1. TestSiteOptions.SeedStarterContent is true, AND
 ///  2. The content tree is empty (no root content exists).
 /// </summary>
-public class PrismStarterContentSeeder(
-    IOptions<PrismConfiguration> prismConfig,
+public class StarterContentSeeder(
+    IOptions<TestSiteOptions> testSiteOptions,
     IContentService contentService,
     IContentTypeService contentTypeService,
     IMediaService mediaService,
     IRuntimeState runtimeState,
-    ILogger<PrismStarterContentSeeder> logger)
+    ILogger<StarterContentSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     public async Task HandleAsync(
@@ -31,7 +30,7 @@ public class PrismStarterContentSeeder(
         CancellationToken cancellationToken)
     {
         if (runtimeState.Level < RuntimeLevel.Run) return;
-        if (!prismConfig.Value.SeedStarterContent) return;
+        if (!testSiteOptions.Value.SeedStarterContent) return;
 
         await Task.Run(() =>
         {
@@ -60,13 +59,13 @@ public class PrismStarterContentSeeder(
             .FirstOrDefault(m => m.Name == "Prism Branding");
         if (existing != null) return;
 
-        logger.LogInformation("PRISM StarterSeeder: Creating Prism Branding media folder");
+        logger.LogInformation("StarterContentSeeder: Creating Prism Branding media folder");
 
         var folder = mediaService.CreateMedia("Prism Branding", Constants.System.Root, Constants.Conventions.MediaTypes.Folder);
         var folderResult = mediaService.Save(folder);
         if (!folderResult.Success)
         {
-            logger.LogWarning("PRISM StarterSeeder: Failed to create Prism Branding media folder");
+            logger.LogWarning("StarterContentSeeder: Failed to create Prism Branding media folder");
             return;
         }
 
@@ -80,11 +79,11 @@ public class PrismStarterContentSeeder(
         var imageResult = mediaService.Save(image);
         if (!imageResult.Success)
         {
-            logger.LogWarning("PRISM StarterSeeder: Failed to save Hero Background media item");
+            logger.LogWarning("StarterContentSeeder: Failed to save Hero Background media item");
         }
         else
         {
-            logger.LogInformation("PRISM StarterSeeder: Hero Background media item created (id={Id})", image.Id);
+            logger.LogInformation("StarterContentSeeder: Hero Background media item created (id={Id})", image.Id);
         }
     }
 
@@ -133,7 +132,7 @@ public class PrismStarterContentSeeder(
 
     private void EnsureSettingsDefaults()
     {
-        logger.LogInformation("PRISM StarterSeeder: EnsureSettingsDefaults starting");
+        logger.LogInformation("StarterContentSeeder: EnsureSettingsDefaults starting");
 
         var settingsType = contentTypeService.Get("settings");
         if (settingsType == null) return;
@@ -156,21 +155,21 @@ public class PrismStarterContentSeeder(
         var mobileNavProperty = settingsType.PropertyTypes.FirstOrDefault(p => p.Alias == "mobileNavLinks");
         if (mobileNavProperty == null)
         {
-            logger.LogWarning("PRISM: mobileNavLinks property not found on settings doc type. Saving without nav links.");
+            logger.LogWarning("StarterContentSeeder: mobileNavLinks property not found on settings doc type. Saving without nav links.");
             contentService.Save(settings!);
             contentService.Publish(settings!, new[] { "*" });
             return;
         }
 
         var expectedDataTypeKey = new Guid("3b4c5d6e-7f80-9a1b-c2d3-e4f567890abc");
-        logger.LogInformation("PRISM: About to publish Settings node. mobileNavLinks property data type key from content type: {Key}",
+        logger.LogInformation("StarterContentSeeder: About to publish Settings node. mobileNavLinks property data type key from content type: {Key}",
             mobileNavProperty.DataTypeKey);
 
         if (mobileNavProperty.DataTypeKey != expectedDataTypeKey)
         {
             // Another component (e.g. the TestSite) has configured mobileNavLinks with a different
             // data type (e.g. Block List). Leave nav links alone — but still persist the node if new.
-            logger.LogDebug("PRISM: mobileNavLinks uses a custom data type {Key}. Skipping nav links seeding.", mobileNavProperty.DataTypeKey);
+            logger.LogDebug("StarterContentSeeder: mobileNavLinks uses a custom data type {Key}. Skipping nav links seeding.", mobileNavProperty.DataTypeKey);
             if (isNew)
             {
                 contentService.Save(settings!);
@@ -192,6 +191,6 @@ public class PrismStarterContentSeeder(
             contentService.Publish(settings, new[] { "*" });
         }
 
-        logger.LogInformation("PRISM StarterSeeder: EnsureSettingsDefaults complete");
+        logger.LogInformation("StarterContentSeeder: EnsureSettingsDefaults complete");
     }
 }
