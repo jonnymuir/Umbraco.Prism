@@ -10,83 +10,12 @@ namespace UmbracoPrism.Core.Services.MobileBundles;
 /// </summary>
 internal static class WebShellFiles
 {
-    private static string BuildShellStyles(MobileBundleSettings settings) => $$"""
-  <style>
-    :root {
-      --prism-error-bg: {{EscapeSingleQuotes(settings.ErrorBackgroundColor)}};
-      --prism-error-text: {{EscapeSingleQuotes(settings.ErrorTextColor)}};
-    }
-    html, body {
-      margin: 0;
-      min-height: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background: var(--prism-error-bg);
-      color: var(--prism-error-text);
-    }
-    .screen {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      box-sizing: border-box;
-    }
-    .card {
-      width: 100%;
-      max-width: 480px;
-      border-radius: 14px;
-      border: 1px solid color-mix(in srgb, var(--prism-error-text) 20%, transparent);
-      background: color-mix(in srgb, var(--prism-error-bg) 86%, black);
-      box-shadow: 0 20px 50px rgba(0,0,0,0.22);
-      padding: 24px;
-      box-sizing: border-box;
-    }
-    h1 {
-      margin: 0 0 10px;
-      font-size: 1.25rem;
-      line-height: 1.35;
-      letter-spacing: .01em;
-    }
-    p {
-      margin: 0;
-      line-height: 1.5;
-      opacity: .95;
-    }
-    .actions {
-      margin-top: 18px;
-      display: flex;
-      gap: 10px;
-    }
-    button {
-      border: 0;
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-weight: 600;
-      cursor: pointer;
-      color: #fff;
-      background: color-mix(in srgb, var(--prism-error-text) 20%, #2563eb);
-    }
-    details {
-      margin-top: 16px;
-      border-radius: 8px;
-      background: rgba(0, 0, 0, 0.2);
-      padding: 10px;
-    }
-    summary {
-      cursor: pointer;
-      font-weight: 600;
-      user-select: none;
-    }
-    pre {
-      margin: 10px 0 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 0.82rem;
-      opacity: 0.92;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
-  </style>
-""";
+    private static string BuildShellStyles(MobileBundleSettings settings) =>
+        "  <style>\n"
+        + BundleTemplates.Read("shell-error-card.css")
+            .Replace("@@PRISM_ERROR_BG@@", EscapeSingleQuotes(settings.ErrorBackgroundColor))
+            .Replace("@@PRISM_ERROR_TEXT@@", EscapeSingleQuotes(settings.ErrorTextColor))
+        + "  </style>\n";
 
     /// <summary>
     /// Shown by Capacitor (<c>server.errorPath</c>) whenever a page from the tenant's site fails

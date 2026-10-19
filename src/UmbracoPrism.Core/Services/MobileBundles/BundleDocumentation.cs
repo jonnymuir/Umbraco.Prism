@@ -138,13 +138,7 @@ npm run open:android
 - Prism mobile middleware can enforce in-WebView behavior for `target="_blank"` and `window.open`.
 - If a page fails to load, the app shows `www/offline.html`, a branded screen using the error title, message and colours from the backoffice. It retries when the device comes back online or when the user taps "Try again".
 
-## Publishing to the App Store and Google Play
-
-- **Submit the app from the organisation whose content it shows.** Apple's App Review Guideline 4.2.6 rejects apps produced from a template or app-generation service unless the content provider submits them, so each tenant publishes under its own Apple Developer and Play Console accounts.
-- **Privacy manifest.** `resources/PrivacyInfo.xcprivacy` is copied into the iOS project by `bootstrap-ios.sh`. It declares the data the enabled features collect (name and email from sign-in, plus the device token for push and photos and location for device capture). If your site collects anything else, add it there and in App Store Connect's privacy details.
-- **Account deletion.** If members can create an account in the app, App Store review also expects a way to delete it from inside the app.
-
-## Entra authentication mode
+{{BundleTemplates.Read("readme-store-publishing.md")}}## Entra authentication mode
 
 - **Strict in-WebView mode:** keeps flows inside the WebView but may not satisfy all Entra/Conditional Access policies.
 - **Compliance mode (recommended):** uses system browser auth session for Entra and can visually leave WebView.
