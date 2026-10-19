@@ -154,6 +154,11 @@ public sealed class SecurityHeadersMiddleware(
             headers["Content-Security-Policy-Report-Only"] = CspPolicyBuilder.WithAdditionalSources(
                 _options.ContentSecurityPolicyReportOnly, effectiveSources);
 
+        SetCacheHeaders(context, headers);
+    }
+
+    private void SetCacheHeaders(HttpContext context, IHeaderDictionary headers)
+    {
         // Checked here (inside the OnStarting callback, not up front in InvokeAsync) so it sees
         // the authentication middleware's final verdict on context.User, not whatever it was
         // before the rest of the pipeline ran.
