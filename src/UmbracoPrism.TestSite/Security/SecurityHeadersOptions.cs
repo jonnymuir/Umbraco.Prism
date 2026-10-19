@@ -133,28 +133,12 @@ public class SecurityHeadersOptions
     public bool NoCacheAuthenticated { get; set; } = true;
 
     /// <summary>
-    /// When true (default), every CSS/JS response gets <c>Cache-Control: no-store,
-    /// must-revalidate</c>, matched by <c>Content-Type</c> (falling back to the path's own file
-    /// extension if Content-Type is somehow unset) — deliberately site-wide, not scoped to
-    /// Prism's own paths, because the problem it fixes is itself extension-based, not
-    /// path-based. None of these files carry a Cache-Control of their own otherwise — found
-    /// live: Cloudflare's own default (a 4-hour <c>max-age</c> it adds itself for static-looking
-    /// extensions whenever the origin sends none) silently served stale, pre-fix copies of
-    /// <c>prism-biometric-enroll.js</c> AND the host's own <c>/css/base.css</c> AND
-    /// <c>/branding/prism-layout.css</c> for hours, across three separate redeploys, each one
-    /// appearing to have "done nothing" from the phone testing it, purely because the edge cache
-    /// never revalidated — confirmed by checking <c>cf-cache-status</c>/<c>age</c> on all three
-    /// directly. A first pass at this fix scoped only to <c>/App_Plugins/UmbracoPrism/</c>
-    /// (Prism's own static assets) before the other two stale files were found live, which is
-    /// why this ended up site-wide/extension-based rather than staying path-scoped: the actual
-    /// cause (an intermediary CDN/edge cache's own default policy) doesn't care which project's
-    /// folder a CSS/JS file happens to live under. A CDN/tunnel a host puts in front of Prism
-    /// cannot be relied on to leave static assets uncached by default; an explicit origin header
-    /// is the only thing an edge cache is obligated to honor. Trades away every CSS/JS file's
-    /// cacheability entirely rather than something more nuanced (a content-hash query string +
-    /// long max-age) — worth revisiting once these assets aren't under active iteration, but zero
-    /// risk of masking a fix is the right default for a package other people are actively
-    /// building against right now.
+    /// When true (default), CSS/JS responses are never served stale. A versioned URL (the
+    /// <c>?v=</c> hash <c>asp-append-version</c> adds) is cached as immutable for a year, since a
+    /// change to the file changes its URL. Any other CSS/JS URL gets <c>no-cache</c>, so browsers,
+    /// the mobile app's WebView and edge caches revalidate it on every use. Without an explicit
+    /// origin header, Cloudflare applies its own multi-hour default to static-looking
+    /// extensions and keeps serving the old file after a deploy.
     /// </summary>
     public bool NoCacheStaticAssets { get; set; } = true;
 }

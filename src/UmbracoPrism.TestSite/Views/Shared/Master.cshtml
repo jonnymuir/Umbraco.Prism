@@ -50,25 +50,25 @@
     <!-- GOV.UK Design System CSS (loaded first). Served from Wayfinder.Rendering.GovUk's own
          static assets rather than a second vendored copy in this project, so it always matches
          whatever GOV.UK Frontend version that package bundles. -->
-    <link rel="stylesheet" href="/_content/Wayfinder.Rendering.GovUk/govuk-frontend/govuk-frontend.min.css" />
+    <link rel="stylesheet" href="/_content/Wayfinder.Rendering.GovUk/govuk-frontend/govuk-frontend.min.css" asp-append-version="true" />
 
     <!-- Wayfinder.Rendering.GovUk's own component CSS (slider/stat-group/chart/bulk-data-review). -->
-    <link rel="stylesheet" href="/_content/Wayfinder.Rendering.GovUk/css/wayfinder-components.css" />
+    <link rel="stylesheet" href="/_content/Wayfinder.Rendering.GovUk/css/wayfinder-components.css" asp-append-version="true" />
 
     <!-- Site CSS (ITCSS layer order) -->
-    <link rel="stylesheet" href="/css/base.css" />
-    <link rel="stylesheet" href="/css/site-layout.css" />
-    <link rel="stylesheet" href="/css/site-components.css" />
-    <link rel="stylesheet" href="/css/demo-vinyl-vault.css" />
-    <link rel="stylesheet" href="/css/design-system-showcase.css" />
-    <link rel="stylesheet" href="/css/utilities.css" />
+    <link rel="stylesheet" href="/css/base.css" asp-append-version="true" />
+    <link rel="stylesheet" href="/css/site-layout.css" asp-append-version="true" />
+    <link rel="stylesheet" href="/css/site-components.css" asp-append-version="true" />
+    <link rel="stylesheet" href="/css/demo-vinyl-vault.css" asp-append-version="true" />
+    <link rel="stylesheet" href="/css/design-system-showcase.css" asp-append-version="true" />
+    <link rel="stylesheet" href="/css/utilities.css" asp-append-version="true" />
 
     <!-- Branding CSS (feature showcase - tenant-specific CSS variable overrides) -->
     <!--
         Loaded after site CSS so tenant branding can safely override defaults.
         This keeps the demo honest: the branding layer is what partners will edit.
     -->
-    <link rel="stylesheet" href="/branding/prism-branding.css" />
+    <link rel="stylesheet" href="/branding/prism-branding.css" asp-append-version="true" />
 
     <!-- Per-tenant branding overrides (SEC-PT2-004: served as its own resource, not spliced
          inline, so it needs no CSP unsafe-inline/nonce exception). Loaded last so tenant
@@ -77,7 +77,7 @@
 
     @if (isPrismMobileRequest)
     {
-        <link rel="stylesheet" href="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell.css" />
+        <link rel="stylesheet" href="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell.css" asp-append-version="true" />
     }
 
 </head>
@@ -117,26 +117,26 @@
          why it's a module). Externalized (not spliced inline) so it needs no CSP
          unsafe-inline/nonce exception for script-src, same rationale as the branding/
          mobile-shell/biometric assets and the mobile-UA-demo widget. -->
-    <script type="module" src="/js/govuk-frontend-bootstrap.js"></script>
+    <script type="module" src="/js/govuk-frontend-bootstrap.js" asp-append-version="true"></script>
 
     <!-- Service request validation script -->
-    <script src="/js/prism-service-request-validation.js" defer></script>
+    <script src="/js/prism-service-request-validation.js" asp-append-version="true" defer></script>
 
     <!-- Conditional fields script -->
-    <script src="/js/prism-conditional-fields.js" defer></script>
+    <script src="/js/prism-conditional-fields.js" asp-append-version="true" defer></script>
 
     <!-- Wayfinder.Rendering.GovUk's own bulk-data-review script — the component is entirely
          client-fetched, so this has no server-side equivalent. -->
-    <script src="/_content/Wayfinder.Rendering.GovUk/js/wayfinder-bulk-data-review.js"></script>
+    <script src="/_content/Wayfinder.Rendering.GovUk/js/wayfinder-bulk-data-review.js" asp-append-version="true"></script>
 
     @if (isPrismMobileRequest)
     {
-        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell-guard.js"></script>
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell-guard.js" asp-append-version="true"></script>
         @* Feeds the native paint-holding pipeline's cached-frame refresh — see the script's own
            remarks for why this replaced an earlier native WKUserScript-based attempt entirely.
            Unconditional on every mobile page, not gated on authentication, since paint-holding
            matters everywhere in the app, not just signed-in pages. *@
-        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-content-watcher.js"></script>
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-content-watcher.js" asp-append-version="true"></script>
     }
 
     @if (biometricLoginEnabled)
@@ -145,11 +145,11 @@
            silent auto-login from a previously-enrolled device's stored credential. *@
         if (isAuthenticated)
         {
-            <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js"></script>
+            <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js" asp-append-version="true"></script>
         }
         else
         {
-            <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-autologin.js"></script>
+            <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-autologin.js" asp-append-version="true"></script>
         }
     }
 
@@ -165,7 +165,7 @@
            the concrete host(s) the current tenant's IdP sets its own SSO session cookie on,
            resolved server-side (the same tenant data PrismSecurityHeadersMiddleware already
            derives CSP hosts from) since the client has no other way to know it. *@
-        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-signout.js"
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-signout.js" asp-append-version="true"
                 data-prism-idp-hosts="@string.Join(",", PrismIdentityProviderHosts.Resolve(tenant))"></script>
 
         @* Same reasoning as above, applied to push: whether the native FirebaseMessaging plugin
@@ -174,7 +174,7 @@
            like AllowBiometricLogin, so there's no equivalent AllowPushNotifications tenant flag
            to gate on here. On a build without the plugin, the nativePromise calls inside just
            throw and are caught — a harmless no-op, same as the biometric-revoke calls above. *@
-        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-push-register.js"></script>
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-push-register.js" asp-append-version="true"></script>
     }
 
 </body>
