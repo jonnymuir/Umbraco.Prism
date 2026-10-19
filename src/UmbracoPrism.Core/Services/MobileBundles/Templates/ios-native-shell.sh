@@ -370,18 +370,24 @@ final class PrismTabIconLoader {
     func load(_ icon: String?, relativeTo origin: URL, completion: @escaping (UIImage) -> Void) {
         guard let icon, Self.symbols[icon] == nil, let url = URL(string: icon, relativeTo: origin)?.absoluteURL else { return }
         let cacheFile = Self.cacheFile(for: url)
-        if let image = UIImage(contentsOfFile: cacheFile.path) {
-            completion(image.withRenderingMode(.alwaysTemplate))
+        // A cached PNG loads at scale 1, so it is drawn back into the tab icon size like a download.
+        if let cached = UIImage(contentsOfFile: cacheFile.path) {
+            completion(Self.tabImage(cached))
             return
         }
         URLSession.shared.dataTask(with: url) { data, _, _ in
             guard let data else { return }
             let decoded = UIImage(data: data) ?? String(data: data, encoding: .utf8).flatMap { PrismSvgIcon.render($0, size: Self.size) }
             guard let decoded else { return }
-            let image = UIGraphicsImageRenderer(size: Self.size).image { _ in decoded.draw(in: CGRect(origin: .zero, size: Self.size)) }
+            let image = Self.tabImage(decoded)
             try? image.pngData()?.write(to: cacheFile)
-            DispatchQueue.main.async { completion(image.withRenderingMode(.alwaysTemplate)) }
+            DispatchQueue.main.async { completion(image) }
         }.resume()
+    }
+
+    private static func tabImage(_ image: UIImage) -> UIImage {
+        UIGraphicsImageRenderer(size: size).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+            .withRenderingMode(.alwaysTemplate)
     }
 
     private static func cacheFile(for url: URL) -> URL {
