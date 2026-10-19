@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection.Extensions;
 ﻿using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +34,7 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IPrismPageAccessResolver, PrismPageAccessResolver>();
         builder.Services.AddSingleton<IBrandingService, BrandingService>();
         builder.Services.AddSingleton<IMobileBundleService, MobileBundleService>();
+        builder.Services.TryAddSingleton<IPrismMobileTabsProvider, PrismDefaultMobileTabsProvider>();
         builder.Services.AddSingleton<IPrismBrandingMetadataService, PrismBrandingMetadataService>();
         builder.Services.AddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
         builder.Services.AddHttpClient("prism-oidc-metadata");

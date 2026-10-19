@@ -26,8 +26,6 @@ internal sealed record MobileBundleSettings(
 {
     public bool BiometricAuthEnabled => Features.Biometric;
 
-    public bool MobileDiagnosticsEnabled => Features.Diagnostics;
-
     public bool PushNotificationsEnabled => Features.Push;
 
     public bool DeviceCaptureEnabled => Features.DeviceCapture;

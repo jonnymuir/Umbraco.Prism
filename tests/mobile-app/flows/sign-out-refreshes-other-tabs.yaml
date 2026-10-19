@@ -1,0 +1,26 @@
+# Signing out in one tab must not leave another tab showing the signed-in member's page.
+appId: ${APP_ID}
+---
+- runFlow: sign-in-and-visit-tabs.yaml
+- tapOn: "Home"
+- extendedWaitUntil:
+    visible: "Go to Dashboard"
+    timeout: 30000
+- tapOn: "Dashboard"
+- extendedWaitUntil:
+    visible: "My Account"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Sign Out"
+    direction: DOWN
+- tapOn: "Sign Out"
+- extendedWaitUntil:
+    notVisible: "My Account"
+    timeout: 30000
+- takeScreenshot: after-sign-out
+- tapOn: "Home"
+- extendedWaitUntil:
+    visible: "Your account, your way"
+    timeout: 30000
+- assertNotVisible: "Go to Dashboard"
+- takeScreenshot: home-after-sign-out

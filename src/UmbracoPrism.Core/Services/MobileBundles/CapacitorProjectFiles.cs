@@ -1,4 +1,5 @@
 using System.Text;
+using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Persistence;
 using static UmbracoPrism.Core.Services.MobileBundles.BundleText;
 
@@ -23,8 +24,7 @@ internal static class CapacitorProjectFiles
         // foreground transition, and a citizen who backgrounds the app mid-wait needs the page to
         // re-check on return rather than sit on a stale setTimeout that may never actually have
         // fired while backgrounded. First-party Capacitor plugin, auto-linked by `npx cap sync`
-        // (already run for every generated app) — no native code of our own needed, unlike the
-        // bespoke PrismContentWatcher plugin.
+        // (already run for every generated app), so no native code of our own is needed.
         var biometricDeps = biometricAuthEnabled
             ? """
 ,
@@ -102,29 +102,10 @@ const config: CapacitorConfig = {
   webDir: 'www',
   bundledWebRuntime: false,
   ios: {
-    // History: 'automatic' (Capacitor's own default) caused a horizontal content-shift/touch-
-    // offset bug in WKWebView's UIScrollView content-inset adjustment on the OIDC login screen
-    // (Entra/ciamlogin.com) — hosted content this app can't add safe-area CSS to. 'never' (#219)
-    // stopped that shift but disabled safe-area adjustment entirely, leaving hosted content
-    // under the status bar/notch. 'always' (#248) reserved safe-area space unconditionally —
-    // but confirmed live it STILL left hosted content (the same Entra page) rendering under the
-    // status bar on a real device: contentInset only offsets a WKWebView's *scroll position*, it
-    // doesn't move anything for content that doesn't scroll, or that a page positions outside
-    // the normal flow — which a page this app doesn't control is free to do regardless of what
-    // native inset is set.
-    //
-    // The actual fix is native, not a WKWebView content setting at all: AppDelegate pins the
-    // WKWebView's own frame to the safe-area layout guide at the bottom (see bootstrap-ios.sh),
-    // so the home-indicator strip is never part of the WebView's drawable area in the first
-    // place, regardless of what any page — ours or a hosted IdP's — does with scroll or
-    // positioning. The top is handled differently: the webview's top edge is pinned to the
-    // screen's true top by default (so this app's own pages, whose own header is tall enough to
-    // clear that area unaided, can fill all the way under it), but PrismNavigationHoldDelegate
-    // dynamically re-reserves that same strip whenever the current page isn't this app's own —
-    // see its own remarks for why a per-navigation native frame choice, not a CSS fix pushed into
-    // hosted content, is what's actually reliable there. contentInset stays 'never' regardless so
-    // it doesn't double up with either native mechanism (both already exclude/compensate for
-    // their own unsafe area; an inset on top of that would reserve it twice).
+    // The tabs are native, so the site leaves out its web tab bar.
+    appendUserAgent: '{{EscapeSingleQuotes(marker)}} {{PrismMobileRequestDetection.NativeTabsUserAgentToken}}',
+    // The native shell positions each tab's webview itself (see PrismShell.swift), so WebKit
+    // must not add its own safe-area inset on top.
     contentInset: 'never'
   },
   appendUserAgent: '{{EscapeSingleQuotes(marker)}}',

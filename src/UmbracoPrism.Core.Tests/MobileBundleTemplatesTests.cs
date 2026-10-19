@@ -28,12 +28,10 @@ public class MobileBundleTemplatesTests
         {
             BiometricAuthEnabled = true,
             PushNotificationsEnabled = true,
-            MobileDiagnosticsEnabled = true,
             DeviceCaptureEnabled = true
         });
 
-        files["scripts/bootstrap-ios.sh"].Should().Contain("PrismBridgeViewController", "the iOS zoom fix is part of every iOS bootstrap");
-        files["scripts/bootstrap-ios.sh"].Should().Contain("PrismMobileDiagnosticsFlag", "the diagnostics flag is spliced into the Swift");
+        files["scripts/bootstrap-ios.sh"].Should().Contain("PrismTabBarController", "the native tab shell is part of every iOS bootstrap");
         files["scripts/bootstrap-ios.sh"].Should().Contain("NSFaceIDUsageDescription", "biometric adds the Face ID usage string");
         files["scripts/bootstrap-ios.sh"].Should().Contain("UIBackgroundModes", "push adds remote-notification background mode");
         files["scripts/bootstrap-ios.sh"].Should().Contain("NSLocationWhenInUseUsageDescription", "device capture adds the location usage string");

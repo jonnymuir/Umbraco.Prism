@@ -69,13 +69,6 @@ jobs:
       # that JS to call, so biometric login could never actually trigger regardless. This flag is
       # what the reference app showcasing the feature actually depends on.
       #
-      # --mobile-diagnostics true: compiles in the on-screen paint-holding diagnostic label (build/
-      # version, cache hit/miss counters, capture timing — see PrismNavigationHoldDelegate's own
-      # remarks in the generated bootstrap-ios.sh). Still invisible on-device until a long-press
-      # near the top of the screen reveals it — this flag only controls whether the code exists in
-      # this build at all, not whether it's currently showing. This reference app carries it always
-      # so it's available whenever a live device investigation needs it, without a special build.
-      #
       # --push-notifications: wires @capacitor-firebase/messaging into the bundle (iOS
       # entitlements/AppDelegate/pbxproj wiring — see MobileBundleService.BuildBootstrapIosScript's
       # own remarks). Only turned on when GOOGLE_SERVICE_INFO_PLIST is actually set (see
@@ -89,7 +82,6 @@ jobs:
           --app-id "${PRISM_APP_ID:-com.jonnymuir.prismreference}"
           --version "${PRISM_APP_VERSION:-1.0.0}"
           --biometric-auth true
-          --mobile-diagnostics true
           --device-capture true
           --push-notifications "$PUSH_NOTIFICATIONS_ENABLED"
           --output mobile-bundle.zip

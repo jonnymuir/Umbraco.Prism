@@ -51,6 +51,11 @@ public class AuthorizationContractTests
             "(IAntiforgery.ValidateRequestAsync -> 400) and binds the upload to a single-use stage nonce, so " +
             "it can only be aimed at a field in the visitor's own current stage.",
 
+        [(typeof(PrismMobileManifestController), nameof(PrismMobileManifestController.Manifest))] =
+            "The app's tab list, read at launch before anyone signs in. Read-only, and returns only tab " +
+            "labels, paths and icons, never page content. A signed-in member's cookie lets the host's " +
+            "provider tailor the list to the pages that member can use.",
+
         [(typeof(BiometricController), nameof(BiometricController.Exchange))] =
             "Biometric login: presents a signed BiometricToken JWT and receives a PrismMemberCookie " +
             "session. There is no session yet — the JWT itself is the credential (verified in the action), " +

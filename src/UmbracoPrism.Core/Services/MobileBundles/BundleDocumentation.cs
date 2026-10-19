@@ -132,8 +132,8 @@ npm run open:android
 - Prism detects mobile mode using the appended user-agent marker.
 - Tenant branding overrides are applied first.
 - Mobile branding overrides are applied after tenant overrides.
+- On iOS the app has native tabs, read from your site's `/umbraco/prism/mobile/manifest` (see the Prism docs on `IPrismMobileTabsProvider`). Each tab is its own webview, so switching tabs keeps each tab's place, and signing in or out reloads the other tabs when they are next shown.
 - On iOS the native shell keeps content clear of the status bar, notch and home indicator, including on hosted sign-in pages the app does not control.
-- App startup uses Capacitor top-level WebView loading of your Start URL.
 - Generated config appends `prismMobile=1` to Start URL for server-side mobile detection.
 - Prism mobile middleware can enforce in-WebView behavior for `target="_blank"` and `window.open`.
 - If a page fails to load, the app shows `www/offline.html`, a branded screen using the error title, message and colours from the backoffice. It retries when the device comes back online or when the user taps "Try again".

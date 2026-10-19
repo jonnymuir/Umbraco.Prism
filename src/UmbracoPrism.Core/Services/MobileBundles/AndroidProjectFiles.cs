@@ -115,7 +115,7 @@ echo "Bootstrapping Android project..."
 npm install
 bash scripts/doctor-mobile.sh android
 
-if ! npx cap ls | grep -qi "android"; then
+if [ ! -d android ]; then
   echo "Adding Android platform..."
   npx cap add android
 fi

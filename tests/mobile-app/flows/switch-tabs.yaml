@@ -1,0 +1,65 @@
+appId: ${APP_ID}
+---
+- tapOn: "I confirm I am aged 16 or over"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn:
+    text: "Dashboard"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Money Modeller"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Home"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Licence"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Dashboard"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Money Modeller"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Home"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Licence"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Dashboard"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Money Modeller"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Home"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
+- tapOn:
+    text: "Licence"
+    waitToSettleTimeoutMs: 500
+- waitForAnimationToEnd:
+    timeout: 5000
