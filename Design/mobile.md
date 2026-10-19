@@ -1,87 +1,139 @@
-# Prism Mobile Shell Spec (v1)
+# Prism Mobile Shell Spec (v2)
 
-## 1) Product Goal
-Deliver a mobile app experience that feels native while retaining a web delivery model.
+## 1) Product goal
 
-This means Prism Mobile must prioritize:
+A generated Prism app should feel like a native app and pass App Store review on its own merits,
+while editors keep maintaining it from the Umbraco backoffice. Navigation, branding, content and
+notifications are authored in Umbraco. Store resubmission is only needed when the native shell
+itself changes.
 
-- no unexpected context switching out of the app
-- mobile-safe layout behavior (safe areas, full-width content)
-- deterministic startup and diagnostics
-- clear constraints for Entra authentication
+Two problems with a remote-URL webview drive this spec:
 
-## 2) Non-Negotiable Rules
+1. **Store risk.** A webview whose content is the tenant's website is the textbook rejection
+   under App Review Guideline 4.2 (Minimum Functionality).
+2. **Latency.** Every tap is a full server round trip for HTML, CSS, JS, fonts and the tab bar. On
+   a slow or flaky connection even switching tabs is slow, and offline the app shows nothing.
 
-### R1. Stay in WebView
-The app must not intentionally launch Safari/Chrome for normal in-app navigation.
+## 2) Rules
 
-### R2. Mobile-Safe Rendering
-When Prism mobile mode is active, pages must:
+### R1. The shell ships in the app
+The app's own UI (tab bar, navigation stack, offline screen, design-system assets) is bundled
+in the binary. The server supplies configuration and content, never the app's chrome.
 
-- honor notch/home-indicator safe areas
-- use viewport-fit=cover compatible rendering
-- avoid desktop max-width containers unless explicitly overridden
+### R2. Backoffice is the source of truth
+Anything an editor can reasonably change (tabs, icons, labels, branding tokens, which screens
+open as modals, content) is served from Umbraco as data and cached by the app. Changing it never
+needs a new build.
 
-### R3. Deterministic Mobile Signal
-Mobile mode must remain sticky across in-app navigation (query -> cookie continuity).
+### R3. Every screen has a cached state
+Tab roots and recently viewed screens render from cache first and refresh in the background. No
+screen shows a blank page or a raw connection error while a copy exists on the device.
 
-### R4. Auth Decision Must Be Explicit
-Entra interactive sign-in policy must be treated as a product decision, not an accidental behavior.
+### R4. Sign-in is standards-aligned
+Interactive sign-in uses the system authentication session (`ASWebAuthenticationSession` on iOS,
+Custom Tabs on Android) with PKCE. Tokens live in the Keychain / Keystore, refresh is gated by
+biometrics when enabled. Hosted IdP pages never render inside the app's webviews.
 
-## 3) Architecture Decisions
+### R5. Server-authoritative journeys stay server-rendered until Wayfinder offers otherwise
+Wayfinder journeys are rendered by the server inside a native navigation stack. Rendering
+journey stages natively from blueprint data is Wayfinder work and is out of scope here.
 
-### D1. Mobile Shell Mode
-Produced bundles default to direct top-level WebView startup via `server.url` with `?prismMobile=1`.
+### R6. The tenant submits the app
+App Review Guideline 4.2.6 rejects apps produced by a template or generation service unless the
+content owner submits them. Each tenant publishes under its own developer account, and the
+generated README says so.
 
-### D2. Runtime Mobile Guardrails
-On Prism mobile requests, server-rendered HTML should inject:
+## 3) Architecture
 
-- a mobile shell base class (`.prism-mobile`)
-- safe-area helper CSS primitives
-- in-WebView navigation guard behavior (`target="_blank"` and `window.open` should not open external browser by default)
+```
+┌──────────────────────── Native shell (bundled) ────────────────────────┐
+│  Tab bar / navigation stack per tab (UIKit, Material)                   │
+│   ├─ Content screens: bundled Lit renderer + cached Delivery API JSON   │
+│   ├─ Web screens: server-rendered pages (Wayfinder journeys, forms)     │
+│   └─ Native screens: settings, offline, biometrics, notifications       │
+│  Manifest cache · Content cache · Token store (Keychain/Keystore)       │
+└──────────────────────────────────┬──────────────────────────────────────┘
+                                   │ HTTPS (ETag, bearer token)
+┌──────────────────────────────────┴──────────────────────────────────────┐
+│  Umbraco + Prism                                                        │
+│   /api/prism/mobile/manifest   tabs, branding, path rules, versions     │
+│   Delivery API (+ Prism access policy enforcement)   content as JSON    │
+│   Server-rendered pages        journeys and anything not yet native     │
+│   Push (Automate action)       deep links into tabs and screens         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
-### D3. Layout Contract
-Tenant/site CSS should treat `.prism-mobile` as the contract for app-style layout.
+### D1. Mobile manifest
+`GET /api/prism/mobile/manifest` returns, per tenant:
 
-### D4. Entra Authentication Contract
-There are two supported auth modes:
+- `tabs`: label, icon (built-in key or media URL), root path. Authored on the mobile nav node.
+- `branding`: the tenant's resolved design tokens, so native chrome matches the site.
+- `pathRules`: ordered URL patterns with a presentation (`push`, `modal`, `replace`, `external`)
+  and a renderer (`content`, `web`, `native:<screen>`). Hotwire Native's path configuration is
+  the model.
+- `contentVersion`: bumped on publish, so the app knows when its content cache is stale.
+- `minShellVersion`: lets the server tell an old build to update.
 
-1. **Strict in-WebView mode (no external browser):**
-  - Suitable only when auth can complete without external Entra hosted UI breakouts.
-  - May conflict with tenant Conditional Access/security posture.
+Served with a strong ETag. The app ships the manifest from generation time as its first-launch
+fallback, so it starts offline.
 
-2. **Compliance mode (recommended for Entra):**
-  - Uses system browser / ASWebAuthenticationSession style flow.
-  - May visually leave WebView, but is standards-aligned and more reliable for Entra policies.
+### D2. Native navigation
+One navigation stack per tab. Each stack keeps its own history and its own webview for web
+screens, so switching tabs never reloads anything. Back swipe, large titles and the "More"
+overflow come from the platform. Implemented as a Capacitor plugin so the existing biometric and
+push plugins keep working.
 
-Prism must document this tradeoff clearly; teams choose mode intentionally.
+### D3. Bundled assets
+Branding CSS, fonts, icons and the shared scripts web screens need (mobile shell guards,
+Wayfinder's `wayfinder-live-form.js` and `wayfinder-calculations.js`) are copied into the app at
+generation time. Server-rendered pages served to the app reference the bundled copies, so a web
+screen only fetches its HTML.
 
-## 4) Acceptance Criteria
+### D4. Content rendering
+Content pages are fetched from Umbraco's Content Delivery API and rendered by a bundled Lit
+renderer that shares components with the site's design system. Responses are cached on the
+device (stale-while-revalidate). When `contentVersion` moves, the app refreshes tab roots and
+the pages they link to in the background. Prism's page access policies are enforced on these
+JSON endpoints using the member's bearer token.
 
-### A. Navigation
-- Tapping links with `target="_blank"` keeps navigation inside the same WebView in mobile mode.
-- `window.open(...)` in mobile mode does not spawn external browser context.
+### D5. Native capabilities
+Each of these is configured per tenant in the backoffice:
 
-### B. Safe Area & Width
-- On modern iPhones (notch + home indicator), content avoids clipping under system bars.
-- Primary page container uses full available width in mobile mode unless tenant explicitly constrains it.
+- Push notifications with deep links (exists).
+- Biometric sign-in (exists, moves onto R4's token store).
+- Live Activities and widgets for journey status.
+- Spotlight indexing of cached content.
+- Native document scanning for file uploads.
+- Native share sheet, haptics, app badge counts.
+- A native settings screen (notifications, biometrics, sign out, delete account).
 
-### C. Startup
-- Generated `capacitor.config.ts` includes direct `server.url` with `prismMobile=1`.
-- Mobile detection source can be observed and remains stable after first navigation.
+## 4) Phases
 
-### D. Auth
-- README and design docs explicitly state Entra auth mode tradeoffs.
-- No silent fallback to external browser behavior without documentation.
+Each phase ends with the reference app built for the iOS simulator and the Android emulator,
+screenshots compared against the previous phase, and the flows in section 5 passing.
 
-## 5) Out of Scope (v1)
+| Phase | Scope | Acceptance |
+|---|---|---|
+| 1. Store hygiene and quick wins | Privacy manifest (`PrivacyInfo.xcprivacy`), R6 in the generated README, a branded bundled offline screen with retry, assets of D3 bundled, touchstart prefetch and View Transitions on web screens | App launches to the same first screen as before; offline launch shows the branded offline screen; privacy manifest present in the built `.app` |
+| 2. Manifest and native chrome | D1, D2, R4. Remove the web tab bar from app requests, the paint-holding pipeline and the content watcher | Native tab bar matches the backoffice nav; switching tabs is instant and keeps scroll position; sign-in completes in the system auth session; editing a tab in the backoffice changes the app without a rebuild |
+| 3. Native content rendering | D4, behind a per-tenant flag | Tab roots render offline from cache; a publish in the backoffice reaches the app on next foreground; protected pages are refused without a valid member token |
+| 4. Flagship capabilities | Live Activity for journey status, then others from D5 as needed | A journey status change updates the Live Activity without opening the app |
 
-- Full native tab bar/navigation framework.
-- Offline-first caching/service worker strategy.
-- Native plugin parity for all device capabilities.
+The phases are breaking changes to generated apps: each tenant regenerates and resubmits.
 
-## 6) Implementation Notes
+## 5) Verification
 
-- Keep all generated starter assets minimal and editable.
-- Prefer middleware/runtime enforcement over per-page manual changes.
-- Keep this document as the source of truth for mobile UX behavior changes.
+- **Smoke**: build for the simulator, launch, and check the content area is not blank (the
+  existing pipeline check).
+- **Flows**: scripted taps and screenshots on iOS and Android for launch, each tab, a content
+  page, sign-in, a Wayfinder journey stage, offline launch and a push deep link.
+- **Comparison**: screenshots from each phase are compared with the previous phase's, so visual
+  regressions are deliberate.
+- **Latency**: the same flows under a throttled network profile, timing tap-to-content for a tab
+  switch and a content page.
+
+## 6) Out of scope
+
+- Native rendering of Wayfinder journey stages (Wayfinder repo).
+- Offline submission of journey forms.
+- Replacing Capacitor with another shell framework.
