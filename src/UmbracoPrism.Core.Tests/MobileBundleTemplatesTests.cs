@@ -81,6 +81,64 @@ public class MobileBundleTemplatesTests
     }
 
     [Fact]
+    public async Task EveryBundle_ShipsAPrivacyManifest_ThatTheIosBootstrapAddsToTheProject()
+    {
+        var files = await BuildAsync(new PrismMobileBundleRequest());
+
+        var manifest = files["resources/PrivacyInfo.xcprivacy"];
+        manifest.Should().Contain("<key>NSPrivacyTracking</key>\n  <false/>");
+        manifest.Should().Contain("NSPrivacyAccessedAPICategoryUserDefaults", "the shell's Swift reads and writes UserDefaults");
+        manifest.Should().Contain("CA92.1");
+        manifest.Should().Contain("NSPrivacyCollectedDataTypeEmailAddress");
+        manifest.Should().NotContain("NSPrivacyCollectedDataTypeDeviceID");
+        manifest.Should().NotContain("NSPrivacyCollectedDataTypePhotosorVideos");
+
+        files["scripts/bootstrap-ios.sh"].Should().Contain("cp resources/PrivacyInfo.xcprivacy ios/App/App/PrivacyInfo.xcprivacy");
+        files["scripts/bootstrap-ios.sh"].Should().Contain("addResourceFile('App/PrivacyInfo.xcprivacy'");
+    }
+
+    [Fact]
+    public async Task PrivacyManifest_DeclaresTheDataEachEnabledFeatureCollects()
+    {
+        var files = await BuildAsync(new PrismMobileBundleRequest { PushNotificationsEnabled = true, DeviceCaptureEnabled = true });
+
+        var manifest = files["resources/PrivacyInfo.xcprivacy"];
+        manifest.Should().Contain("NSPrivacyCollectedDataTypeDeviceID");
+        manifest.Should().Contain("NSPrivacyCollectedDataTypePhotosorVideos");
+        manifest.Should().Contain("NSPrivacyCollectedDataTypePreciseLocation");
+    }
+
+    [Fact]
+    public async Task APageThatFailsToLoad_ShowsTheBundledBrandedOfflineScreen()
+    {
+        var files = await BuildAsync(new PrismMobileBundleRequest
+        {
+            ErrorTitle = "Can't reach <Contoso>",
+            ErrorMessage = "Check your connection.",
+            ErrorBackgroundColor = "#112233"
+        });
+
+        files["capacitor.config.ts"].Should().Contain("errorPath: 'offline.html'");
+
+        var offline = files["www/offline.html"];
+        offline.Should().Contain("Can&#39;t reach &lt;Contoso&gt;");
+        offline.Should().Contain("Check your connection.");
+        offline.Should().Contain("#112233");
+        offline.Should().Contain("role=\"alert\"");
+        offline.Should().Contain("https://contoso.example/?prismMobile=1", "retrying returns to the tenant's start page");
+        offline.Should().Contain("addEventListener('online'", "the app recovers by itself when the connection returns");
+    }
+
+    [Fact]
+    public async Task Readme_TellsTheTenantToSubmitTheAppThemselves()
+    {
+        var files = await BuildAsync(new PrismMobileBundleRequest());
+
+        files["README.md"].Should().Contain("4.2.6");
+        files["README.md"].Should().Contain("PrivacyInfo.xcprivacy");
+    }
+
+    [Fact]
     public async Task GeneratedScripts_UseUnixLineEndings()
     {
         var files = await BuildAsync(new PrismMobileBundleRequest { BiometricAuthEnabled = true, PushNotificationsEnabled = true });

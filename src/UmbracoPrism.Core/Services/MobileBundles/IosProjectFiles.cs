@@ -116,7 +116,7 @@ npx cap sync ios
 
 echo "Generating app icon and splash screen from resources/icon.svg..."
 npx capacitor-assets generate --ios
-{{infoPlistInjection}}{{zoomFixInjection}}{{pushNotificationsInjection}}
+{{infoPlistInjection}}{{zoomFixInjection}}{{pushNotificationsInjection}}{{BundleTemplates.Read("ios-privacy-manifest.sh")}}
 echo "Applying localhost cert trust (if needed)..."
 if ! bash scripts/trust-ios-localhost-cert.sh; then
   echo "⚠️ Cert trust step did not complete. Continuing..."
@@ -197,6 +197,67 @@ echo "Done. Re-run: npx cap run ios"
   <key>NSFaceIDUsageDescription</key>
   <string>{{EscapeSingleQuotes(appName)}} uses Face ID to securely log you in without requiring your password each time.</string>
 </dict>
+""";
+    }
+
+    /// <summary>
+    /// The app's own <c>PrivacyInfo.xcprivacy</c>, which App Store Connect requires. Capacitor's
+    /// frameworks ship their own manifests; this one covers the shell's Swift (which reads and
+    /// writes <c>UserDefaults</c>) and the data the enabled features collect. A tenant whose site
+    /// collects more must add it here and in App Store Connect's privacy details.
+    /// </summary>
+    internal static string BuildPrivacyManifest(MobileBundleSettings settings)
+    {
+        var collected = new List<string> { "NSPrivacyCollectedDataTypeName", "NSPrivacyCollectedDataTypeEmailAddress" };
+        if (settings.PushNotificationsEnabled)
+            collected.Add("NSPrivacyCollectedDataTypeDeviceID");
+        if (settings.DeviceCaptureEnabled)
+        {
+            collected.Add("NSPrivacyCollectedDataTypePhotosorVideos");
+            collected.Add("NSPrivacyCollectedDataTypePreciseLocation");
+        }
+
+        var collectedEntries = string.Concat(collected.Select(type => $$"""
+
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>{{type}}</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+"""));
+
+        return $$"""
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSPrivacyTracking</key>
+  <false/>
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+  <key>NSPrivacyCollectedDataTypes</key>
+  <array>{{collectedEntries}}
+  </array>
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <string>CA92.1</string>
+      </array>
+    </dict>
+  </array>
+</dict>
+</plist>
 """;
     }
 }

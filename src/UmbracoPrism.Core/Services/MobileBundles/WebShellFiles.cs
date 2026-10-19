@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using UmbracoPrism.Core.Persistence;
 using static UmbracoPrism.Core.Services.MobileBundles.BundleText;
@@ -9,6 +10,53 @@ namespace UmbracoPrism.Core.Services.MobileBundles;
 /// </summary>
 internal static class WebShellFiles
 {
+    private static string BuildShellStyles(MobileBundleSettings settings) =>
+        "  <style>\n"
+        + BundleTemplates.Read("shell-error-card.css")
+            .Replace("@@PRISM_ERROR_BG@@", EscapeSingleQuotes(settings.ErrorBackgroundColor))
+            .Replace("@@PRISM_ERROR_TEXT@@", EscapeSingleQuotes(settings.ErrorTextColor))
+        + "  </style>\n";
+
+    /// <summary>
+    /// Shown by Capacitor (<c>server.errorPath</c>) whenever a page from the tenant's site fails
+    /// to load, so a dropped connection mid-session gets the tenant's own branded screen with a
+    /// retry instead of a blank WebView.
+    /// </summary>
+    internal static string BuildOfflinePage(MobileBundleSettings settings)
+    {
+        var appName = WebUtility.HtmlEncode(settings.AppName);
+        var startUrl = EscapeSingleQuotes(CapacitorProjectFiles.AddPrismMobileQueryFlag(settings.StartUrl));
+
+        return $$"""
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>{{appName}}</title>
+{{BuildShellStyles(settings)}}</head>
+<body>
+  <main class="screen">
+    <section class="card" role="alert">
+      <h1>{{WebUtility.HtmlEncode(settings.ErrorTitle)}}</h1>
+      <p>{{WebUtility.HtmlEncode(settings.ErrorMessage)}}</p>
+      <div class="actions">
+        <button id="retry" type="button" data-prism-offline-retry>Try again</button>
+      </div>
+    </section>
+  </main>
+  <script>
+    function retry() {
+      window.location.replace('{{startUrl}}');
+    }
+    document.getElementById('retry').addEventListener('click', retry);
+    window.addEventListener('online', retry);
+  </script>
+</body>
+</html>
+""";
+    }
+
     internal static string BuildPlaceholderIndex(MobileBundleSettings settings)
     {
         var appName = settings.AppName;
@@ -48,82 +96,7 @@ internal static class WebShellFiles
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{appName}} Mobile</title>
-  <style>
-    :root {
-      --prism-error-bg: {{EscapeSingleQuotes(errorBackgroundColor)}};
-      --prism-error-text: {{EscapeSingleQuotes(errorTextColor)}};
-    }
-    html, body {
-      margin: 0;
-      min-height: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background: var(--prism-error-bg);
-      color: var(--prism-error-text);
-    }
-    .screen {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      box-sizing: border-box;
-    }
-    .card {
-      width: 100%;
-      max-width: 480px;
-      border-radius: 14px;
-      border: 1px solid color-mix(in srgb, var(--prism-error-text) 20%, transparent);
-      background: color-mix(in srgb, var(--prism-error-bg) 86%, black);
-      box-shadow: 0 20px 50px rgba(0,0,0,0.22);
-      padding: 24px;
-      box-sizing: border-box;
-    }
-    h1 {
-      margin: 0 0 10px;
-      font-size: 1.25rem;
-      line-height: 1.35;
-      letter-spacing: .01em;
-    }
-    p {
-      margin: 0;
-      line-height: 1.5;
-      opacity: .95;
-    }
-    .actions {
-      margin-top: 18px;
-      display: flex;
-      gap: 10px;
-    }
-    button {
-      border: 0;
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-weight: 600;
-      cursor: pointer;
-      color: #fff;
-      background: color-mix(in srgb, var(--prism-error-text) 20%, #2563eb);
-    }
-    details {
-      margin-top: 16px;
-      border-radius: 8px;
-      background: rgba(0, 0, 0, 0.2);
-      padding: 10px;
-    }
-    summary {
-      cursor: pointer;
-      font-weight: 600;
-      user-select: none;
-    }
-    pre {
-      margin: 10px 0 0;
-      white-space: pre-wrap;
-      word-break: break-word;
-      font-size: 0.82rem;
-      opacity: 0.92;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
-  </style>
-</head>
+{{BuildShellStyles(settings)}}</head>
 <body>
   <main class="screen">
     <section class="card">
