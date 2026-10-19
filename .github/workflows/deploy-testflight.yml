@@ -200,9 +200,10 @@ jobs:
           CONSECUTIVE_PASSES=0
           for attempt in $(seq 1 15); do
             xcrun simctl io "$SIM_UDID" screenshot build/simulator-smoke-test.png
-            # Crop away the top 12% (status bar + any app header, generous margin) so its own
-            # icon/text contrast can't mask a blank body underneath — see the rationale above.
-            magick build/simulator-smoke-test.png -gravity South -crop 100%x88%+0+0 +repage build/simulator-smoke-test-content.png
+            # Crop away the top 12% (status bar) and bottom 14% (the native tab bar) so their own
+            # icon/text contrast can't mask a blank page between them. With only the top cropped,
+            # a still-loading page passed on the tab bar alone.
+            magick build/simulator-smoke-test.png -gravity Center -crop 100%x74%+0+0 +repage build/simulator-smoke-test-content.png
             SPREAD=$(magick identify -format "%[fx:standard_deviation]" build/simulator-smoke-test-content.png)
             echo "Attempt $attempt/15 — content-area colour standard deviation: $SPREAD (consecutive passes: $CONSECUTIVE_PASSES)"
             if (( $(echo "$SPREAD >= 0.03" | bc -l) )); then
