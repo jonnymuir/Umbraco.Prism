@@ -1,6 +1,6 @@
-# Walkthrough: Building a Mobile App from a Service Blueprint
+# Walkthrough: Building a Mobile App
 
-A guide to taking a Prism service blueprint and shipping it as a native iOS or Android app using Capacitor, covering the shell structure, biometric authentication, deep link handling, and the build pipeline.
+A guide to generating a native iOS or Android app for a Prism tenant, covering the generated project, biometric sign-in, notifications, the app's tabs and the build pipeline.
 
 > **Prerequisites:** The Prism stack runs locally (or in Codespaces). You have walked through the reference site at least once (see [Home entry](home-entry.md)). For iOS builds, Xcode 15+ is required. For Android, Android Studio.
 
@@ -8,87 +8,58 @@ A guide to taking a Prism service blueprint and shipping it as a native iOS or A
 
 ## Overview
 
-Prism mobile apps are **thin Capacitor shells** around the existing web-based service blueprint UI. The same Razor views, Lit web components, and service blueprint engine that power the browser experience are reused unchanged inside a native WebView. What Capacitor adds:
+A Prism mobile app is a generated native shell for one tenant. The pages inside it are the tenant's
+own site, served by Umbraco, so editors keep maintaining content, navigation and branding in the
+backoffice. The shell adds what a website cannot do on its own:
 
-- **Native push notifications** (via `@capacitor/push-notifications`)
-- **Biometric authentication** (via `@aparajita/capacitor-biometric-auth`)
-- **Deep link handling** (URL schemes / Universal Links / App Links)
-- **Secure credential storage** (via `@aparajita/capacitor-secure-storage`)
-- **Native navigation chrome** (`prism-mobile-nav` web component)
-
-This means you get a genuinely native-feeling app without maintaining a separate codebase.
-
----
-
-## Part 1: The Capacitor Shell Structure
-
-The Capacitor configuration and generated native projects live alongside the client source in `src/UmbracoPrism.Client/`:
-
-```
-src/UmbracoPrism.Client/
-  capacitor.config.ts         ← Capacitor configuration
-  android/                    ← Generated Android Studio project
-  ios/                        ← Generated Xcode project
-  src/
-    mobile/
-      prism-mobile-nav.ts     ← Native-feeling bottom navigation bar
-  public/
-    sw.js                     ← Service worker (web push + offline caching)
-```
-
-### The `capacitor.config.ts`
-
-```typescript
-import type { CapacitorConfig } from '@capacitor/cli';
-
-const config: CapacitorConfig = {
-  appId: 'com.prism.portal',
-  appName: 'Prism Portal',
-  webDir: 'dist',
-  server: {
-    // In dev: point at the live Vite dev server
-    url: 'https://localhost:44345',
-    cleartext: false,
-  },
-  plugins: {
-    PushNotifications: {
-      presentationOptions: ['badge', 'sound', 'alert'],
-    },
-    BiometricAuth: {
-      androidTitle: 'Verify your identity',
-      androidSubtitle: 'Use your biometric to sign in',
-    },
-  },
-};
-
-export default config;
-```
-
-💡 **What's happening:** In a production build, `webDir: 'dist'` tells Capacitor to bundle the compiled Vite output into the native app. In development, `server.url` overrides this with a live server URL, so the native shell makes network requests to the Prism TestSite directly, which means you can iterate on the web UI without rebuilding the native project each time.
+- **Native tabs.** iOS uses a native tab bar; each tab is its own webview, so switching tabs is
+  instant and keeps each tab's place. The tabs come from the site (see Part 5).
+- **Biometric sign-in** (`@aparajita/capacitor-biometric-auth`, `@aparajita/capacitor-secure-storage`).
+- **Push notifications** (`@capacitor-firebase/messaging`) that open a page when tapped.
+- **A branded offline screen** when a page cannot be reached.
 
 ---
 
-## Part 2: Preparing the Web Build
+## Part 1: Generating the App
 
-### Step 1: Build the Client Bundle
+In the backoffice, open **Settings → Advanced → Tenants**, choose the tenant, fill in its mobile
+settings (app name, app ID, start URL, the error screen's text and colours, and which features to
+include) and select **Produce Mobile**. You download a zip. CI builds the same zip with
+`src/UmbracoPrism.MobileBundleCli`, which takes the same settings as command-line flags.
+
+The zip contains a Capacitor project:
+
+```
+capacitor.config.ts       ← start URL, allowed hosts, user agent marker
+package.json              ← Capacitor and the plugins for the features you chose
+www/
+  index.html              ← first screen: checks the site is reachable, then opens it
+  offline.html            ← shown when a page fails to load
+resources/
+  icon.svg                ← replace with the app's own icon before bootstrapping
+  PrivacyInfo.xcprivacy   ← the iOS privacy manifest
+scripts/
+  bootstrap-ios.sh        ← creates and patches the Xcode project
+  bootstrap-android.sh    ← creates and patches the Android Studio project
+README.md                 ← setup, store submission notes and troubleshooting
+```
+
+💡 **What's happening:** `server.url` in `capacitor.config.ts` points the app at the tenant's site.
+The app appends a user agent marker (`PrismMobile`, plus `PrismNativeTabs` on iOS) so the site
+knows it is rendering inside the app.
+
+---
+
+## Part 2: Bootstrapping the Native Projects
 
 ```bash
-cd src/UmbracoPrism.Client
 npm install
-npm run build
+npm run bootstrap:ios       # or bootstrap:android
 ```
 
-This produces a `dist/` folder containing the compiled web components, service worker, and Storybook-ready component bundles.
-
-💡 **What's happening:** Vite bundles the TypeScript source into ES modules. The Capacitor CLI will copy this `dist/` folder verbatim into the native app's `WebView` asset folder during the sync step.
-
-### Step 2: Sync Capacitor
-
-```bash
-npx cap sync
-```
-
-This copies `dist/` into `ios/App/App/public/` and `android/app/src/main/assets/public/`, and installs any native plugin dependencies.
+The iOS script adds the iOS platform, syncs Capacitor, generates icons, and writes the native shell
+(`PrismShell.swift`: the tab bar, one Capacitor bridge per tab, and the tab icon loader) into the
+Xcode project. Both scripts can be run again safely after changing settings or regenerating the zip.
 
 ---
 
@@ -135,7 +106,7 @@ When the mobile app next connects, it checks this tenant setting and offers biom
 
 Prism ships the mobile-shell CSS/JS and biometric enroll/auto-login scripts as plain static
 files under `wwwroot/mobile-shell/` in `UmbracoPrism.Core` — the same delivery mechanism as
-`prism-mobile-nav.js` above. **Your host must reference them explicitly** in its own layout;
+`prism-mobile-nav.js`. **Your host must reference them explicitly** in its own layout;
 Prism does not inject them for you (SEC-PT2-004: this used to happen via a response-rewriting
 middleware, which was retired in favour of ordinary asset references — see
 [branding-design-system.md](../branding-design-system.md#how-overrides-reach-the-live-site) for
@@ -222,28 +193,51 @@ to the generated Capacitor project (see Capacitor's
 
 ---
 
-## Part 5: The Mobile Navigation Component
+## Part 5: The App's Tabs
 
-The `prism-mobile-nav` web component (`src/UmbracoPrism.Client/src/mobile/prism-mobile-nav.ts`) provides a native-feeling bottom tab bar for mobile layouts. It:
+The app reads its tabs from `/umbraco/prism/mobile/manifest` when it starts and whenever the member
+signs in or out, and keeps the last copy so it can start offline. Prism does not own the site's
+navigation, so the host supplies the tabs by implementing `IPrismMobileTabsProvider`:
 
-- Renders below the service blueprint content area
-- Uses CSS variables for theming (respects the tenant's `--prism-nav-bg`, `--prism-primary`, etc.)
-- Integrates with `@capacitor/app` to detect the active route and highlight the correct tab
-- Shows push notification badge counts on the notifications tab
+```csharp
+public class MyMobileTabsProvider : IPrismMobileTabsProvider
+{
+    public Task<IReadOnlyList<PrismMobileTab>> GetTabsAsync(HttpContext context, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<PrismMobileTab> tabs =
+        [
+            new("Home", "/", "home"),
+            new("Dashboard", "/dashboard", "/media/icons/dashboard.svg"),
+        ];
+        return Task.FromResult(tabs);
+    }
+}
 
-```html
-<prism-mobile-nav
-  active-route="/dashboard"
-  .tabs="${[
-    { label: 'Home',          icon: 'home',  href: '/' },
-    { label: 'My Service-Blueprints',  icon: 'list',  href: '/dashboard' },
-    { label: 'Notifications', icon: 'bell',  href: '/notifications', badge: 3 },
-    { label: 'Profile',       icon: 'user',  href: '/profile' },
-  ]}"
-></prism-mobile-nav>
+// in a composer
+builder.Services.AddScoped<IPrismMobileTabsProvider, MyMobileTabsProvider>();
 ```
 
-<!-- manual capture: Prism Mobile Nav requires physical device, simulator, or Storybook component story -->
+`context.User` is the signed-in member, if there is one, so a provider can leave out pages that
+member cannot use. A tab's icon is either a built-in name (`home`, `dashboard`, `account`,
+`settings`, `transactions`, `notifications`, `more`) or the URL of an image. SVG icons made of
+`<path>` elements, the usual single-colour icon sets, are drawn natively and tinted like system
+icons. A host that registers no provider gets a single Home tab.
+
+The reference site's provider (`TestSiteMobileTabsProvider`) reads the **Mobile Nav Links** block
+list on the Settings node, the same items its web tab bar uses, so editors maintain both in one
+place.
+
+Pages rendered for the iOS app leave out their own web tab bar: `PrismMobileRequestDetection.HasNativeTabs`
+is true when the user agent carries `PrismNativeTabs`. Android apps still use the
+`prism-mobile-nav` web component until they get native tabs.
+
+### Behaviour
+
+- **Switching tabs** shows the tab as you left it, without a network request.
+- **Tapping the selected tab** returns it to its first page.
+- **Signing in or out** in one tab reloads each other tab the next time it is shown, and fetches
+  the tabs again for the new member.
+- **A notification tap** is handled by the tab that is showing.
 
 ---
 

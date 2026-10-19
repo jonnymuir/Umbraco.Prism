@@ -1,0 +1,31 @@
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Your account, your way"
+    timeout: 30000
+- tapOn: "Dashboard"
+- extendedWaitUntil:
+    visible: "Sign in to your account"
+    timeout: 30000
+- inputText: "demo@prism.local"
+- tapOn: "Password"
+- inputText: "password"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "My Account"
+    timeout: 30000
+- tapOn: "Money Modeller"
+- extendedWaitUntil:
+    visible: "Model your money"
+    timeout: 30000
+- tapOn: "Home"
+- extendedWaitUntil:
+    visible: "Go to Dashboard"
+    timeout: 30000
+- tapOn: "Licence"
+- extendedWaitUntil:
+    visible: "I confirm I am aged 16 or over"
+    timeout: 30000
+- waitForAnimationToEnd

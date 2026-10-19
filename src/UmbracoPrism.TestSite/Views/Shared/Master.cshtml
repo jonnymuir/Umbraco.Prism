@@ -108,7 +108,7 @@
         <p>&copy; @DateTime.Now.Year @(tenant?.Name ?? "Prism Portal") &mdash; Powered by Prism Multi-Tenant Engine</p>
     </footer>
 
-    @if (isPrismMobileRequest && mobileNavLinks != null)
+    @if (isPrismMobileRequest && !PrismMobileRequestDetection.HasNativeTabs(Context) && mobileNavLinks != null)
     {
         @await Html.PartialAsync("_MobileShellNav", mobileNavLinks)
     }
@@ -132,11 +132,6 @@
     @if (isPrismMobileRequest)
     {
         <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell-guard.js" asp-append-version="true"></script>
-        @* Feeds the native paint-holding pipeline's cached-frame refresh — see the script's own
-           remarks for why this replaced an earlier native WKUserScript-based attempt entirely.
-           Unconditional on every mobile page, not gated on authentication, since paint-holding
-           matters everywhere in the app, not just signed-in pages. *@
-        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-content-watcher.js" asp-append-version="true"></script>
     }
 
     @if (biometricLoginEnabled)

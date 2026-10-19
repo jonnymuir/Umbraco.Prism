@@ -8,6 +8,12 @@ public static class PrismMobileRequestDetection
     public const string CookieName = "prism.mobile";
     public const string PlatformHeaderName = "X-Prism-Platform";
 
+    /// <summary>
+    /// Appended to the user agent by generated apps whose tabs are native, so a page knows not to
+    /// draw its own web tab bar.
+    /// </summary>
+    public const string NativeTabsUserAgentToken = "PrismNativeTabs";
+
     public static bool IsPrismMobileRequest(HttpContext context)
     {
         return ResolveMobileSignal(context).isMobile;
@@ -37,6 +43,11 @@ public static class PrismMobileRequestDetection
     {
         var userAgent = context.Request.Headers.UserAgent.ToString();
         return userAgent.Contains("PrismMobile", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool HasNativeTabs(HttpContext context)
+    {
+        return context.Request.Headers.UserAgent.ToString().Contains(NativeTabsUserAgentToken, StringComparison.Ordinal);
     }
 
     public static string GetPrismMobileDetectionSource(HttpContext context)

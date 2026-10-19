@@ -11,29 +11,14 @@
 {
     var currentPath = Context.Request.Path.Value ?? "/";
 
-    // Same "Unavailable" filter as _DesktopNav.cshtml (see its own remarks) — applied here
-    // server-side too, before serializing to JSON, so an unavailable page's existence is never
-    // even shipped to the client-side web component.
-    var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
-
-    var navItems = Model
-        .Where(block =>
+    var navItems = UmbracoPrism.TestSite.Services.MobileNavItems
+        .Available(Model, DocumentUrlService, PageAccessResolver, PrismContext.CurrentTenant, Context.User.Identity?.IsAuthenticated == true)
+        .Select(item => new
         {
-            var url = block.Content.Value<string>("navUrl");
-            if (string.IsNullOrWhiteSpace(url)) return true;
-
-            var contentKey = DocumentUrlService.GetDocumentKeyByRoute(url, culture: null, documentStartNodeId: null, isDraft: false);
-            if (contentKey is null) return true;
-
-            return PageAccessResolver.Resolve(contentKey.Value, PrismContext.CurrentTenant, isAuthenticated)
-                != PrismPageAccessResult.Unavailable;
-        })
-        .Select(block => new
-        {
-            label  = block.Content.Value<string>("navLabel") ?? string.Empty,
-            href   = block.Content.Value<string>("navUrl") ?? "/",
-            icon   = block.Content.Value<IPublishedContent?>("navIcon")?.Url(),
-            target = block.Content.Value<bool>("openInNewTab") ? "_blank" : (string?)null,
+            label  = item.Label,
+            href   = item.Href,
+            icon   = item.IconUrl,
+            target = item.OpenInNewTab ? "_blank" : (string?)null,
         });
 
     var itemsJson = JsonSerializer.Serialize(navItems, new JsonSerializerOptions

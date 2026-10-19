@@ -129,6 +129,12 @@ The suite uses the seeded demo identity from `keycloak/realm-export.json`: `demo
 
 **Stable seeded content contract:** on a clean TestSite database, Development startup deterministically repairs the Umbraco nodes the localhost auth/service request flows use, `Home` (`/`), `Dashboard` (`/dashboard`), and the two `wayfinderServicePage` nodes carrying Wayfinder.Umbraco's own Block Grid stage/worklist blocks: `Apply for a juggling licence` (`/apply-for-a-juggling-licence`), `Submit contributions file` (`/submit-contributions-file`), and `Caseworker queue` (`/caseworker-queue`), plus the `Settings` node's mobile nav entries for all of these. The Razor views resolve those destinations from published content, so route lookup does not depend on root-node ordering.
 
+### Generated app checks (iOS simulator)
+
+Maestro flows for a generated app (sign-in, tab switching, sign-out across tabs) and a harness
+that times tab switches from a screen recording live in [tests/mobile-app](../tests/mobile-app/README.md).
+They run against the local Aspire stack.
+
 ### Core Tests (UmbracoPrism.Core)
 
 ```bash
