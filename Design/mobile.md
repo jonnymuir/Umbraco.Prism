@@ -83,11 +83,11 @@ screens, so switching tabs never reloads anything. Back swipe, large titles and 
 overflow come from the platform. Implemented as a Capacitor plugin so the existing biometric and
 push plugins keep working.
 
-### D3. Bundled assets
-Branding CSS, fonts, icons and the shared scripts web screens need (mobile shell guards,
-Wayfinder's `wayfinder-live-form.js` and `wayfinder-calculations.js`) are copied into the app at
-generation time. Server-rendered pages served to the app reference the bundled copies, so a web
-screen only fetches its HTML.
+### D3. Cacheable assets
+Web screens reference every CSS and JS file by a content-hashed URL (`asp-append-version`), served
+`immutable` for a year. After the first visit a web screen only fetches its HTML. Any other CSS or
+JS revalidates on every use, so nothing is served stale after a deploy. The native shell's own
+screens bundle their assets in the app.
 
 ### D4. Content rendering
 Content pages are fetched from Umbraco's Content Delivery API and rendered by a bundled Lit
@@ -114,7 +114,7 @@ screenshots compared against the previous phase, and the flows in section 5 pass
 
 | Phase | Scope | Acceptance |
 |---|---|---|
-| 1. Store hygiene and quick wins | Privacy manifest (`PrivacyInfo.xcprivacy`), R6 in the generated README, a branded bundled offline screen with retry, assets of D3 bundled, touchstart prefetch and View Transitions on web screens | App launches to the same first screen as before; offline launch shows the branded offline screen; privacy manifest present in the built `.app` |
+| 1. Store hygiene and quick wins | Privacy manifest (`PrivacyInfo.xcprivacy`), R6 in the generated README, a branded bundled offline screen with retry, D3 on the reference site | App launches to the same first screen as before; a page that fails to load shows the branded offline screen; privacy manifest present in the built `.app`; a repeat page view fetches no CSS or JS |
 | 2. Manifest and native chrome | D1, D2, R4. Remove the web tab bar from app requests, the paint-holding pipeline and the content watcher | Native tab bar matches the backoffice nav; switching tabs is instant and keeps scroll position; sign-in completes in the system auth session; editing a tab in the backoffice changes the app without a rebuild |
 | 3. Native content rendering | D4, behind a per-tenant flag | Tab roots render offline from cache; a publish in the backoffice reaches the app on next foreground; protected pages are refused without a valid member token |
 | 4. Flagship capabilities | Live Activity for journey status, then others from D5 as needed | A journey status change updates the Live Activity without opening the app |
