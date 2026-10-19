@@ -131,6 +131,7 @@ const config: CapacitorConfig = {
   server: {
     url: '{{EscapeSingleQuotes(mobileStartUrl)}}',
     cleartext: {{cleartext}},
+    errorPath: 'offline.html',
     allowNavigation: [{{allowNavigationJs}}]
   },
   plugins: {
@@ -182,7 +183,7 @@ export default config;
     }
   }
 
-  private static string AddPrismMobileQueryFlag(string startUrl)
+  internal static string AddPrismMobileQueryFlag(string startUrl)
   {
     var uri = new Uri(startUrl);
     var builder = new UriBuilder(uri);

@@ -132,11 +132,17 @@ npm run open:android
 - Prism detects mobile mode using the appended user-agent marker.
 - Tenant branding overrides are applied first.
 - Mobile branding overrides are applied after tenant overrides.
-- Generated config sets iOS `contentInset: 'always'` and `StatusBar.overlaysWebView: false` for safer default viewport behavior — `'always'` unconditionally reserves safe-area space (status bar/notch), fixing both a horizontal content-shift bug and a status-bar overlap that Capacitor's own default (`'automatic'`) and an earlier `'never'` attempt each caused in turn, on hosted content the app doesn't control (e.g. the Entra/OIDC login screen).
+- On iOS the native shell keeps content clear of the status bar, notch and home indicator, including on hosted sign-in pages the app does not control.
 - App startup uses Capacitor top-level WebView loading of your Start URL.
 - Generated config appends `prismMobile=1` to Start URL for server-side mobile detection.
 - Prism mobile middleware can enforce in-WebView behavior for `target="_blank"` and `window.open`.
-- A local fallback startup page is included in `www/index.html` if you choose to switch away from direct server URL mode.
+- If a page fails to load, the app shows `www/offline.html`, a branded screen using the error title, message and colours from the backoffice. It retries when the device comes back online or when the user taps "Try again".
+
+## Publishing to the App Store and Google Play
+
+- **Submit the app from the organisation whose content it shows.** Apple's App Review Guideline 4.2.6 rejects apps produced from a template or app-generation service unless the content provider submits them, so each tenant publishes under its own Apple Developer and Play Console accounts.
+- **Privacy manifest.** `resources/PrivacyInfo.xcprivacy` is copied into the iOS project by `bootstrap-ios.sh`. It declares the data the enabled features collect (name and email from sign-in, plus the device token for push and photos and location for device capture). If your site collects anything else, add it there and in App Store Connect's privacy details.
+- **Account deletion.** If members can create an account in the app, App Store review also expects a way to delete it from inside the app.
 
 ## Entra authentication mode
 

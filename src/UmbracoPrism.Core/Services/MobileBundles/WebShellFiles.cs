@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using UmbracoPrism.Core.Persistence;
 using static UmbracoPrism.Core.Services.MobileBundles.BundleText;
@@ -9,49 +10,11 @@ namespace UmbracoPrism.Core.Services.MobileBundles;
 /// </summary>
 internal static class WebShellFiles
 {
-    internal static string BuildPlaceholderIndex(MobileBundleSettings settings)
-    {
-        var appName = settings.AppName;
-        var startUrl = settings.StartUrl;
-        var errorBackgroundColor = settings.ErrorBackgroundColor;
-        var errorTextColor = settings.ErrorTextColor;
-        var errorTitle = settings.ErrorTitle;
-        var errorMessage = settings.ErrorMessage;
-        var showErrorDiagnostics = settings.ShowErrorDiagnostics;
-        var biometricAuthEnabled = settings.BiometricAuthEnabled;
-
-        var biometricStartupScript = biometricAuthEnabled
-            ? BundleTemplates.Read("placeholder-biometric-startup.js")
-            : "";
-
-        var biometricBootstrapBlock = biometricAuthEnabled
-            ? """
-      __prismDebug.log('[Prism Bio] Bootstrap: biometric auth enabled — attempting sign-in');
-      const biometricOk = await tryBiometricSignIn();
-      __prismDebug.log('[Prism Bio] Bootstrap: tryBiometricSignIn returned ' + biometricOk);
-      if (biometricOk) {
-        window.location.replace(mobileStartUrl);
-        return;
-      }
-      __prismDebug.log('[Prism Bio] Bootstrap: biometric did not sign in — falling through to Entra');
-
-"""
-            : """
-      console.log('[Prism] Bootstrap: biometric auth NOT compiled into this bundle');
-
-""";
-
-        return $$"""
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{appName}} Mobile</title>
+    private static string BuildShellStyles(MobileBundleSettings settings) => $$"""
   <style>
     :root {
-      --prism-error-bg: {{EscapeSingleQuotes(errorBackgroundColor)}};
-      --prism-error-text: {{EscapeSingleQuotes(errorTextColor)}};
+      --prism-error-bg: {{EscapeSingleQuotes(settings.ErrorBackgroundColor)}};
+      --prism-error-text: {{EscapeSingleQuotes(settings.ErrorTextColor)}};
     }
     html, body {
       margin: 0;
@@ -123,7 +86,88 @@ internal static class WebShellFiles
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     }
   </style>
-</head>
+""";
+
+    /// <summary>
+    /// Shown by Capacitor (<c>server.errorPath</c>) whenever a page from the tenant's site fails
+    /// to load, so a dropped connection mid-session gets the tenant's own branded screen with a
+    /// retry instead of a blank WebView.
+    /// </summary>
+    internal static string BuildOfflinePage(MobileBundleSettings settings)
+    {
+        var appName = WebUtility.HtmlEncode(settings.AppName);
+        var startUrl = EscapeSingleQuotes(CapacitorProjectFiles.AddPrismMobileQueryFlag(settings.StartUrl));
+
+        return $$"""
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>{{appName}}</title>
+{{BuildShellStyles(settings)}}</head>
+<body>
+  <main class="screen">
+    <section class="card" role="alert">
+      <h1>{{WebUtility.HtmlEncode(settings.ErrorTitle)}}</h1>
+      <p>{{WebUtility.HtmlEncode(settings.ErrorMessage)}}</p>
+      <div class="actions">
+        <button id="retry" type="button" data-prism-offline-retry>Try again</button>
+      </div>
+    </section>
+  </main>
+  <script>
+    function retry() {
+      window.location.replace('{{startUrl}}');
+    }
+    document.getElementById('retry').addEventListener('click', retry);
+    window.addEventListener('online', retry);
+  </script>
+</body>
+</html>
+""";
+    }
+
+    internal static string BuildPlaceholderIndex(MobileBundleSettings settings)
+    {
+        var appName = settings.AppName;
+        var startUrl = settings.StartUrl;
+        var errorBackgroundColor = settings.ErrorBackgroundColor;
+        var errorTextColor = settings.ErrorTextColor;
+        var errorTitle = settings.ErrorTitle;
+        var errorMessage = settings.ErrorMessage;
+        var showErrorDiagnostics = settings.ShowErrorDiagnostics;
+        var biometricAuthEnabled = settings.BiometricAuthEnabled;
+
+        var biometricStartupScript = biometricAuthEnabled
+            ? BundleTemplates.Read("placeholder-biometric-startup.js")
+            : "";
+
+        var biometricBootstrapBlock = biometricAuthEnabled
+            ? """
+      __prismDebug.log('[Prism Bio] Bootstrap: biometric auth enabled — attempting sign-in');
+      const biometricOk = await tryBiometricSignIn();
+      __prismDebug.log('[Prism Bio] Bootstrap: tryBiometricSignIn returned ' + biometricOk);
+      if (biometricOk) {
+        window.location.replace(mobileStartUrl);
+        return;
+      }
+      __prismDebug.log('[Prism Bio] Bootstrap: biometric did not sign in — falling through to Entra');
+
+"""
+            : """
+      console.log('[Prism] Bootstrap: biometric auth NOT compiled into this bundle');
+
+""";
+
+        return $$"""
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{appName}} Mobile</title>
+{{BuildShellStyles(settings)}}</head>
 <body>
   <main class="screen">
     <section class="card">

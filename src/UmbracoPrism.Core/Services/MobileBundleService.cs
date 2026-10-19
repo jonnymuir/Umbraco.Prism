@@ -33,6 +33,7 @@ public class MobileBundleService : IMobileBundleService
             AddEntry(archive, "capacitor.config.ts", CapacitorProjectFiles.BuildCapacitorConfig(settings));
             AddEntry(archive, ".gitignore", "node_modules\nandroid\nios\n.DS_Store\n");
             AddEntry(archive, "www/index.html", WebShellFiles.BuildPlaceholderIndex(settings));
+            AddEntry(archive, "www/offline.html", WebShellFiles.BuildOfflinePage(settings));
             AddEntry(archive, "www/mobile-overrides.css", WebShellFiles.BuildMobileOverrideTemplate());
             AddEntry(archive, "scripts/doctor-mobile.sh", CapacitorProjectFiles.BuildDoctorScript(settings));
             AddEntry(archive, "scripts/bootstrap-ios.sh", IosProjectFiles.BuildBootstrapIosScript(settings));
@@ -48,6 +49,7 @@ public class MobileBundleService : IMobileBundleService
             // before running the bootstrap script; the generate step re-runs against whatever's
             // there.
             AddEntry(archive, "resources/icon.svg", WebShellFiles.BuildDefaultAppIconSvg());
+            AddEntry(archive, "resources/PrivacyInfo.xcprivacy", IosProjectFiles.BuildPrivacyManifest(settings));
 
             if (settings.BiometricAuthEnabled)
             {
