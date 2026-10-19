@@ -212,12 +212,12 @@
 
         <!-- Downstream API demo script (SEC-PT2-004: externalized, not spliced inline; the
              call/reset buttons above are wired by id in the script itself, not onclick="..."). -->
-        <script src="/js/member-dashboard-downstream-demo.js"></script>
+        <script src="/js/member-dashboard-downstream-demo.js" asp-append-version="true"></script>
 
         <!-- Rewrites the Biometric Authentication card above to this device's real enrollment
              state — a no-op outside the native app, where the static "Not configured" markup
              is already the right message. -->
-        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-status.js"></script>
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-status.js" asp-append-version="true"></script>
 
 
         <div class="u-mt-24">

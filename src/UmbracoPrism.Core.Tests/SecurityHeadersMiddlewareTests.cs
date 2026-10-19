@@ -211,7 +211,7 @@ public class SecurityHeadersMiddlewareTests
     }
 
     [Fact]
-    public async Task NoStoreCacheControl_IsApplied_OnAnonymousJavaScriptRequest_ByExtensionFallback()
+    public async Task UnversionedStaticAsset_MustRevalidate_OnAnonymousJavaScriptRequest_ByExtensionFallback()
     {
         // DefaultHttpContext never has Content-Type set by a test (only real static-file
         // middleware sets it), so this exercises the path-extension fallback specifically.
@@ -225,11 +225,11 @@ public class SecurityHeadersMiddlewareTests
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("Cache-Control");
-        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("no-store, must-revalidate");
+        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("no-cache");
     }
 
     [Fact]
-    public async Task NoStoreCacheControl_IsApplied_OnAnyCssPath_NotJustPrismsOwn()
+    public async Task UnversionedStaticAsset_MustRevalidate_OnAnyCssPath_NotJustPrismsOwn()
     {
         // The bug this fixes is an edge cache's own extension-based default policy, which
         // applies to a host's own CSS (e.g. TestSite's /css/base.css) exactly as much as
@@ -242,11 +242,11 @@ public class SecurityHeadersMiddlewareTests
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("Cache-Control");
-        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("no-store, must-revalidate");
+        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("no-cache");
     }
 
     [Fact]
-    public async Task NoStoreCacheControl_IsApplied_ByContentType_RegardlessOfPath()
+    public async Task StaticAssetCacheControl_IsApplied_ByContentType_RegardlessOfPath()
     {
         // A path with no recognizable extension at all (e.g. a versionless/hashed asset URL)
         // must still be caught via Content-Type, the primary signal — extension is only a
@@ -262,7 +262,41 @@ public class SecurityHeadersMiddlewareTests
     }
 
     [Fact]
-    public async Task NoStoreCacheControl_IsNotApplied_OnNonCssJsAsset()
+    public async Task VersionedStaticAsset_IsCachedAsImmutable()
+    {
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/css/base.css");
+        ctx.Request.QueryString = new QueryString("?v=Xc1kGQ9bD2s");
+        ctx.Response.ContentType = "text/css";
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("public, max-age=31536000, immutable");
+        ctx.Response.Headers.Should().NotContainKey("Pragma");
+    }
+
+    [Fact]
+    public async Task VersionedStaticAsset_IsCachedAsImmutable_EvenWhenSignedIn()
+    {
+        // A signed-in member's requests for shared static files carry the auth cookie, so the
+        // authenticated no-store rule would otherwise make every tap re-download them.
+        var middleware = BuildMiddleware();
+        var (ctx, feature) = BuildHttpsContext("/App_Plugins/UmbracoPrism/dist/prism-mobile-nav.js");
+        ctx.Request.QueryString = new QueryString("?v=Xc1kGQ9bD2s");
+        ctx.Response.ContentType = "text/javascript";
+        ctx.User = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(authenticationType: "PrismMemberCookie"));
+
+        await middleware.InvokeAsync(ctx, BuildPrismContext());
+        await feature.FireOnStartingAsync();
+
+        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("public, max-age=31536000, immutable");
+        ctx.Response.Headers.Should().NotContainKey("Pragma");
+    }
+
+    [Fact]
+    public async Task StaticAssetCacheControl_IsNotApplied_OnNonCssJsAsset()
     {
         var middleware = BuildMiddleware();
         var (ctx, feature) = BuildHttpsContext("/media/logo.png");
@@ -275,7 +309,7 @@ public class SecurityHeadersMiddlewareTests
     }
 
     [Fact]
-    public async Task NoStoreStaticAssetCacheControl_CanBeDisabled_ViaOptions()
+    public async Task StaticAssetCacheControl_CanBeDisabled_ViaOptions()
     {
         var middleware = BuildMiddleware(new SecurityHeadersOptions { NoCacheStaticAssets = false });
         var (ctx, feature) = BuildHttpsContext("/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js");
@@ -314,7 +348,7 @@ public class SecurityHeadersMiddlewareTests
     }
 
     [Fact]
-    public async Task NoStoreCacheControl_IsApplied_ToBrandingCss_DespiteLivingUnderUmbraco()
+    public async Task StaticAssetCacheControl_IsApplied_ToBrandingCss_DespiteLivingUnderUmbraco()
     {
         // Found live: /umbraco/prism/branding.css (PrismBrandingAssetsController) is an
         // anonymous, publicly-referenced CSS resource that just happens to be routed under
@@ -331,7 +365,7 @@ public class SecurityHeadersMiddlewareTests
         await feature.FireOnStartingAsync();
 
         ctx.Response.Headers.Should().ContainKey("Cache-Control");
-        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("no-store, must-revalidate");
+        ctx.Response.Headers["Cache-Control"].ToString().Should().Be("no-cache");
         ctx.Response.Headers.Should().ContainKey("X-Content-Type-Options",
             "the carve-out restores the full header set for this route, not just Cache-Control");
     }

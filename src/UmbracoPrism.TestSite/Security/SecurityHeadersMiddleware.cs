@@ -15,8 +15,8 @@ namespace UmbracoPrism.TestSite.Security;
 /// SEC-PT2-004: adds HSTS, X-Content-Type-Options, Referrer-Policy, X-Frame-Options,
 /// Permissions-Policy, and an enforced Content-Security-Policy by default. Also adds
 /// Cache-Control: no-store on any authenticated response (see
-/// <see cref="SecurityHeadersOptions.NoCacheAuthenticated"/>) and on any CSS/JS response
-/// (see <see cref="SecurityHeadersOptions.NoCacheStaticAssets"/>).
+/// <see cref="SecurityHeadersOptions.NoCacheAuthenticated"/>), and a CSS/JS cache policy (see
+/// <see cref="SecurityHeadersOptions.NoCacheStaticAssets"/>).
 ///
 /// form-action also widens itself automatically to the current tenant's own OIDC provider
 /// host(s) (Entra or a generic authority) — found live: sign-out silently did nothing, on both
@@ -84,6 +84,10 @@ public sealed class SecurityHeadersMiddleware(
     // re-cached the same way. Found live: a tenant's saved text-colour override never reached the
     // browser, even with the browser's own cache disabled.
     private static readonly PathString BrandingCssPath = "/umbraco/prism/branding.css";
+
+    // The query key asp-append-version adds: a hash of the file's contents, so the URL changes
+    // whenever the file does.
+    private const string VersionQueryKey = "v";
 
     private bool IsExcluded(HttpContext context)
     {
@@ -159,15 +163,20 @@ public sealed class SecurityHeadersMiddleware(
             headers["Pragma"] = "no-cache";
         }
 
-        // Deliberately independent of the authenticated check above, and deliberately
-        // site-wide rather than scoped to any one project's static-asset folder — see the
-        // option's own doc comment: an intermediary CDN/edge cache, not the browser, is what
-        // silently served stale copies across multiple redeploys, and it caches by file
-        // extension, not by path.
+        // Independent of the authenticated check above: static files are not per-member, and
+        // an edge cache applies its own extension-based default unless the origin says otherwise.
         if (_options.NoCacheStaticAssets && IsCssOrJavaScript(context))
         {
-            headers["Cache-Control"] = "no-store, must-revalidate";
-            headers["Pragma"] = "no-cache";
+            if (context.Request.Query.ContainsKey(VersionQueryKey))
+            {
+                headers["Cache-Control"] = "public, max-age=31536000, immutable";
+                headers.Remove("Pragma");
+            }
+            else
+            {
+                headers["Cache-Control"] = "no-cache";
+                headers["Pragma"] = "no-cache";
+            }
         }
     }
 
