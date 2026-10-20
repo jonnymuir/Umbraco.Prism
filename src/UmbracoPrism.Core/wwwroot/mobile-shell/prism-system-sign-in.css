@@ -1,0 +1,16 @@
+/* The app's sign-in page shows nothing of its own: the system sign-in sheet opens over it, and the
+   tab's page colour shows through. Its status message is for screen readers only. */
+html,
+body {
+  margin: 0;
+  background: transparent;
+}
+
+.prism-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

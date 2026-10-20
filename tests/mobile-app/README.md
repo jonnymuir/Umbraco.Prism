@@ -52,6 +52,7 @@ tests/mobile-app/measure-tab-switches.sh com.prism.local
 | `sign-in-and-visit-tabs.yaml` | Signs in from the Dashboard tab and opens every tab once |
 | `switch-tabs.yaml` | Taps a checkbox, then the tabs in turn; used by the timing harness |
 | `sign-out-refreshes-other-tabs.yaml` | Signing out in one tab leaves no other tab showing the member's page |
+| `sign-in-from-home-switches-tabs.yaml` | A link or redirect to another tab's page opens in that tab, after sign-in and sign-out too |
 
 Maestro's own timings include waiting for the screen to settle after every tap, so they are not a
 measure of the app. `measure-tab-switches.sh` records the screen instead: the checkbox tap aligns

@@ -105,7 +105,8 @@ public class MobileBundleServiceTests
         androidBootstrap.Should().Contain("cp native/android/java/*.java \"$JAVA_DIR/\"");
         androidBootstrap.Should().Contain("package com.example.test;");
         androidBootstrap.Should().Contain("@CapacitorPlugin(name = \"PrismIdentityCookiePlugin\")");
-        androidBootstrap.Should().Contain("cookieManager.removeAllCookies(value -> {");
+        androidBootstrap.Should().Contain("if (host.equalsIgnoreCase(PrismShell.START_URL.getHost())) continue;");
+        androidBootstrap.Should().NotContain("removeAllCookies", "clearing every cookie would race the sign-out request for the site's own");
 
         // Plain Java only: the app module Capacitor generates has no Kotlin Gradle plugin, so a
         // .kt file would silently never compile.

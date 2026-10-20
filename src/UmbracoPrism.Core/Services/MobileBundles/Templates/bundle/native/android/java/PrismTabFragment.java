@@ -6,11 +6,13 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import com.getcapacitor.Bridge;
+import com.getcapacitor.BridgeWebViewClient;
 import com.getcapacitor.Logger;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginLoadException;
@@ -34,6 +36,7 @@ public class PrismTabFragment extends Fragment {
     private String path;
     private boolean loaded;
     private boolean stale;
+    private boolean returnsToRootWhenShown;
 
     static PrismTabFragment create(String path, boolean load) {
         PrismTabFragment fragment = new PrismTabFragment();
@@ -65,10 +68,12 @@ public class PrismTabFragment extends Fragment {
             .addWebViewListener(new WebViewListener() {
                 @Override
                 public void onPageLoaded(WebView webView) {
-                    if (getActivity() instanceof MainActivity) ((MainActivity) getActivity()).onTabPageLoaded();
+                    pageLoaded(webView);
                 }
             })
             .create();
+        bridge.setWebViewClient(new TabWebViewClient(bridge));
+        bridge.getWebView().setBackgroundColor(PrismPageBackground.current(requireContext()));
 
         // A tab not yet shown waits to load its page until it is.
         loaded = requireArguments().getBoolean(ARG_LOAD);
@@ -91,9 +96,6 @@ public class PrismTabFragment extends Fragment {
         return path;
     }
 
-    View root() {
-        return root;
-    }
 
     /** Shows another tab's page, from the next time this tab is shown. */
     void assign(String newPath) {
@@ -102,15 +104,21 @@ public class PrismTabFragment extends Fragment {
         stale = false;
     }
 
+    private void pageLoaded(WebView webView) {
+        PrismPageBackground.read(webView, webView::setBackgroundColor);
+        if (getActivity() instanceof MainActivity) ((MainActivity) getActivity()).checkSession();
+    }
+
     /**
      * Loads the tab's page the first time it is shown, and reloads it if it has gone stale. The
      * load waits until the tab is on screen: one started while the webview is still hidden leaves
      * screen readers with only the start of the page.
      */
     void showPage() {
-        if (!loaded) {
+        if (!loaded || returnsToRootWhenShown) {
             loaded = true;
             stale = false;
+            returnsToRootWhenShown = false;
             root.post(() -> bridge.getWebView().loadUrl(PrismShell.urlForPath(path)));
         } else if (stale) {
             stale = false;
@@ -173,5 +181,30 @@ public class PrismTabFragment extends Fragment {
     public void onDestroy() {
         super.onDestroy();
         bridge.onDestroy();
+    }
+
+    /**
+     * Capacitor's own client, except that another tab's first page opens in that tab. When the
+     * member did not simply tap a link (a redirect after signing in or out, a form, a script), this
+     * tab's own page is out of date, so it goes back to its first page the next time it is shown.
+     */
+    private final class TabWebViewClient extends BridgeWebViewClient {
+        TabWebViewClient(Bridge bridge) {
+            super(bridge);
+        }
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            if (request.isForMainFrame() && openInAnotherTab(request)) return true;
+            return super.shouldOverrideUrlLoading(view, request);
+        }
+
+        private boolean openInAnotherTab(WebResourceRequest request) {
+            MainActivity activity = getActivity() instanceof MainActivity ? (MainActivity) getActivity() : null;
+            if (activity == null || !activity.selectTab(request.getUrl(), PrismTabFragment.this)) return false;
+            boolean followsLink = request.hasGesture() && !request.isRedirect();
+            if (!followsLink) returnsToRootWhenShown = true;
+            return true;
+        }
     }
 }

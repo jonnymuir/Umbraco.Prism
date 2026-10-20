@@ -1,5 +1,6 @@
 import UIKit
 import UserNotifications
+import WebKit
 
 /// One tab: a Capacitor bridge pinned below the status bar only while it shows another site's
 /// page (a hosted sign-in page cannot be trusted to keep clear of the status bar the way this
@@ -9,6 +10,7 @@ final class PrismWebTabViewController: UIViewController {
     private var bridgeController: PrismBridgeViewController?
     private var topConstraint: NSLayoutConstraint?
     private var isStale = false
+    private var returnsToRootWhenShown = false
 
     init(tab: PrismManifest.Tab) {
         self.prismTab = tab
@@ -26,9 +28,12 @@ final class PrismWebTabViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = PrismPageBackground.current
         let bridge = PrismBridgeViewController(startURL: PrismShell.url(forPath: prismTab.path))
-        bridge.onPageChange = { [weak self] url in self?.reserveStatusBar(!PrismShell.isOwnSite(url)) }
+        bridge.events = PrismPageEvents(
+            addressChanged: { [weak self] url in self?.reserveStatusBar(!PrismShell.isOwnSite(url)) },
+            loaded: { [weak self] webView in self?.pageLoaded(in: webView) },
+            openInAnotherTab: { [weak self] url, followsLink in self?.openInAnotherTab(url, followsLink: followsLink) ?? false })
         addChild(bridge)
         view.addSubview(bridge.view)
         bridge.view.translatesAutoresizingMaskIntoConstraints = false
@@ -42,6 +47,34 @@ final class PrismWebTabViewController: UIViewController {
         bridge.didMove(toParent: self)
         bridgeController = bridge
         topConstraint = top
+        bridge.webView.map(Self.paint)
+    }
+
+    private func pageLoaded(in webView: WKWebView) {
+        PrismPageBackground.read(from: webView) { [weak self] colour in
+            self?.view.backgroundColor = colour
+            Self.paint(webView, colour)
+        }
+    }
+
+    private static func paint(_ webView: WKWebView) {
+        paint(webView, PrismPageBackground.current)
+    }
+
+    private static func paint(_ webView: WKWebView, _ colour: UIColor) {
+        webView.backgroundColor = colour
+        webView.scrollView.backgroundColor = colour
+    }
+
+    /// Another tab's first page opens in that tab. When the member did not simply tap a link (a
+    /// redirect after signing in or out, a form, a script), this tab's own page is out of date, so
+    /// it goes back to its first page the next time it is shown.
+    private func openInAnotherTab(_ url: URL, followsLink: Bool) -> Bool {
+        guard let tabBar = tabBarController as? PrismTabBarController, tabBar.selectTab(showing: url, from: self) else { return false }
+        if !followsLink {
+            returnsToRootWhenShown = true
+        }
+        return true
     }
 
     private func reserveStatusBar(_ reserve: Bool) {
@@ -55,10 +88,18 @@ final class PrismWebTabViewController: UIViewController {
         isStale = true
     }
 
-    func reloadIfStale() {
-        guard isStale, isViewLoaded else { return }
-        isStale = false
-        bridgeController?.webView?.reload()
+    /// Brings the tab up to date as it is shown: back to its first page if it was left on the
+    /// sign-in page, or reloaded if the member signed in or out elsewhere.
+    func refreshWhenShown() {
+        guard isViewLoaded else { return }
+        if returnsToRootWhenShown {
+            returnsToRootWhenShown = false
+            isStale = false
+            returnToRoot()
+        } else if isStale {
+            isStale = false
+            bridgeController?.webView?.reload()
+        }
     }
 
     func returnToRoot() {

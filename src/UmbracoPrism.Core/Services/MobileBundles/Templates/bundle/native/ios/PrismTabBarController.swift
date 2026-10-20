@@ -63,8 +63,19 @@ final class PrismTabBarController: UITabBarController, UITabBarControllerDelegat
     }
 
     func tabBarController(_ tabBarController: UITabBarController, didSelect viewController: UIViewController) {
-        (viewController as? PrismWebTabViewController)?.reloadIfStale()
+        (viewController as? PrismWebTabViewController)?.refreshWhenShown()
         routeNotificationsToSelectedTab()
+    }
+
+    /// Switches to the tab whose first page this is, if it is not the tab asking. True when it did.
+    func selectTab(showing url: URL, from source: PrismWebTabViewController) -> Bool {
+        let path = PrismShell.normalizedPath(url.path)
+        guard let target = (viewControllers ?? []).compactMap({ $0 as? PrismWebTabViewController })
+            .first(where: { PrismShell.normalizedPath($0.prismTab.path) == path }), target !== source else { return false }
+        PrismShell.log.info("Opening \(path, privacy: .public) in its own tab")
+        selectedViewController = target
+        tabBarController(self, didSelect: target)
+        return true
     }
 
     /// Every bridge makes itself the notification delegate when it is created, so taps would reach

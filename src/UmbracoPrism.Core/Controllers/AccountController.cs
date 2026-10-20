@@ -154,9 +154,10 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
             $$"""
             <!doctype html>
             <html lang="en">
-            <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Signing in</title></head>
+            <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Signing in</title>
+            <link rel="stylesheet" href="/App_Plugins/UmbracoPrism/mobile-shell/prism-system-sign-in.css"></head>
             <body>
-            <p role="status">Signing in…</p>
+            <p role="status" class="prism-visually-hidden">Signing in…</p>
             {{biometric}}
             <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-system-sign-in.js"{{promptAttribute}}
                     data-prism-antiforgery-header="{{WebUtility.HtmlEncode(antiforgery.HeaderName)}}" data-prism-antiforgery-token="{{WebUtility.HtmlEncode(antiforgery.RequestToken)}}"></script>

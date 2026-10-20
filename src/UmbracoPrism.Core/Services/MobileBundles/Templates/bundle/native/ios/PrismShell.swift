@@ -38,6 +38,13 @@ enum PrismShell {
         return components.url!
     }
 
+    /// A site path without its query or trailing slash, so a tab's path and a link can be compared.
+    static func normalizedPath(_ path: String) -> String {
+        let withoutQuery = path.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? "/"
+        let trimmed = withoutQuery.count > 1 && withoutQuery.hasSuffix("/") ? String(withoutQuery.dropLast()) : withoutQuery
+        return trimmed.isEmpty ? "/" : trimmed
+    }
+
     static func isOwnHost(_ cookieDomain: String) -> Bool {
         let domain = cookieDomain.hasPrefix(".") ? String(cookieDomain.dropFirst()) : cookieDomain
         return ownHost == domain || ownHost.hasSuffix("." + domain)

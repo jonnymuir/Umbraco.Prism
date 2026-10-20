@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.net.Uri;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
@@ -209,14 +210,10 @@ public class MainActivity extends AppCompatActivity {
 
     private void select(PrismTabFragment slot) {
         if (slot != selected) {
+            // The keyboard belongs to the tab being left, and would otherwise cover the tab bar.
+            WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView()).hide(WindowInsetsCompat.Type.ime());
             getSupportFragmentManager().beginTransaction().hide(selected).show(slot).commitNow();
             selected = slot;
-        }
-        // A hidden tab's webview still answers accessibility queries, so screen readers would find it.
-        for (PrismTabFragment each : slots) {
-            each.root().setImportantForAccessibility(each == slot
-                ? View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
-                : View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         }
         slot.showPage();
     }
@@ -230,11 +227,29 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /** Switches to the tab whose first page this is, if it is not the tab asking. True when it did. */
+    boolean selectTab(Uri url, PrismTabFragment source) {
+        if (!PrismShell.isOwnSite(url)) return false;
+        String path = PrismShell.normalizedPath(url.getPath());
+        for (int i = 0; i < shown.size(); i++) {
+            if (PrismShell.normalizedPath(shown.get(i).path).equals(path) && slotForTab.get(i) != source) {
+                Log.i(PrismShell.LOG_TAG, "Opening " + path + " in its own tab");
+                // A handed-over redirect may follow a sign-in or sign-out with no page loading on the way.
+                checkSession();
+                int itemId = i + 1;
+                nav.post(() -> nav.setSelectedItemId(itemId));
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * A sign-in or sign-out in one tab leaves the others showing the old state, so they reload
-     * when next shown, and the tabs themselves are fetched again for the new member.
+     * when next shown, and the tabs themselves are fetched again for the new member. Android has no
+     * cookie observer, so tabs ask for this check after each page load and each handed-over link.
      */
-    void onTabPageLoaded() {
+    void checkSession() {
         boolean signedIn = hasCookie(CookieManager.getInstance().getCookie(PrismShell.origin()), manifest.sessionCookieName());
         Boolean previous = hasSession;
         hasSession = signedIn;

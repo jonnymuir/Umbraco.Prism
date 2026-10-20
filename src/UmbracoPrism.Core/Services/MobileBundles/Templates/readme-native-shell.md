@@ -10,6 +10,7 @@ the tabs come from your site's `/umbraco/prism/mobile/manifest`.
 | Manifest fetch and offline copy | `PrismManifest.swift` | `PrismManifest.java` |
 | Tab bar, session changes, notification routing | `PrismTabBarController.swift` | `MainActivity.java` |
 | One tab's bridge and webview | `PrismWebTabViewController.swift`, `PrismBridgeViewController.swift` | `PrismTabFragment.java` |
+| Page colour behind the webviews between pages | `PrismPageBackground.swift` | `PrismPageBackground.java` |
 | Tab icons, including SVG | `PrismTabIconLoader.swift`, `PrismSvgIcon.swift`, `PrismSvgPath.swift` | `PrismTabIcons.java`, `PrismSvgIcon.java`, `PrismSvgPath.java`, `PrismSvgArc.java` |
 | System sign-in sheet | `PrismSystemSignInPlugin.swift`, `App.entitlements` | `PrismSystemSignInPlugin.java` |
 | Identity provider cookie cleanup on sign-out | `PrismIdentityCookiePlugin.swift` | `PrismIdentityCookiePlugin.java` |

@@ -85,11 +85,9 @@
     var hostsAttr = (scriptEl && scriptEl.getAttribute('data-prism-idp-hosts')) || '';
     var hosts = hostsAttr.split(',').map(function (h) { return h.trim(); }).filter(Boolean);
 
-    // Best-effort, not awaited — same reasoning as every other call in this file. The Android
-    // side of this plugin ignores `hosts` entirely and clears the WebView's whole cookie jar
-    // (there's no per-host removal API on android.webkit.CookieManager, and nothing else in
-    // this single-purpose WebView needs a cookie preserved across sign-out); iOS uses it to
-    // target exactly the record(s) that belong to this tenant's own IdP host(s).
+    // Best-effort, not awaited, the same as every other call in this file. Both platforms remove
+    // only the cookies of the hosts given, and Android leaves the site's own host alone, so the
+    // cookies this sign-out request still needs survive it.
     Cap.nativePromise('PrismIdentityCookiePlugin', 'clearCookies', { hosts: hosts }).catch(function () {});
   }
 
