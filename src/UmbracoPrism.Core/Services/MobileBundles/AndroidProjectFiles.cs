@@ -57,18 +57,16 @@ if [ -f "$GRADLE_WRAPPER" ]; then
   echo "✓ Gradle wrapper upgraded to 8.14"
 fi
 
-# Google Play has required every upload to target Android 16 (API 36) since 31 Aug 2026 and
-# rejects anything lower outright ("edits.commit" 400, misleadingly worded "Target SDK of
-# artifact is too low: <versionCode>" — that number is the artifact's versionCode, not an SDK
-# level, found live on this pipeline's first real Play upload). Capacitor 7's own
-# `cap add android` template still defaults compileSdkVersion/targetSdkVersion to 35, so bump
-# both here rather than waiting on an upstream Capacitor release.
+# Google Play's requirements, which Capacitor 7's `cap add android` template predates:
+# - every upload must target Android 16 (API 36) since 31 Aug 2026, or edits.commit fails with a
+#   400 worded "Target SDK of artifact is too low: <versionCode>" (that number is the versionCode);
+# - Play's automatic protection needs a minimum of Android 7.0 (API 24), or the upload is refused.
 VARIABLES_GRADLE="android/variables.gradle"
 if [ -f "$VARIABLES_GRADLE" ]; then
-  echo "Bumping compileSdkVersion/targetSdkVersion to 36 (Google Play requires API 36+ for uploads since Aug 2026)..."
-  sed -i.bak -E 's/(compileSdkVersion = )[0-9]+/\136/; s/(targetSdkVersion = )[0-9]+/\136/' "$VARIABLES_GRADLE"
+  echo "Setting minSdkVersion 24 and compileSdkVersion/targetSdkVersion 36 for Google Play..."
+  sed -i.bak -E 's/(minSdkVersion = )[0-9]+/\124/; s/(compileSdkVersion = )[0-9]+/\136/; s/(targetSdkVersion = )[0-9]+/\136/' "$VARIABLES_GRADLE"
   rm -f "$VARIABLES_GRADLE.bak"
-  echo "✓ compileSdkVersion/targetSdkVersion bumped to 36"
+  echo "✓ minSdkVersion 24, compileSdkVersion and targetSdkVersion 36"
 fi
 
 npx cap sync android

@@ -615,4 +615,20 @@ public class MobileBundleServiceTests
         androidBootstrap.Should().Contain("if (PrismSystemSignInPlugin.deliver(intent.getData())) return;");
         androidBootstrap.Should().Contain("androidx.browser:browser:1.9.0");
     }
+
+    [Fact]
+    public async Task BuildBundleAsync_AndroidApp_MeetsGooglePlaysSdkRequirements()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, new PrismMobileBundleRequest { AppName = "Test App", AppId = "com.example.test" });
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        // Play rejects an upload targeting below API 36, and its automatic protection one with a
+        // minimum below API 24.
+        ReadEntry(archive, "scripts/bootstrap-android.sh").Should().Contain(
+            "s/(minSdkVersion = )[0-9]+/\\124/; s/(compileSdkVersion = )[0-9]+/\\136/; s/(targetSdkVersion = )[0-9]+/\\136/");
+    }
 }
