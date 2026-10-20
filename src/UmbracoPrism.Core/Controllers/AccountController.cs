@@ -102,9 +102,12 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
         // interactive OIDC challenge, so Entra has no browser-side SSO session in this WebView to
         // end and no id_token_hint to give its end-session endpoint — signing out of that scheme
         // anyway just shows Entra's own interactive account-chooser for nothing. Sign out of the
-        // local cookie only in that case, and wherever this hostname has no sign-in configured
+        // local cookie only in that case, for a session handed over from the app's system
+        // authentication session (ephemeral, so no provider session outlived it), and wherever
+        // this hostname has no sign-in configured
         // (no provider session to end); every other session still signs out of both.
         if (member?.HasClaim("prism_auth_method", "biometric") == true ||
+            member?.HasClaim("prism_auth_method", PrismMobileSignInController.AuthMethod) == true ||
             prismContext.CurrentTenant?.HasSignInConfigured() != true)
         {
             return SignOut(

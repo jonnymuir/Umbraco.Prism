@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Controllers;
+using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Tests;
@@ -25,7 +26,7 @@ public class PrismMobileManifestControllerTests
         }
     }
 
-    private static PrismMobileManifestController BuildController(IPrismMobileTabsProvider provider, ClaimsPrincipal? member = null, string? ifNoneMatch = null)
+    private static PrismMobileManifestController BuildController(IPrismMobileTabsProvider provider, ClaimsPrincipal? member = null, string? ifNoneMatch = null, PrismTenant? tenant = null)
     {
         var authentication = new Mock<IAuthenticationService>();
         authentication
@@ -43,7 +44,10 @@ public class PrismMobileManifestControllerTests
             context.Request.Headers.IfNoneMatch = ifNoneMatch;
         }
 
-        return new PrismMobileManifestController(provider) { ControllerContext = new ControllerContext { HttpContext = context } };
+        var prismContext = new Mock<IPrismContext>();
+        prismContext.SetupGet(c => c.CurrentTenant).Returns(tenant);
+
+        return new PrismMobileManifestController(provider, prismContext.Object) { ControllerContext = new ControllerContext { HttpContext = context } };
     }
 
     [Fact]
@@ -98,5 +102,32 @@ public class PrismMobileManifestControllerTests
         var tabs = await new PrismDefaultMobileTabsProvider().GetTabsAsync(new DefaultHttpContext(), CancellationToken.None);
 
         tabs.Should().ContainSingle().Which.Should().Be(new PrismMobileTab("Home", "/", "home"));
+    }
+
+    [Fact]
+    public async Task Manifest_ListsThePlatformsWhoseAppTheSiteVouchesFor_SoOnlyThoseSignInNatively()
+    {
+        var tenant = new PrismTenant
+        {
+            OidcAuthority = "https://id.example.com/realms/app",
+            OidcClientId = "app",
+            MobileAppLinks = new PrismMobileAppLinks("ABCDE12345.com.example.app", null, [])
+        };
+
+        var result = await BuildController(new RecordingTabsProvider(), tenant: tenant).Manifest(CancellationToken.None);
+
+        var json = JsonDocument.Parse(result.Should().BeOfType<ContentResult>().Subject.Content!).RootElement;
+        json.GetProperty("systemSignIn").EnumerateArray().Select(platform => platform.GetString()).Should().Equal("ios");
+    }
+
+    [Fact]
+    public async Task Manifest_ListsNoSystemSignIn_WhereTheSiteHasNoSignIn()
+    {
+        var tenant = new PrismTenant { MobileAppLinks = new PrismMobileAppLinks("ABCDE12345.com.example.app", null, []) };
+
+        var result = await BuildController(new RecordingTabsProvider(), tenant: tenant).Manifest(CancellationToken.None);
+
+        var json = JsonDocument.Parse(result.Should().BeOfType<ContentResult>().Subject.Content!).RootElement;
+        json.GetProperty("systemSignIn").GetArrayLength().Should().Be(0);
     }
 }

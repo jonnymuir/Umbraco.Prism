@@ -8,6 +8,7 @@ using Umbraco.Cms.Infrastructure.Persistence;
 using Umbraco.Cms.Web.Common.Authorization;
 using Umbraco.Extensions;
 using UmbracoPrism.Core.Controllers.Models;
+using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Persistence;
 using UmbracoPrism.Core.Services;
 
@@ -73,6 +74,11 @@ public class TenantManagementController(
                 out var createError))
         {
             return BadRequest(new { error = createError });
+        }
+
+        if (PrismMobileAppLinks.Validate(tenant.MobileAppConfig) is { } appLinksError)
+        {
+            return BadRequest(new { error = appLinksError });
         }
 
         var newSecretKeyName = string.IsNullOrWhiteSpace(tenant.OidcAuthority) ? NormalizeOptionalString(tenant.SecretKeyName) : null;
@@ -144,6 +150,11 @@ public class TenantManagementController(
                 out var updateError))
         {
             return BadRequest(new { error = updateError });
+        }
+
+        if (PrismMobileAppLinks.Validate(updatedTenant.MobileAppConfig) is { } appLinksError)
+        {
+            return BadRequest(new { error = appLinksError });
         }
 
         var updatedSecretKeyName = string.IsNullOrWhiteSpace(updatedTenant.OidcAuthority) ? NormalizeOptionalString(updatedTenant.SecretKeyName) : null;
@@ -315,7 +326,10 @@ public class TenantManagementController(
             || !string.IsNullOrWhiteSpace(config.ErrorTextColor)
             || !string.IsNullOrWhiteSpace(config.ErrorTitle)
             || !string.IsNullOrWhiteSpace(config.ErrorMessage)
-            || config.ShowErrorDiagnostics.HasValue;
+            || config.ShowErrorDiagnostics.HasValue
+            || !string.IsNullOrWhiteSpace(config.AppleTeamId)
+            || !string.IsNullOrWhiteSpace(config.AndroidPackageName)
+            || config.AndroidCertificateFingerprints is { Count: > 0 };
 
         if (!hasAnyValue) return null;
         return JsonSerializer.Serialize(config);

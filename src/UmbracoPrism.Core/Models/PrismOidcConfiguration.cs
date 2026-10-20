@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Tokens;
+using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Logging;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
@@ -235,6 +236,19 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             {
                 context.HandleResponse();
                 context.Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            // An app that signs in through the system authentication session intercepts
+            // /auth/login, so a challenge raised by any other page goes there instead of to the
+            // identity provider, which must never load in the app's webview.
+            if (tenant.MobileAppLinks.HasAny
+                && PrismMobileRequestDetection.HasSystemSignIn(context.HttpContext)
+                && !IsAccountSignInPath(context.Request.Path))
+            {
+                context.HandleResponse();
+                var returnUrl = PrismReturnUrl.Normalize(context.Properties.RedirectUri);
+                context.Response.Redirect($"/auth/login?returnUrl={Uri.EscapeDataString(returnUrl)}");
                 return;
             }
 
@@ -539,7 +553,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             props.RedirectUri = null;
             await context.HttpContext.SignInAsync("PrismMemberCookie", principal, props);
 
-            ClaimAnonymousServiceRequests(context.HttpContext, identity);
+            NotifySignedIn(context.HttpContext, identity);
 
             // Tell the OIDC middleware to STOP.
             // If we don't call HandleResponse, it will try to sign in again and overwrite our cookie.
@@ -644,7 +658,11 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
     /// reattachment. Zero registered handlers (a host using Prism's auth without any optional
     /// feature that needs this hook) is a normal no-op.
     /// </summary>
-    private static void ClaimAnonymousServiceRequests(HttpContext httpContext, ClaimsIdentity newIdentity)
+    private static bool IsAccountSignInPath(PathString path) =>
+        path.Equals("/auth/login", StringComparison.OrdinalIgnoreCase)
+        || path.Equals("/auth/register", StringComparison.OrdinalIgnoreCase);
+
+    internal static void NotifySignedIn(HttpContext httpContext, ClaimsIdentity newIdentity)
     {
         var handlers = httpContext.RequestServices.GetServices<IPrismPostSignInHandler>();
         foreach (var handler in handlers)

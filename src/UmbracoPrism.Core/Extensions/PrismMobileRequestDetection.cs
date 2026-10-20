@@ -14,6 +14,13 @@ public static class PrismMobileRequestDetection
     /// </summary>
     public const string NativeTabsUserAgentToken = "PrismNativeTabs";
 
+    /// <summary>
+    /// Appended to the user agent by generated apps that sign in through the system
+    /// authentication session, so a sign-in challenge is sent to <c>/auth/login</c> for the app to
+    /// intercept rather than to the identity provider.
+    /// </summary>
+    public const string SystemSignInUserAgentToken = "PrismSystemSignIn";
+
     public static bool IsPrismMobileRequest(HttpContext context)
     {
         return ResolveMobileSignal(context).isMobile;
@@ -48,6 +55,11 @@ public static class PrismMobileRequestDetection
     public static bool HasNativeTabs(HttpContext context)
     {
         return context.Request.Headers.UserAgent.ToString().Contains(NativeTabsUserAgentToken, StringComparison.Ordinal);
+    }
+
+    public static bool HasSystemSignIn(HttpContext context)
+    {
+        return context.Request.Headers.UserAgent.ToString().Contains(SystemSignInUserAgentToken, StringComparison.Ordinal);
     }
 
     public static string GetPrismMobileDetectionSource(HttpContext context)
