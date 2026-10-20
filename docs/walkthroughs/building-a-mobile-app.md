@@ -94,7 +94,7 @@ after checking a file the site serves: `/.well-known/apple-app-site-association`
 `/.well-known/assetlinks.json` on Android. The one-time code is useless without the verifier the
 page holds, and the sheet keeps no session after sign-in, so signing out is complete.
 
-Generated apps need iOS 17.4 or later, the first release with `https` callbacks for the sheet.
+Generated apps need iOS 17.4 or later, the first release with `https` callbacks for the sheet, and Android 7.0 (API 24) or later, which Google Play's automatic protection requires.
 
 ### Setting Up App Sign-In in the Backoffice
 
