@@ -410,6 +410,12 @@ public class MainActivity extends AppCompatActivity {
             getSupportFragmentManager().beginTransaction().hide(selected).show(slot).commitNow();
             selected = slot;
         }
+        // A hidden tab's webview still answers accessibility queries, so screen readers would find it.
+        for (PrismTabFragment each : slots) {
+            each.root().setImportantForAccessibility(each == slot
+                ? View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                : View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        }
         slot.showPage();
     }
 
@@ -446,10 +452,12 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
-    // Notification taps reach the tab that is showing.
+    // The sign-in callback goes to the sign-in in progress; notification taps reach the tab that
+    // is showing.
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (PrismSystemSignInPlugin.deliver(intent.getData())) return;
         setIntent(intent);
         selected.onNewIntent(intent);
     }
@@ -516,6 +524,7 @@ public class PrismTabFragment extends Fragment {
             Logger.error("Error loading plugins.", e);
         }
         plugins.add(PrismIdentityCookiePlugin.class);
+        plugins.add(PrismSystemSignInPlugin.class);
 
         bridge = new Bridge.Builder(this)
             .setConfig(PrismShell.configFor(requireContext(), PrismShell.urlForPath(path)))
@@ -549,6 +558,10 @@ public class PrismTabFragment extends Fragment {
         return path;
     }
 
+    View root() {
+        return root;
+    }
+
     /** Shows another tab's page, from the next time this tab is shown. */
     void assign(String newPath) {
         path = newPath;
@@ -556,15 +569,19 @@ public class PrismTabFragment extends Fragment {
         stale = false;
     }
 
-    /** Loads the tab's page the first time it is shown, and reloads it if it has gone stale. */
+    /**
+     * Loads the tab's page the first time it is shown, and reloads it if it has gone stale. The
+     * load waits until the tab is on screen: one started while the webview is still hidden leaves
+     * screen readers with only the start of the page.
+     */
     void showPage() {
         if (!loaded) {
             loaded = true;
             stale = false;
-            bridge.getWebView().loadUrl(PrismShell.urlForPath(path));
+            root.post(() -> bridge.getWebView().loadUrl(PrismShell.urlForPath(path)));
         } else if (stale) {
             stale = false;
-            bridge.getWebView().reload();
+            root.post(() -> bridge.getWebView().reload());
         }
     }
 
@@ -1034,6 +1051,95 @@ final class PrismSvgIcon {
 }
 PRISM_JAVA_EOF
 
+  cat > "$JAVA_DIR/PrismSystemSignInPlugin.java" << 'PRISM_JAVA_EOF'
+package @@PRISM_PACKAGE@@;
+
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import androidx.activity.result.ActivityResultCaller;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.browser.auth.AuthTabIntent;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+/**
+ * Opens the system sign-in sheet for prism-system-sign-in.js and returns the callback URL. The
+ * callback is an https URL on the tenant's own site, which Chrome's Auth Tab hands only to this
+ * app because the site's assetlinks.json names it. Where the browser has no Auth Tab, a Custom Tab
+ * opens instead and the callback arrives as a verified App Link (see MainActivity.onNewIntent).
+ */
+@CapacitorPlugin(name = "PrismSystemSignIn")
+public class PrismSystemSignInPlugin extends Plugin {
+    static final String CALLBACK_PATH = "/umbraco/prism/mobile/auth/callback";
+
+    private static PrismSystemSignInPlugin waiting;
+
+    private ActivityResultLauncher<Intent> launcher;
+    private PluginCall pendingCall;
+
+    @Override
+    public void load() {
+        // Loaded while the tab's fragment is being created, the only time it may register for results.
+        ActivityResultCaller caller = bridge.getFragment() != null ? bridge.getFragment() : getActivity();
+        launcher = AuthTabIntent.registerActivityResultLauncher(caller, this::onAuthResult);
+    }
+
+    @PluginMethod
+    public void authenticate(PluginCall call) {
+        Uri url = Uri.parse(call.getString("url", ""));
+        if (!PrismShell.isOwnSite(url)
+            || !PrismShell.START_URL.getHost().equals(call.getString("callbackHost"))
+            || !CALLBACK_PATH.equals(call.getString("callbackPath"))) {
+            call.reject("Sign-in must start and end on this app's own site.");
+            return;
+        }
+
+        if (waiting != null) waiting.finish(null, "Another sign-in started.");
+        pendingCall = call;
+        waiting = this;
+        new AuthTabIntent.Builder()
+            .setEphemeralBrowsingEnabled(true)
+            .build()
+            .launch(launcher, url, PrismShell.START_URL.getHost(), CALLBACK_PATH);
+    }
+
+    private void onAuthResult(AuthTabIntent.AuthResult result) {
+        if (result.resultCode == AuthTabIntent.RESULT_OK) {
+            finish(result.resultUri, null);
+            return;
+        }
+        // A Custom Tab closes as the App Link arrives, so give that a moment to finish first.
+        new Handler(Looper.getMainLooper()).postDelayed(() -> finish(null, "Sign-in was cancelled."), 1000);
+    }
+
+    /** The App Link for the callback, when a Custom Tab rather than an Auth Tab ran the sign-in. */
+    static boolean deliver(Uri uri) {
+        if (uri == null || !CALLBACK_PATH.equals(uri.getPath()) || !PrismShell.isOwnSite(uri)) return false;
+        if (waiting != null) waiting.finish(uri, null);
+        return true;
+    }
+
+    private void finish(Uri callback, String error) {
+        PluginCall call = pendingCall;
+        if (call == null) return;
+        pendingCall = null;
+        if (waiting == this) waiting = null;
+        if (callback != null) {
+            JSObject result = new JSObject();
+            result.put("url", callback.toString());
+            call.resolve(result);
+        } else {
+            call.reject(error, "CANCELLED");
+        }
+    }
+}
+PRISM_JAVA_EOF
+
   cat > "$JAVA_DIR/PrismIdentityCookiePlugin.java" << 'PRISM_JAVA_EOF'
 package @@PRISM_PACKAGE@@;
 
@@ -1087,11 +1193,24 @@ PRISM_XML_EOF
     perl -0pi -e 's/<application\b/<application\n        android:networkSecurityConfig="\@xml\/network_security_config"/' "$ANDROID_MANIFEST"
   fi
 
-  APP_GRADLE="android/app/build.gradle"
-  if ! grep -q "com.google.android.material:material" "$APP_GRADLE"; then
-    perl -pi -e 's/^(\s*)(implementation project\(.:capacitor-android.\))\s*$/$1$2\n$1implementation "com.google.android.material:material:1.12.0"\n/' "$APP_GRADLE"
-    echo "✓ Material components added for the tab bar"
+  # The sign-in callback, on the site's own domain, opens this app once Android has checked the
+  # site's assetlinks.json. Auth Tab receives it directly; a Custom Tab needs this App Link.
+  if ! grep -q "/umbraco/prism/mobile/auth/callback" "$ANDROID_MANIFEST"; then
+    perl -0pi -e 's#(<category android:name="android.intent.category.LAUNCHER" />\s*</intent-filter>)#$1\n\n            <intent-filter android:autoVerify="true">\n                <action android:name="android.intent.action.VIEW" />\n                <category android:name="android.intent.category.DEFAULT" />\n                <category android:name="android.intent.category.BROWSABLE" />\n                <data android:scheme="https" android:host="@@PRISM_HOST@@" android:path="/umbraco/prism/mobile/auth/callback" />\n            </intent-filter>#' "$ANDROID_MANIFEST"
+    echo "✓ Sign-in callback App Link added"
   fi
+
+  # androidx.browser 1.9, the first with Auth Tab, needs Android Gradle plugin 8.9.1 or later.
+  sed -i.bak -E 's/(com\.android\.tools\.build:gradle:)8\.[0-8]\.[0-9]+/\18.9.1/' android/build.gradle
+  rm -f android/build.gradle.bak
+
+  APP_GRADLE="android/app/build.gradle"
+  for DEPENDENCY in "com.google.android.material:material:1.12.0" "androidx.browser:browser:1.9.0"; do
+    if ! grep -q "${DEPENDENCY%:*}" "$APP_GRADLE"; then
+      perl -pi -e "s/^(\\s*)(implementation project\\(.:capacitor-android.\\))\\s*\$/\$1\$2\n\$1implementation \"$DEPENDENCY\"\n/" "$APP_GRADLE"
+      echo "✓ $DEPENDENCY added"
+    fi
+  done
 else
   echo "⚠️ $JAVA_DIR not found. Run 'npx cap add android' first."
 fi

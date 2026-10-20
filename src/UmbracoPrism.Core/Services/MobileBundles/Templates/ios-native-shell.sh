@@ -2,6 +2,7 @@
 echo "Writing the native tab shell..."
 if [ -d ios/App/App ]; then
   cat > ios/App/App/PrismShell.swift << 'PRISM_SWIFT_EOF'
+import AuthenticationServices
 import Capacitor
 import UIKit
 import WebKit
@@ -285,6 +286,7 @@ final class PrismBridgeViewController: CAPBridgeViewController {
             WKUserScript(source: viewportFix, injectionTime: .atDocumentStart, forMainFrameOnly: false))
 
         bridge?.registerPluginInstance(PrismIdentityCookiePlugin())
+        bridge?.registerPluginInstance(PrismSystemSignInPlugin())
     }
 
     override func viewDidLoad() {
@@ -638,6 +640,50 @@ public class PrismIdentityCookiePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 }
+/// Opens the system sign-in sheet for prism-system-sign-in.js and returns the callback URL. The
+/// callback is an https URL on the tenant's own site, which iOS hands only to this app because
+/// the site's apple-app-site-association names it. The session is ephemeral, so no identity
+/// provider session outlives the sign-in.
+@objc(PrismSystemSignInPlugin)
+public class PrismSystemSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticationPresentationContextProviding {
+    public let identifier = "PrismSystemSignInPlugin"
+    public let jsName = "PrismSystemSignIn"
+    public let pluginMethods: [CAPPluginMethod] = [
+        .init(name: "authenticate", returnType: CAPPluginReturnPromise)
+    ]
+    private var session: ASWebAuthenticationSession?
+
+    @objc func authenticate(_ call: CAPPluginCall) {
+        guard let url = call.getString("url").flatMap(URL.init(string:)), PrismShell.isOwnSite(url),
+              call.getString("callbackHost") == PrismShell.ownHost, let path = call.getString("callbackPath") else {
+            call.reject("Sign-in must start and end on this app's own site.")
+            return
+        }
+
+        DispatchQueue.main.async {
+            let session = ASWebAuthenticationSession(url: url, callback: .https(host: PrismShell.ownHost, path: path)) { [weak self] callbackURL, error in
+                self?.session = nil
+                if let callbackURL {
+                    call.resolve(["url": callbackURL.absoluteString])
+                } else {
+                    let cancelled = (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
+                    call.reject(error?.localizedDescription ?? "Sign-in failed.", cancelled ? "CANCELLED" : "FAILED", error)
+                }
+            }
+            session.prefersEphemeralWebBrowserSession = true
+            session.presentationContextProvider = self
+            self.session = session
+            if !session.start() {
+                self.session = nil
+                call.reject("Sign-in could not start.", "FAILED")
+            }
+        }
+    }
+
+    public func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        bridge?.viewController?.view.window ?? ASPresentationAnchor()
+    }
+}
 PRISM_SWIFT_EOF
   rm -f ios/App/App/PrismBridgeViewController.swift
   echo "✓ PrismShell.swift written"
@@ -669,6 +715,22 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 PRISM_APPDELEGATE_EOF
   echo "✓ AppDelegate.swift written"
 
+  # The site's apple-app-site-association names this app for its domain, which lets the system
+  # sign-in sheet hand the https sign-in callback to this app alone.
+  cat > ios/App/App/App.entitlements << 'PRISM_ENTITLEMENTS_EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+@@PRISM_ASSOCIATED_DOMAINS@@
+	</array>
+</dict>
+</plist>
+PRISM_ENTITLEMENTS_EOF
+  echo "✓ App.entitlements written"
+
   cat > .prism-add-swift-file.mjs << 'PRISM_NODE_EOF'
 import xcode from 'xcode';
 import fs from 'node:fs';
@@ -691,7 +753,9 @@ if (!hasRef('PrismShell.swift')) {
   console.log('✓ PrismShell.swift registered in project.pbxproj');
 }
 
-project.updateBuildProperty('IPHONEOS_DEPLOYMENT_TARGET', '15.0');
+// iOS 17.4 is the first with https callbacks for the system sign-in sheet.
+project.updateBuildProperty('IPHONEOS_DEPLOYMENT_TARGET', '17.4');
+project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements');
 fs.writeFileSync(pbxprojPath, project.writeSync());
 PRISM_NODE_EOF
   node .prism-add-swift-file.mjs

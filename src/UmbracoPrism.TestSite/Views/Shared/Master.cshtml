@@ -23,7 +23,7 @@
     // consuming host follows.
     var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(Context);
     var biometricLoginEnabled = isPrismMobileRequest && (tenant?.AllowBiometricLogin ?? false);
-    var appSignsInNatively = PrismMobileRequestDetection.HasSystemSignIn(Context) && tenant?.MobileAppLinks.HasAny == true;
+    var appSignsInNatively = PrismMobileRequestDetection.SignsInNatively(Context, tenant);
     var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
 
     // The UA-mock toggle is a dev/QA aid for exercising mobile rendering from a desktop

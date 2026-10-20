@@ -33,7 +33,8 @@ internal static class AndroidProjectFiles
         var nativeShell = BundleTemplates.Read("android-native-shell.sh")
             .Replace("@@PRISM_JAVA_DIR@@", appId.Replace('.', '/'))
             .Replace("@@PRISM_PACKAGE@@", appId)
-            .Replace("@@PRISM_START_URL@@", CapacitorProjectFiles.AddPrismMobileQueryFlag(settings.StartUrl));
+            .Replace("@@PRISM_START_URL@@", CapacitorProjectFiles.AddPrismMobileQueryFlag(settings.StartUrl))
+            .Replace("@@PRISM_HOST@@", new Uri(settings.StartUrl).Host);
 
         return $$"""
 #!/usr/bin/env bash

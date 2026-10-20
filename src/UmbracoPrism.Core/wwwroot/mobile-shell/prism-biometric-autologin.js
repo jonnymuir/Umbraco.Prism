@@ -12,10 +12,15 @@
 //   <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-autologin.js"></script>
 // only when a mobile request is detected AND the current user is NOT authenticated — see
 // docs/walkthroughs/building-a-mobile-app.md.
-(async function() {
+//
+// It signs in as soon as it loads, unless its tag carries data-prism-on-demand: the app's own
+// sign-in page (prism-system-sign-in.js) calls window.PrismBiometricSignIn() itself, before
+// falling back to the system sign-in sheet.
+(function () {
+async function signInWithBiometrics() {
   try {
     var Cap = window.Capacitor;
-    if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) return;
+    if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) return false;
 
     var TENANT_HOST = window.location.host;
 
@@ -38,7 +43,7 @@
     var storedToken = storedResult && storedResult.data ? JSON.parse(storedResult.data) : null;
     if (!storedToken) {
       console.log('[Prism AutoLogin] no stored token — showing login page normally');
-      return;
+      return false;
     }
     console.log('[Prism AutoLogin] stored token found — checking biometry');
 
@@ -48,14 +53,14 @@
     if (!localStorage.getItem(enrollKey)) {
       console.log('[Prism AutoLogin] stale token from previous install — clearing');
       await Cap.nativePromise('SecureStorage', 'internalRemoveItem', { prefixedKey: tokenKey, sync: false });
-      return;
+      return false;
     }
 
     // 2. Verify biometry is available
     var biometryInfo = await Cap.nativePromise('BiometricAuthNative', 'checkBiometry', {});
     if (!biometryInfo || !biometryInfo.isAvailable) {
       console.log('[Prism AutoLogin] biometry not available — skipping auto-login');
-      return;
+      return false;
     }
 
     // 3. Check if enrollment fingerprint has changed (biometric data updated on device)
@@ -71,7 +76,7 @@
       console.log('[Prism AutoLogin] biometric state changed — clearing credentials');
       await Cap.nativePromise('SecureStorage', 'internalRemoveItem', { prefixedKey: tokenKey, sync: false });
       localStorage.removeItem(enrollKey);
-      return;
+      return false;
     }
 
     // 4. Prompt biometric authentication
@@ -93,10 +98,10 @@
     });
 
     if (resp.ok) {
-      // Update enrollment fingerprint, then reload now authenticated
+      // Signed in: the caller decides where to go next.
       localStorage.setItem(enrollKey, fingerprint);
-      console.log('[Prism AutoLogin] exchange successful — reloading');
-      window.location.reload();
+      console.log('[Prism AutoLogin] exchange successful');
+      return true;
     } else if (resp.status === 401 || resp.status === 403) {
       console.log('[Prism AutoLogin] server rejected token — clearing credentials');
       await Cap.nativePromise('SecureStorage', 'internalRemoveItem', { prefixedKey: tokenKey, sync: false });
@@ -111,4 +116,15 @@
       console.warn('[Prism AutoLogin] error: ' + (e && (e.message || String(e))));
     }
   }
+  return false;
+}
+
+window.PrismBiometricSignIn = signInWithBiometrics;
+
+var script = document.currentScript;
+if (!(script && script.hasAttribute('data-prism-on-demand'))) {
+  signInWithBiometrics().then(function (signedIn) {
+    if (signedIn) window.location.reload();
+  });
+}
 })();

@@ -33,7 +33,8 @@ internal static class IosProjectFiles
             : string.Empty;
 
         var nativeShell = BundleTemplates.Read("ios-native-shell.sh")
-            .Replace("@@PRISM_START_URL@@", CapacitorProjectFiles.AddPrismMobileQueryFlag(startUrl));
+            .Replace("@@PRISM_START_URL@@", CapacitorProjectFiles.AddPrismMobileQueryFlag(startUrl))
+            .Replace("@@PRISM_ASSOCIATED_DOMAINS@@", $"\t\t<string>webcredentials:{new Uri(startUrl).Host}</string>");
 
         return $$"""
 #!/usr/bin/env bash

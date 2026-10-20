@@ -239,11 +239,10 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 return;
             }
 
-            // An app that signs in through the system authentication session intercepts
+            // An app that signs in through the system authentication session does so from
             // /auth/login, so a challenge raised by any other page goes there instead of to the
             // identity provider, which must never load in the app's webview.
-            if (tenant.MobileAppLinks.HasAny
-                && PrismMobileRequestDetection.HasSystemSignIn(context.HttpContext)
+            if (PrismMobileRequestDetection.SignsInNatively(context.HttpContext, tenant)
                 && !IsAccountSignInPath(context.Request.Path))
             {
                 context.HandleResponse();

@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using System.Net;
 using Microsoft.AspNetCore.Mvc;
+using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Models;
 
@@ -37,6 +39,11 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
             return LocalRedirect(safeReturnUrl);
         }
 
+        if (PrismMobileRequestDetection.SignsInNatively(HttpContext, prismContext.CurrentTenant))
+        {
+            return AppSignInPage(safeReturnUrl, prompt: null);
+        }
+
         var properties = new AuthenticationProperties { RedirectUri = safeReturnUrl };
 
         // Triggers the OIDC flow which PrismOidcConfiguration will intercept
@@ -63,6 +70,11 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
         if (await GetMemberAsync() is not null)
         {
             return LocalRedirect(safeReturnUrl);
+        }
+
+        if (PrismMobileRequestDetection.SignsInNatively(HttpContext, prismContext.CurrentTenant))
+        {
+            return AppSignInPage(safeReturnUrl, prompt: "create");
         }
 
         var properties = new AuthenticationProperties { RedirectUri = safeReturnUrl };
@@ -121,6 +133,34 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
             PrismAuthenticationSchemes.MemberCookie,
             PrismAuthenticationSchemes.Oidc
         );
+    }
+
+    /// <summary>
+    /// Sign-in for an app that uses the system authentication session: the page offers biometric
+    /// sign-in where the member has enrolled, then opens the system sheet through the app
+    /// (prism-system-sign-in.js). The identity provider never loads in the app's webview.
+    /// </summary>
+    private ContentResult AppSignInPage(string returnUrl, string? prompt)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var biometric = prismContext.CurrentTenant?.AllowBiometricLogin == true
+            ? """<script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-autologin.js" data-prism-on-demand></script>"""
+            : string.Empty;
+        var promptAttribute = prompt is null ? string.Empty : $" data-prism-prompt=\"{WebUtility.HtmlEncode(prompt)}\"";
+
+        return Content(
+            $$"""
+            <!doctype html>
+            <html lang="en">
+            <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Signing in</title></head>
+            <body>
+            <p role="status">Signing in…</p>
+            {{biometric}}
+            <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-system-sign-in.js" data-prism-return-url="{{WebUtility.HtmlEncode(returnUrl)}}"{{promptAttribute}}></script>
+            </body>
+            </html>
+            """,
+            "text/html");
     }
 
     // The Prism member session, asked of Prism's own cookie rather than User: User comes from

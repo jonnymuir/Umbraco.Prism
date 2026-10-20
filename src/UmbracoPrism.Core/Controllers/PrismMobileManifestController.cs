@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using UmbracoPrism.Core.Auth;
-using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Controllers;
@@ -13,13 +12,11 @@ namespace UmbracoPrism.Core.Controllers;
 /// <summary>
 /// The mobile manifest a generated app reads at launch and whenever the member signs in or out:
 /// the native tabs (from <see cref="IPrismMobileTabsProvider"/>) and the cookie that marks a
-/// signed-in session, so the app knows when to refresh its other tabs. <c>systemSignIn</c> lists
-/// the platforms whose app can receive the sign-in callback, so an app only moves sign-in to the
-/// system authentication session once the site vouches for it.
+/// signed-in session, so the app knows when to refresh its other tabs.
 /// </summary>
 [AllowAnonymous]
 [Route("umbraco/prism/mobile")]
-public class PrismMobileManifestController(IPrismMobileTabsProvider tabsProvider, IPrismContext prismContext) : Controller
+public class PrismMobileManifestController(IPrismMobileTabsProvider tabsProvider) : Controller
 {
     internal const int ManifestVersion = 1;
 
@@ -43,8 +40,7 @@ public class PrismMobileManifestController(IPrismMobileTabsProvider tabsProvider
         {
             version = ManifestVersion,
             tabs,
-            sessionCookie = PrismAuthenticationSchemes.MemberCookie,
-            systemSignIn = SystemSignInPlatforms(prismContext.CurrentTenant)
+            sessionCookie = PrismAuthenticationSchemes.MemberCookie
         }, JsonOptions);
 
         var etag = "\"" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json)))[..16] + "\"";
@@ -58,15 +54,5 @@ public class PrismMobileManifestController(IPrismMobileTabsProvider tabsProvider
         }
 
         return Content(json, "application/json");
-    }
-
-    private static string[] SystemSignInPlatforms(PrismTenant? tenant)
-    {
-        if (tenant?.HasSignInConfigured() != true)
-        {
-            return [];
-        }
-
-        return [.. new[] { tenant.MobileAppLinks.HasIos ? "ios" : null, tenant.MobileAppLinks.HasAndroid ? "android" : null }.OfType<string>()];
     }
 }

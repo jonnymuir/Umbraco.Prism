@@ -389,7 +389,7 @@ public class MobileBundleServiceTests
     }
 
     [Fact]
-    public async Task BuildBundleAsync_IosAppsAnnounceNativeTabs_SoTheSiteLeavesOutItsWebTabBar()
+    public async Task BuildBundleAsync_AppsAnnounceNativeTabsAndSystemSignIn_OnBothPlatforms()
     {
         var service = new MobileBundleService();
         var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
@@ -399,8 +399,16 @@ public class MobileBundleServiceTests
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
 
         var config = ReadEntry(archive, "capacitor.config.ts");
-        config.Should().Contain("appendUserAgent: 'PrismMobile PrismNativeTabs'", "iOS has native tabs");
-        config.Should().Contain("  appendUserAgent: 'PrismMobile',", "Android keeps the web tab bar for now");
+        config.Should().Contain("""
+              ios: {
+                // The tabs are native, so the site leaves out its web tab bar, and sign-in uses the system
+                // sign-in sheet (see prism-system-sign-in.js).
+                appendUserAgent: 'PrismMobile PrismNativeTabs PrismSystemSignIn',
+            """);
+        config.Should().Contain("""
+              android: {
+                appendUserAgent: 'PrismMobile PrismNativeTabs PrismSystemSignIn',
+            """);
     }
 
     [Fact]
@@ -455,7 +463,7 @@ public class MobileBundleServiceTests
 
         var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
         iosBootstrap.Should().NotContain("UIBackgroundModes");
-        iosBootstrap.Should().NotContain("App.entitlements");
+        iosBootstrap.Should().NotContain("aps-environment");
 
         var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
         androidBootstrap.Should().NotContain("google-services.json");
@@ -530,8 +538,7 @@ public class MobileBundleServiceTests
         var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
         iosBootstrap.Should().Contain("UIBackgroundModes");
         iosBootstrap.Should().Contain("plutil -insert UIBackgroundModes -json '[\"remote-notification\"]'");
-        iosBootstrap.Should().Contain("aps-environment");
-        iosBootstrap.Should().Contain("<string>production</string>");
+        iosBootstrap.Should().Contain("/usr/libexec/PlistBuddy -c \"Add :aps-environment string production\" ios/App/App/App.entitlements");
         iosBootstrap.Should().Contain("cp resources/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist");
         iosBootstrap.Should().Contain("project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements');");
         iosBootstrap.Should().Contain("project.addResourceFile('App/GoogleService-Info.plist'");
@@ -557,5 +564,46 @@ public class MobileBundleServiceTests
 
         var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
         androidBootstrap.Should().Contain("cp resources/google-services.json android/app/google-services.json");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_IosApp_SignsInThroughTheSystemSheet_WithAnHttpsCallbackOnTheSite()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "members.example.org" };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, new PrismMobileBundleRequest { AppName = "Test App", AppId = "com.example.test" });
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        iosBootstrap.Should().Contain("bridge?.registerPluginInstance(PrismSystemSignInPlugin())");
+        iosBootstrap.Should().Contain("public let jsName = \"PrismSystemSignIn\"");
+        iosBootstrap.Should().Contain("callback: .https(host: PrismShell.ownHost, path: path)");
+        iosBootstrap.Should().Contain("session.prefersEphemeralWebBrowserSession = true");
+        iosBootstrap.Should().Contain("<key>com.apple.developer.associated-domains</key>");
+        iosBootstrap.Should().Contain("<string>webcredentials:members.example.org</string>");
+        iosBootstrap.Should().Contain("project.updateBuildProperty('IPHONEOS_DEPLOYMENT_TARGET', '17.4');");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_AndroidApp_SignsInThroughAuthTab_WithAVerifiedAppLinkCallback()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "members.example.org" };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, new PrismMobileBundleRequest { AppName = "Test App", AppId = "com.example.test" });
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
+        androidBootstrap.Should().Contain("$JAVA_DIR/PrismSystemSignInPlugin.java");
+        androidBootstrap.Should().Contain("@CapacitorPlugin(name = \"PrismSystemSignIn\")");
+        androidBootstrap.Should().Contain("plugins.add(PrismSystemSignInPlugin.class);");
+        androidBootstrap.Should().Contain(".setEphemeralBrowsingEnabled(true)");
+        androidBootstrap.Should().Contain("<intent-filter android:autoVerify=\"true\">");
+        androidBootstrap.Should().Contain("android:host=\"members.example.org\" android:path=\"/umbraco/prism/mobile/auth/callback\"");
+        androidBootstrap.Should().Contain("if (PrismSystemSignInPlugin.deliver(intent.getData())) return;");
+        androidBootstrap.Should().Contain("androidx.browser:browser:1.9.0");
     }
 }
