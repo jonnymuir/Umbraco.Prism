@@ -174,6 +174,32 @@ next deploy/restart, no migration step required.
 Seeding only runs while `Hostname` is set — omit the whole section (or leave it out of a given
 environment's config) to skip it entirely.
 
+A seeded tenant can also carry its mobile apps' identities, the **App Sign-In** settings that let
+the app sign members in through the phone's sign-in sheet (see
+[Building a Mobile App](walkthroughs/building-a-mobile-app.md#setting-up-app-sign-in-in-the-backoffice)).
+Values set here replace the tenant's saved ones on every boot; its other mobile settings are left
+alone. None of them is secret, since the site publishes them for Apple and Google.
+
+```json
+{
+  "Prism": {
+    "SeedTenant": {
+      "Hostname": "my-tenant.example.com",
+      "MobileApp": {
+        "AppId": "com.example.members",
+        "AppleTeamId": "ABCDE12345",
+        "AndroidCertificateFingerprints": [ "36:49:A1:…" ]
+      }
+    }
+  }
+}
+```
+
+As environment variables: `Prism__SeedTenant__MobileApp__AppId`,
+`Prism__SeedTenant__MobileApp__AppleTeamId`, `Prism__SeedTenant__MobileApp__AndroidPackageName`
+(only when it differs from the app ID) and `Prism__SeedTenant__MobileApp__AndroidCertificateFingerprints__0`
+(then `__1` and so on for more keys).
+
 Notably, nothing here is inherently secret — `EntraTenantId`/`EntraClientId` are public
 identifiers (Microsoft's own docs treat both as safe to expose), and `SecretKeyName` is just the
 *name* of a secret in Key Vault, not its value — so this section is safe to commit even in

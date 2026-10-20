@@ -56,6 +56,17 @@ public class AuthorizationContractTests
             "labels, paths and icons, never page content. A signed-in member's cookie lets the host's " +
             "provider tailor the list to the pages that member can use.",
 
+        [(typeof(PrismAppLinksController), "*")] =
+            "apple-app-site-association and assetlinks.json, which Apple and Google fetch without any " +
+            "session to confirm which apps the site vouches for. Read-only, and they hold only app IDs " +
+            "and public certificate fingerprints.",
+
+        [(typeof(PrismMobileSignInController), "*")] =
+            "App sign-in through the system authentication session, before any session exists. Start " +
+            "and Complete wrap the normal OIDC challenge; Callback ignores its input; Redeem is a POST " +
+            "guarded by [ValidateAntiForgeryToken], whose one-time code is only accepted with the " +
+            "verifier for the S256 challenge the app started with (PKCE).",
+
         [(typeof(BiometricController), nameof(BiometricController.Exchange))] =
             "Biometric login: presents a signed BiometricToken JWT and receives a PrismMemberCookie " +
             "session. There is no session yet — the JWT itself is the credential (verified in the action), " +

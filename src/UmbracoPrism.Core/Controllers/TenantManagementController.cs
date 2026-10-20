@@ -8,6 +8,7 @@ using Umbraco.Cms.Infrastructure.Persistence;
 using Umbraco.Cms.Web.Common.Authorization;
 using Umbraco.Extensions;
 using UmbracoPrism.Core.Controllers.Models;
+using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Persistence;
 using UmbracoPrism.Core.Services;
 
@@ -61,19 +62,11 @@ public class TenantManagementController(
             existingReference: null,
             preserveExisting: false);
 
-        if (!TryValidateGenericOidcSecretRequest(
-                tenant.Hostname,
-                tenant.OidcAuthority,
-                tenant.OidcClientId,
-                tenant.SecretKeyName,
-                tenant.OidcClientSecretProvider,
-                tenant.OidcClientSecretReference,
-                tenant.ResetOidcClientSecret,
-                genericSecret.Reference,
-                out var createError))
+        if (!TryValidateTenantRequest(tenant, genericSecret.Reference, out var createError))
         {
             return BadRequest(new { error = createError });
         }
+
 
         var newSecretKeyName = string.IsNullOrWhiteSpace(tenant.OidcAuthority) ? NormalizeOptionalString(tenant.SecretKeyName) : null;
         if (!TryValidateSecretKeyUniqueness(db, excludeTenantId: null, newSecretKeyName, genericSecret.Provider, genericSecret.Reference, out var uniquenessError))
@@ -132,19 +125,11 @@ public class TenantManagementController(
             existingReference,
             preserveExisting: !updatedTenant.ResetOidcClientSecret);
 
-        if (!TryValidateGenericOidcSecretRequest(
-                updatedTenant.Hostname,
-                updatedTenant.OidcAuthority,
-                updatedTenant.OidcClientId,
-                updatedTenant.SecretKeyName,
-                updatedTenant.OidcClientSecretProvider,
-                updatedTenant.OidcClientSecretReference,
-                updatedTenant.ResetOidcClientSecret,
-                genericSecret.Reference,
-                out var updateError))
+        if (!TryValidateTenantRequest(updatedTenant, genericSecret.Reference, out var updateError))
         {
             return BadRequest(new { error = updateError });
         }
+
 
         var updatedSecretKeyName = string.IsNullOrWhiteSpace(updatedTenant.OidcAuthority) ? NormalizeOptionalString(updatedTenant.SecretKeyName) : null;
         if (!TryValidateSecretKeyUniqueness(db, excludeTenantId: id, updatedSecretKeyName, genericSecret.Provider, genericSecret.Reference, out var uniquenessError))
@@ -302,23 +287,15 @@ public class TenantManagementController(
 
     private static string? SerializeMobileAppConfig(PrismMobileAppConfig? config)
     {
-        if (config == null) return null;
+        var hasAnyValue = config is not null && typeof(PrismMobileAppConfig).GetProperties().Any(property => property.GetValue(config) switch
+        {
+            null => false,
+            string text => !string.IsNullOrWhiteSpace(text),
+            System.Collections.ICollection items => items.Count > 0,
+            _ => true
+        });
 
-        var hasAnyValue = !string.IsNullOrWhiteSpace(config.AppName)
-            || !string.IsNullOrWhiteSpace(config.AppId)
-            || !string.IsNullOrWhiteSpace(config.Version)
-            || !string.IsNullOrWhiteSpace(config.StartUrl)
-            || !string.IsNullOrWhiteSpace(config.UserAgentMarker)
-            || !string.IsNullOrWhiteSpace(config.IconUrl)
-            || !string.IsNullOrWhiteSpace(config.SplashUrl)
-            || !string.IsNullOrWhiteSpace(config.ErrorBackgroundColor)
-            || !string.IsNullOrWhiteSpace(config.ErrorTextColor)
-            || !string.IsNullOrWhiteSpace(config.ErrorTitle)
-            || !string.IsNullOrWhiteSpace(config.ErrorMessage)
-            || config.ShowErrorDiagnostics.HasValue;
-
-        if (!hasAnyValue) return null;
-        return JsonSerializer.Serialize(config);
+        return hasAnyValue ? JsonSerializer.Serialize(config) : null;
     }
 
     private static PrismMobileAppConfig? DeserializeMobileAppConfig(string? json)
@@ -421,6 +398,27 @@ public class TenantManagementController(
         }
 
         return (null, null, null);
+    }
+
+    /// <summary>Validates the parts of a tenant request that are checked before it is saved.</summary>
+    private static bool TryValidateTenantRequest(PrismTenantRequest tenant, string? resolvedReference, out string? error)
+    {
+        if (!TryValidateGenericOidcSecretRequest(
+                tenant.Hostname,
+                tenant.OidcAuthority,
+                tenant.OidcClientId,
+                tenant.SecretKeyName,
+                tenant.OidcClientSecretProvider,
+                tenant.OidcClientSecretReference,
+                tenant.ResetOidcClientSecret,
+                resolvedReference,
+                out error))
+        {
+            return false;
+        }
+
+        error = PrismMobileAppLinks.Validate(tenant.MobileAppConfig);
+        return error is null;
     }
 
     private static bool TryValidateGenericOidcSecretRequest(

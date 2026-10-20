@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Extensions;
 
@@ -13,6 +14,13 @@ public static class PrismMobileRequestDetection
     /// draw its own web tab bar.
     /// </summary>
     public const string NativeTabsUserAgentToken = "PrismNativeTabs";
+
+    /// <summary>
+    /// Appended to the user agent by generated apps that sign in through the system
+    /// authentication session, so a sign-in challenge is sent to <c>/auth/login</c> for the app to
+    /// intercept rather than to the identity provider.
+    /// </summary>
+    public const string SystemSignInUserAgentToken = "PrismSystemSignIn";
 
     public static bool IsPrismMobileRequest(HttpContext context)
     {
@@ -48,6 +56,27 @@ public static class PrismMobileRequestDetection
     public static bool HasNativeTabs(HttpContext context)
     {
         return context.Request.Headers.UserAgent.ToString().Contains(NativeTabsUserAgentToken, StringComparison.Ordinal);
+    }
+
+    public static bool HasSystemSignIn(HttpContext context)
+    {
+        return context.Request.Headers.UserAgent.ToString().Contains(SystemSignInUserAgentToken, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// True for a request from a generated app that signs in through the system authentication
+    /// session, on a platform whose app the tenant's site vouches for. Such an app is given
+    /// Prism's own sign-in page at <c>/auth/login</c> rather than the identity provider.
+    /// </summary>
+    public static bool SignsInNatively(HttpContext context, PrismTenant? tenant)
+    {
+        if (tenant?.HasSignInConfigured() != true || !HasSystemSignIn(context))
+        {
+            return false;
+        }
+
+        var android = context.Request.Headers.UserAgent.ToString().Contains("Android", StringComparison.OrdinalIgnoreCase);
+        return android ? tenant.MobileAppLinks.HasAndroid : tenant.MobileAppLinks.HasIos;
     }
 
     public static string GetPrismMobileDetectionSource(HttpContext context)

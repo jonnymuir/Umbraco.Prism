@@ -15,6 +15,10 @@ export interface MobileDraft {
   errorMessage: string;
   showErrorDiagnostics: boolean;
   pushNotificationsEnabled: boolean;
+  appleTeamId: string;
+  androidPackageName: string;
+  /** One SHA-256 fingerprint per line. */
+  androidCertificateFingerprints: string;
 }
 
 const DEFAULT_ERROR_BACKGROUND = '#0f172a';
@@ -37,7 +41,10 @@ export const emptyMobile = (): MobileDraft => ({
   errorTitle: DEFAULT_ERROR_TITLE,
   errorMessage: DEFAULT_ERROR_MESSAGE,
   showErrorDiagnostics: true,
-  pushNotificationsEnabled: false
+  pushNotificationsEnabled: false,
+  appleTeamId: '',
+  androidPackageName: '',
+  androidCertificateFingerprints: ''
 });
 
 export function defaultMobileAppId(name: string) {
@@ -66,6 +73,22 @@ export function defaultMobileIconUrl(hostname: string) {
 export function isValidMobileAppId(value: string) {
   if (!value) return false;
   return /^[a-zA-Z0-9]+(\.[a-zA-Z0-9_-]+)+$/.test(value.trim());
+}
+
+/** Which App Sign-In fields hold a valid value; a blank field is valid. */
+export function appSignInValidity(draft: MobileDraft) {
+  const teamId = draft.appleTeamId.trim();
+  const packageName = draft.androidPackageName.trim();
+  return {
+    teamId: !teamId || /^[A-Z0-9]{10}$/.test(teamId),
+    packageName: !packageName || /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/.test(packageName),
+    fingerprints: fingerprintList(draft).every(fingerprint => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(fingerprint))
+  };
+}
+
+/** The Android certificate fingerprints entered, one per line, trimmed and upper-cased. */
+function fingerprintList(draft: MobileDraft) {
+  return draft.androidCertificateFingerprints.split(/\r?\n/).map(line => line.trim().toUpperCase()).filter(Boolean);
 }
 
 export function isValidAbsoluteUrl(value: string) {
@@ -133,7 +156,10 @@ export function mobileFromTenant(tenant: any): MobileDraft {
     errorTitle: saved<string>('errorTitle') ?? DEFAULT_ERROR_TITLE,
     errorMessage: saved<string>('errorMessage') ?? DEFAULT_ERROR_MESSAGE,
     showErrorDiagnostics: saved<boolean>('showErrorDiagnostics') ?? true,
-    pushNotificationsEnabled: saved<boolean>('pushNotificationsEnabled') ?? false
+    pushNotificationsEnabled: saved<boolean>('pushNotificationsEnabled') ?? false,
+    appleTeamId: saved<string>('appleTeamId') ?? '',
+    androidPackageName: saved<string>('androidPackageName') ?? '',
+    androidCertificateFingerprints: (saved<string[]>('androidCertificateFingerprints') ?? []).join('\n')
   };
 }
 
@@ -168,7 +194,10 @@ export function mobileAppConfig(draft: MobileDraft) {
     errorTextColor: draft.errorTextColor,
     errorTitle: draft.errorTitle,
     errorMessage: draft.errorMessage,
-    showErrorDiagnostics: draft.showErrorDiagnostics
+    showErrorDiagnostics: draft.showErrorDiagnostics,
+    appleTeamId: draft.appleTeamId.trim(),
+    androidPackageName: draft.androidPackageName.trim(),
+    androidCertificateFingerprints: fingerprintList(draft)
   };
 }
 

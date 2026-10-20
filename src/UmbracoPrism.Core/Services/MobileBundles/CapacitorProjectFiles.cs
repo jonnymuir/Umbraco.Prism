@@ -102,11 +102,17 @@ const config: CapacitorConfig = {
   webDir: 'www',
   bundledWebRuntime: false,
   ios: {
-    // The tabs are native, so the site leaves out its web tab bar.
-    appendUserAgent: '{{EscapeSingleQuotes(marker)}} {{PrismMobileRequestDetection.NativeTabsUserAgentToken}}',
+    // The tabs are native, so the site leaves out its web tab bar, and sign-in uses the system
+    // sign-in sheet (see prism-system-sign-in.js).
+    appendUserAgent: '{{EscapeSingleQuotes(marker)}} {{PrismMobileRequestDetection.NativeTabsUserAgentToken}} {{PrismMobileRequestDetection.SystemSignInUserAgentToken}}',
     // The native shell positions each tab's webview itself (see PrismShell.swift), so WebKit
     // must not add its own safe-area inset on top.
     contentInset: 'never'
+  },
+  android: {
+    appendUserAgent: '{{EscapeSingleQuotes(marker)}} {{PrismMobileRequestDetection.NativeTabsUserAgentToken}} {{PrismMobileRequestDetection.SystemSignInUserAgentToken}}',
+    // The native shell keeps each tab's webview clear of the system bars itself (see MainActivity.java).
+    adjustMarginsForEdgeToEdge: 'disable'
   },
   appendUserAgent: '{{EscapeSingleQuotes(marker)}}',
   server: {
@@ -116,6 +122,10 @@ const config: CapacitorConfig = {
     allowNavigation: [{{allowNavigationJs}}]
   },
   plugins: {
+    // Every tab's bridge loads @capacitor/app; the native shell decides what Back does instead.
+    App: {
+      disableBackButtonHandler: true
+    },
     SplashScreen: {
       launchAutoHide: true
     },

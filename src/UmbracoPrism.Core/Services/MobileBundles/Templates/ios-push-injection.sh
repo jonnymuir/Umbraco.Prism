@@ -11,18 +11,13 @@ else
   echo "⚠️ Info.plist not found. Run 'npx cap add ios' first."
 fi
 
-echo "Writing ios/App/App/App.entitlements..."
-cat > ios/App/App/App.entitlements << 'PRISM_ENTITLEMENTS_EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>aps-environment</key>
-	<string>production</string>
-</dict>
-</plist>
-PRISM_ENTITLEMENTS_EOF
-echo "✓ App.entitlements written"
+echo "Adding the push entitlement to ios/App/App/App.entitlements..."
+if [ ! -f ios/App/App/App.entitlements ]; then
+  plutil -create xml1 ios/App/App/App.entitlements
+fi
+/usr/libexec/PlistBuddy -c "Delete :aps-environment" ios/App/App/App.entitlements 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :aps-environment string production" ios/App/App/App.entitlements
+echo "✓ aps-environment added to App.entitlements"
 
 if [ -f resources/GoogleService-Info.plist ]; then
   cp resources/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist

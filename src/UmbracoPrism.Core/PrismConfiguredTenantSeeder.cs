@@ -56,6 +56,7 @@ public class PrismConfiguredTenantSeeder(
         {
             var schema = new PrismTenantSchema { Hostname = hostname };
             ApplySeedValues(schema, name, hostname, options);
+            ApplyMobileApp(schema, options.MobileApp);
             db.Insert(schema);
 
             logger.LogInformation(
@@ -64,7 +65,8 @@ public class PrismConfiguredTenantSeeder(
             return;
         }
 
-        if (!ApplySeedValues(existing, name, hostname, options))
+        var changed = ApplySeedValues(existing, name, hostname, options);
+        if (!(ApplyMobileApp(existing, options.MobileApp) || changed))
         {
             logger.LogDebug(
                 "PRISM ConfiguredTenantSeeder: Tenant '{Name}' (id={Id}) already matches seeded config.",
@@ -99,6 +101,19 @@ public class PrismConfiguredTenantSeeder(
         }
 
         return changed;
+    }
+
+    private bool ApplyMobileApp(PrismTenantSchema tenant, PrismSeedMobileAppOptions seeded)
+    {
+        var merged = PrismSeededMobileAppConfig.Merge(tenant.MobileAppConfig, seeded, out var error);
+        if (error is not null)
+        {
+            logger.LogWarning("PRISM ConfiguredTenantSeeder: Prism:SeedTenant:MobileApp not applied: {Error}", error);
+        }
+
+        if (string.Equals(merged, tenant.MobileAppConfig, StringComparison.Ordinal)) return false;
+        tenant.MobileAppConfig = merged;
+        return true;
     }
 
     private static bool SetString(string? currentValue, string? expectedValue, Action<string?> assign)

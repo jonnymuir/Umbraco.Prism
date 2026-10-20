@@ -1,7 +1,7 @@
 # Generated app checks
 
-Maestro flows and a timing harness for a generated app running on the iOS simulator against the
-local Aspire stack (demo sign-in `demo@prism.local` / `password`).
+Maestro flows and a timing harness for a generated app running on the iOS simulator or an
+Android emulator against the local Aspire stack (demo sign-in `demo@prism.local` / `password`).
 
 Needs [Maestro](https://maestro.mobile.dev), `ffmpeg`, and `python3` with `numpy`.
 
@@ -12,16 +12,36 @@ dotnet run --project src/UmbracoPrism.MobileBundleCli -- \
   --start-url https://localhost:44345/ --app-name "Prism Local" --app-id com.prism.local \
   --biometric-auth true --output prism-local.zip
 unzip prism-local.zip -d prism-local && cd prism-local
-npm install && npm run bootstrap:ios
+npm install && npm run bootstrap:ios      # or bootstrap:android
 ```
 
-Run a flow:
+The Android emulator reaches the local stack through `adb reverse`, and needs the development
+certificate installed as a user CA, which debug builds of the generated app trust. On a
+`google_apis` emulator image (one that allows `adb root`):
+
+```bash
+dotnet dev-certs https --export-path devcert.pem --format PEM --no-password
+HASH=$(openssl x509 -inform PEM -subject_hash_old -in devcert.pem | head -1)
+adb root && adb push devcert.pem /data/misc/user/0/cacerts-added/$HASH.0
+adb shell "chown system:system /data/misc/user/0/cacerts-added/$HASH.0 && chmod 644 /data/misc/user/0/cacerts-added/$HASH.0"
+adb reverse tcp:44345 tcp:44345 && adb reverse tcp:8443 tcp:8443
+```
+
+Build the Android project with JDK 21 (Android Studio's bundled one works:
+`JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`).
+
+The flows sign in inside the app, so they run against a tenant without **App Sign-In** set up
+(the local tenant's default). With it set up, the app signs in through the system sheet, whose
+callback the simulator cannot receive and the emulator receives only when handed over with
+`adb shell am start -a android.intent.action.VIEW -d "<callback URL>" com.prism.local`.
+
+Run a flow (add `--device <id>` when more than one simulator or emulator is running):
 
 ```bash
 maestro test -e APP_ID=com.prism.local tests/mobile-app/flows/sign-out-refreshes-other-tabs.yaml
 ```
 
-Time tab switches (twelve switches, recorded and measured frame by frame):
+Time tab switches on the iOS simulator (twelve switches, recorded and measured frame by frame):
 
 ```bash
 tests/mobile-app/measure-tab-switches.sh com.prism.local

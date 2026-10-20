@@ -12,103 +12,128 @@
 //   <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-autologin.js"></script>
 // only when a mobile request is detected AND the current user is NOT authenticated — see
 // docs/walkthroughs/building-a-mobile-app.md.
-(async function() {
-  try {
+//
+// It signs in as soon as it loads, unless its tag carries data-prism-on-demand: the app's own
+// sign-in page (prism-system-sign-in.js) calls window.PrismBiometricSignIn() itself, before
+// falling back to the system sign-in sheet.
+(function () {
+  var LOG = '[Prism AutoLogin] ';
+  var HOST = window.location.host;
+  var TOKEN_KEY = 'capacitor-storage_prism_biometric_token_' + HOST;
+  var ENROLL_KEY = 'prism_biometric_enrollment_state_' + HOST;
+
+  function isNativeApp() {
     var Cap = window.Capacitor;
-    if (!Cap || !Cap.isNativePlatform || !Cap.isNativePlatform()) return;
+    return !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
+  }
 
-    var TENANT_HOST = window.location.host;
+  function native(plugin, method, options) {
+    return window.Capacitor.nativePromise(plugin, method, options || {});
+  }
 
-    // This script only runs on the unauthenticated login page, so the server session is gone
-    // and any earlier push registration can't be trusted (e.g. a redeploy wiped the server's
-    // device rows). Forget the local "already registered" note so prism-push-register.js
-    // registers again on the next authenticated page load.
-    localStorage.removeItem('prism_push_registered_token_' + TENANT_HOST);
-    var SS_PREFIX = 'capacitor-storage_';
-    var tokenKey = SS_PREFIX + 'prism_biometric_token_' + TENANT_HOST;
-    var enrollKey = 'prism_biometric_enrollment_state_' + TENANT_HOST;
+  async function forgetCredential() {
+    await native('SecureStorage', 'internalRemoveItem', { prefixedKey: TOKEN_KEY, sync: false });
+    localStorage.removeItem(ENROLL_KEY);
+  }
 
-    console.log('[Prism AutoLogin] checking for stored biometric token');
+  async function readStoredToken() {
+    var stored = await native('SecureStorage', 'internalGetItem', { prefixedKey: TOKEN_KEY, sync: false });
+    return stored && stored.data ? JSON.parse(stored.data) : null;
+  }
 
-    // 1. Check SecureStorage for a stored biometric token
-    var storedResult = await Cap.nativePromise('SecureStorage', 'internalGetItem', {
-      prefixedKey: tokenKey,
-      sync: false
-    });
-    var storedToken = storedResult && storedResult.data ? JSON.parse(storedResult.data) : null;
-    if (!storedToken) {
-      console.log('[Prism AutoLogin] no stored token — showing login page normally');
-      return;
-    }
-    console.log('[Prism AutoLogin] stored token found — checking biometry');
-
-    // Fresh install: Keychain persists across app deletion but localStorage is wiped.
-    // A token with no enrollment fingerprint means the app was reinstalled — clear the
-    // stale Keychain token so the user can go through enrollment again.
-    if (!localStorage.getItem(enrollKey)) {
-      console.log('[Prism AutoLogin] stale token from previous install — clearing');
-      await Cap.nativePromise('SecureStorage', 'internalRemoveItem', { prefixedKey: tokenKey, sync: false });
-      return;
-    }
-
-    // 2. Verify biometry is available
-    var biometryInfo = await Cap.nativePromise('BiometricAuthNative', 'checkBiometry', {});
-    if (!biometryInfo || !biometryInfo.isAvailable) {
-      console.log('[Prism AutoLogin] biometry not available — skipping auto-login');
-      return;
-    }
-
-    // 3. Check if enrollment fingerprint has changed (biometric data updated on device)
-    var fingerprint = [
-      biometryInfo.biometryType,
-      (biometryInfo.biometryTypes || []).slice().sort().join(','),
-      biometryInfo.isAvailable,
-      biometryInfo.strongBiometryIsAvailable,
-      biometryInfo.deviceIsSecure
+  // What the device's biometrics looked like at enrollment; a change (a new face or finger
+  // enrolled on the device) means the stored credential must not be trusted.
+  function biometryFingerprint(info) {
+    return [
+      info.biometryType,
+      (info.biometryTypes || []).slice().sort().join(','),
+      info.isAvailable,
+      info.strongBiometryIsAvailable,
+      info.deviceIsSecure
     ].join('|');
-    var storedFingerprint = localStorage.getItem(enrollKey);
-    if (storedFingerprint && storedFingerprint !== fingerprint) {
-      console.log('[Prism AutoLogin] biometric state changed — clearing credentials');
-      await Cap.nativePromise('SecureStorage', 'internalRemoveItem', { prefixedKey: tokenKey, sync: false });
-      localStorage.removeItem(enrollKey);
-      return;
+  }
+
+  // The device fingerprint when the stored credential is still usable, or null after clearing
+  // it: Keychain survives an app reinstall but localStorage does not, so a token with no
+  // enrollment fingerprint is from a previous install.
+  async function usableCredentialFingerprint() {
+    if (!localStorage.getItem(ENROLL_KEY)) {
+      console.log(LOG + 'stale token from previous install, clearing');
+      await forgetCredential();
+      return null;
     }
+    var info = await native('BiometricAuthNative', 'checkBiometry');
+    if (!info || !info.isAvailable) {
+      console.log(LOG + 'biometry not available, skipping auto-login');
+      return null;
+    }
+    var fingerprint = biometryFingerprint(info);
+    if (localStorage.getItem(ENROLL_KEY) !== fingerprint) {
+      console.log(LOG + 'biometric state changed, clearing credentials');
+      await forgetCredential();
+      return null;
+    }
+    return fingerprint;
+  }
 
-    // 4. Prompt biometric authentication
-    console.log('[Prism AutoLogin] prompting biometric authentication');
-    await Cap.nativePromise('BiometricAuthNative', 'internalAuthenticate', {
-      reason: 'Sign in with biometrics',
-      allowDeviceCredential: true,
-      iosFallbackTitle: 'Use Passcode'
-    });
-    console.log('[Prism AutoLogin] biometric passed — exchanging token');
-
-    // 5. Exchange biometric token for a session cookie
-    var deviceId = localStorage.getItem('prism_device_id') || '';
-    var resp = await fetch('/umbraco/prism/mobile/biometric/exchange', {
+  async function exchange(token, fingerprint) {
+    var response = await fetch('/umbraco/prism/mobile/biometric/exchange', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ biometricToken: storedToken, deviceId: deviceId })
+      body: JSON.stringify({ biometricToken: token, deviceId: localStorage.getItem('prism_device_id') || '' })
     });
+    if (response.ok) {
+      localStorage.setItem(ENROLL_KEY, fingerprint);
+      console.log(LOG + 'exchange successful');
+      return true;
+    }
+    if (response.status === 401 || response.status === 403) {
+      console.log(LOG + 'server rejected token, clearing credentials');
+      await forgetCredential();
+    } else {
+      console.warn(LOG + 'exchange failed with status ' + response.status);
+    }
+    return false;
+  }
 
-    if (resp.ok) {
-      // Update enrollment fingerprint, then reload now authenticated
-      localStorage.setItem(enrollKey, fingerprint);
-      console.log('[Prism AutoLogin] exchange successful — reloading');
-      window.location.reload();
-    } else if (resp.status === 401 || resp.status === 403) {
-      console.log('[Prism AutoLogin] server rejected token — clearing credentials');
-      await Cap.nativePromise('SecureStorage', 'internalRemoveItem', { prefixedKey: tokenKey, sync: false });
-      localStorage.removeItem(enrollKey);
-    } else {
-      console.warn('[Prism AutoLogin] exchange failed with status ' + resp.status);
+  // Signs in with the device's stored biometric credential. True when the member is now signed
+  // in; the caller decides where to go next.
+  async function signInWithBiometrics() {
+    if (!isNativeApp()) return false;
+    try {
+      // This only runs while signed out, so the server session is gone and any earlier push
+      // registration can't be trusted (a redeploy may have wiped the server's device rows).
+      // Forgetting the local note makes prism-push-register.js register again after sign-in.
+      localStorage.removeItem('prism_push_registered_token_' + HOST);
+
+      var token = await readStoredToken();
+      if (!token) {
+        console.log(LOG + 'no stored token, showing login page normally');
+        return false;
+      }
+      var fingerprint = await usableCredentialFingerprint();
+      if (!fingerprint) return false;
+
+      await native('BiometricAuthNative', 'internalAuthenticate', {
+        reason: 'Sign in with biometrics',
+        allowDeviceCredential: true,
+        iosFallbackTitle: 'Use Passcode'
+      });
+      return await exchange(token, fingerprint);
+    } catch (e) {
+      var cancelled = String(e).toLowerCase().includes('cancel');
+      console.log(LOG + (cancelled ? 'user cancelled biometric' : 'error: ' + (e && (e.message || String(e)))));
+      return false;
     }
-  } catch (e) {
-    if (e && (String(e).toLowerCase().includes('cancel') || String(e).toLowerCase().includes('usercancel'))) {
-      console.log('[Prism AutoLogin] user cancelled biometric — showing login page');
-    } else {
-      console.warn('[Prism AutoLogin] error: ' + (e && (e.message || String(e))));
-    }
+  }
+
+  window.PrismBiometricSignIn = signInWithBiometrics;
+
+  var script = document.currentScript;
+  if (!(script && script.hasAttribute('data-prism-on-demand'))) {
+    signInWithBiometrics().then(function (signedIn) {
+      if (signedIn) window.location.reload();
+    });
   }
 })();

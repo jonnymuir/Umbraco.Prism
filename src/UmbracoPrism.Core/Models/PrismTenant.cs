@@ -57,6 +57,11 @@ public class PrismTenant
     public string MobileBrandingCssDeclarations { get; set; } = string.Empty;
 
     /// <summary>
+    /// The tenant's own mobile apps, which alone can receive the sign-in callback.
+    /// </summary>
+    public PrismMobileAppLinks MobileAppLinks { get; set; } = PrismMobileAppLinks.None;
+
+    /// <summary>
     /// Whether biometric login is enabled for this tenant. Defaults to true.
     /// </summary>
     public bool AllowBiometricLogin { get; set; } = true;

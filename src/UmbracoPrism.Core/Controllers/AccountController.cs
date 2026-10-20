@@ -1,7 +1,11 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using System.Net;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Mvc;
+using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Models;
 
@@ -37,6 +41,11 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
             return LocalRedirect(safeReturnUrl);
         }
 
+        if (PrismMobileRequestDetection.SignsInNatively(HttpContext, prismContext.CurrentTenant))
+        {
+            return AppSignInPage(prompt: null);
+        }
+
         var properties = new AuthenticationProperties { RedirectUri = safeReturnUrl };
 
         // Triggers the OIDC flow which PrismOidcConfiguration will intercept
@@ -63,6 +72,11 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
         if (await GetMemberAsync() is not null)
         {
             return LocalRedirect(safeReturnUrl);
+        }
+
+        if (PrismMobileRequestDetection.SignsInNatively(HttpContext, prismContext.CurrentTenant))
+        {
+            return AppSignInPage(prompt: "create");
         }
 
         var properties = new AuthenticationProperties { RedirectUri = safeReturnUrl };
@@ -102,10 +116,11 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
         // interactive OIDC challenge, so Entra has no browser-side SSO session in this WebView to
         // end and no id_token_hint to give its end-session endpoint — signing out of that scheme
         // anyway just shows Entra's own interactive account-chooser for nothing. Sign out of the
-        // local cookie only in that case, and wherever this hostname has no sign-in configured
+        // local cookie only in that case, for a session handed over from the app's system
+        // authentication session (ephemeral, so no provider session outlived it), and wherever
+        // this hostname has no sign-in configured
         // (no provider session to end); every other session still signs out of both.
-        if (member?.HasClaim("prism_auth_method", "biometric") == true ||
-            prismContext.CurrentTenant?.HasSignInConfigured() != true)
+        if (HasNoProviderSession(member) || prismContext.CurrentTenant?.HasSignInConfigured() != true)
         {
             return SignOut(
                 new AuthenticationProperties { RedirectUri = "/" },
@@ -119,6 +134,42 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
             PrismAuthenticationSchemes.Oidc
         );
     }
+
+    /// <summary>
+    /// Sign-in for an app that uses the system authentication session: the page offers biometric
+    /// sign-in where the member has enrolled, then opens the system sheet through the app
+    /// (prism-system-sign-in.js). The identity provider never loads in the app's webview. Once the
+    /// member is signed in the page reloads, and this action sends them on to the return URL.
+    /// </summary>
+    private ContentResult AppSignInPage(string? prompt)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var biometric = prismContext.CurrentTenant?.AllowBiometricLogin == true
+            ? """<script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-autologin.js" data-prism-on-demand></script>"""
+            : string.Empty;
+        var promptAttribute = prompt is null ? string.Empty : $" data-prism-prompt=\"{WebUtility.HtmlEncode(prompt)}\"";
+        var antiforgery = HttpContext.RequestServices.GetRequiredService<IAntiforgery>().GetAndStoreTokens(HttpContext);
+
+        return Content(
+            $$"""
+            <!doctype html>
+            <html lang="en">
+            <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Signing in</title></head>
+            <body>
+            <p role="status">Signing in…</p>
+            {{biometric}}
+            <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-system-sign-in.js"{{promptAttribute}}
+                    data-prism-antiforgery-header="{{WebUtility.HtmlEncode(antiforgery.HeaderName)}}" data-prism-antiforgery-token="{{WebUtility.HtmlEncode(antiforgery.RequestToken)}}"></script>
+            </body>
+            </html>
+            """,
+            "text/html");
+    }
+
+    // Sessions from biometric sign-in or the app's system sign-in sheet never left a provider
+    // session in the browser that sent this request.
+    private static bool HasNoProviderSession(System.Security.Claims.ClaimsPrincipal? member) =>
+        member?.FindFirst("prism_auth_method")?.Value is "biometric" or PrismMobileSignInController.AuthMethod;
 
     // The Prism member session, asked of Prism's own cookie rather than User: User comes from
     // the application's default scheme, and a host session is not a Prism sign-in.

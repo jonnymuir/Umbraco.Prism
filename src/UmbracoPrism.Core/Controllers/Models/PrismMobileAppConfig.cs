@@ -14,4 +14,13 @@ public class PrismMobileAppConfig
     public string? ErrorTitle { get; set; }
     public string? ErrorMessage { get; set; }
     public bool? ShowErrorDiagnostics { get; set; }
+
+    /// <summary>The Apple developer team ID the iOS app is signed with, for apple-app-site-association.</summary>
+    public string? AppleTeamId { get; set; }
+
+    /// <summary>The Android package name, when it differs from <see cref="AppId"/>.</summary>
+    public string? AndroidPackageName { get; set; }
+
+    /// <summary>SHA-256 fingerprints of the certificates the Android app is signed with, for assetlinks.json.</summary>
+    public List<string>? AndroidCertificateFingerprints { get; set; }
 }

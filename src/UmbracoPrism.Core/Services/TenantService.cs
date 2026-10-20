@@ -113,6 +113,7 @@ public class TenantService : ITenantService
                     BrandingCssDeclarations = BuildCssDeclarations(brandingOverrides),
                     MobileBrandingCssDeclarations = BuildCssDeclarations(mobileBrandingOverrides),
                     AllowBiometricLogin = tenantSchema.AllowBiometricLogin,
+                    MobileAppLinks = PrismMobileAppLinks.FromConfigJson(tenantSchema.MobileAppConfig),
                     OidcAuthority = _tokenResolver.Resolve(tenantSchema.OidcAuthority),
                     OidcClientId = _tokenResolver.Resolve(tenantSchema.OidcClientId),
                     OidcClientSecretProvider = _tokenResolver.Resolve(tenantSchema.OidcClientSecretProvider)

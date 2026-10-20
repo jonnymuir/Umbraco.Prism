@@ -92,7 +92,7 @@ public class MobileBundleServiceTests
         using var stream = new MemoryStream(zipBytes);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
 
-        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        var iosBootstrap = ReadPlatform(archive, "ios");
         iosBootstrap.Should().Contain("bridge?.registerPluginInstance(PrismIdentityCookiePlugin())");
         iosBootstrap.Should().Contain("class PrismIdentityCookiePlugin: CAPPlugin, CAPBridgedPlugin");
         iosBootstrap.Should().Contain("public let jsName = \"PrismIdentityCookiePlugin\"");
@@ -100,27 +100,28 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("let store = WKWebsiteDataStore.default()");
         iosBootstrap.Should().Contain("store.removeData(ofTypes: [WKWebsiteDataTypeCookies], for: matching)");
 
-        var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
+        var androidBootstrap = ReadPlatform(archive, "android");
         androidBootstrap.Should().Contain("JAVA_DIR=\"android/app/src/main/java/com/example/test\"");
-        androidBootstrap.Should().Contain("$JAVA_DIR/PrismIdentityCookiePlugin.java");
+        androidBootstrap.Should().Contain("cp native/android/java/*.java \"$JAVA_DIR/\"");
         androidBootstrap.Should().Contain("package com.example.test;");
         androidBootstrap.Should().Contain("@CapacitorPlugin(name = \"PrismIdentityCookiePlugin\")");
-        androidBootstrap.Should().Contain("cookieManager.removeAllCookies(new ValueCallback<Boolean>()");
+        androidBootstrap.Should().Contain("cookieManager.removeAllCookies(value -> {");
 
-        // CONFIRMED LIVE (first real CI dispatch of this feature): a .kt file here builds nothing
-        // at all — Capacitor's default `cap add android` app module has no Kotlin Gradle plugin
-        // applied, so javac silently never compiles it, and MainActivity.java's own reference to
-        // the class fails with "cannot find symbol". Plain Java only, matching MainActivity's own
-        // toolchain — guards against this regressing back to Kotlin.
+        // Plain Java only: the app module Capacitor generates has no Kotlin Gradle plugin, so a
+        // .kt file would silently never compile.
         androidBootstrap.Should().NotContain("PrismIdentityCookiePlugin.kt");
 
-        // MainActivity.java is rewritten wholesale (same precedent as AppDelegate.swift on iOS) —
-        // asserts the registration actually happens, not just that the plugin file exists on
-        // disk, the same class of gap the PrismShell.swift pbxproj test guards against.
-        androidBootstrap.Should().Contain("$JAVA_DIR/MainActivity.java");
-        androidBootstrap.Should().Contain("registerPlugin(PrismIdentityCookiePlugin.class);");
-        androidBootstrap.Should().Contain("super.onCreate(savedInstanceState);");
+        // Every tab's bridge registers the plugin, not just a file on disk.
+        androidBootstrap.Should().Contain("plugins.add(PrismIdentityCookiePlugin.class);");
     }
+
+    /// <summary>A platform's bootstrap script with the native shell files it copies into the project.</summary>
+    private static string ReadPlatform(ZipArchive archive, string platform) =>
+        string.Join("\n", archive.Entries
+            .Where(entry => entry.FullName == $"scripts/bootstrap-{platform}.sh"
+                || entry.FullName.StartsWith($"native/{platform}/", StringComparison.Ordinal)
+                || entry.FullName == $"scripts/{platform}-add-native-shell.mjs")
+            .Select(entry => ReadEntry(archive, entry.FullName)));
 
     private static string ReadEntry(ZipArchive archive, string path)
     {
@@ -374,14 +375,16 @@ public class MobileBundleServiceTests
         using var stream = new MemoryStream(zipBytes);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
 
-        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        var iosBootstrap = ReadPlatform(archive, "ios");
         iosBootstrap.Should().Contain("static let startURL = URL(string: \"https://test.example/?prismMobile=1\")!");
         iosBootstrap.Should().Contain("final class PrismTabBarController: UITabBarController");
         iosBootstrap.Should().Contain("window?.rootViewController = PrismTabBarController()");
         iosBootstrap.Should().Contain("static let manifestPath = \"/umbraco/prism/mobile/manifest\"");
 
         // Xcode builds cleanly without a file that is not in the project, then the app launches blank.
-        iosBootstrap.Should().Contain("project.addSourceFile('App/PrismShell.swift'");
+        iosBootstrap.Should().Contain("cp native/ios/*.swift native/ios/App.entitlements ios/App/App/");
+        iosBootstrap.Should().Contain("node scripts/ios-add-native-shell.mjs");
+        iosBootstrap.Should().Contain("project.addSourceFile(`App/${file}`, { target }, 'App');");
 
         // Hosted sign-in pages cannot be edited, so the zoom fix is injected natively into every frame.
         iosBootstrap.Should().Contain("maximum-scale=1, user-scalable=no, viewport-fit=cover");
@@ -395,7 +398,7 @@ public class MobileBundleServiceTests
     }
 
     [Fact]
-    public async Task BuildBundleAsync_IosAppsAnnounceNativeTabs_SoTheSiteLeavesOutItsWebTabBar()
+    public async Task BuildBundleAsync_AppsAnnounceNativeTabsAndSystemSignIn_OnBothPlatforms()
     {
         var service = new MobileBundleService();
         var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "test.example" };
@@ -405,8 +408,16 @@ public class MobileBundleServiceTests
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
 
         var config = ReadEntry(archive, "capacitor.config.ts");
-        config.Should().Contain("appendUserAgent: 'PrismMobile PrismNativeTabs'", "iOS has native tabs");
-        config.Should().Contain("  appendUserAgent: 'PrismMobile',", "Android keeps the web tab bar for now");
+        config.Should().Contain("""
+              ios: {
+                // The tabs are native, so the site leaves out its web tab bar, and sign-in uses the system
+                // sign-in sheet (see prism-system-sign-in.js).
+                appendUserAgent: 'PrismMobile PrismNativeTabs PrismSystemSignIn',
+            """);
+        config.Should().Contain("""
+              android: {
+                appendUserAgent: 'PrismMobile PrismNativeTabs PrismSystemSignIn',
+            """);
     }
 
     [Fact]
@@ -461,7 +472,7 @@ public class MobileBundleServiceTests
 
         var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
         iosBootstrap.Should().NotContain("UIBackgroundModes");
-        iosBootstrap.Should().NotContain("App.entitlements");
+        iosBootstrap.Should().NotContain("aps-environment");
 
         var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
         androidBootstrap.Should().NotContain("google-services.json");
@@ -536,8 +547,7 @@ public class MobileBundleServiceTests
         var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
         iosBootstrap.Should().Contain("UIBackgroundModes");
         iosBootstrap.Should().Contain("plutil -insert UIBackgroundModes -json '[\"remote-notification\"]'");
-        iosBootstrap.Should().Contain("aps-environment");
-        iosBootstrap.Should().Contain("<string>production</string>");
+        iosBootstrap.Should().Contain("/usr/libexec/PlistBuddy -c \"Add :aps-environment string production\" ios/App/App/App.entitlements");
         iosBootstrap.Should().Contain("cp resources/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist");
         iosBootstrap.Should().Contain("project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements');");
         iosBootstrap.Should().Contain("project.addResourceFile('App/GoogleService-Info.plist'");
@@ -563,5 +573,46 @@ public class MobileBundleServiceTests
 
         var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
         androidBootstrap.Should().Contain("cp resources/google-services.json android/app/google-services.json");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_IosApp_SignsInThroughTheSystemSheet_WithAnHttpsCallbackOnTheSite()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "members.example.org" };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, new PrismMobileBundleRequest { AppName = "Test App", AppId = "com.example.test" });
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var iosBootstrap = ReadPlatform(archive, "ios");
+        iosBootstrap.Should().Contain("bridge?.registerPluginInstance(PrismSystemSignInPlugin())");
+        iosBootstrap.Should().Contain("public let jsName = \"PrismSystemSignIn\"");
+        iosBootstrap.Should().Contain("callback: .https(host: PrismShell.ownHost, path: path)");
+        iosBootstrap.Should().Contain("session.prefersEphemeralWebBrowserSession = true");
+        iosBootstrap.Should().Contain("<key>com.apple.developer.associated-domains</key>");
+        iosBootstrap.Should().Contain("<string>webcredentials:members.example.org</string>");
+        iosBootstrap.Should().Contain("project.updateBuildProperty('IPHONEOS_DEPLOYMENT_TARGET', '17.4');");
+        iosBootstrap.Should().Contain("project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements');");
+    }
+
+    [Fact]
+    public async Task BuildBundleAsync_AndroidApp_SignsInThroughAuthTab_WithAVerifiedAppLinkCallback()
+    {
+        var service = new MobileBundleService();
+        var tenant = new PrismTenantSchema { Id = 1, Name = "TestTenant", Hostname = "members.example.org" };
+
+        var zipBytes = await service.BuildBundleAsync(tenant, new PrismMobileBundleRequest { AppName = "Test App", AppId = "com.example.test" });
+        using var stream = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
+
+        var androidBootstrap = ReadPlatform(archive, "android");
+        androidBootstrap.Should().Contain("@CapacitorPlugin(name = \"PrismSystemSignIn\")");
+        androidBootstrap.Should().Contain("plugins.add(PrismSystemSignInPlugin.class);");
+        androidBootstrap.Should().Contain(".setEphemeralBrowsingEnabled(true)");
+        androidBootstrap.Should().Contain("<intent-filter android:autoVerify=\"true\">");
+        androidBootstrap.Should().Contain("android:host=\"members.example.org\" android:path=\"/umbraco/prism/mobile/auth/callback\"");
+        androidBootstrap.Should().Contain("if (PrismSystemSignInPlugin.deliver(intent.getData())) return;");
+        androidBootstrap.Should().Contain("androidx.browser:browser:1.9.0");
     }
 }
