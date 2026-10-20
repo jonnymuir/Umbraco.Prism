@@ -9,7 +9,10 @@ import {
   bundleRequest,
   emptyMobile,
   isLikelyLocalhostUrl,
+  areValidFingerprints,
   isValidAbsoluteUrl,
+  isValidAndroidPackageName,
+  isValidAppleTeamId,
   isValidMobileAppId,
   mobileAppConfig,
   mobileFromTenant,
@@ -322,6 +325,59 @@ export class MobileSection implements ReactiveController {
     `;
   }
 
+  private _renderAppSignInFields() {
+    const d = this.draft;
+    const teamIdValid = isValidAppleTeamId(d.appleTeamId);
+    const packageValid = isValidAndroidPackageName(d.androidPackageName);
+    const fingerprintsValid = areValidFingerprints(d.androidCertificateFingerprints);
+    return html`
+      <h5 class="section-title">App Sign-In</h5>
+      <p class="description">
+        The app signs members in through the phone's own sign-in sheet, and the site confirms to Apple and Google
+        which app may receive the result. Until a platform's fields are filled in, its app signs in inside the app.
+      </p>
+
+      ${this._textField({
+        id: 'mobile-apple-team-id',
+        label: 'Apple Team ID',
+        key: 'appleTeamId',
+        placeholder: 'ABCDE12345',
+        invalid: !teamIdValid,
+        after: html`
+          <small>Shown under Membership in your Apple Developer account.</small>
+          ${teamIdValid ? html`` : html`<small class="error-text">Apple Team ID is 10 capital letters or digits.</small>`}
+        `
+      })}
+      ${this._textField({
+        id: 'mobile-android-package',
+        label: 'Android Package Name',
+        key: 'androidPackageName',
+        placeholder: d.appId || 'Same as the App ID',
+        invalid: !packageValid,
+        after: html`
+          <small>Leave blank when it is the same as the App ID.</small>
+          ${packageValid ? html`` : html`<small class="error-text">Package name must be reverse-domain style, letters, digits and underscores only.</small>`}
+        `
+      })}
+      <div class="field">
+        <uui-label for="mobile-android-fingerprints">Android Signing Certificate SHA-256 Fingerprints</uui-label>
+        <small id="mobile-android-fingerprints-desc">
+          One per line. For an app on Google Play, use the app signing key from Play Console, under App signing.
+        </small>
+        <uui-textarea
+          id="mobile-android-fingerprints"
+          label="Android Signing Certificate SHA-256 Fingerprints"
+          .value=${d.androidCertificateFingerprints}
+          @input=${(e: any) => this._patch({ androidCertificateFingerprints: e.target.value })}
+          placeholder="36:49:A1:FF:…"
+          aria-describedby="mobile-android-fingerprints-desc"
+          aria-invalid=${fingerprintsValid ? 'false' : 'true'}>
+        </uui-textarea>
+        ${fingerprintsValid ? html`` : html`<small class="error-text">Each fingerprint is 32 pairs of hex digits separated by colons (SHA-256, not SHA-1).</small>`}
+      </div>
+    `;
+  }
+
   render() {
     const d = this.draft;
     const isEditMode = this._context.tenantId() !== null;
@@ -400,6 +456,8 @@ export class MobileSection implements ReactiveController {
           })}
 
           ${this._renderErrorScreenFields()}
+
+          ${this._renderAppSignInFields()}
 
           ${this._toggle({
             title: 'Push Notifications',

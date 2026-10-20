@@ -23,6 +23,7 @@
     // consuming host follows.
     var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(Context);
     var biometricLoginEnabled = isPrismMobileRequest && (tenant?.AllowBiometricLogin ?? false);
+    var appSignsInNatively = PrismMobileRequestDetection.HasSystemSignIn(Context) && tenant?.MobileAppLinks.HasAny == true;
     var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
 
     // The UA-mock toggle is a dev/QA aid for exercising mobile rendering from a desktop
@@ -142,8 +143,9 @@
         {
             <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js" asp-append-version="true"></script>
         }
-        else
+        else if (!appSignsInNatively)
         {
+            @* An app that signs in natively offers biometric sign-in itself, when sign-in starts. *@
             <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-autologin.js" asp-append-version="true"></script>
         }
     }
