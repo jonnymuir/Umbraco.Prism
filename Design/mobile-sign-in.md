@@ -23,7 +23,7 @@ on the device; the server keeps the refresh token, encrypted, and exchanges one 
 ## 3) Flow
 
 ```
- Tab webview          Native shell                 System auth session          Prism
+ Webview              Native shell                 System auth session          Prism
      │ tap "Sign in"       │                              │                          │
      │──/auth/login?──────▶│ cancel navigation            │                          │
      │   returnUrl=/x      │ verifier v, challenge c=S256(v)                         │
@@ -32,36 +32,37 @@ on the device; the server keeps the refresh token, encrypted, and exchanges one 
      │                     │                              │◀─▶ identity provider     │
      │                     │                              │── /signin-oidc ─────────▶│ member cookie
      │                     │                              │── .../auth/complete ────▶│ one-time code k
-     │                     │◀── <appId>://signed-in?code=k ───────────────────────────│
+     │                     │◀── https://<site>/umbraco/prism/mobile/auth/callback?code=k (verified link)
      │◀─ POST .../auth/redeem {code k, verifier v} ───────────────────────────────────▶│ checks S256(v)=c
      │◀─ Set-Cookie PrismMemberCookie, 303 /x ──────────────────────────────────────────│
-     │                     │ cookie observer refreshes the other tabs                │
+     │                     │ other webviews pick up the cookie and refresh           │
 ```
 
 1. **Interception.** The shell cancels any webview navigation to its own site's `/auth/login`
    or `/auth/register` and starts the system flow with the same `returnUrl` (and
-   `prompt=create` for register). A challenge raised anywhere else, such as an `[Authorize]`
-   page, answers a native-tabs request with a redirect to `/auth/login?returnUrl=<page>`
-   instead of the identity provider, so it is intercepted the same way. Identity provider hosts
-   leave the iOS `allowNavigation` list.
-2. **Start.** `GET /umbraco/prism/mobile/auth/start?app=&challenge=&returnUrl=&prompt=`
-   validates the app ID (a reverse-domain identifier, and equal to the tenant's saved mobile
-   app ID when it has one), the challenge (43 base64url characters) and the return URL (local
-   only), then issues the normal OIDC challenge with
-   `/umbraco/prism/mobile/auth/complete?app=&challenge=&returnUrl=` as its redirect. Not found
-   where the tenant has no sign-in.
+   `prompt=create` for register). Generated apps add `PrismSystemSignIn` to their user agent
+   on both platforms; a challenge raised anywhere else, such as an `[Authorize]` page, answers
+   such a request with a redirect to `/auth/login?returnUrl=<page>` instead of the identity
+   provider, so it is intercepted the same way. Identity provider hosts leave the app's
+   `allowNavigation` list.
+2. **Start.** `GET /umbraco/prism/mobile/auth/start?challenge=&returnUrl=&prompt=` validates the
+   challenge (43 base64url characters) and the return URL (local only), then issues the normal
+   OIDC challenge with `/umbraco/prism/mobile/auth/complete?challenge=&returnUrl=` as its
+   redirect. Not found where the tenant has no sign-in or no app links (section 4).
 3. **Complete.** Runs in the system session, just after `/signin-oidc` has signed in the member
    cookie there. It reads that ticket, stores it with the challenge, tenant and return URL under
-   a fresh one-time code, and redirects to `<appId>://signed-in?code=<code>`. The callback
-   scheme is always a reverse-domain app ID, never `http`, `https` or anything a browser would
-   load.
-4. **Redeem.** The shell loads `POST /umbraco/prism/mobile/auth/redeem` (form body: code,
-   verifier) in the tab that started sign-in. Prism removes the code (single use), checks the
-   tenant and that `S256(verifier)` equals the stored challenge, signs in `PrismMemberCookie`
-   with the stored ticket plus a `prism_auth_method=system` claim, and redirects to the return
-   URL. The cookie lands in the shared webview store, and the existing cookie observer refreshes
-   the other tabs.
-5. **Cancel.** Closing the sheet leaves the tab where it was.
+   a fresh one-time code, and redirects to `https://<site>/umbraco/prism/mobile/auth/callback?code=<code>`.
+4. **Callback.** The system session hands that URL straight to the app, because the app is
+   verified for the site's domain (section 4). The page itself is only reached if the link was
+   opened somewhere else: it ignores the code and says to return to the app, and is served
+   `no-store`, `noindex` and `Referrer-Policy: no-referrer`.
+5. **Redeem.** The shell loads `POST /umbraco/prism/mobile/auth/redeem` (form body: code,
+   verifier) in the webview that started sign-in. Prism removes the code (single use), checks
+   the tenant and that `S256(verifier)` equals the stored challenge, signs in
+   `PrismMemberCookie` with the stored ticket plus a `prism_auth_method=system` claim, and
+   redirects to the return URL. The cookie lands in the app's shared webview cookie store, and
+   on iOS the existing cookie observer refreshes the other tabs.
+6. **Cancel.** Closing the sheet leaves the page where it was.
 
 **Storage.** One-time codes live in `IDistributedCache` for two minutes, the ticket protected
 with ASP.NET data protection. A single-instance host gets the in-memory cache; a multi-instance
@@ -72,59 +73,87 @@ outlives sign-in. `/auth/logout` treats a `prism_auth_method=system` session lik
 one: it signs out the member cookie only. The webview's identity provider cookie cleanup in
 `prism-biometric-signout.js` has nothing left to clear for these sessions.
 
-## 4) Biometric sign-in
+## 4) App links
 
-When sign-in is intercepted and the device holds a biometric token, the shell asks for Face ID
-or Touch ID first and loads `POST /umbraco/prism/mobile/biometric/exchange` in the tab, so the
-cookie lands in the webview store. A failed or cancelled check falls through to the system
-flow; a rejected token is cleared, as today. `prism-biometric-autologin.js` stops loading for
-native-tabs requests, which also ends the prompt that fired on every signed-out page view.
-Enrollment stays the web banner shown after sign-in.
+Only the tenant's own app can receive the callback, because each platform checks a file the
+site serves before handing an `https` URL to an app.
 
-## 5) Decisions
+- **iOS:** `GET /.well-known/apple-app-site-association` returns
+  `{"webcredentials":{"apps":["<teamId>.<appId>"]}}`. The generated app carries the
+  `webcredentials:<site host>` associated domain and opens the session with
+  `ASWebAuthenticationSession.Callback.https(host:path:)`, which needs iOS 17.4. Generated apps
+  target iOS 17.4 or later.
+- **Android:** `GET /.well-known/assetlinks.json` returns a `delegate_permission/common.handle_all_urls`
+  statement for the app's package and signing certificate fingerprints. The app opens an Auth
+  Tab (`androidx.browser` `AuthTabIntent`) with the callback host and path, and Chrome checks
+  the statement before returning the URL. Where the browser has no Auth Tab, it falls back to a
+  Custom Tab and the callback arrives through a verified App Link intent filter
+  (`android:autoVerify="true"`) on the same path.
 
-1. **Identity provider tokens stay on the server.** R4 in mobile.md says tokens live in the
-   Keychain. Holding the identity provider's own tokens on the device would make every tenant
-   register a second, public native client and redirect URI with its provider. Instead the
-   server keeps them (in the member ticket, and encrypted for biometric sign-in) and the device
-   only ever holds Prism-issued credentials: the biometric token now, and a Prism app token
-   for Delivery API content in phase 3. R4 is reworded to match.
-2. **The system session is ephemeral** (`prefersEphemeralWebBrowserSession`). There is no
-   "wants to use … to sign in" alert and no identity provider session left behind, so sign-out
-   is complete and a different member can sign in next. The cost is no single sign-on with
-   Safari: the member enters their credentials each time, with password autofill and passkeys
-   still available, and biometric sign-in after the first time.
+The tenant's mobile app settings in the backoffice gain the Apple team ID, the Android package
+name (defaulting to the app ID) and the Android signing certificate SHA-256 fingerprints: the
+upload key's and, for Play App Signing, Google's. Each file is not found until its platform's
+fields are set, and so is `start`. Generated bundles take the same values, so the app and the
+site always agree.
 
-## 6) Security
+## 5) Biometric sign-in
+
+When sign-in is intercepted and the device holds a biometric token, the shell asks for Face ID,
+Touch ID or the Android fingerprint prompt first, and loads
+`POST /umbraco/prism/mobile/biometric/exchange` in the webview, so the cookie lands in the
+webview store. A failed or cancelled check falls through to the system flow; a rejected token
+is cleared, as today. `prism-biometric-autologin.js` stops loading for `PrismSystemSignIn`
+requests, which also ends the prompt that fired on every signed-out page view. Enrollment
+stays the web banner shown after sign-in.
+
+## 6) Decisions
+
+1. **Identity provider tokens stay on the server.** Holding the identity provider's own tokens
+   on the device would make every tenant register a second, public native client and redirect
+   URI with its provider. Instead the server keeps them (in the member ticket, and encrypted for
+   biometric sign-in) and the device only ever holds Prism-issued credentials: the biometric
+   token now, and a Prism app token for Delivery API content in phase 3.
+2. **The system session is ephemeral** (`prefersEphemeralWebBrowserSession` on iOS, an
+   ephemeral Auth Tab on Android where the browser supports one). There is no "wants to use …
+   to sign in" alert and no identity provider session left behind, so sign-out is complete and
+   a different member can sign in next. The cost is no single sign-on with the system browser:
+   the member enters their credentials each time, with password autofill and passkeys still
+   available, and biometric sign-in after the first time.
+3. **No custom URL scheme.** Neither platform reserves a custom scheme for one app, so a code
+   sent to one could be caught by another app claiming the same scheme. The callback is an
+   `https` URL on the tenant's own domain, verified for its app, on both platforms.
+
+## 7) Security
 
 - The code is 256 bits, single use, two-minute lifetime, bound to one tenant.
-- The verifier never leaves the app until redeem and travels in a POST body, so a code taken
-  from the callback URL is useless on its own. This is PKCE between the app and Prism.
-- A flow started by someone else (a link opened in Safari) ends at a custom scheme URL only an
-  app on the member's own device can receive, after the member has signed in at their own
-  provider, which is always asked to show its account chooser. This is the same exposure as
-  any OAuth native client with a custom scheme: iOS does not reserve a scheme for one app, so
-  checking it against the saved app ID adds little. Universal Links callbacks (iOS 17.4 and
-  later, with the site serving `apple-app-site-association`) would close it, and can follow
-  once Prism stores each tenant's team and app ID.
-- `start`, `complete` and `redeem` are anonymous endpoints and join `KnownAnonymous` in the
-  authorization contract tests.
+- Only the tenant's verified app receives the callback, and the verifier never leaves that app
+  until redeem, in a POST body. A code seen anywhere else, such as a callback link opened in a
+  browser, cannot be redeemed. This is PKCE between the app and Prism.
+- A flow started by someone else, such as a start link opened in Safari, delivers its code to
+  the real app, which has no matching verifier and ignores it.
+- `start`, `complete`, `callback` and `redeem` and the two `.well-known` files are anonymous and
+  join `KnownAnonymous` in the authorization contract tests.
 
-## 7) Platforms
+## 8) Platforms
 
-- **iOS:** `ASWebAuthenticationSession` in the native shell, this work.
-- **Android:** Custom Tabs and an intent filter for the same callback, with the same server
-  endpoints, delivered with Android native tabs. Until then Android keeps signing in inside the
-  webview: the challenge redirect in step 1 only applies to native-tabs requests.
+Both platforms ship together, on the same server endpoints.
 
-## 8) Verification
+- **iOS:** the native-tabs shell intercepts navigation in each tab's webview.
+- **Android:** the single-webview shell intercepts navigation in a Capacitor plugin that wraps
+  the bridge's `WebViewClient`, and receives the Auth Tab result or the App Link in
+  `MainActivity`. Native tabs on Android follow later and reuse it.
+
+## 9) Verification
 
 - Controller tests: start refusals, complete issuing a code, redeem rejecting a reused code, a
-  wrong verifier, another tenant's code and an expired code.
-- Simulator against the local stack: the ASP.NET development certificate is added to the
-  simulator's keychain so the system session trusts `https://localhost`. A Maestro flow signs in
-  through the system sheet from a non-home tab, lands on the return page, and finds the other
-  tabs signed in; signing out and back in shows the provider's sign-in form again.
-- Biometric: enrol, sign out, sign in with simulated Face ID, and with a failed match falling
-  through to the system sheet.
-- TestFlight build against prismreference.com, Entra sign-in checked on a device.
+  wrong verifier, another tenant's code and an expired code; both `.well-known` files for a
+  configured tenant, and not found for an unconfigured one.
+- Platform link checks need a public HTTPS host, so the local stack is reached through a
+  temporary HTTPS tunnel, with a local tenant for the tunnel's hostname.
+- iOS simulator and Android emulator: a Maestro flow signs in through the system sheet from a
+  page other than home, lands on the return page signed in, signs out, and signing back in shows
+  the provider's sign-in form again. On iOS, the other tabs are signed in too.
+- Biometric: enrol, sign out, sign in with simulated Face ID or fingerprint, and a failed match
+  falling through to the system sheet.
+- TestFlight and Play internal builds against prismreference.com, with Entra sign-in checked on
+  devices.
