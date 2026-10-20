@@ -51,6 +51,13 @@ final class PrismShell {
         return builder.appendQueryParameter("prismMobile", "1").build().toString();
     }
 
+    /** A site path without its query or trailing slash, so a tab's path and a link can be compared. */
+    static String normalizedPath(String path) {
+        String withoutQuery = path == null ? "/" : path.split("\\?", 2)[0];
+        if (withoutQuery.length() > 1 && withoutQuery.endsWith("/")) withoutQuery = withoutQuery.substring(0, withoutQuery.length() - 1);
+        return withoutQuery.isEmpty() ? "/" : withoutQuery;
+    }
+
     /** The app's own Capacitor configuration, opening at another page of the site. */
     static CapConfig configFor(Context context, String url) {
         try {

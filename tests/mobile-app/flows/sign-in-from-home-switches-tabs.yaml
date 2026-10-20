@@ -1,0 +1,50 @@
+# Signing in from Home lands on the Dashboard tab, Home shows its own page again, and signing out
+# lands on Home without leaving the Dashboard tab showing the member's page.
+appId: ${APP_ID}
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Your account, your way"
+    timeout: 30000
+- tapOn: "Sign In"
+- extendedWaitUntil:
+    visible: "Sign in to your account"
+    timeout: 30000
+- inputText: "demo@prism.local"
+- tapOn: "Password"
+- inputText: "password"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "My Account"
+    timeout: 30000
+- tapOn: "Home"
+- extendedWaitUntil:
+    visible: "Go to Dashboard"
+    timeout: 30000
+- assertNotVisible: "My Account"
+- tapOn: "Go to Dashboard"
+- extendedWaitUntil:
+    visible: "My Account"
+    timeout: 30000
+- tapOn: "Home"
+- extendedWaitUntil:
+    visible: "Go to Dashboard"
+    timeout: 30000
+- tapOn: "Dashboard"
+- extendedWaitUntil:
+    visible: "My Account"
+    timeout: 30000
+- scrollUntilVisible:
+    element: "Sign Out"
+    direction: DOWN
+- tapOn: "Sign Out"
+# Signing out lands on Home, and the Dashboard tab no longer shows the member's page.
+- extendedWaitUntil:
+    visible: "Your account, your way"
+    timeout: 30000
+- tapOn: "Dashboard"
+- extendedWaitUntil:
+    visible: "Sign in to your account"
+    timeout: 30000
+- assertNotVisible: "My Account"

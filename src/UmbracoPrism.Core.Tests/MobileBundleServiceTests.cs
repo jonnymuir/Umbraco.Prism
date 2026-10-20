@@ -105,7 +105,8 @@ public class MobileBundleServiceTests
         androidBootstrap.Should().Contain("cp native/android/java/*.java \"$JAVA_DIR/\"");
         androidBootstrap.Should().Contain("package com.example.test;");
         androidBootstrap.Should().Contain("@CapacitorPlugin(name = \"PrismIdentityCookiePlugin\")");
-        androidBootstrap.Should().Contain("cookieManager.removeAllCookies(value -> {");
+        androidBootstrap.Should().Contain("if (host.equalsIgnoreCase(PrismShell.START_URL.getHost())) continue;");
+        androidBootstrap.Should().NotContain("removeAllCookies", "clearing every cookie would race the sign-out request for the site's own");
 
         // Plain Java only: the app module Capacitor generates has no Kotlin Gradle plugin, so a
         // .kt file would silently never compile.
@@ -393,8 +394,10 @@ public class MobileBundleServiceTests
         // Each tab's bridge claims notification handling when created; taps must reach the visible tab.
         iosBootstrap.Should().Contain("UNUserNotificationCenter.current().delegate = router");
 
-        iosBootstrap.Should().NotContain("PrismNavigationHoldDelegate", "paint-holding is gone with one webview per tab");
-        iosBootstrap.Should().NotContain("PrismContentWatcherPlugin");
+        // WKWebView shows nothing between pages, so the outgoing page is held over the gap.
+        iosBootstrap.Should().Contain("final class PrismNavigationHold");
+        iosBootstrap.Should().Contain("hold = bridge.webView.map(PrismNavigationHold.init)");
+        iosBootstrap.Should().Contain("final class PrismLoadingRing: UIView");
     }
 
     [Fact]
@@ -614,6 +617,10 @@ public class MobileBundleServiceTests
         androidBootstrap.Should().Contain("android:host=\"members.example.org\" android:path=\"/umbraco/prism/mobile/auth/callback\"");
         androidBootstrap.Should().Contain("if (PrismSystemSignInPlugin.deliver(intent.getData())) return;");
         androidBootstrap.Should().Contain("androidx.browser:browser:1.9.0");
+
+        // Android's webview holds the outgoing page itself; a slow load still shows the ring.
+        androidBootstrap.Should().Contain("final class PrismLoadingRing extends FrameLayout");
+        androidBootstrap.Should().Contain("loadingRing.onProgress(progress);");
     }
 
     [Fact]
