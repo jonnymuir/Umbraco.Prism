@@ -118,9 +118,7 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
         // authentication session (ephemeral, so no provider session outlived it), and wherever
         // this hostname has no sign-in configured
         // (no provider session to end); every other session still signs out of both.
-        if (member?.HasClaim("prism_auth_method", "biometric") == true ||
-            member?.HasClaim("prism_auth_method", PrismMobileSignInController.AuthMethod) == true ||
-            prismContext.CurrentTenant?.HasSignInConfigured() != true)
+        if (HasNoProviderSession(member) || prismContext.CurrentTenant?.HasSignInConfigured() != true)
         {
             return SignOut(
                 new AuthenticationProperties { RedirectUri = "/" },
@@ -162,6 +160,11 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
             """,
             "text/html");
     }
+
+    // Sessions from biometric sign-in or the app's system sign-in sheet never left a provider
+    // session in the browser that sent this request.
+    private static bool HasNoProviderSession(System.Security.Claims.ClaimsPrincipal? member) =>
+        member?.FindFirst("prism_auth_method")?.Value is "biometric" or PrismMobileSignInController.AuthMethod;
 
     // The Prism member session, asked of Prism's own cookie rather than User: User comes from
     // the application's default scheme, and a host session is not a Prism sign-in.

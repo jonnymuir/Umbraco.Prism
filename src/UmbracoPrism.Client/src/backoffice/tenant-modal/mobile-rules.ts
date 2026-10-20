@@ -75,21 +75,20 @@ export function isValidMobileAppId(value: string) {
   return /^[a-zA-Z0-9]+(\.[a-zA-Z0-9_-]+)+$/.test(value.trim());
 }
 
-export function isValidAppleTeamId(value: string) {
-  return !value.trim() || /^[A-Z0-9]{10}$/.test(value.trim());
+/** Which App Sign-In fields hold a valid value; a blank field is valid. */
+export function appSignInValidity(draft: MobileDraft) {
+  const teamId = draft.appleTeamId.trim();
+  const packageName = draft.androidPackageName.trim();
+  return {
+    teamId: !teamId || /^[A-Z0-9]{10}$/.test(teamId),
+    packageName: !packageName || /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/.test(packageName),
+    fingerprints: fingerprintList(draft).every(fingerprint => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(fingerprint))
+  };
 }
 
-export function isValidAndroidPackageName(value: string) {
-  return !value.trim() || /^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/.test(value.trim());
-}
-
-/** The fingerprints entered, one per line, trimmed and upper-cased. */
-export function fingerprintList(value: string) {
-  return value.split(/\r?\n/).map(line => line.trim().toUpperCase()).filter(Boolean);
-}
-
-export function areValidFingerprints(value: string) {
-  return fingerprintList(value).every(fingerprint => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(fingerprint));
+/** The Android certificate fingerprints entered, one per line, trimmed and upper-cased. */
+function fingerprintList(draft: MobileDraft) {
+  return draft.androidCertificateFingerprints.split(/\r?\n/).map(line => line.trim().toUpperCase()).filter(Boolean);
 }
 
 export function isValidAbsoluteUrl(value: string) {
@@ -198,7 +197,7 @@ export function mobileAppConfig(draft: MobileDraft) {
     showErrorDiagnostics: draft.showErrorDiagnostics,
     appleTeamId: draft.appleTeamId.trim(),
     androidPackageName: draft.androidPackageName.trim(),
-    androidCertificateFingerprints: fingerprintList(draft.androidCertificateFingerprints)
+    androidCertificateFingerprints: fingerprintList(draft)
   };
 }
 

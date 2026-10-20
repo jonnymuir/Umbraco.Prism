@@ -8,8 +8,14 @@
 (function () {
   var BASE = '/umbraco/prism/mobile/auth';
   var script = document.currentScript;
-  var returnUrl = (script && script.getAttribute('data-prism-return-url')) || '/';
+  var returnUrl = localPath(script && script.getAttribute('data-prism-return-url'));
   var prompt = script && script.getAttribute('data-prism-prompt');
+
+  // A path on this site, or the home page: never another site or a script URL.
+  function localPath(value) {
+    var url = new URL(value || '/', window.location.origin);
+    return url.origin === window.location.origin ? url.pathname + url.search + url.hash : '/';
+  }
 
   function base64Url(bytes) {
     var text = '';
@@ -53,7 +59,7 @@
     });
 
     // Redeem redirects to the member's page, or to the home page when the code is refused.
-    window.location.replace(response.redirected ? response.url : '/');
+    window.location.replace(response.redirected ? localPath(response.url) : '/');
   }
 
   signIn().catch(function (error) {

@@ -9,10 +9,8 @@ import {
   bundleRequest,
   emptyMobile,
   isLikelyLocalhostUrl,
-  areValidFingerprints,
+  appSignInValidity,
   isValidAbsoluteUrl,
-  isValidAndroidPackageName,
-  isValidAppleTeamId,
   isValidMobileAppId,
   mobileAppConfig,
   mobileFromTenant,
@@ -327,9 +325,7 @@ export class MobileSection implements ReactiveController {
 
   private _renderAppSignInFields() {
     const d = this.draft;
-    const teamIdValid = isValidAppleTeamId(d.appleTeamId);
-    const packageValid = isValidAndroidPackageName(d.androidPackageName);
-    const fingerprintsValid = areValidFingerprints(d.androidCertificateFingerprints);
+    const { teamId: teamIdValid, packageName: packageValid, fingerprints: fingerprintsValid } = appSignInValidity(d);
     return html`
       <h5 class="section-title">App Sign-In</h5>
       <p class="description">

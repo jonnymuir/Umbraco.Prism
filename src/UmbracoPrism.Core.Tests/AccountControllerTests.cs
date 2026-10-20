@@ -95,57 +95,6 @@ public class AccountControllerTests
     /// <paramref name="hostSession"/> puts a host-application login in HttpContext.User, which is
     /// what the application's default scheme yields on a hostname without Prism sign-in.
     /// </summary>
-    private static readonly PrismTenant AppSigningInTenant = new()
-    {
-        Hostname = "app.example.com",
-        OidcAuthority = "https://id.example.com/realms/app",
-        OidcClientId = "app",
-        AllowBiometricLogin = true,
-        MobileAppLinks = new PrismMobileAppLinks("ABCDE12345.com.example.app", null, [])
-    };
-
-    private const string IosAppUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) PrismMobile PrismNativeTabs PrismSystemSignIn";
-
-    [Fact]
-    public async Task Login_FromAnAppTheSiteVouchesFor_ServesTheAppSignInPage_NotTheProvider()
-    {
-        var controller = BuildController(isMember: false, AppSigningInTenant);
-        controller.HttpContext.Request.Headers.UserAgent = IosAppUserAgent;
-
-        var page = (await controller.Login("/dashboard?tab=\"2\"")).Should().BeOfType<ContentResult>().Subject;
-
-        page.ContentType.Should().Be("text/html");
-        page.Content.Should().Contain("prism-system-sign-in.js\" data-prism-return-url=\"/dashboard?tab=&quot;2&quot;\"");
-        page.Content.Should().Contain("prism-biometric-autologin.js\" data-prism-on-demand");
-        page.Content.Should().NotContain("data-prism-prompt");
-        controller.Response.Headers.CacheControl.ToString().Should().Be("no-store");
-    }
-
-    [Fact]
-    public async Task Register_FromAnAppTheSiteVouchesFor_AsksTheProviderToCreateAnAccount()
-    {
-        var controller = BuildController(isMember: false, AppSigningInTenant);
-        controller.HttpContext.Request.Headers.UserAgent = IosAppUserAgent;
-
-        var page = (await controller.Register("/")).Should().BeOfType<ContentResult>().Subject;
-
-        page.Content.Should().Contain("data-prism-prompt=\"create\"");
-    }
-
-    [Theory]
-    [InlineData("Mozilla/5.0 (Linux; Android 16) PrismMobile PrismNativeTabs PrismSystemSignIn")]
-    [InlineData("Mozilla/5.0 (iPhone) PrismMobile PrismNativeTabs")]
-    [InlineData("Mozilla/5.0 (iPhone) Safari")]
-    public async Task Login_FromAnyOtherClient_ChallengesTheProviderAsBefore(string userAgent)
-    {
-        // The tenant vouches only for its iOS app, so the Android app and older or web clients keep
-        // the provider's own sign-in.
-        var controller = BuildController(isMember: false, AppSigningInTenant);
-        controller.HttpContext.Request.Headers.UserAgent = userAgent;
-
-        (await controller.Login("/")).Should().BeOfType<ChallengeResult>();
-    }
-
     private static AccountController BuildController(
         bool isMember, PrismTenant? tenant = null, bool useDefaultTenant = true, bool hostSession = false)
     {

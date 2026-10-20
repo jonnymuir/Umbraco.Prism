@@ -35,9 +35,7 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IBrandingService, BrandingService>();
         builder.Services.AddSingleton<IMobileBundleService, MobileBundleService>();
         builder.Services.TryAddSingleton<IPrismMobileTabsProvider, PrismDefaultMobileTabsProvider>();
-        // In memory unless the host registers a shared cache, as a multi-instance host must.
-        builder.Services.AddDistributedMemoryCache();
-        builder.Services.AddSingleton<PrismMobileSignInCodes>();
+        builder.Services.AddDistributedMemoryCache().AddSingleton<PrismMobileSignInCodes>();
         builder.Services.AddSingleton<IPrismBrandingMetadataService, PrismBrandingMetadataService>();
         builder.Services.AddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
         builder.Services.AddHttpClient("prism-oidc-metadata");

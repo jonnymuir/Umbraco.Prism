@@ -11,7 +11,9 @@ namespace UmbracoPrism.Core.Services;
 /// <summary>
 /// One-time codes that carry a member's sign-in from the system authentication session to the
 /// app's webview. A code is single use, lives for two minutes, and is only redeemed with the
-/// verifier whose S256 challenge the app started sign-in with.
+/// verifier whose S256 challenge the app started sign-in with. Codes live in the host's
+/// <see cref="IDistributedCache"/>: in memory unless the host registers a shared one, as a
+/// multi-instance host must.
 /// </summary>
 public class PrismMobileSignInCodes(IDistributedCache cache, IDataProtectionProvider dataProtection)
 {
