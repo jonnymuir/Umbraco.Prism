@@ -105,21 +105,15 @@ public class MobileBundleServiceTests
         androidBootstrap.Should().Contain("$JAVA_DIR/PrismIdentityCookiePlugin.java");
         androidBootstrap.Should().Contain("package com.example.test;");
         androidBootstrap.Should().Contain("@CapacitorPlugin(name = \"PrismIdentityCookiePlugin\")");
-        androidBootstrap.Should().Contain("cookieManager.removeAllCookies(new ValueCallback<Boolean>()");
+        androidBootstrap.Should().Contain("cookieManager.removeAllCookies(value -> {");
 
-        // CONFIRMED LIVE (first real CI dispatch of this feature): a .kt file here builds nothing
-        // at all — Capacitor's default `cap add android` app module has no Kotlin Gradle plugin
-        // applied, so javac silently never compiles it, and MainActivity.java's own reference to
-        // the class fails with "cannot find symbol". Plain Java only, matching MainActivity's own
-        // toolchain — guards against this regressing back to Kotlin.
+        // Plain Java only: the app module Capacitor generates has no Kotlin Gradle plugin, so a
+        // .kt file would silently never compile.
         androidBootstrap.Should().NotContain("PrismIdentityCookiePlugin.kt");
 
-        // MainActivity.java is rewritten wholesale (same precedent as AppDelegate.swift on iOS) —
-        // asserts the registration actually happens, not just that the plugin file exists on
-        // disk, the same class of gap the PrismShell.swift pbxproj test guards against.
-        androidBootstrap.Should().Contain("$JAVA_DIR/MainActivity.java");
-        androidBootstrap.Should().Contain("registerPlugin(PrismIdentityCookiePlugin.class);");
-        androidBootstrap.Should().Contain("super.onCreate(savedInstanceState);");
+        // Every tab's bridge registers the plugin, not just a file on disk.
+        androidBootstrap.Should().Contain("$JAVA_DIR/PrismTabFragment.java");
+        androidBootstrap.Should().Contain("plugins.add(PrismIdentityCookiePlugin.class);");
     }
 
     private static string ReadEntry(ZipArchive archive, string path)

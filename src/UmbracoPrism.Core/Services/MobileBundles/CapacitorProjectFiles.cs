@@ -108,6 +108,11 @@ const config: CapacitorConfig = {
     // must not add its own safe-area inset on top.
     contentInset: 'never'
   },
+  android: {
+    appendUserAgent: '{{EscapeSingleQuotes(marker)}} {{PrismMobileRequestDetection.NativeTabsUserAgentToken}}',
+    // The native shell keeps each tab's webview clear of the system bars itself (see MainActivity.java).
+    adjustMarginsForEdgeToEdge: 'disable'
+  },
   appendUserAgent: '{{EscapeSingleQuotes(marker)}}',
   server: {
     url: '{{EscapeSingleQuotes(mobileStartUrl)}}',
@@ -116,6 +121,10 @@ const config: CapacitorConfig = {
     allowNavigation: [{{allowNavigationJs}}]
   },
   plugins: {
+    // Every tab's bridge loads @capacitor/app; the native shell decides what Back does instead.
+    App: {
+      disableBackButtonHandler: true
+    },
     SplashScreen: {
       launchAutoHide: true
     },

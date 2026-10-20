@@ -161,9 +161,10 @@
            data-prism-idp-hosts feeds the native cookie-store cleanup this script also fires —
            the concrete host(s) the current tenant's IdP sets its own SSO session cookie on,
            resolved server-side (the same tenant data PrismSecurityHeadersMiddleware already
-           derives CSP hosts from) since the client has no other way to know it. *@
+           derives CSP hosts from) since the client has no other way to know it. An app that
+           signs in natively never loads the provider's pages, so there is nothing to clear. *@
         <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-signout.js" asp-append-version="true"
-                data-prism-idp-hosts="@string.Join(",", PrismIdentityProviderHosts.Resolve(tenant))"></script>
+                data-prism-idp-hosts="@(appSignsInNatively ? "" : string.Join(",", PrismIdentityProviderHosts.Resolve(tenant)))"></script>
 
         @* Same reasoning as above, applied to push: whether the native FirebaseMessaging plugin
            is actually compiled into this build is a bundle-generation-time decision
