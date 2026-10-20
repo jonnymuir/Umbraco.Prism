@@ -40,15 +40,19 @@ www/
 resources/
   icon.svg                ← replace with the app's own icon before bootstrapping
   PrivacyInfo.xcprivacy   ← the iOS privacy manifest
+native/
+  ios/                    ← the native tab shell in Swift, one file per responsibility
+  android/                ← the same shell in Java
 scripts/
-  bootstrap-ios.sh        ← creates and patches the Xcode project
-  bootstrap-android.sh    ← creates and patches the Android Studio project
-README.md                 ← setup, store submission notes and troubleshooting
+  bootstrap-ios.sh        ← creates the Xcode project and adds native/ios to it
+  bootstrap-android.sh    ← creates the Android Studio project and adds native/android to it
+README.md                 ← setup, the native shell's files and logs, store submission notes
 ```
 
 💡 **What's happening:** `server.url` in `capacitor.config.ts` points the app at the tenant's site.
-The app appends a user agent marker (`PrismMobile`, plus `PrismNativeTabs` on iOS) so the site
-knows it is rendering inside the app.
+The app appends a user agent marker (`PrismMobile`, plus `PrismNativeTabs` and `PrismSystemSignIn`)
+so the site knows it is rendering inside the app. The generated README maps each native file to
+what it does, and says how to read the shell's log, which is tagged `PrismShell` on both platforms.
 
 ---
 

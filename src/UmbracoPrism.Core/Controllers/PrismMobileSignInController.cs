@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -39,7 +40,7 @@ public partial class PrismMobileSignInController(
             return NotFound();
         }
 
-        if (challenge is null || !ChallengePattern().IsMatch(challenge))
+        if (!IsChallenge(challenge))
         {
             return BadRequest();
         }
@@ -68,13 +69,13 @@ public partial class PrismMobileSignInController(
         }
 
         var member = await HttpContext.AuthenticateAsync(PrismAuthenticationSchemes.MemberCookie);
-        if (challenge is null || !ChallengePattern().IsMatch(challenge) || !member.Succeeded || member.Ticket is null)
+        if (!IsChallenge(challenge) || member.Ticket is not { } ticket)
         {
             return BadRequest();
         }
 
         var code = await codes.IssueAsync(
-            new PrismMobileSignInCodes.PendingSignIn(tenant.Id, challenge, PrismReturnUrl.Normalize(returnUrl), member.Ticket),
+            new PrismMobileSignInCodes.PendingSignIn(tenant.Id, challenge, PrismReturnUrl.Normalize(returnUrl), ticket),
             cancellationToken);
 
         // The session now belongs to the app; nothing should stay signed in here.
@@ -110,13 +111,13 @@ public partial class PrismMobileSignInController(
     public async Task<IActionResult> Redeem([FromForm] string? code, [FromForm] string? verifier, CancellationToken cancellationToken)
     {
         var tenant = prismContext.CurrentTenant;
-        if (tenant is null || string.IsNullOrEmpty(code) || verifier is null || !VerifierPattern().IsMatch(verifier))
+        if (tenant is null || string.IsNullOrEmpty(code) || !IsVerifier(verifier))
         {
             return Redirect("/");
         }
 
         var signIn = await codes.TakeAsync(code, cancellationToken);
-        if (signIn is null || signIn.TenantId != tenant.Id || !ChallengeMatches(signIn.Challenge, verifier))
+        if (!IsRedeemable(signIn, tenant, verifier))
         {
             logger.LogWarning("Prism mobile sign-in: rejected a code for tenant {TenantId}", tenant.Id);
             return Redirect("/");
@@ -135,6 +136,16 @@ public partial class PrismMobileSignInController(
 
         return LocalRedirect(signIn.ReturnUrl);
     }
+
+    private static bool IsChallenge([NotNullWhen(true)] string? challenge) =>
+        challenge is not null && ChallengePattern().IsMatch(challenge);
+
+    private static bool IsVerifier([NotNullWhen(true)] string? verifier) =>
+        verifier is not null && VerifierPattern().IsMatch(verifier);
+
+    /// <summary>A code this tenant issued, redeemed with the verifier for the challenge it was issued for.</summary>
+    private static bool IsRedeemable([NotNullWhen(true)] PrismMobileSignInCodes.PendingSignIn? signIn, PrismTenant tenant, string verifier) =>
+        signIn is not null && signIn.TenantId == tenant.Id && ChallengeMatches(signIn.Challenge, verifier);
 
     private static bool ChallengeMatches(string challenge, string verifier) =>
         CryptographicOperations.FixedTimeEquals(

@@ -31,7 +31,9 @@ public class MobileBundleTemplatesTests
             DeviceCaptureEnabled = true
         });
 
-        files["scripts/bootstrap-ios.sh"].Should().Contain("PrismTabBarController", "the native tab shell is part of every iOS bootstrap");
+        files["scripts/bootstrap-ios.sh"].Should().Contain("cp native/ios/", "the native tab shell is part of every iOS bootstrap");
+        files["native/ios/PrismTabBarController.swift"].Should().Contain("final class PrismTabBarController");
+        files["native/android/java/MainActivity.java"].Should().Contain("package com.");
         files["scripts/bootstrap-ios.sh"].Should().Contain("NSFaceIDUsageDescription", "biometric adds the Face ID usage string");
         files["scripts/bootstrap-ios.sh"].Should().Contain("UIBackgroundModes", "push adds remote-notification background mode");
         files["scripts/bootstrap-ios.sh"].Should().Contain("NSLocationWhenInUseUsageDescription", "device capture adds the location usage string");
@@ -134,6 +136,27 @@ public class MobileBundleTemplatesTests
 
         files["README.md"].Should().Contain("4.2.6");
         files["README.md"].Should().Contain("PrivacyInfo.xcprivacy");
+    }
+
+    [Fact]
+    public async Task EveryNativeShellFile_HasTheAppsOwnValuesFilledIn()
+    {
+        var files = await BuildAsync(new PrismMobileBundleRequest { AppId = "com.example.portal" });
+
+        var native = files.Where(file => file.Key.StartsWith("native/", StringComparison.Ordinal)).ToList();
+        native.Should().NotBeEmpty();
+        native.Should().OnlyContain(file => !file.Value.Contains("@@PRISM_"), "every placeholder is replaced when the bundle is generated");
+        files["native/android/java/PrismShell.java"].Should().StartWith("package com.example.portal;");
+    }
+
+    [Fact]
+    public async Task Readme_MapsTheNativeShell_AndSaysHowToReadItsLogs()
+    {
+        var files = await BuildAsync(new PrismMobileBundleRequest { AppId = "com.example.portal" });
+
+        files["README.md"].Should().Contain("## Native shell");
+        files["README.md"].Should().Contain("filter on subsystem `com.example.portal` and category\n  `PrismShell`");
+        files["README.md"].Should().Contain("adb logcat -s PrismShell");
     }
 
     [Fact]

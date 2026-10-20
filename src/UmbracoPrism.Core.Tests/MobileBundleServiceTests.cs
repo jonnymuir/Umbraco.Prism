@@ -92,7 +92,7 @@ public class MobileBundleServiceTests
         using var stream = new MemoryStream(zipBytes);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
 
-        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        var iosBootstrap = ReadPlatform(archive, "ios");
         iosBootstrap.Should().Contain("bridge?.registerPluginInstance(PrismIdentityCookiePlugin())");
         iosBootstrap.Should().Contain("class PrismIdentityCookiePlugin: CAPPlugin, CAPBridgedPlugin");
         iosBootstrap.Should().Contain("public let jsName = \"PrismIdentityCookiePlugin\"");
@@ -100,9 +100,9 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("let store = WKWebsiteDataStore.default()");
         iosBootstrap.Should().Contain("store.removeData(ofTypes: [WKWebsiteDataTypeCookies], for: matching)");
 
-        var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
+        var androidBootstrap = ReadPlatform(archive, "android");
         androidBootstrap.Should().Contain("JAVA_DIR=\"android/app/src/main/java/com/example/test\"");
-        androidBootstrap.Should().Contain("$JAVA_DIR/PrismIdentityCookiePlugin.java");
+        androidBootstrap.Should().Contain("cp native/android/java/*.java \"$JAVA_DIR/\"");
         androidBootstrap.Should().Contain("package com.example.test;");
         androidBootstrap.Should().Contain("@CapacitorPlugin(name = \"PrismIdentityCookiePlugin\")");
         androidBootstrap.Should().Contain("cookieManager.removeAllCookies(value -> {");
@@ -112,9 +112,16 @@ public class MobileBundleServiceTests
         androidBootstrap.Should().NotContain("PrismIdentityCookiePlugin.kt");
 
         // Every tab's bridge registers the plugin, not just a file on disk.
-        androidBootstrap.Should().Contain("$JAVA_DIR/PrismTabFragment.java");
         androidBootstrap.Should().Contain("plugins.add(PrismIdentityCookiePlugin.class);");
     }
+
+    /// <summary>A platform's bootstrap script with the native shell files it copies into the project.</summary>
+    private static string ReadPlatform(ZipArchive archive, string platform) =>
+        string.Join("\n", archive.Entries
+            .Where(entry => entry.FullName == $"scripts/bootstrap-{platform}.sh"
+                || entry.FullName.StartsWith($"native/{platform}/", StringComparison.Ordinal)
+                || entry.FullName == $"scripts/{platform}-add-native-shell.mjs")
+            .Select(entry => ReadEntry(archive, entry.FullName)));
 
     private static string ReadEntry(ZipArchive archive, string path)
     {
@@ -368,14 +375,16 @@ public class MobileBundleServiceTests
         using var stream = new MemoryStream(zipBytes);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
 
-        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        var iosBootstrap = ReadPlatform(archive, "ios");
         iosBootstrap.Should().Contain("static let startURL = URL(string: \"https://test.example/?prismMobile=1\")!");
         iosBootstrap.Should().Contain("final class PrismTabBarController: UITabBarController");
         iosBootstrap.Should().Contain("window?.rootViewController = PrismTabBarController()");
         iosBootstrap.Should().Contain("static let manifestPath = \"/umbraco/prism/mobile/manifest\"");
 
         // Xcode builds cleanly without a file that is not in the project, then the app launches blank.
-        iosBootstrap.Should().Contain("project.addSourceFile('App/PrismShell.swift'");
+        iosBootstrap.Should().Contain("cp native/ios/*.swift native/ios/App.entitlements ios/App/App/");
+        iosBootstrap.Should().Contain("node scripts/ios-add-native-shell.mjs");
+        iosBootstrap.Should().Contain("project.addSourceFile(`App/${file}`, { target }, 'App');");
 
         // Hosted sign-in pages cannot be edited, so the zoom fix is injected natively into every frame.
         iosBootstrap.Should().Contain("maximum-scale=1, user-scalable=no, viewport-fit=cover");
@@ -576,7 +585,7 @@ public class MobileBundleServiceTests
         using var stream = new MemoryStream(zipBytes);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
 
-        var iosBootstrap = ReadEntry(archive, "scripts/bootstrap-ios.sh");
+        var iosBootstrap = ReadPlatform(archive, "ios");
         iosBootstrap.Should().Contain("bridge?.registerPluginInstance(PrismSystemSignInPlugin())");
         iosBootstrap.Should().Contain("public let jsName = \"PrismSystemSignIn\"");
         iosBootstrap.Should().Contain("callback: .https(host: PrismShell.ownHost, path: path)");
@@ -584,6 +593,7 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("<key>com.apple.developer.associated-domains</key>");
         iosBootstrap.Should().Contain("<string>webcredentials:members.example.org</string>");
         iosBootstrap.Should().Contain("project.updateBuildProperty('IPHONEOS_DEPLOYMENT_TARGET', '17.4');");
+        iosBootstrap.Should().Contain("project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements');");
     }
 
     [Fact]
@@ -596,8 +606,7 @@ public class MobileBundleServiceTests
         using var stream = new MemoryStream(zipBytes);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
 
-        var androidBootstrap = ReadEntry(archive, "scripts/bootstrap-android.sh");
-        androidBootstrap.Should().Contain("$JAVA_DIR/PrismSystemSignInPlugin.java");
+        var androidBootstrap = ReadPlatform(archive, "android");
         androidBootstrap.Should().Contain("@CapacitorPlugin(name = \"PrismSystemSignIn\")");
         androidBootstrap.Should().Contain("plugins.add(PrismSystemSignInPlugin.class);");
         androidBootstrap.Should().Contain(".setEphemeralBrowsingEnabled(true)");

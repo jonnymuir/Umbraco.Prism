@@ -32,9 +32,7 @@ internal static class IosProjectFiles
             ? BundleTemplates.Read("ios-push-injection.sh")
             : string.Empty;
 
-        var nativeShell = BundleTemplates.Read("ios-native-shell.sh")
-            .Replace("@@PRISM_START_URL@@", CapacitorProjectFiles.AddPrismMobileQueryFlag(startUrl))
-            .Replace("@@PRISM_ASSOCIATED_DOMAINS@@", $"\t\t<string>webcredentials:{new Uri(startUrl).Host}</string>");
+        var nativeShell = BundleTemplates.Read("ios-native-shell.sh");
 
         return $$"""
 #!/usr/bin/env bash

@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Services/MobileBundles/Templates/*" LogicalName="MobileBundleTemplates/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Services/MobileBundles/Templates/bundle/**/*" LogicalName="MobileBundleTemplates/bundle/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

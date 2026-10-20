@@ -138,7 +138,7 @@ npm run open:android
 - Prism mobile middleware can enforce in-WebView behavior for `target="_blank"` and `window.open`.
 - If a page fails to load, the app shows `www/offline.html`, a branded screen using the error title, message and colours from the backoffice. It retries when the device comes back online or when the user taps "Try again".
 
-{{BundleTemplates.Read("readme-store-publishing.md")}}## Entra authentication mode
+{{BundleTemplates.Read("readme-native-shell.md").Replace("{{appId}}", settings.AppId)}}{{BundleTemplates.Read("readme-store-publishing.md")}}## Entra authentication mode
 
 - **Strict in-WebView mode:** keeps flows inside the WebView but may not satisfy all Entra/Conditional Access policies.
 - **Compliance mode (recommended):** uses system browser auth session for Entra and can visually leave WebView.

@@ -40,6 +40,10 @@ public class MobileBundleService : IMobileBundleService
             AddEntry(archive, "scripts/bootstrap-android.sh", AndroidProjectFiles.BuildBootstrapAndroidScript(settings));
             AddEntry(archive, "scripts/trust-ios-localhost-cert.sh", IosProjectFiles.BuildTrustIosLocalhostCertScript(settings));
             AddEntry(archive, "resources/mobile-assets.json", CapacitorProjectFiles.BuildAssetsManifest(settings));
+            foreach (var (path, content) in NativeShellFiles.Build(settings))
+            {
+                AddEntry(archive, path, content);
+            }
 
             // Default app icon (an opaque-background Umbraco Prism mark — @capacitor/assets
             // requires no alpha channel for the iOS App Store icon specifically). Without this,
