@@ -31,8 +31,10 @@ screen shows a blank page or a raw connection error while a copy exists on the d
 
 ### R4. Sign-in is standards-aligned
 Interactive sign-in uses the system authentication session (`ASWebAuthenticationSession` on iOS,
-Custom Tabs on Android) with PKCE. Tokens live in the Keychain / Keystore, refresh is gated by
-biometrics when enabled. Hosted IdP pages never render inside the app's webviews.
+Custom Tabs on Android) with PKCE. The identity provider's tokens stay on the server; the device
+holds only Prism-issued credentials, in the Keychain / Keystore, and using them is gated by
+biometrics when enabled. Hosted IdP pages never render inside the app's webviews. Detailed in
+[mobile-sign-in.md](mobile-sign-in.md).
 
 ### R5. Server-authoritative journeys stay server-rendered until Wayfinder offers otherwise
 Wayfinder journeys are rendered by the server inside a native navigation stack. Rendering
