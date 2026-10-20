@@ -94,7 +94,9 @@ export const Edit: Story = {
           ErrorTextColor: '#f3f4f6',
           ErrorTitle: 'Cannot connect right now',
           ErrorMessage: 'Please try again in a moment.',
-          ShowErrorDiagnostics: false
+          ShowErrorDiagnostics: false,
+          AppleTeamId: 'ABCDE12345',
+          AndroidCertificateFingerprints: ['36:49:A1:FF:BB:53:3D:30:53:25:29:D0:27:8B:CE:C0:90:66:8A:DD:02:BF:50:B2:26:49:D6:E0:89:8D:B9:A9']
         },
         mobileBrandingOverrides: {
           '--color-primary': '#003399'

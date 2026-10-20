@@ -319,6 +319,44 @@ test('Edit modal hydrates all Produce Mobile values from persisted config', asyn
   });
 });
 
+test('Edit modal shows the saved app sign-in settings and flags a SHA-1 fingerprint', async ({ page }) => {
+  await page.goto(editStoryUrl);
+
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    const tab = el.shadowRoot?.querySelector('uui-tab[label="Produce Mobile"]') as HTMLElement | null;
+    tab?.click();
+  });
+
+  const saved = await modal.evaluate((el) => {
+    const read = (id: string) => (el.shadowRoot?.querySelector(`#${id}`) as HTMLInputElement | null)?.value ?? '';
+    return {
+      teamId: read('mobile-apple-team-id'),
+      packageName: read('mobile-android-package'),
+      fingerprints: read('mobile-android-fingerprints')
+    };
+  });
+
+  expect(saved).toEqual({
+    teamId: 'ABCDE12345',
+    packageName: '',
+    fingerprints: '36:49:A1:FF:BB:53:3D:30:53:25:29:D0:27:8B:CE:C0:90:66:8A:DD:02:BF:50:B2:26:49:D6:E0:89:8D:B9:A9'
+  });
+  await expect(frame.getByText('SHA-256, not SHA-1')).toHaveCount(0);
+
+  await modal.evaluate((el) => {
+    const field = el.shadowRoot?.querySelector('#mobile-android-fingerprints') as HTMLInputElement | null;
+    if (!field) return;
+    field.value = 'A8:EE:10:C3:1B:71:C6:D0:05:9F:95:99:26:54:DB:26:AD:03:93:E4';
+    field.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  });
+
+  await expect(frame.getByText('Each fingerprint is 32 pairs of hex digits separated by colons (SHA-256, not SHA-1).')).toBeVisible();
+});
+
 test('Produce Mobile tab shows push notifications toggle', async ({ page }) => {
   await page.goto(editStoryUrl);
 
