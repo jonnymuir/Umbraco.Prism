@@ -33,9 +33,7 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<ITenantService, TenantService>();
         builder.Services.AddSingleton<IPrismPageAccessResolver, PrismPageAccessResolver>();
         builder.Services.AddSingleton<IBrandingService, BrandingService>();
-        builder.Services.AddSingleton<IMobileBundleService, MobileBundleService>();
-        builder.Services.TryAddSingleton<IPrismMobileTabsProvider, PrismDefaultMobileTabsProvider>();
-        builder.Services.AddDistributedMemoryCache().AddSingleton<PrismMobileSignInCodes>();
+        ComposeMobile(builder.Services);
         builder.Services.AddSingleton<IPrismBrandingMetadataService, PrismBrandingMetadataService>();
         builder.Services.AddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
         builder.Services.AddHttpClient("prism-oidc-metadata");
@@ -148,5 +146,14 @@ public class PrismComposer : IComposer
         {
             options.Filters.Add<PrismPageAccessFilter>();
         });
+    }
+
+    /// <summary>Generated mobile apps: bundle generation, the app's tabs, and app sign-in.</summary>
+    private static void ComposeMobile(IServiceCollection services)
+    {
+        services.AddSingleton<IMobileBundleService, MobileBundleService>();
+        services.TryAddSingleton<IPrismMobileTabsProvider, PrismDefaultMobileTabsProvider>();
+        services.AddDistributedMemoryCache();
+        services.AddSingleton<PrismMobileSignInCodes>();
     }
 }
