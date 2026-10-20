@@ -112,7 +112,8 @@ Each of these is configured per tenant in the backoffice:
 ## 4) Phases
 
 Each phase ends with the reference app built for the iOS simulator and the Android emulator,
-screenshots compared against the previous phase, and the flows in section 5 passing.
+screenshots compared against the previous phase, and the flows in section 5 passing. Every phase
+ships on iOS and Android together.
 
 | Phase | Scope | Acceptance |
 |---|---|---|

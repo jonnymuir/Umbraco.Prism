@@ -12,8 +12,10 @@ A Prism mobile app is a generated native shell for one tenant. The pages inside 
 own site, served by Umbraco, so editors keep maintaining content, navigation and branding in the
 backoffice. The shell adds what a website cannot do on its own:
 
-- **Native tabs.** iOS uses a native tab bar; each tab is its own webview, so switching tabs is
-  instant and keeps each tab's place. The tabs come from the site (see Part 5).
+- **Native tabs** on iOS and Android; each tab is its own webview, so switching tabs is instant
+  and keeps each tab's place. The tabs come from the site (see Part 5).
+- **Sign-in through the system sign-in sheet**, so the identity provider's pages never load
+  inside the app (see Part 3).
 - **Biometric sign-in** (`@aparajita/capacitor-biometric-auth`, `@aparajita/capacitor-secure-storage`).
 - **Push notifications** (`@capacitor-firebase/messaging`) that open a page when tapped.
 - **A branded offline screen** when a page cannot be reached.
@@ -63,11 +65,57 @@ Xcode project. Both scripts can be run again safely after changing settings or r
 
 ---
 
-## Part 3: Biometric Authentication
+## Part 3: Signing In
+
+### The System Sign-In Sheet
+
+The app signs members in through the phone's own sign-in sheet: `ASWebAuthenticationSession` on
+iOS, and Chrome's Auth Tab on Android (a Custom Tab where the browser has no Auth Tab). The
+identity provider's pages never load in the app's webviews, and the tenant keeps the same
+provider registration and `/signin-oidc` redirect URI it uses for the website.
+
+```
+Member taps "Sign in" (or opens a page that needs a member)
+  → /auth/login serves the app sign-in page (prism-system-sign-in.js)
+  → biometric sign-in, if the member has enrolled
+  → otherwise the system sheet opens /umbraco/prism/mobile/auth/start
+      → the provider's sign-in → /signin-oidc → /umbraco/prism/mobile/auth/complete
+      → https://<site>/umbraco/prism/mobile/auth/callback?code=…  (handed to the app only)
+  → the page redeems the code with its PKCE verifier and opens the member's page
+  → the other tabs pick up the session
+```
+
+The callback is an `https` URL on the tenant's own domain. Each platform hands it to the app only
+after checking a file the site serves: `/.well-known/apple-app-site-association` on iOS and
+`/.well-known/assetlinks.json` on Android. The one-time code is useless without the verifier the
+page holds, and the sheet keeps no session after sign-in, so signing out is complete.
+
+Generated apps need iOS 17.4 or later, the first release with `https` callbacks for the sheet.
+
+### Setting Up App Sign-In in the Backoffice
+
+1. Open **Settings → Advanced → Tenants → [your tenant] → Produce Mobile**.
+2. Under **App Sign-In**, fill in:
+   - **Apple Team ID**: the ten-character ID under Membership in your Apple Developer account.
+   - **Android Package Name**: only when it differs from the App ID.
+   - **Android Signing Certificate SHA-256 Fingerprints**: for an app on Google Play, the app
+     signing key's fingerprint from Play Console, under App signing. Add the fingerprint of any
+     other key you install builds signed with, one per line.
+3. Click **Save**.
+
+Until a platform's fields are filled in, the site serves no file for it and that platform's app
+signs in inside the app as before. The iOS app's App ID needs the Associated Domains capability,
+which Xcode adds when it signs with automatic signing.
+
+The association can only be checked against a real domain from a signed build, so the system
+sheet completes on devices, not in the iOS simulator. On an Android emulator the callback can be
+handed to the app by hand with `adb shell am start -a android.intent.action.VIEW -d "<callback URL>" <app id>`.
+
+### Biometric Sign-In
 
 After a user's first OIDC login, Prism can enroll their device for biometric auth (Face ID, Touch ID, fingerprint). Subsequent app launches skip the OIDC redirect and use biometric verification instead, for a faster, more native-feeling login experience.
 
-### How It Works
+#### How It Works
 
 ```
 First launch:
@@ -89,14 +137,14 @@ For key generation steps and configuration (local dev via user secrets, producti
 
 <!-- manual capture: Biometric enrollment prompt requires physical device or simulator native UI interaction -->
 
-### Configuring Biometric Auth in the Backoffice
+#### Configuring Biometric Auth in the Backoffice
 
 1. Log into the Umbraco backoffice (`https://localhost:44345/umbraco`).
 2. Navigate to **Settings → Advanced → Tenants → [your tenant]**.
 3. Find the **Allow Biometric Login** toggle and enable it (it is on by default).
 4. Click **Save**.
 
-When the mobile app next connects, it checks this tenant setting and offers biometric enrollment after successful OIDC login.
+When the mobile app next connects, it checks this tenant setting and offers biometric enrollment after successful OIDC login. In an app that uses the system sign-in sheet, the app sign-in page offers biometric sign-in first, before opening the sheet.
 
 <!-- manual capture: the tenant editor's biometric toggle requires Umbraco backoffice authentication -->
 
@@ -121,6 +169,7 @@ Detect a Prism mobile request with `PrismMobileRequestDetection.IsPrismMobileReq
 @{
     var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(Context);
     var biometricLoginEnabled = isPrismMobileRequest && (tenant?.AllowBiometricLogin ?? false);
+    var appSignsInNatively = PrismMobileRequestDetection.SignsInNatively(Context, tenant);
     var isAuthenticated = Context.User.Identity?.IsAuthenticated == true;
 }
 
@@ -142,10 +191,16 @@ Detect a Prism mobile request with `PrismMobileRequestDetection.IsPrismMobileReq
     {
         <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-enroll.js"></script>
     }
-    else
+    else if (!appSignsInNatively)
     {
         <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-autologin.js"></script>
     }
+}
+
+@if (isPrismMobileRequest && isAuthenticated)
+{
+    <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-signout.js"
+            data-prism-idp-hosts="@(appSignsInNatively ? "" : string.Join(",", PrismIdentityProviderHosts.Resolve(tenant)))"></script>
 }
 ```
 
@@ -155,6 +210,11 @@ Detect a Prism mobile request with `PrismMobileRequestDetection.IsPrismMobileReq
 | `prism-mobile-shell-guard.js` | Adds the `prism-mobile` CSS class; keeps `target="_blank"` links and `window.open()` inside the WebView instead of spawning a new window | Any Prism mobile request |
 | `prism-biometric-enroll.js` | Shows the "Enable Face ID / Touch ID?" banner and registers a device credential | Mobile request, biometric login enabled for the tenant, user already authenticated |
 | `prism-biometric-autologin.js` | Silently exchanges a previously-enrolled device's stored credential for a session, before the login page would otherwise render | Mobile request, biometric login enabled for the tenant, user not yet authenticated |
+| `prism-biometric-signout.js` | On sign-out, forgets the device's biometric credential and push token, and clears the identity provider's cookies from the app | Mobile request, user authenticated. Pass no hosts when the app signs in through the system sheet, since the provider's pages never load in the app |
+
+`SignsInNatively` is true for an app that uses the system sign-in sheet on a platform the
+tenant has set up for app sign-in (see Part 3). Such an app offers biometric sign-in from its
+own sign-in page instead, so the layout leaves out `prism-biometric-autologin.js`.
 
 `UmbracoPrism.TestSite`'s own `Views/Shared/Master.cshtml` is the reference implementation —
 copy the pattern above from there if you'd rather see it in full context.
@@ -227,9 +287,9 @@ The reference site's provider (`TestSiteMobileTabsProvider`) reads the **Mobile 
 list on the Settings node, the same items its web tab bar uses, so editors maintain both in one
 place.
 
-Pages rendered for the iOS app leave out their own web tab bar: `PrismMobileRequestDetection.HasNativeTabs`
-is true when the user agent carries `PrismNativeTabs`. Android apps still use the
-`prism-mobile-nav` web component until they get native tabs.
+Pages rendered for the app leave out their own web tab bar: `PrismMobileRequestDetection.HasNativeTabs`
+is true when the user agent carries `PrismNativeTabs`. Android shows the first five tabs, as
+Material's bottom navigation allows.
 
 ### Behaviour
 
@@ -238,6 +298,7 @@ is true when the user agent carries `PrismNativeTabs`. Android apps still use th
 - **Signing in or out** in one tab reloads each other tab the next time it is shown, and fetches
   the tabs again for the new member.
 - **A notification tap** is handled by the tab that is showing.
+- **Back on Android** goes back in the tab's own history, then to the first tab, then leaves the app.
 
 ---
 
@@ -302,7 +363,7 @@ Android Studio opens. Select a device or emulator and click **Run** (▶).
 
 <!-- manual capture: Android app screenshot requires Android Studio emulator or physical device -->
 
-💡 **What's happening:** The Android project (`android/`) embeds your compiled web assets in a `WebView` backed by Capacitor's Android bridge. Plugin calls (biometric, push, secure storage) are dispatched to their corresponding Kotlin implementations via the Capacitor plugin registry.
+💡 **What's happening:** The Android project (`android/`) replaces Capacitor's `MainActivity` with the native tab shell (`MainActivity.java`, `PrismTabFragment.java`): a Material bottom navigation bar with one Capacitor bridge and `WebView` per tab, all loading the tenant's site. Plugin calls (biometric, push, secure storage, the system sign-in sheet) go to their native implementations through each tab's Capacitor bridge.
 
 For detailed Android-specific guidance, refer to the [Capacitor Android documentation](https://capacitorjs.com/docs/android).
 
