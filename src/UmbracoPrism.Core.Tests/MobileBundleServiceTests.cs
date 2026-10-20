@@ -394,8 +394,10 @@ public class MobileBundleServiceTests
         // Each tab's bridge claims notification handling when created; taps must reach the visible tab.
         iosBootstrap.Should().Contain("UNUserNotificationCenter.current().delegate = router");
 
-        iosBootstrap.Should().NotContain("PrismNavigationHoldDelegate", "paint-holding is gone with one webview per tab");
-        iosBootstrap.Should().NotContain("PrismContentWatcherPlugin");
+        // WKWebView shows nothing between pages, so the outgoing page is held over the gap.
+        iosBootstrap.Should().Contain("final class PrismNavigationHold");
+        iosBootstrap.Should().Contain("hold = bridge.webView.map(PrismNavigationHold.init)");
+        iosBootstrap.Should().Contain("final class PrismLoadingRing: UIView");
     }
 
     [Fact]
@@ -615,6 +617,10 @@ public class MobileBundleServiceTests
         androidBootstrap.Should().Contain("android:host=\"members.example.org\" android:path=\"/umbraco/prism/mobile/auth/callback\"");
         androidBootstrap.Should().Contain("if (PrismSystemSignInPlugin.deliver(intent.getData())) return;");
         androidBootstrap.Should().Contain("androidx.browser:browser:1.9.0");
+
+        // Android's webview holds the outgoing page itself; a slow load still shows the ring.
+        androidBootstrap.Should().Contain("final class PrismLoadingRing extends FrameLayout");
+        androidBootstrap.Should().Contain("loadingRing.onProgress(progress);");
     }
 
     [Fact]

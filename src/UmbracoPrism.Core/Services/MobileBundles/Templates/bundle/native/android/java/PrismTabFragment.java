@@ -3,6 +3,7 @@ package @@PRISM_PACKAGE@@;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,8 +11,10 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.fragment.app.Fragment;
 import com.getcapacitor.Bridge;
+import com.getcapacitor.BridgeWebChromeClient;
 import com.getcapacitor.BridgeWebViewClient;
 import com.getcapacitor.Logger;
 import com.getcapacitor.Plugin;
@@ -37,6 +40,7 @@ public class PrismTabFragment extends Fragment {
     private boolean loaded;
     private boolean stale;
     private boolean returnsToRootWhenShown;
+    private PrismLoadingRing loadingRing;
 
     static PrismTabFragment create(String path, boolean load) {
         PrismTabFragment fragment = new PrismTabFragment();
@@ -52,6 +56,7 @@ public class PrismTabFragment extends Fragment {
         super.onCreate(savedInstanceState);
         path = requireArguments().getString(ARG_PATH, "/");
         root = LayoutInflater.from(requireContext()).inflate(com.getcapacitor.android.R.layout.capacitor_bridge_layout_main, null, false);
+        loadingRing = new PrismLoadingRing(requireContext());
 
         List<Class<? extends Plugin>> plugins = new ArrayList<>();
         try {
@@ -73,7 +78,11 @@ public class PrismTabFragment extends Fragment {
             })
             .create();
         bridge.setWebViewClient(new TabWebViewClient(bridge));
-        bridge.getWebView().setBackgroundColor(PrismPageBackground.current(requireContext()));
+        bridge.getWebView().setWebChromeClient(new TabChromeClient(bridge));
+        CoordinatorLayout.LayoutParams ringPlacement = new CoordinatorLayout.LayoutParams(loadingRing.sizePx(), loadingRing.sizePx());
+        ringPlacement.gravity = Gravity.CENTER;
+        ((ViewGroup) root).addView(loadingRing, ringPlacement);
+        bridge.getWebView().setBackgroundColor(PrismPageColours.background(requireContext()));
 
         // A tab not yet shown waits to load its page until it is.
         loaded = requireArguments().getBoolean(ARG_LOAD);
@@ -105,7 +114,7 @@ public class PrismTabFragment extends Fragment {
     }
 
     private void pageLoaded(WebView webView) {
-        PrismPageBackground.read(webView, webView::setBackgroundColor);
+        PrismPageColours.read(webView, webView::setBackgroundColor);
         if (getActivity() instanceof MainActivity) ((MainActivity) getActivity()).checkSession();
     }
 
@@ -205,6 +214,19 @@ public class PrismTabFragment extends Fragment {
             boolean followsLink = request.hasGesture() && !request.isRedirect();
             if (!followsLink) returnsToRootWhenShown = true;
             return true;
+        }
+    }
+
+    /** Capacitor's own chrome client, also telling the loading ring how far the page has loaded. */
+    private final class TabChromeClient extends BridgeWebChromeClient {
+        TabChromeClient(Bridge bridge) {
+            super(bridge);
+        }
+
+        @Override
+        public void onProgressChanged(WebView view, int progress) {
+            super.onProgressChanged(view, progress);
+            loadingRing.onProgress(progress);
         }
     }
 }

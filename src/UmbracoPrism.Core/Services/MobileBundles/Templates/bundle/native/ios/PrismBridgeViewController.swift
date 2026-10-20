@@ -6,8 +6,14 @@ import WebKit
 struct PrismPageEvents {
     /// The page's address changed: a navigation started, redirected or committed.
     var addressChanged: (URL?) -> Void = { _ in }
+    /// A navigation started, before anything of the new page exists.
+    var navigationStarted: () -> Void = {}
     /// A page finished loading.
     var loaded: (WKWebView) -> Void = { _ in }
+    /// A navigation failed or was cancelled.
+    var navigationFailed: () -> Void = {}
+    /// The member scrolled, typed or tapped on the page.
+    var contentChanged: () -> Void = {}
     /// Asked before the tab navigates to a page of the site, saying whether the member tapped a
     /// link to it; true when another tab takes it instead.
     var openInAnotherTab: (URL, _ followsLink: Bool) -> Bool = { _, _ in false }
@@ -46,6 +52,14 @@ final class PrismBridgeViewController: CAPBridgeViewController {
         let viewportFix = "(function(){function pin(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';}if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',pin);}else{pin();}})();"
         webView.configuration.userContentController.addUserScript(
             WKUserScript(source: viewportFix, injectionTime: .atDocumentStart, forMainFrameOnly: false))
+
+        // Tells the navigation hold the page has changed since it loaded (scrolled, typed into),
+        // debounced to one message per 100ms of quiet.
+        let contentWatcher = "(function(){var t;function changed(){clearTimeout(t);t=setTimeout(function(){window.webkit.messageHandlers.prismContentChanged.postMessage(1);},100);}['scroll','input','change','click'].forEach(function(e){window.addEventListener(e,changed,{passive:true,capture:true});});})();"
+        webView.configuration.userContentController.addUserScript(
+            WKUserScript(source: contentWatcher, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        webView.configuration.userContentController.add(
+            PrismContentChangeHandler { [weak self] in self?.events.contentChanged() }, name: "prismContentChanged")
 
         bridge?.registerPluginInstance(PrismIdentityCookiePlugin())
         bridge?.registerPluginInstance(PrismSystemSignInPlugin())
@@ -107,6 +121,7 @@ private final class PrismNavigationDecorator: NSObject, WKNavigationDelegate, WK
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        events().navigationStarted()
         events().addressChanged(webView.url)
         navigationTarget?.webView?(webView, didStartProvisionalNavigation: navigation)
     }
@@ -126,6 +141,16 @@ private final class PrismNavigationDecorator: NSObject, WKNavigationDelegate, WK
         navigationTarget?.webView?(webView, didFinish: navigation)
     }
 
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        events().navigationFailed()
+        navigationTarget?.webView?(webView, didFail: navigation, withError: error)
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        events().navigationFailed()
+        navigationTarget?.webView?(webView, didFailProvisionalNavigation: navigation, withError: error)
+    }
+
     // Capacitor sends every window.open() to Safari, even for this app's own pages (sign-out uses
     // one). Trusted hosts stay in the tab.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
@@ -135,5 +160,19 @@ private final class PrismNavigationDecorator: NSObject, WKNavigationDelegate, WK
             return nil
         }
         return uiTarget?.webView?(webView, createWebViewWith: configuration, for: navigationAction, windowFeatures: windowFeatures) ?? nil
+    }
+}
+
+/// Passes the content watcher's messages on without the content controller holding the bridge,
+/// which it would otherwise keep alive.
+private final class PrismContentChangeHandler: NSObject, WKScriptMessageHandler {
+    private let changed: () -> Void
+
+    init(_ changed: @escaping () -> Void) {
+        self.changed = changed
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        changed()
     }
 }

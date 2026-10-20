@@ -8,6 +8,7 @@ import WebKit
 final class PrismWebTabViewController: UIViewController {
     var prismTab: PrismManifest.Tab
     private var bridgeController: PrismBridgeViewController?
+    private var hold: PrismNavigationHold?
     private var topConstraint: NSLayoutConstraint?
     private var isStale = false
     private var returnsToRootWhenShown = false
@@ -28,11 +29,14 @@ final class PrismWebTabViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = PrismPageBackground.current
+        view.backgroundColor = PrismPageColours.background
         let bridge = PrismBridgeViewController(startURL: PrismShell.url(forPath: prismTab.path))
         bridge.events = PrismPageEvents(
             addressChanged: { [weak self] url in self?.reserveStatusBar(!PrismShell.isOwnSite(url)) },
+            navigationStarted: { [weak self] in self?.hold?.navigationStarted() },
             loaded: { [weak self] webView in self?.pageLoaded(in: webView) },
+            navigationFailed: { [weak self] in self?.hold?.navigationEnded(loaded: false) },
+            contentChanged: { [weak self] in self?.hold?.contentChanged() },
             openInAnotherTab: { [weak self] url, followsLink in self?.openInAnotherTab(url, followsLink: followsLink) ?? false })
         addChild(bridge)
         view.addSubview(bridge.view)
@@ -48,17 +52,19 @@ final class PrismWebTabViewController: UIViewController {
         bridgeController = bridge
         topConstraint = top
         bridge.webView.map(Self.paint)
+        hold = bridge.webView.map(PrismNavigationHold.init)
     }
 
     private func pageLoaded(in webView: WKWebView) {
-        PrismPageBackground.read(from: webView) { [weak self] colour in
+        hold?.navigationEnded(loaded: true)
+        PrismPageColours.read(from: webView) { [weak self] colour in
             self?.view.backgroundColor = colour
             Self.paint(webView, colour)
         }
     }
 
     private static func paint(_ webView: WKWebView) {
-        paint(webView, PrismPageBackground.current)
+        paint(webView, PrismPageColours.background)
     }
 
     private static func paint(_ webView: WKWebView, _ colour: UIColor) {
