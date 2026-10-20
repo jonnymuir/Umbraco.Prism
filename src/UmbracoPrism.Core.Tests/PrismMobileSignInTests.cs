@@ -105,10 +105,10 @@ public class PrismMobileSignInTests
             };
 
         /// <summary>Runs complete for a member signed in at the provider and returns the code it handed to the app.</summary>
-        public async Task<string> CompleteAsync(PrismTenant tenant, string returnUrl = "/dashboard")
+        public async Task<string> CompleteAsync(PrismTenant tenant)
         {
             var result = await Controller(tenant, new RecordingAuthenticationService(Member()))
-                .Complete(Challenge, returnUrl, CancellationToken.None);
+                .Complete(Challenge, CancellationToken.None);
             var location = result.Should().BeOfType<RedirectResult>().Subject.Url;
             return QueryHelpersCode(location);
         }
@@ -118,13 +118,13 @@ public class PrismMobileSignInTests
     }
 
     [Fact]
-    public void Start_ChallengesTheProvider_AndReturnsToCompleteWithTheChallengeAndALocalReturnUrl()
+    public void Start_ChallengesTheProvider_AndReturnsToCompleteWithTheChallenge()
     {
-        var result = new Harness().Controller(Tenant()).Start(Challenge, "https://evil.example/steal", "create");
+        var result = new Harness().Controller(Tenant()).Start(Challenge, "create");
 
         var challenge = result.Should().BeOfType<ChallengeResult>().Subject;
         challenge.AuthenticationSchemes.Should().Equal(PrismAuthenticationSchemes.Oidc);
-        challenge.Properties!.RedirectUri.Should().Be($"/umbraco/prism/mobile/auth/complete?challenge={Challenge}&returnUrl=%2F");
+        challenge.Properties!.RedirectUri.Should().Be($"/umbraco/prism/mobile/auth/complete?challenge={Challenge}");
         challenge.Properties.Items["PrismPrompt"].Should().Be("create");
     }
 
@@ -134,13 +134,13 @@ public class PrismMobileSignInTests
     [InlineData("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjX=")]
     public void Start_RefusesAMissingOrMalformedChallenge(string? challenge)
     {
-        new Harness().Controller(Tenant()).Start(challenge, "/", null).Should().BeOfType<BadRequestResult>();
+        new Harness().Controller(Tenant()).Start(challenge, null).Should().BeOfType<BadRequestResult>();
     }
 
     [Fact]
     public void Start_IsNotFound_UntilTheSiteVouchesForAnApp()
     {
-        new Harness().Controller(Tenant(appLinks: PrismMobileAppLinks.None)).Start(Challenge, "/", null)
+        new Harness().Controller(Tenant(appLinks: PrismMobileAppLinks.None)).Start(Challenge, null)
             .Should().BeOfType<NotFoundResult>();
     }
 
@@ -150,7 +150,7 @@ public class PrismMobileSignInTests
         var harness = new Harness();
         var authentication = new RecordingAuthenticationService(Member());
 
-        var result = await harness.Controller(Tenant(), authentication).Complete(Challenge, "/dashboard", CancellationToken.None);
+        var result = await harness.Controller(Tenant(), authentication).Complete(Challenge, CancellationToken.None);
 
         result.Should().BeOfType<RedirectResult>().Subject.Url.Should().MatchRegex("^/umbraco/prism/mobile/auth/callback\\?code=[A-Za-z0-9_-]{43}$");
         authentication.SignedOut.Should().Equal(PrismAuthenticationSchemes.MemberCookie);
@@ -159,7 +159,7 @@ public class PrismMobileSignInTests
     [Fact]
     public async Task Complete_RefusesWhenNobodySignedIn()
     {
-        var result = await new Harness().Controller(Tenant()).Complete(Challenge, "/", CancellationToken.None);
+        var result = await new Harness().Controller(Tenant()).Complete(Challenge, CancellationToken.None);
 
         result.Should().BeOfType<BadRequestResult>();
     }
@@ -179,7 +179,7 @@ public class PrismMobileSignInTests
     }
 
     [Fact]
-    public async Task Redeem_WithTheVerifier_SignsTheMemberInWithTheProviderSession_AndReturnsThemToTheirPage()
+    public async Task Redeem_WithTheVerifier_SignsTheMemberInWithTheProviderSession()
     {
         var harness = new Harness();
         var code = await harness.CompleteAsync(Tenant());
@@ -187,7 +187,7 @@ public class PrismMobileSignInTests
 
         var result = await harness.Controller(Tenant(), authentication).Redeem(code, Verifier, CancellationToken.None);
 
-        result.Should().BeOfType<LocalRedirectResult>().Subject.Url.Should().Be("/dashboard");
+        result.Should().BeOfType<NoContentResult>();
         var (principal, properties) = authentication.SignedIn!.Value;
         principal.FindFirst("sub")!.Value.Should().Be("member-1");
         principal.HasClaim("prism_auth_method", "system").Should().BeTrue();
@@ -204,7 +204,7 @@ public class PrismMobileSignInTests
         var right = new RecordingAuthenticationService(null);
 
         (await harness.Controller(Tenant(), wrong).Redeem(code, Verifier.Replace('d', 'e'), CancellationToken.None))
-            .Should().BeOfType<RedirectResult>().Subject.Url.Should().Be("/");
+            .Should().BeOfType<BadRequestResult>();
         await harness.Controller(Tenant(), right).Redeem(code, Verifier, CancellationToken.None);
 
         wrong.SignedIn.Should().BeNull();
@@ -393,6 +393,9 @@ public class PrismMobileSignInTests
                 {
                     RequestServices = new ServiceCollection()
                         .AddSingleton<IAuthenticationService>(new RecordingAuthenticationService(null))
+                        .AddLogging()
+                        .AddDataProtection().Services
+                        .AddAntiforgery()
                         .BuildServiceProvider()
                 }
             }
@@ -411,10 +414,12 @@ public class PrismMobileSignInTests
         var page = (await controller.Login("/dashboard?tab=\"2\"")).Should().BeOfType<ContentResult>().Subject;
 
         page.ContentType.Should().Be("text/html");
-        page.Content.Should().Contain("prism-system-sign-in.js\" data-prism-return-url=\"/dashboard?tab=&quot;2&quot;\"");
+        page.Content.Should().Contain("prism-system-sign-in.js\"");
+        page.Content.Should().Contain("data-prism-antiforgery-header=\"RequestVerificationToken\"");
+        page.Content.Should().MatchRegex("data-prism-antiforgery-token=\"[^\"]{20,}\"");
         page.Content.Should().Contain("prism-biometric-autologin.js\" data-prism-on-demand");
         page.Content.Should().NotContain("data-prism-prompt");
-        controller.Response.Headers.CacheControl.ToString().Should().Be("no-store");
+        controller.Response.Headers.CacheControl.ToString().Should().Contain("no-store");
     }
 
     [Fact]

@@ -16,8 +16,8 @@ namespace UmbracoPrism.Core.Controllers;
 /// Sign-in for generated apps, run in the system authentication session rather than the app's
 /// webview. The app opens <c>start</c> with an S256 challenge; after the normal OIDC sign-in,
 /// <c>complete</c> hands the session over under a one-time code on the <c>callback</c> URL, which
-/// only the tenant's verified app receives; the app then posts the code and its verifier to
-/// <c>redeem</c> from its webview, which signs the member in there.
+/// only the tenant's verified app receives; the app's sign-in page then posts the code and its
+/// verifier to <c>redeem</c>, which signs the member in in the app's webview.
 /// </summary>
 [AllowAnonymous]
 [Route(BasePath)]
@@ -32,7 +32,7 @@ public partial class PrismMobileSignInController(
     internal const string AuthMethod = "system";
 
     [HttpGet("start")]
-    public IActionResult Start(string? challenge, string? returnUrl, string? prompt)
+    public IActionResult Start(string? challenge, string? prompt)
     {
         var tenant = prismContext.CurrentTenant;
         if (tenant?.HasSignInConfigured() != true || !tenant.MobileAppLinks.HasAny)
@@ -45,11 +45,7 @@ public partial class PrismMobileSignInController(
             return BadRequest();
         }
 
-        var safeReturnUrl = PrismReturnUrl.Normalize(returnUrl);
-        var properties = new AuthenticationProperties
-        {
-            RedirectUri = $"/{BasePath}/complete?challenge={challenge}&returnUrl={Uri.EscapeDataString(safeReturnUrl)}"
-        };
+        var properties = new AuthenticationProperties { RedirectUri = $"/{BasePath}/complete?challenge={challenge}" };
 
         if (prompt == "create")
         {
@@ -60,7 +56,7 @@ public partial class PrismMobileSignInController(
     }
 
     [HttpGet("complete")]
-    public async Task<IActionResult> Complete(string? challenge, string? returnUrl, CancellationToken cancellationToken)
+    public async Task<IActionResult> Complete(string? challenge, CancellationToken cancellationToken)
     {
         var tenant = prismContext.CurrentTenant;
         if (tenant?.HasSignInConfigured() != true || !tenant.MobileAppLinks.HasAny)
@@ -75,7 +71,7 @@ public partial class PrismMobileSignInController(
         }
 
         var code = await codes.IssueAsync(
-            new PrismMobileSignInCodes.PendingSignIn(tenant.Id, challenge, PrismReturnUrl.Normalize(returnUrl), ticket),
+            new PrismMobileSignInCodes.PendingSignIn(tenant.Id, challenge, ticket),
             cancellationToken);
 
         // The session now belongs to the app; nothing should stay signed in here.
@@ -106,21 +102,26 @@ public partial class PrismMobileSignInController(
             "text/html");
     }
 
+    /// <summary>
+    /// Called by the app's sign-in page with <c>fetch</c>, so it answers with a status rather than a
+    /// page: 204 once the member is signed in, 400 when the code is refused. The sign-in page
+    /// carries the antiforgery token, on top of the PKCE verifier that already ties the code to it.
+    /// </summary>
     [HttpPost("redeem")]
-    [IgnoreAntiforgeryToken]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Redeem([FromForm] string? code, [FromForm] string? verifier, CancellationToken cancellationToken)
     {
         var tenant = prismContext.CurrentTenant;
         if (tenant is null || string.IsNullOrEmpty(code) || !IsVerifier(verifier))
         {
-            return Redirect("/");
+            return BadRequest();
         }
 
         var signIn = await codes.TakeAsync(code, cancellationToken);
         if (!IsRedeemable(signIn, tenant, verifier))
         {
             logger.LogWarning("Prism mobile sign-in: rejected a code for tenant {TenantId}", tenant.Id);
-            return Redirect("/");
+            return BadRequest();
         }
 
         var identity = signIn.Ticket.Principal.Identities.First();
@@ -134,7 +135,7 @@ public partial class PrismMobileSignInController(
         await HttpContext.SignInAsync(PrismAuthenticationSchemes.MemberCookie, signIn.Ticket.Principal, properties);
         PrismOidcConfiguration.NotifySignedIn(HttpContext, identity);
 
-        return LocalRedirect(signIn.ReturnUrl);
+        return NoContent();
     }
 
     private static bool IsChallenge([NotNullWhen(true)] string? challenge) =>

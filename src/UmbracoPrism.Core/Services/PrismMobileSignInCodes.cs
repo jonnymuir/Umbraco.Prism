@@ -24,14 +24,14 @@ public class PrismMobileSignInCodes(IDistributedCache cache, IDataProtectionProv
     private readonly TicketDataFormat _tickets = new(dataProtection.CreateProtector("UmbracoPrism.MobileSignIn"));
 
     /// <summary>A sign-in waiting for the app to redeem it.</summary>
-    public sealed record PendingSignIn(int TenantId, string Challenge, string ReturnUrl, AuthenticationTicket Ticket);
+    public sealed record PendingSignIn(int TenantId, string Challenge, AuthenticationTicket Ticket);
 
-    private sealed record StoredSignIn(int TenantId, string Challenge, string ReturnUrl, string Ticket);
+    private sealed record StoredSignIn(int TenantId, string Challenge, string Ticket);
 
     public async Task<string> IssueAsync(PendingSignIn signIn, CancellationToken cancellationToken)
     {
         var code = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
-        var stored = new StoredSignIn(signIn.TenantId, signIn.Challenge, signIn.ReturnUrl, _tickets.Protect(signIn.Ticket));
+        var stored = new StoredSignIn(signIn.TenantId, signIn.Challenge, _tickets.Protect(signIn.Ticket));
 
         await cache.SetAsync(
             Key(code),
@@ -58,7 +58,7 @@ public class PrismMobileSignInCodes(IDistributedCache cache, IDataProtectionProv
         var ticket = stored is null ? null : _tickets.Unprotect(stored.Ticket);
         return stored is null || ticket is null
             ? null
-            : new PendingSignIn(stored.TenantId, stored.Challenge, stored.ReturnUrl, ticket);
+            : new PendingSignIn(stored.TenantId, stored.Challenge, ticket);
     }
 
     /// <summary>The S256 challenge for <paramref name="verifier"/>, as RFC 7636 defines it.</summary>

@@ -64,8 +64,8 @@ public class AuthorizationContractTests
         [(typeof(PrismMobileSignInController), "*")] =
             "App sign-in through the system authentication session, before any session exists. Start " +
             "and Complete wrap the normal OIDC challenge; Callback ignores its input; Redeem is a POST " +
-            "whose one-time code is only accepted with the verifier for the S256 challenge the app " +
-            "started with (PKCE), which is its CSRF protection, hence [IgnoreAntiforgeryToken].",
+            "guarded by [ValidateAntiForgeryToken], whose one-time code is only accepted with the " +
+            "verifier for the S256 challenge the app started with (PKCE).",
 
         [(typeof(BiometricController), nameof(BiometricController.Exchange))] =
             "Biometric login: presents a signed BiometricToken JWT and receives a PrismMemberCookie " +

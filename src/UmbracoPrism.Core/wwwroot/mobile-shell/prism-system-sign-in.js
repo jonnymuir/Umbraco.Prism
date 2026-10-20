@@ -3,19 +3,14 @@
 // enrolled (prism-biometric-autologin.js, loaded on demand). Otherwise the app's
 // PrismSystemSignIn plugin opens the system sheet at /umbraco/prism/mobile/auth/start, which
 // ends with a one-time code on the callback URL; the code is redeemed here with the PKCE
-// verifier only this page knows. The page then replaces itself with the member's page, so Back
-// never returns to it.
+// verifier only this page knows. Once signed in, the page reloads: /auth/login then redirects a
+// signed-in member to the page they were going to, replacing this page in the history.
 (function () {
   var BASE = '/umbraco/prism/mobile/auth';
   var script = document.currentScript;
-  var returnUrl = localPath(script && script.getAttribute('data-prism-return-url'));
-  var prompt = script && script.getAttribute('data-prism-prompt');
-
-  // A path on this site, or the home page: never another site or a script URL.
-  function localPath(value) {
-    var url = new URL(value || '/', window.location.origin);
-    return url.origin === window.location.origin ? url.pathname + url.search + url.hash : '/';
-  }
+  var prompt = script.getAttribute('data-prism-prompt');
+  var antiforgeryHeader = script.getAttribute('data-prism-antiforgery-header');
+  var antiforgeryToken = script.getAttribute('data-prism-antiforgery-token');
 
   function base64Url(bytes) {
     var text = '';
@@ -32,17 +27,9 @@
     }
   }
 
-  async function signIn() {
-    if (window.PrismBiometricSignIn && await window.PrismBiometricSignIn()) {
-      window.location.replace(returnUrl);
-      return;
-    }
-
-    var verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));
-    var digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  async function openSignInSheet(challenge) {
     var start = new URL(BASE + '/start', window.location.origin);
-    start.searchParams.set('challenge', base64Url(new Uint8Array(digest)));
-    start.searchParams.set('returnUrl', returnUrl);
+    start.searchParams.set('challenge', challenge);
     if (prompt) start.searchParams.set('prompt', prompt);
 
     var result = await window.Capacitor.nativePromise('PrismSystemSignIn', 'authenticate', {
@@ -50,20 +37,40 @@
       callbackHost: window.location.hostname,
       callbackPath: BASE + '/callback'
     });
+    return new URL(result.url).searchParams.get('code') || '';
+  }
 
-    var code = new URL(result.url).searchParams.get('code');
+  async function redeem(code, verifier) {
+    var headers = {};
+    headers[antiforgeryHeader] = antiforgeryToken;
     var response = await fetch(BASE + '/redeem', {
       method: 'POST',
       credentials: 'same-origin',
-      body: new URLSearchParams({ code: code || '', verifier: verifier })
+      headers: headers,
+      body: new URLSearchParams({ code: code, verifier: verifier })
     });
-
-    // Redeem redirects to the member's page, or to the home page when the code is refused.
-    window.location.replace(response.redirected ? localPath(response.url) : '/');
+    return response.ok;
   }
 
-  signIn().catch(function (error) {
-    console.log('[Prism SignIn] ' + (error && (error.message || String(error))));
-    leave();
-  });
+  async function signIn() {
+    if (window.PrismBiometricSignIn && await window.PrismBiometricSignIn()) return true;
+
+    var verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));
+    var digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+    var code = await openSignInSheet(base64Url(new Uint8Array(digest)));
+    return redeem(code, verifier);
+  }
+
+  signIn().then(
+    function (signedIn) {
+      if (signedIn) {
+        window.location.reload();
+      } else {
+        leave();
+      }
+    },
+    function (error) {
+      console.log('[Prism SignIn] ' + (error && (error.message || String(error))));
+      leave();
+    });
 })();

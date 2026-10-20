@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Net;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Mvc;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Auth;
@@ -41,7 +43,7 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
 
         if (PrismMobileRequestDetection.SignsInNatively(HttpContext, prismContext.CurrentTenant))
         {
-            return AppSignInPage(safeReturnUrl, prompt: null);
+            return AppSignInPage(prompt: null);
         }
 
         var properties = new AuthenticationProperties { RedirectUri = safeReturnUrl };
@@ -74,7 +76,7 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
 
         if (PrismMobileRequestDetection.SignsInNatively(HttpContext, prismContext.CurrentTenant))
         {
-            return AppSignInPage(safeReturnUrl, prompt: "create");
+            return AppSignInPage(prompt: "create");
         }
 
         var properties = new AuthenticationProperties { RedirectUri = safeReturnUrl };
@@ -136,15 +138,17 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
     /// <summary>
     /// Sign-in for an app that uses the system authentication session: the page offers biometric
     /// sign-in where the member has enrolled, then opens the system sheet through the app
-    /// (prism-system-sign-in.js). The identity provider never loads in the app's webview.
+    /// (prism-system-sign-in.js). The identity provider never loads in the app's webview. Once the
+    /// member is signed in the page reloads, and this action sends them on to the return URL.
     /// </summary>
-    private ContentResult AppSignInPage(string returnUrl, string? prompt)
+    private ContentResult AppSignInPage(string? prompt)
     {
         Response.Headers.CacheControl = "no-store";
         var biometric = prismContext.CurrentTenant?.AllowBiometricLogin == true
             ? """<script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-biometric-autologin.js" data-prism-on-demand></script>"""
             : string.Empty;
         var promptAttribute = prompt is null ? string.Empty : $" data-prism-prompt=\"{WebUtility.HtmlEncode(prompt)}\"";
+        var antiforgery = HttpContext.RequestServices.GetRequiredService<IAntiforgery>().GetAndStoreTokens(HttpContext);
 
         return Content(
             $$"""
@@ -154,7 +158,8 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
             <body>
             <p role="status">Signing in…</p>
             {{biometric}}
-            <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-system-sign-in.js" data-prism-return-url="{{WebUtility.HtmlEncode(returnUrl)}}"{{promptAttribute}}></script>
+            <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-system-sign-in.js"{{promptAttribute}}
+                    data-prism-antiforgery-header="{{WebUtility.HtmlEncode(antiforgery.HeaderName)}}" data-prism-antiforgery-token="{{WebUtility.HtmlEncode(antiforgery.RequestToken)}}"></script>
             </body>
             </html>
             """,

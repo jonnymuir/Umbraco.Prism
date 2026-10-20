@@ -33,9 +33,10 @@ on the device; the server keeps the refresh token, encrypted, and exchanges one 
      │                         │                    │── .../auth/complete ────▶│ one-time code k
      │                         │◀── https://<site>/umbraco/prism/mobile/auth/callback?code=k
      │◀── callback URL ────────│   (handed only to the verified app)
-     │── fetch POST .../auth/redeem {k, v} ─────────────────────────────────────▶│ checks S256(v)=c
-     │◀── Set-Cookie PrismMemberCookie, redirect /x ─────────────────────────────│
-     │ location.replace(/x); the other tabs pick up the session
+     │── fetch POST .../auth/redeem {k, v} + antiforgery token ─────────────────▶│ checks S256(v)=c
+     │◀── 204, Set-Cookie PrismMemberCookie ─────────────────────────────────────│
+     │ reload /auth/login?returnUrl=/x ──────────────────────────────────────────▶│ signed in: redirect /x
+     │ the other tabs pick up the session
 ```
 
 1. **Sign-in page.** Generated apps add `PrismSystemSignIn` to their user agent. For such a
@@ -46,24 +47,24 @@ on the device; the server keeps the refresh token, encrypted, and exchanges one 
    creates the PKCE verifier and asks the app's `PrismSystemSignIn` plugin to open the system
    sheet at `start`. The plugin is the only native code: it opens the sheet and returns the
    callback URL. Identity provider hosts never load in a webview.
-2. **Start.** `GET /umbraco/prism/mobile/auth/start?challenge=&returnUrl=&prompt=` validates the
-   challenge (43 base64url characters) and the return URL (local only), then issues the normal
-   OIDC challenge with `/umbraco/prism/mobile/auth/complete?challenge=&returnUrl=` as its
-   redirect. Not found where the tenant has no sign-in or no app links (section 4).
+2. **Start.** `GET /umbraco/prism/mobile/auth/start?challenge=&prompt=` validates the challenge
+   (43 base64url characters), then issues the normal OIDC challenge with
+   `/umbraco/prism/mobile/auth/complete?challenge=` as its redirect. Not found where the tenant has no sign-in or no app links (section 4).
 3. **Complete.** Runs in the system session, just after `/signin-oidc` has signed in the member
-   cookie there. It reads that ticket, stores it with the challenge, tenant and return URL under
-   a fresh one-time code, and redirects to `https://<site>/umbraco/prism/mobile/auth/callback?code=<code>`.
+   cookie there. It reads that ticket, stores it with the challenge and tenant under a fresh
+   one-time code, and redirects to `https://<site>/umbraco/prism/mobile/auth/callback?code=<code>`.
 4. **Callback.** The system session hands that URL straight to the app, because the app is
    verified for the site's domain (section 4). The page itself is only reached if the link was
    opened somewhere else: it ignores the code and says to return to the app, and is served
    `no-store`, `noindex` and `Referrer-Policy: no-referrer`.
 5. **Redeem.** The sign-in page posts the code and verifier to `/umbraco/prism/mobile/auth/redeem`
-   with `fetch`. Prism removes the code (single use), checks
-   the tenant and that `S256(verifier)` equals the stored challenge, signs in
-   `PrismMemberCookie` with the stored ticket plus a `prism_auth_method=system` claim, and
-   redirects to the return URL, which the page then replaces itself with, so Back never returns
-   to it. The cookie lands in the app's shared webview cookie store, and the shell's session
-   check refreshes the other tabs.
+   with `fetch`, with the antiforgery token the page carries. Prism removes the code (single use),
+   checks the tenant and that `S256(verifier)` equals the stored challenge, signs in
+   `PrismMemberCookie` with the stored ticket plus a `prism_auth_method=system` claim, and answers
+   204, or 400 when it refuses the code. The page then reloads: `/auth/login` sends a signed-in
+   member on to the return URL, and that redirect replaces the sign-in page in the history, so Back
+   never returns to it. The cookie lands in the app's shared webview cookie store, and the shell's
+   session check refreshes the other tabs.
 6. **Cancel.** Closing the sheet takes the member back to the page they came from.
 
 **Storage.** One-time codes live in `IDistributedCache` for two minutes, the ticket protected
