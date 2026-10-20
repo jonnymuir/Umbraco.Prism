@@ -46,4 +46,35 @@ public class PrismSeedTenantOptions
     public string? OidcClientSecretReference { get; set; }
 
     public bool AllowBiometricLogin { get; set; } = true;
+
+    /// <summary>
+    /// The tenant's mobile apps, for app sign-in (the tenant editor's App Sign-In settings). Set
+    /// values replace the tenant's saved ones on every boot; the tenant's other mobile settings are
+    /// left as they are.
+    /// </summary>
+    public PrismSeedMobileAppOptions MobileApp { get; set; } = new();
+}
+
+/// <summary>
+/// The app identities a tenant's site vouches for, bound under <c>Prism:SeedTenant:MobileApp</c>.
+/// None of these is secret: the site publishes them in apple-app-site-association and
+/// assetlinks.json.
+/// </summary>
+public class PrismSeedMobileAppOptions
+{
+    /// <summary>The app's bundle ID, which is also its Android package name unless that is set.</summary>
+    public string? AppId { get; set; }
+
+    public string? AppleTeamId { get; set; }
+
+    public string? AndroidPackageName { get; set; }
+
+    /// <summary>SHA-256 fingerprints of the Android signing certificates, such as Google Play's app signing key.</summary>
+    public List<string> AndroidCertificateFingerprints { get; set; } = [];
+
+    public bool HasAny =>
+        !string.IsNullOrWhiteSpace(AppId)
+        || !string.IsNullOrWhiteSpace(AppleTeamId)
+        || !string.IsNullOrWhiteSpace(AndroidPackageName)
+        || AndroidCertificateFingerprints.Count > 0;
 }

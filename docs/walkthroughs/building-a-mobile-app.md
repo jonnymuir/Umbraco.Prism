@@ -107,8 +107,9 @@ Generated apps need iOS 17.4 or later, the first release with `https` callbacks 
      other key you install builds signed with, one per line.
 3. Click **Save**.
 
-Until a platform's fields are filled in, the site serves no file for it and that platform's app
-signs in inside the app as before. The iOS app's App ID needs the Associated Domains capability,
+A tenant seeded from configuration can set these as `Prism:SeedTenant:MobileApp` instead (see
+[Seeding a tenant from configuration](../umbraco-setup.md#seeding-a-tenant-from-configuration-no-backoffice-no-manual-step)). Until a platform's fields are filled
+in, the site serves no file for it and that platform's app signs in inside the app as before. The iOS app's App ID needs the Associated Domains capability,
 which Xcode adds when it signs with automatic signing.
 
 The association can only be checked against a real domain from a signed build, so the system
