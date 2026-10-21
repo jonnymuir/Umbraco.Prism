@@ -55,18 +55,25 @@ public sealed record PrismJourneyStatus(
     string Status,         // "Checking your details"
     int? Step, int? Steps, // optional "Step 2 of 3"
     string Path,           // the page the status opens, site-relative
-    PrismJourneyStatusKind Kind); // Waiting (a wait now), Changed (a change later), Finished
+    PrismJourneyStatusKind Kind); // Waiting (a wait now) or Done
 
 public interface IPrismJourneyStatusService
 {
-    Task PublishAsync(string userId, string tenantId, PrismJourneyStatus status, CancellationToken cancellationToken);
+    void Publish(string userId, string tenantId, PrismJourneyStatus status);
 }
 ```
 
+`Publish` queues the status and returns at once. A background sender delivers it, so a slow or
+failed delivery never holds up, or breaks, whatever caused the change. A failed delivery is
+logged, and the next status for the same journey supersedes it. The queue is in memory: a status
+queued as the site stops is lost, which costs the member one lock screen update, never the
+journey's own state.
+
 - **Waiting** starts the journey's Live Activity or Live Update, or updates it if one is running.
-- **Changed** ends any running one and sends a push notification, unless the host says it has
-  sent its own.
-- **Finished** ends any running one with its last status showing.
+- **Done** ends any running one, with its last status showing for a short while.
+
+A change later is a push notification, sent as today through `IPrismNotificationService` or the
+Automate action, so a status never sends one itself and a member is never told twice.
 
 Prism keeps, per member device, the tokens needed to reach it (section 6). An Umbraco Automate
 action, "Update journey status", sits beside the existing "Send Prism push notification", so a
@@ -74,19 +81,23 @@ support-system automation can publish a status without code.
 
 ## 5) Where statuses come from in the reference site
 
-Wayfinder has no transition event a host can subscribe to, but every transition is recorded
-through `IAuditLogStore.Record`. The reference site wraps that store. On each transition of a
-member's journey, it looks up the new stage's status, if the site has given it one, and publishes
-it. The mapping from stage to status lives in the reference site, for its own journeys. For the
-juggling licence: "Deciding your application" (waiting) while the licence decision runs, which
-for a competitive or professional licence waits on a person approving it in the backoffice's
-Automate section; and "A decision has been made" (changed) when it settles. The decision
-automation already sends a push notification for each outcome, so "changed" ends the Live
-Activity rather than sending a second one.
+Wayfinder.Umbraco publishes a `ServiceRequestTransitionedNotification` each time a request moves
+on and the move is saved, whatever caused it: the member, a caseworker, a gateway or a support
+system's outcome. The reference site handles it. For a signed-in member's request, it looks up
+the new stage's status, if the site has given it one, and publishes it to the request's owner.
+The mapping from stage to status lives in the reference site, for its own journeys. The
+notification needs Wayfinder.Umbraco 4.1.0 or later, so the reference site moves to the current
+release (5.0.0) first.
 
-The better long-term home for the mapping is the blueprint itself: a stage could declare its
-member-facing status line and kind. That is a Wayfinder change, proposed there separately, and
-the reference site's mapping would then read it from the blueprint instead.
+For the juggling licence: "Deciding your application" (waiting) while the licence decision runs,
+which for a competitive or professional licence waits on a person approving it in the
+backoffice's Automate section; and "A decision has been made" (done) when it settles. The
+decision automation already sends a push notification for each outcome, which is the change
+later.
+
+A later home for the mapping is the blueprint itself: a stage could declare its member-facing
+status line and kind. That would be a Wayfinder change, and the reference site's mapping would
+then read it from the blueprint instead.
 
 ## 6) Platforms
 
@@ -103,6 +114,11 @@ the reference site's mapping would then read it from the blueprint instead.
 - **Delivered through Firebase.** FCM's HTTP v1 API starts, updates and ends Live Activities via
   `apns.live_activity_token`, which Prism's Firebase Admin SDK already exposes, so no separate
   APNs key is needed.
+- **A second app identity.** The extension is signed as its own bundle ID, the app's own with
+  `.JourneyStatus` added. The TestFlight workflow signs automatically with the App Store Connect
+  API key, which registers that ID and its provisioning profile the first time it archives,
+  provided the key's role (Admin or App Manager) may register identifiers. Otherwise, the ID is
+  registered once by hand in the Apple Developer account. The generated README says which.
 
 ### Android
 
@@ -132,21 +148,23 @@ alongside it.
 
 1. **Live Activities only for waits now.** Multi-day changes use push notifications, because iOS
    ends a Live Activity within 12 hours whatever the app does.
-2. **Prism's API is journey-agnostic.** The reference site maps Wayfinder's transitions to
-   statuses. A blueprint-level status, declared by the stage, is proposed to Wayfinder rather than
-   built here.
+2. **Prism's API is journey-agnostic.** The reference site maps Wayfinder.Umbraco's transition
+   notification to statuses. Prism queues what it is given and delivers it in the background, so
+   no host has to.
 3. **Firebase for both platforms.** One delivery path and one set of credentials, as push uses
    today.
 
 ## 9) Not in this phase
 
-- A home screen widget listing the member's open journeys (the multi-day surface).
+- A home screen widget listing the member's open journeys (the multi-day surface). It is the
+  next phase, and reuses this phase's extension target and status API.
 - Statuses for caseworkers (their queue changing), which is a different audience.
 
 ## 10) Verification
 
 - Prism tests: publishing each kind sends the right Firebase message per platform (start, update
-  and end for iOS; data message for Android), only to the member's own devices.
+  and end for iOS; data message for Android), only to the member's own devices, and a failed
+  delivery is logged without reaching the caller.
 - The reference site: a competitive juggling licence application shows "Deciding your
   application" on the lock screen of both apps, with the app closed. When the approval is given in
   the backoffice, the Live Activity or Live Update ends and the decision's push notification
