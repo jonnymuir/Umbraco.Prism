@@ -33,7 +33,7 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<ITenantService, TenantService>();
         builder.Services.AddSingleton<IPrismPageAccessResolver, PrismPageAccessResolver>();
         builder.Services.AddSingleton<IBrandingService, BrandingService>();
-        ComposeMobile(builder.Services);
+        ComposeMobile(builder);
         builder.Services.AddSingleton<IPrismBrandingMetadataService, PrismBrandingMetadataService>();
         builder.Services.AddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
         builder.Services.AddHttpClient("prism-oidc-metadata");
@@ -71,6 +71,7 @@ public class PrismComposer : IComposer
                 {
                     app.UseMiddleware<PrismTenantMiddleware>();
                     app.UseMiddleware<PrismMobileCookieMiddleware>();
+                    app.UseMiddleware<PrismSavedPagesMiddleware>();
                 }
             ));
         });
@@ -149,11 +150,15 @@ public class PrismComposer : IComposer
     }
 
     /// <summary>Generated mobile apps: bundle generation, the app's tabs, and app sign-in.</summary>
-    private static void ComposeMobile(IServiceCollection services)
+    private static void ComposeMobile(IUmbracoBuilder builder)
     {
+        var services = builder.Services;
         services.AddSingleton<IMobileBundleService, MobileBundleService>();
         services.TryAddSingleton<IPrismMobileTabsProvider, PrismDefaultMobileTabsProvider>();
         services.AddDistributedMemoryCache();
         services.AddSingleton<PrismMobileSignInCodes>();
+        services.AddSingleton<PrismContentVersion>();
+        builder.AddNotificationHandler<ContentPublishedNotification, PrismContentVersionHandler>();
+        builder.AddNotificationHandler<ContentUnpublishedNotification, PrismContentVersionHandler>();
     }
 }

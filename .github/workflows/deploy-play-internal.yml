@@ -95,6 +95,7 @@ jobs:
           --biometric-auth true
           --device-capture true
           --push-notifications "$PUSH_NOTIFICATIONS_ENABLED"
+          --saved-pages true
           --output mobile-bundle.zip
 
       - name: Unzip mobile bundle

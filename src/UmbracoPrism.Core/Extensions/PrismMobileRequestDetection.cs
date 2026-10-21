@@ -22,6 +22,20 @@ public static class PrismMobileRequestDetection
     /// </summary>
     public const string SystemSignInUserAgentToken = "PrismSystemSignIn";
 
+    /// <summary>
+    /// Appended to the user agent by generated apps built with saved pages, which keep copies of
+    /// the site's pages on the device (see <c>prism-offline.js</c>).
+    /// </summary>
+    public const string SavedPagesUserAgentToken = "PrismSavedPages";
+
+    /// <summary>
+    /// Carries the app's user agent on requests from its saved pages service worker
+    /// (<c>prism-offline-sw.js</c>). Android's webview sends a service worker's requests with the
+    /// webview's default user agent, without what the app appends, so without this the site would
+    /// render the worker the browser version of each page.
+    /// </summary>
+    public const string AppUserAgentHeaderName = "X-Prism-User-Agent";
+
     public static bool IsPrismMobileRequest(HttpContext context)
     {
         return ResolveMobileSignal(context).isMobile;
@@ -49,18 +63,31 @@ public static class PrismMobileRequestDetection
     /// </summary>
     public static bool IsNativeMobileRequest(HttpContext context)
     {
-        var userAgent = context.Request.Headers.UserAgent.ToString();
+        var userAgent = AppUserAgent(context);
         return userAgent.Contains("PrismMobile", StringComparison.OrdinalIgnoreCase);
     }
 
-    public static bool HasNativeTabs(HttpContext context)
+    /// <summary>The request's user agent, with the app's own when its service worker passes it on.</summary>
+    private static string AppUserAgent(HttpContext context)
     {
-        return context.Request.Headers.UserAgent.ToString().Contains(NativeTabsUserAgentToken, StringComparison.Ordinal);
+        var userAgent = context.Request.Headers.UserAgent.ToString();
+        var appUserAgent = context.Request.Headers[AppUserAgentHeaderName].ToString();
+        return appUserAgent.Length == 0 ? userAgent : $"{userAgent} {appUserAgent}";
+    }
+
+        public static bool HasNativeTabs(HttpContext context)
+    {
+        return AppUserAgent(context).Contains(NativeTabsUserAgentToken, StringComparison.Ordinal);
     }
 
     public static bool HasSystemSignIn(HttpContext context)
     {
-        return context.Request.Headers.UserAgent.ToString().Contains(SystemSignInUserAgentToken, StringComparison.Ordinal);
+        return AppUserAgent(context).Contains(SystemSignInUserAgentToken, StringComparison.Ordinal);
+    }
+
+    public static bool SavesPages(HttpContext context)
+    {
+        return AppUserAgent(context).Contains(SavedPagesUserAgentToken, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -75,7 +102,7 @@ public static class PrismMobileRequestDetection
             return false;
         }
 
-        var android = context.Request.Headers.UserAgent.ToString().Contains("Android", StringComparison.OrdinalIgnoreCase);
+        var android = AppUserAgent(context).Contains("Android", StringComparison.OrdinalIgnoreCase);
         return android ? tenant.MobileAppLinks.HasAndroid : tenant.MobileAppLinks.HasIos;
     }
 
@@ -126,7 +153,7 @@ public static class PrismMobileRequestDetection
             return (true, "header");
         }
 
-        var userAgent = context.Request.Headers.UserAgent.ToString();
+        var userAgent = AppUserAgent(context);
         if (userAgent.Contains("PrismMobile", StringComparison.OrdinalIgnoreCase))
         {
             return (true, "user-agent");

@@ -135,6 +135,15 @@
         <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell-guard.js" asp-append-version="true"></script>
     }
 
+    @if (PrismMobileRequestDetection.HasNativeTabs(Context))
+    {
+        @* Saved pages: copies of pages kept on the device by apps built with them, and cleaned
+           away by apps built without. *@
+        <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-offline.js" asp-append-version="true"
+                data-prism-saved-pages="@(PrismMobileRequestDetection.SavesPages(Context) ? "on" : "off")"
+                data-prism-signed-in="@(isAuthenticated ? "true" : "false")"></script>
+    }
+
     @if (biometricLoginEnabled)
     {
         @* Enroll if a session already exists to enroll a device against; otherwise attempt

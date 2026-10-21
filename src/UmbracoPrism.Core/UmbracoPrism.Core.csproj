@@ -22,6 +22,7 @@
   <ItemGroup>
     <EmbeddedResource Include="Services/MobileBundles/Templates/*" LogicalName="MobileBundleTemplates/%(Filename)%(Extension)" />
     <EmbeddedResource Include="Services/MobileBundles/Templates/bundle/**/*" LogicalName="MobileBundleTemplates/bundle/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Controllers/SavedPages/prism-offline-sw.js" LogicalName="SavedPages/prism-offline-sw.js" />
   </ItemGroup>
 
   <ItemGroup>

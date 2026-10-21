@@ -6,10 +6,22 @@ namespace UmbracoPrism.Core.Services.MobileBundles;
 /// The opt-in features a bundle is generated with. Each defaults to off, so an app declares and ships only
 /// what it asked for.
 /// </summary>
-internal sealed record MobileBundleFeatures(bool Biometric, bool Push, bool DeviceCapture)
+internal sealed record MobileBundleFeatures
 {
-    public static MobileBundleFeatures From(PrismMobileBundleRequest request) => new(
-        request.BiometricAuthEnabled ?? false,
-        request.PushNotificationsEnabled ?? false,
-        request.DeviceCaptureEnabled ?? false);
+    public bool Biometric { get; init; }
+
+    public bool Push { get; init; }
+
+    public bool DeviceCapture { get; init; }
+
+    /// <summary>Copies of the site's pages kept on the device (Design/mobile-offline-pages.md).</summary>
+    public bool SavedPages { get; init; }
+
+    public static MobileBundleFeatures From(PrismMobileBundleRequest request) => new()
+    {
+        Biometric = request.BiometricAuthEnabled ?? false,
+        Push = request.PushNotificationsEnabled ?? false,
+        DeviceCapture = request.DeviceCaptureEnabled ?? false,
+        SavedPages = request.SavedPagesEnabled ?? false
+    };
 }

@@ -15,6 +15,7 @@ export interface MobileDraft {
   errorMessage: string;
   showErrorDiagnostics: boolean;
   pushNotificationsEnabled: boolean;
+  savedPagesEnabled: boolean;
   appleTeamId: string;
   androidPackageName: string;
   /** One SHA-256 fingerprint per line. */
@@ -42,6 +43,7 @@ export const emptyMobile = (): MobileDraft => ({
   errorMessage: DEFAULT_ERROR_MESSAGE,
   showErrorDiagnostics: true,
   pushNotificationsEnabled: false,
+  savedPagesEnabled: false,
   appleTeamId: '',
   androidPackageName: '',
   androidCertificateFingerprints: ''
@@ -157,6 +159,7 @@ export function mobileFromTenant(tenant: any): MobileDraft {
     errorMessage: saved<string>('errorMessage') ?? DEFAULT_ERROR_MESSAGE,
     showErrorDiagnostics: saved<boolean>('showErrorDiagnostics') ?? true,
     pushNotificationsEnabled: saved<boolean>('pushNotificationsEnabled') ?? false,
+    savedPagesEnabled: saved<boolean>('savedPagesEnabled') ?? false,
     appleTeamId: saved<string>('appleTeamId') ?? '',
     androidPackageName: saved<string>('androidPackageName') ?? '',
     androidCertificateFingerprints: (saved<string[]>('androidCertificateFingerprints') ?? []).join('\n')
@@ -201,7 +204,12 @@ export function mobileAppConfig(draft: MobileDraft) {
   };
 }
 
-/** The request body for generating a bundle: the saved config plus the two feature switches. */
+/** The request body for generating a bundle: the saved config plus the feature switches. */
 export function bundleRequest(draft: MobileDraft, biometricAuthEnabled: boolean) {
-  return { ...mobileAppConfig(draft), biometricAuthEnabled, pushNotificationsEnabled: draft.pushNotificationsEnabled };
+  return {
+    ...mobileAppConfig(draft),
+    biometricAuthEnabled,
+    pushNotificationsEnabled: draft.pushNotificationsEnabled,
+    savedPagesEnabled: draft.savedPagesEnabled
+  };
 }

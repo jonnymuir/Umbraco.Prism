@@ -61,6 +61,10 @@ public class AuthorizationContractTests
             "session to confirm which apps the site vouches for. Read-only, and they hold only app IDs " +
             "and public certificate fingerprints.",
 
+        [(typeof(global::UmbracoPrism.Core.Controllers.SavedPages.PrismSavedPagesController), "*")] =
+            "The saved pages service worker script, which the app registers before anyone signs in. " +
+            "Read-only, and the same fixed file for everyone.",
+
         [(typeof(PrismMobileSignInController), "*")] =
             "App sign-in through the system authentication session, before any session exists. Start " +
             "and Complete wrap the normal OIDC challenge; Callback ignores its input; Redeem is a POST " +
