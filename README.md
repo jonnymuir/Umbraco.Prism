@@ -73,7 +73,7 @@ Two optional add-ons, released alongside it with the same version:
 | Package | Adds |
 |---|---|
 | [`UmbracoPrism.uSync`](src/UmbracoPrism.uSync/README.md) | uSync export and import of tenants and page access policies, so they move between environments with the rest of your site. |
-| [`UmbracoPrism.Automate`](src/UmbracoPrism.Automate/README.md) | A "Send Prism push notification" action for Umbraco Automate. |
+| [`UmbracoPrism.Automate`](src/UmbracoPrism.Automate/README.md) | "Send Prism push notification" and "Update journey status" actions for Umbraco Automate. |
 
 ![The reference site's home page for a signed-in member, branded for its local Keycloak tenant](docs/images/walkthroughs/home-entry/02-signed-in-hero.png)
 
@@ -92,6 +92,9 @@ Two optional add-ons, released alongside it with the same version:
   Firebase, to one member, a genre's subscribers, or a whole tenant. Notify on content publish
   from configuration alone, from an Umbraco Automate action, or from your own code. See
   [Notifications](docs/notifications.md).
+- **Journey status**: `IPrismJourneyStatusService` shows where a member's journey has got to on
+  their lock screen while they wait on it, as an iOS Live Activity or Android Live Update. See
+  [Building a Mobile App, Part 7](docs/walkthroughs/building-a-mobile-app.md#part-7-journey-status).
 - **Page access policies**: require sign-in for any page and limit it to named tenants, from
   **Settings → Advanced → Page access**.
 - **Secure-by-default secrets**: production tenants resolve confidential-client secrets through

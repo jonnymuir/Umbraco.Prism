@@ -32,6 +32,8 @@ internal sealed record MobileBundleSettings(
 
     public bool SavedPagesEnabled => Features.SavedPages;
 
+    public bool JourneyStatusEnabled => Features.JourneyStatus;
+
     /// <exception cref="ArgumentException">Thrown when request input contains invalid app identifiers or URLs.</exception>
     public static MobileBundleSettings Resolve(PrismTenantSchema tenant, PrismMobileBundleRequest request)
     {

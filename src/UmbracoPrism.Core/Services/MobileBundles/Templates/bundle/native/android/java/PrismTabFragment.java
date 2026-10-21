@@ -40,6 +40,7 @@ public class PrismTabFragment extends Fragment {
     private boolean loaded;
     private boolean stale;
     private boolean returnsToRootWhenShown;
+    private String requestedPage;
     private PrismLoadingRing loadingRing;
 
     static PrismTabFragment create(String path, boolean load) {
@@ -124,7 +125,14 @@ public class PrismTabFragment extends Fragment {
      * screen readers with only the start of the page.
      */
     void showPage() {
-        if (!loaded || returnsToRootWhenShown) {
+        if (requestedPage != null) {
+            String page = requestedPage;
+            requestedPage = null;
+            loaded = true;
+            stale = false;
+            returnsToRootWhenShown = false;
+            root.post(() -> bridge.getWebView().loadUrl(PrismShell.urlForPath(page)));
+        } else if (!loaded || returnsToRootWhenShown) {
             loaded = true;
             stale = false;
             returnsToRootWhenShown = false;
@@ -133,6 +141,11 @@ public class PrismTabFragment extends Fragment {
             stale = false;
             root.post(() -> bridge.getWebView().reload());
         }
+    }
+
+    /** Shows a page of the site, rather than the tab's own, the next time the tab is shown. */
+    void open(String page) {
+        requestedPage = page;
     }
 
     void markStale() {

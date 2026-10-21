@@ -96,6 +96,7 @@ jobs:
           --device-capture true
           --push-notifications "$PUSH_NOTIFICATIONS_ENABLED"
           --saved-pages true
+          --journey-status "$PUSH_NOTIFICATIONS_ENABLED"
           --output mobile-bundle.zip
 
       - name: Unzip mobile bundle

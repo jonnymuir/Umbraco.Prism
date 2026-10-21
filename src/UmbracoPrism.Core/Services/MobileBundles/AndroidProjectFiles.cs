@@ -34,6 +34,10 @@ internal static class AndroidProjectFiles
             .Replace("@@PRISM_JAVA_DIR@@", appId.Replace('.', '/'))
             .Replace("@@PRISM_HOST@@", new Uri(settings.StartUrl).Host);
 
+        var journeyStatus = settings.JourneyStatusEnabled
+            ? BundleTemplates.Read("android-journey-status.sh").Replace("@@PRISM_JAVA_DIR@@", appId.Replace('.', '/'))
+            : string.Empty;
+
         return $$"""
 #!/usr/bin/env bash
 set -euo pipefail
@@ -73,7 +77,7 @@ npx cap sync android
 
 echo "Generating app icon and splash screen from resources/icon.svg..."
 npx capacitor-assets generate --android
-{{manifestInjection}}{{pushInjection}}{{nativeShell}}
+{{manifestInjection}}{{pushInjection}}{{nativeShell}}{{journeyStatus}}
 if [[ "${CI:-}" == "true" ]]; then
   echo "CI environment detected — skipping emulator run/open. The android/ project is synced and"
   echo "ready for a signing/build step (e.g. ./gradlew bundleRelease) to take over from here."

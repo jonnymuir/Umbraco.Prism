@@ -18,4 +18,5 @@ public class PrismMobileBundleRequest
     public bool? PushNotificationsEnabled { get; set; }
     public bool? DeviceCaptureEnabled { get; set; }
     public bool? SavedPagesEnabled { get; set; }
+    public bool? JourneyStatusEnabled { get; set; }
 }

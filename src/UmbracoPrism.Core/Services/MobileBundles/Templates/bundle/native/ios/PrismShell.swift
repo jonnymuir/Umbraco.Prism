@@ -9,6 +9,10 @@ enum PrismShell {
     static let manifestPath = "/umbraco/prism/mobile/manifest"
     static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "PrismShell", category: "PrismShell")
 
+    /// Posted when the member signs in or out, with `signedInKey` saying which.
+    static let sessionChanged = Notification.Name("PrismShellSessionChanged")
+    static let signedInKey = "signedIn"
+
     static var ownHost: String { startURL.host ?? "" }
 
     /// Same scheme, host and port as the tenant's site. Locally the identity provider can share

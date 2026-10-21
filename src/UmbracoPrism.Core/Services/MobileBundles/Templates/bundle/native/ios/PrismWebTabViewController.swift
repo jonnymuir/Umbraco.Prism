@@ -12,6 +12,7 @@ final class PrismWebTabViewController: UIViewController {
     private var topConstraint: NSLayoutConstraint?
     private var isStale = false
     private var returnsToRootWhenShown = false
+    private var firstPage: URL?
 
     init(tab: PrismManifest.Tab) {
         self.prismTab = tab
@@ -30,7 +31,7 @@ final class PrismWebTabViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = PrismPageColours.background
-        let bridge = PrismBridgeViewController(startURL: PrismShell.url(forPath: prismTab.path))
+        let bridge = PrismBridgeViewController(startURL: firstPage ?? PrismShell.url(forPath: prismTab.path))
         bridge.events = PrismPageEvents(
             addressChanged: { [weak self] url in self?.reserveStatusBar(!PrismShell.isOwnSite(url)) },
             navigationStarted: { [weak self] in self?.hold?.navigationStarted() },
@@ -105,6 +106,18 @@ final class PrismWebTabViewController: UIViewController {
         } else if isStale {
             isStale = false
             bridgeController?.webView?.reload()
+        }
+    }
+
+    /// Opens a page of the site in this tab, such as the one a tapped journey status points to.
+    func open(_ url: URL) {
+        let page = PrismShell.url(forPath: url.path + (url.query.map { "?" + $0 } ?? ""))
+        returnsToRootWhenShown = false
+        isStale = false
+        if let webView = bridgeController?.webView {
+            webView.load(URLRequest(url: page))
+        } else {
+            firstPage = page
         }
     }
 

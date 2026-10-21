@@ -322,6 +322,15 @@ export class MobileSection implements ReactiveController {
         disabledTitle: 'Saved pages disabled',
         onChange: checked => this._patch({ savedPagesEnabled: checked })
       })}
+
+      ${this._toggle({
+        title: 'Journey Status',
+        hint: 'Show where a member\'s application has got to on their lock screen while they wait on it: a Live Activity on iPhone, a Live Update on Android. Needs push notifications, which statuses travel through. Your site publishes the statuses.',
+        checked: d.journeyStatusEnabled,
+        enabledTitle: 'Journey status enabled',
+        disabledTitle: 'Journey status disabled',
+        onChange: checked => this._patch({ journeyStatusEnabled: checked })
+      })}
     `;
   }
 

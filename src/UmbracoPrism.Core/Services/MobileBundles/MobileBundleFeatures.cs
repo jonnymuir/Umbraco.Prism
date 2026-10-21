@@ -17,11 +17,18 @@ internal sealed record MobileBundleFeatures
     /// <summary>Copies of the site's pages kept on the device (Design/mobile-offline-pages.md).</summary>
     public bool SavedPages { get; init; }
 
+    /// <summary>
+    /// Journey statuses on the lock screen (Design/mobile-journey-status.md). They travel through
+    /// push notifications, so only with them.
+    /// </summary>
+    public bool JourneyStatus { get; init; }
+
     public static MobileBundleFeatures From(PrismMobileBundleRequest request) => new()
     {
         Biometric = request.BiometricAuthEnabled ?? false,
         Push = request.PushNotificationsEnabled ?? false,
         DeviceCapture = request.DeviceCaptureEnabled ?? false,
-        SavedPages = request.SavedPagesEnabled ?? false
+        SavedPages = request.SavedPagesEnabled ?? false,
+        JourneyStatus = (request.JourneyStatusEnabled ?? false) && (request.PushNotificationsEnabled ?? false)
     };
 }

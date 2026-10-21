@@ -2,7 +2,8 @@
 
 [Umbraco Automate](https://www.nuget.org/packages/Umbraco.Automate) actions for
 [Umbraco Prism](https://github.com/jonnymuir/Umbraco.Prism): send a push notification to a member's
-Prism mobile app from an automation.
+Prism mobile app, or show where one of their journeys has got to on their lock screen, from an
+automation.
 
 ## Install
 
@@ -11,7 +12,7 @@ dotnet add package UmbracoPrism.Automate
 ```
 
 It needs `UmbracoPrism` and Umbraco Automate 17, and registers itself: there is no code to add.
-The action appears in the automation editor under **Prism**.
+The actions appear in the automation editor under **Prism**.
 
 ## Send Prism push notification
 
@@ -48,3 +49,25 @@ both.
 
 MIT. See the [Umbraco Prism repository](https://github.com/jonnymuir/Umbraco.Prism) for source,
 issues and the [security policy](https://github.com/jonnymuir/Umbraco.Prism/blob/main/SECURITY.md).
+
+## Update journey status
+
+Shows where one of a member's journeys has got to on their phone's lock screen, in an app built
+with the **Journey Status** option: a Live Activity on iPhone and a Live Update on Android. A
+later status with the same journey key updates it in place.
+
+| Setting | Required | What it is |
+|---|---|---|
+| User id | Yes | The member, as for push notifications. |
+| Tenant id | Yes | The Prism tenant the member belongs to. |
+| Journey key | Yes | One per journey, such as the service request's ID. |
+| Service name | Yes | The service, such as `Apply for a juggling licence`. |
+| Status | Yes | One short line, up to 120 characters, such as `Deciding your application`. |
+| Kind | Yes | `Waiting` while the member waits on something now, or `Done` when that wait is over. |
+| Path | Yes | The page on the tenant's site that tapping the status opens. |
+| Step, Steps | No | Whole numbers, shown as "Step 2 of 3". |
+
+The status is queued and delivered in the background, so the step never waits on it. Write the
+status as what kind of thing is happening, never the outcome or personal detail: anyone holding
+the phone can read a lock screen. Send the outcome as a push notification instead, which opens the
+page behind sign-in.

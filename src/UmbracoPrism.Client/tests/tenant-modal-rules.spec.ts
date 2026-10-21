@@ -7,7 +7,9 @@ import {
   type IdentityDraft
 } from '../src/backoffice/tenant-modal/identity-rules.js';
 import {
+  bundleRequest,
   defaultMobileAppId,
+  emptyMobile,
   defaultMobileIconUrl,
   isLikelyLocalhostUrl,
   isValidMobileAppId,
@@ -105,6 +107,13 @@ test.describe('mobile rules', () => {
 
   test('an unreadable saved config falls back to the tenant defaults', () => {
     expect(mobileFromTenant({ name: 'Northwind', hostname: 'h.example', mobileAppConfig: '{not json' }).appId).toBe('com.prism.northwind');
+  });
+
+  test('journey status is asked for only with push notifications, which statuses travel through', () => {
+    const draft = { ...emptyMobile(), journeyStatusEnabled: true };
+
+    expect(bundleRequest(draft, false).journeyStatusEnabled).toBe(false);
+    expect(bundleRequest({ ...draft, pushNotificationsEnabled: true }, false).journeyStatusEnabled).toBe(true);
   });
 
   test('"use tenant defaults" follows the tenant and restores blank error-screen fields', () => {

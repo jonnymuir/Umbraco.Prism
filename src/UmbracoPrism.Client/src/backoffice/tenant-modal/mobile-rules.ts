@@ -16,6 +16,7 @@ export interface MobileDraft {
   showErrorDiagnostics: boolean;
   pushNotificationsEnabled: boolean;
   savedPagesEnabled: boolean;
+  journeyStatusEnabled: boolean;
   appleTeamId: string;
   androidPackageName: string;
   /** One SHA-256 fingerprint per line. */
@@ -44,6 +45,7 @@ export const emptyMobile = (): MobileDraft => ({
   showErrorDiagnostics: true,
   pushNotificationsEnabled: false,
   savedPagesEnabled: false,
+  journeyStatusEnabled: false,
   appleTeamId: '',
   androidPackageName: '',
   androidCertificateFingerprints: ''
@@ -160,6 +162,7 @@ export function mobileFromTenant(tenant: any): MobileDraft {
     showErrorDiagnostics: saved<boolean>('showErrorDiagnostics') ?? true,
     pushNotificationsEnabled: saved<boolean>('pushNotificationsEnabled') ?? false,
     savedPagesEnabled: saved<boolean>('savedPagesEnabled') ?? false,
+    journeyStatusEnabled: saved<boolean>('journeyStatusEnabled') ?? false,
     appleTeamId: saved<string>('appleTeamId') ?? '',
     androidPackageName: saved<string>('androidPackageName') ?? '',
     androidCertificateFingerprints: (saved<string[]>('androidCertificateFingerprints') ?? []).join('\n')
@@ -210,6 +213,7 @@ export function bundleRequest(draft: MobileDraft, biometricAuthEnabled: boolean)
     ...mobileAppConfig(draft),
     biometricAuthEnabled,
     pushNotificationsEnabled: draft.pushNotificationsEnabled,
-    savedPagesEnabled: draft.savedPagesEnabled
+    savedPagesEnabled: draft.savedPagesEnabled,
+    journeyStatusEnabled: draft.pushNotificationsEnabled && draft.journeyStatusEnabled
   };
 }

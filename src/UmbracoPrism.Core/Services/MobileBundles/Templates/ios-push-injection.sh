@@ -37,7 +37,7 @@ const pbxprojPath = 'ios/App/App.xcodeproj/project.pbxproj';
 const project = xcode.project(pbxprojPath);
 project.parseSync();
 
-project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements');
+project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements', null, 'App');
 console.log('✓ CODE_SIGN_ENTITLEMENTS set to App/App.entitlements in project.pbxproj');
 
 if (fs.existsSync('ios/App/App/GoogleService-Info.plist')) {

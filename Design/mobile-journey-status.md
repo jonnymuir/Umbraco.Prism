@@ -104,13 +104,15 @@ then read it from the blueprint instead.
 ### iOS
 
 - **A widget extension target** in the generated Xcode project, `PrismJourneyStatus`, holding the
-  Live Activity's lock screen and Dynamic Island views, drawn with SwiftUI in the tenant's brand
-  colour. The bootstrap adds the target the same way it adds the native shell.
+  Live Activity's lock screen and Dynamic Island views, drawn with SwiftUI in the system's own
+  style, which keeps its contrast in light and dark mode. The bootstrap adds the target the same
+  way it adds the native shell.
   `NSSupportsLiveActivities` goes in Info.plist.
 - **Started remotely.** iOS 17.2 and later can start a Live Activity from a push
   (push-to-start), and generated apps already require iOS 17.4. The app sends Prism its
-  push-to-start token, and each running activity's update token, through the existing push
-  registration endpoint.
+  push-to-start token, and each running activity's update token, to
+  `/umbraco/prism/journey-status`. It posts them natively with the member's session cookie, since
+  iOS wakes the app briefly to report a remotely started activity's token, with no page open.
 - **Delivered through Firebase.** FCM's HTTP v1 API starts, updates and ends Live Activities via
   `apns.live_activity_token`, which Prism's Firebase Admin SDK already exposes, so no separate
   APNs key is needed.
@@ -129,8 +131,16 @@ then read it from the blueprint instead.
   `@capacitor-firebase/messaging` owns the app's Firebase messaging service, so the shell
   subclasses it: Prism's journey status messages are handled natively, and every other message
   goes to the plugin as before.
-- The notification is tagged with the journey's key, so an update replaces it and an end removes
-  it.
+- The notification is tagged with the journey's key, so an update replaces it. When the wait is
+  over it shows the last status for 15 minutes, as iOS does.
+- The app registers natively at `/umbraco/prism/journey-status`, as on iOS, so Prism sends
+  statuses only to apps built to show them.
+
+### Both
+
+- Tapping a status opens its page in the tab whose first page it is, or else in the tab showing.
+- Signing out ends every running status on the device, and Prism forgets the device's registration
+  and stored statuses along with its push token.
 
 Both need the push notifications bundle option, and Journey Status is its own bundle option
 alongside it.

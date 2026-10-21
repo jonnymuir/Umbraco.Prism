@@ -29,6 +29,10 @@ internal static class BundleDocumentation
           ? BundleTemplates.Read("readme-push.md")
           : string.Empty;
 
+      var journeyStatusSection = settings.JourneyStatusEnabled
+          ? BundleTemplates.Read("readme-journey-status.md").Replace("{{appId}}", settings.AppId)
+          : string.Empty;
+
         return $$"""
 # {{appName}} Mobile Shell
 
@@ -148,7 +152,7 @@ Choose this explicitly per tenant/security policy. If strict in-WebView is manda
 ## Customize mobile-specific UI
 
 Use `www/mobile-overrides.css` as your starting point for mobile-scoped styles.
-{{biometricSection}}{{pushSection}}
+{{biometricSection}}{{pushSection}}{{journeyStatusSection}}
 ## Icons & Splash
 
 - Icon source: {{iconLine}}
