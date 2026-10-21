@@ -9,7 +9,13 @@ const appUserAgent =
 
 const appHost = new LiveAppHost();
 
-test.use({ userAgent: appUserAgent, serviceWorkers: 'allow' });
+// Chromium registers a service worker only on a site whose certificate it trusts, and
+// ignoreHTTPSErrors does not reach worker registration; CI does not trust the local dev certificate.
+test.use({
+  userAgent: appUserAgent,
+  serviceWorkers: 'allow',
+  launchOptions: { args: ['--ignore-certificate-errors'] }
+});
 
 test.describe('Saved pages in an app built with them', () => {
   test.describe.configure({ mode: 'serial' });
@@ -67,7 +73,9 @@ test.describe('Saved pages in an app built with them', () => {
 /** Opens a page once the worker controls it, so the load goes through the worker. */
 async function openWithWorker(page: Page, path: string): Promise<void> {
   await page.goto(path);
-  await page.evaluate(() => navigator.serviceWorker.ready);
+  await expect
+    .poll(() => page.evaluate(async () => Boolean((await navigator.serviceWorker.getRegistration())?.active)), { timeout: 30_000 })
+    .toBe(true);
   await page.reload();
   await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
 }
