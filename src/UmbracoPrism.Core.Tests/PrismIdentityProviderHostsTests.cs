@@ -32,7 +32,7 @@ public class PrismIdentityProviderHostsTests
 
         var hosts = PrismIdentityProviderHosts.Resolve(tenant);
 
-        hosts.Should().ContainSingle().Which.Should().Be("localhost:8080");
+        hosts.Should().ContainSingle().Which.Should().Be("localhost", "a cookie belongs to a host name, whatever the port");
     }
 
     [Fact]

@@ -77,8 +77,9 @@ generated README says so.
 - `contentVersion`: bumped on publish, so the app knows when its content cache is stale.
 - `minShellVersion`: lets the server tell an old build to update.
 
-Served with a strong ETag. The app ships the manifest from generation time as its first-launch
-fallback, so it starts offline.
+Served with a strong ETag. The app keeps the last manifest it fetched, so every launch after the
+first starts with the right tabs offline. A first launch needs a connection, as its pages do: with
+nothing saved yet, a tab list alone would only frame the offline screen.
 
 ### D2. Native navigation
 One navigation stack per tab. Each stack keeps its own history and its own webview for web

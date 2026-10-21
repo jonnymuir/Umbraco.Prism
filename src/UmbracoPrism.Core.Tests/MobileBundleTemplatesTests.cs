@@ -32,6 +32,7 @@ public class MobileBundleTemplatesTests
         });
 
         files["scripts/bootstrap-ios.sh"].Should().Contain("cp native/ios/", "the native tab shell is part of every iOS bootstrap");
+        files["scripts/bootstrap-ios.sh"].Should().Contain("sips -z $((683 * scale))", "launch images at 2732px show as a black launch screen");
         files["native/ios/PrismTabBarController.swift"].Should().Contain("final class PrismTabBarController");
         files["native/android/java/MainActivity.java"].Should().Contain("package com.");
         files["scripts/bootstrap-ios.sh"].Should().Contain("NSFaceIDUsageDescription", "biometric adds the Face ID usage string");
