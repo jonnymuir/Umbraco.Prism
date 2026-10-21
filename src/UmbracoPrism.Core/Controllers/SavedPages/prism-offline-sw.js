@@ -64,6 +64,8 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (event) => {
+  // Only the site's own pages may tell the worker who is signed in or what the app is.
+  if (!fromThisSite(event)) return;
   const message = event.data || {};
   if (message.type === 'prism-hello') {
     event.waitUntil(Promise.all([noteSession(message.signedIn === true), noteAppUserAgent(message.userAgent)]));
@@ -88,6 +90,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(serveAsset(event, request));
   }
 });
+
+function fromThisSite(event) {
+  const origin = event.origin || (event.source && event.source.url ? new URL(event.source.url).origin : '');
+  return origin === self.location.origin;
+}
 
 function isSiteAsset(request) {
   return ASSET_DESTINATIONS.includes(request.destination) && new URL(request.url).origin === self.location.origin;
