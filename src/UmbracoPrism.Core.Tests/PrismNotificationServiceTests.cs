@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using AwesomeAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -36,7 +37,7 @@ public class PrismNotificationServiceTests
 
         var service = new PrismNotificationService(
             dbFactory.Object,
-            config.Build(),
+            new PrismFirebase(config.Build(), NullLogger<PrismFirebase>.Instance),
             logger.Object);
 
         return (service, mockDb);

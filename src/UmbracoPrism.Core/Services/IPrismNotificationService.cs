@@ -13,7 +13,8 @@ public interface IPrismNotificationService
     Task RegisterDeviceTokenAsync(string userId, string tenantId, string pushToken, CancellationToken ct = default);
 
     /// <summary>
-    /// Clears the push token for the given user + tenant so notifications are no longer delivered.
+    /// Clears the push token for the given user + tenant so notifications are no longer delivered,
+    /// along with their journey statuses and the device's journey status registration.
     /// </summary>
     Task UnregisterDeviceTokenAsync(string userId, string tenantId, CancellationToken ct = default);
 

@@ -76,6 +76,7 @@ public class TestSiteComposer : IComposer
     {
         builder.Services.AddScoped<PublicVisitorIdentityResolver>();
         builder.Services.AddScoped<IPrismPostSignInHandler, PublicServiceRequestPostSignInHandler>();
+        builder.AddNotificationHandler<ServiceRequestTransitionedNotification, JourneyStatuses>();
 
         builder.Services.AddWayfinderUmbraco(options =>
         {

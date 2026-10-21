@@ -4,6 +4,7 @@ using Umbraco.Cms.Core.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
+using UmbracoPrism.Core.Services.JourneyStatus;
 using Umbraco.Cms.Web.Common.ApplicationBuilder;
 using UmbracoPrism.Core.Middleware;
 using Umbraco.Cms.Core.Notifications;
@@ -59,6 +60,7 @@ public class PrismComposer : IComposer
         // Umbraco Automate [Action], singleton-lifetime by that package's own convention) can
         // consume it directly — a scoped service consumed by a singleton fails ASP.NET Core's
         // own ValidateOnBuild captive-dependency check at startup.
+        builder.Services.AddSingleton<PrismFirebase>();
         builder.Services.AddSingleton<IPrismNotificationService, PrismNotificationService>();
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
@@ -160,5 +162,11 @@ public class PrismComposer : IComposer
         services.AddSingleton<PrismContentVersion>();
         builder.AddNotificationHandler<ContentPublishedNotification, PrismContentVersionHandler>();
         builder.AddNotificationHandler<ContentUnpublishedNotification, PrismContentVersionHandler>();
+
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<PrismJourneyStatusQueue>();
+        services.AddSingleton<IPrismJourneyStatusService>(provider => provider.GetRequiredService<PrismJourneyStatusQueue>());
+        services.AddSingleton<PrismJourneyStatusDelivery>();
+        services.AddHostedService<PrismJourneyStatusSender>();
     }
 }
