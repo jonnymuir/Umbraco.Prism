@@ -31,3 +31,15 @@ If the sign-in sheet closes straight away, the log says why. The usual cause is 
 check the tenant's **App Sign-In** settings, and that Google Play's app signing key fingerprint is
 among the Android fingerprints.
 
+
+### Saved pages
+
+An app built with saved pages keeps copies of the site's pages in a service worker that the site
+serves from `/prism-offline-sw.js`; no native code is involved. On iOS the build also lists the
+app's own domains under `WKAppBoundDomains` in `Info.plist` and sets
+`limitsNavigationsToAppBoundDomains`, since iOS runs a service worker only for those. A page on any
+other domain cannot load in the app's webviews; if sign-in stops at a blank page, the identity
+provider's host is missing from that list.
+
+To inspect the saved pages, open the webview in Safari's **Develop** menu (iOS) or
+`chrome://inspect` (Android) and look under **Storage → Cache Storage**, `prism-saved-pages-v1`.

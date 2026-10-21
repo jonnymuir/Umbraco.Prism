@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: /(localhost-auth-session|govuk-frontend-bootstrap|walkthroughs\/.*\.walkthrough)\.spec\.ts/,
+  testMatch: /(localhost-auth-session|localhost-saved-pages|govuk-frontend-bootstrap|walkthroughs\/.*\.walkthrough)\.spec\.ts/,
   globalSetup: './tests/support/aspire-prereqs-setup.ts',
   fullyParallel: false,
   workers: 1,

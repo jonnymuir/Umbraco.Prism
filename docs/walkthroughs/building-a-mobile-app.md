@@ -50,8 +50,8 @@ README.md                 ← setup, the native shell's files and logs, store su
 ```
 
 💡 **What's happening:** `server.url` in `capacitor.config.ts` points the app at the tenant's site.
-The app appends a user agent marker (`PrismMobile`, plus `PrismNativeTabs` and `PrismSystemSignIn`)
-so the site knows it is rendering inside the app. The generated README maps each native file to
+The app appends a user agent marker (`PrismMobile`, plus `PrismNativeTabs`, `PrismSystemSignIn`
+and, with saved pages, `PrismSavedPages`) so the site knows it is rendering inside the app. The generated README maps each native file to
 what it does, and says how to read the shell's log, which is tagged `PrismShell` on both platforms.
 
 ---
@@ -190,6 +190,13 @@ Detect a Prism mobile request with `PrismMobileRequestDetection.IsPrismMobileReq
     <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-mobile-shell-guard.js"></script>
 }
 
+@if (PrismMobileRequestDetection.HasNativeTabs(Context))
+{
+    <script src="/App_Plugins/UmbracoPrism/mobile-shell/prism-offline.js"
+            data-prism-saved-pages="@(PrismMobileRequestDetection.SavesPages(Context) ? "on" : "off")"
+            data-prism-signed-in="@(isAuthenticated ? "true" : "false")"></script>
+}
+
 @if (biometricLoginEnabled)
 {
     @if (isAuthenticated)
@@ -213,6 +220,7 @@ Detect a Prism mobile request with `PrismMobileRequestDetection.IsPrismMobileReq
 |---|---|---|
 | `prism-mobile-shell.css` | Safe-area padding, full-width layout for the WebView | Any Prism mobile request |
 | `prism-mobile-shell-guard.js` | Adds the `prism-mobile` CSS class; keeps `target="_blank"` links and `window.open()` inside the WebView instead of spawning a new window | Any Prism mobile request |
+| `prism-offline.js` | Saved pages (Part 6): registers the worker that keeps pages on the device and shows the offline line, or removes them in an app built without saved pages | App with native tabs |
 | `prism-biometric-enroll.js` | Shows the "Enable Face ID / Touch ID?" banner and registers a device credential | Mobile request, biometric login enabled for the tenant, user already authenticated |
 | `prism-biometric-autologin.js` | Silently exchanges a previously-enrolled device's stored credential for a session, before the login page would otherwise render | Mobile request, biometric login enabled for the tenant, user not yet authenticated |
 | `prism-biometric-signout.js` | On sign-out, forgets the device's biometric credential and push token, and clears the identity provider's cookies from the app | Mobile request, user authenticated. Pass no hosts when the app signs in through the system sheet, since the provider's pages never load in the app |
@@ -307,7 +315,35 @@ Material's bottom navigation allows.
 
 ---
 
-## Part 6: Building for iOS
+## Part 6: Saved Pages
+
+With the **Saved Pages** bundle option (`--saved-pages true` for the CLI), the app keeps copies of
+the site's pages on the device. A tab's first page opens at once from its saved copy and refreshes
+in the background, and a page the member has seen still opens with no connection.
+
+- **What is saved:** `GET` pages of the site that the site allows to be stored, and the site's own
+  stylesheets, scripts, fonts and images. A response sent `Cache-Control: no-store` is never saved.
+  The reference site sends every signed-in page that way, and ASP.NET Core does the same for any
+  page with an antiforgery token, so member pages and journey forms always need a connection. A
+  host that wants a signed-in page available offline sends it `Cache-Control: private` instead.
+- **Signing in or out** deletes everything saved, so no copy outlives the session it was saved in.
+- **Fresh copies** replace what is on screen only before the member starts using the page, or when
+  they come back to the app; never once they have typed something. Publishing content tells the app
+  its saved pages are out of date.
+- **Offline,** a page shows one line above the tab bar: "You're offline. Some information may be
+  out of date."
+
+The worker is served from `/prism-offline-sw.js`, and `prism-offline.js` (Part 3's layout snippet)
+registers it. On iOS, saved pages limit the app's webviews to the site and its identity provider's
+sign-in hosts (App-Bound Domains, at most 10, no wildcards), which is when iOS allows a service
+worker. A tenant that signs in inside the app on Entra needs an authority whose host the generator
+can list; App Sign-In avoids the question, since the provider's pages never load in the app.
+
+The design is in `Design/mobile-offline-pages.md`.
+
+---
+
+## Part 7: Building for iOS
 
 ### Step 3: Open the Xcode Project
 
@@ -340,7 +376,7 @@ For App Store distribution builds, change the `aps-environment` entitlement from
 
 ---
 
-## Part 7: Building for Android
+## Part 8: Building for Android
 
 ### Step 5: Place `google-services.json`
 
@@ -374,7 +410,7 @@ For detailed Android-specific guidance, refer to the [Capacitor Android document
 
 ---
 
-## Part 8: Development Tips
+## Part 9: Development Tips
 
 ### Iterating Without Rebuilding Native Apps
 

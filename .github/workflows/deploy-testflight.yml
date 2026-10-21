@@ -74,6 +74,10 @@ jobs:
       # own remarks). Only turned on when GOOGLE_SERVICE_INFO_PLIST is actually set (see
       # PUSH_NOTIFICATIONS_ENABLED above) — compiling the plugin in with no real Firebase config to
       # place would just produce a build that can't register a device token.
+      #
+      # --saved-pages: keeps the site's pages on the device (Design/mobile-offline-pages.md). On
+      # iOS it limits the app to its own domains, which needs App Sign-In, as the reference tenant
+      # has, since no identity provider host is passed here.
       - name: Generate mobile bundle
         run: >
           dotnet run --project src/UmbracoPrism.MobileBundleCli --
@@ -84,6 +88,7 @@ jobs:
           --biometric-auth true
           --device-capture true
           --push-notifications "$PUSH_NOTIFICATIONS_ENABLED"
+          --saved-pages true
           --output mobile-bundle.zip
 
       - name: Unzip mobile bundle

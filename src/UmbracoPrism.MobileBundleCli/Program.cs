@@ -95,7 +95,8 @@ public static class Program
         SplashUrl = flags.GetValueOrDefault("splash-url"),
         BiometricAuthEnabled = ParseOptionalBool(flags.GetValueOrDefault("biometric-auth")),
         PushNotificationsEnabled = ParseOptionalBool(flags.GetValueOrDefault("push-notifications")),
-        DeviceCaptureEnabled = ParseOptionalBool(flags.GetValueOrDefault("device-capture"))
+        DeviceCaptureEnabled = ParseOptionalBool(flags.GetValueOrDefault("device-capture")),
+        SavedPagesEnabled = ParseOptionalBool(flags.GetValueOrDefault("saved-pages"))
     };
 
     private static Dictionary<string, string> ParseFlags(string[] args)
@@ -163,6 +164,11 @@ public static class Program
                                             page in the app can take a photo or read the device's
                                             location. Without them iOS shows no prompt at all and
                                             the location is never available to the page.
+              --saved-pages <true|false>
+                                            Keeps copies of the site's pages on the device, so
+                                            the app opens its tabs at once and shows pages it has
+                                            seen when offline. On iOS this limits the app to its
+                                            own site and identity provider (App-Bound Domains).
             """);
     }
 }

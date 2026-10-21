@@ -92,6 +92,12 @@ internal static class CapacitorProjectFiles
       var cleartext = uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase) ? "true" : "false";
       var allowNavigationHosts = BuildAllowNavigationHosts(tenant, uri);
       var allowNavigationJs = string.Join(", ", allowNavigationHosts.Select(host => $"'{EscapeSingleQuotes(host)}'"));
+      var appUserAgent = EscapeSingleQuotes(AppUserAgent(settings));
+      // A service worker runs in WKWebView only for the domains the app declares as its own (see
+      // ios-saved-pages.sh), and only once the app keeps its webviews to them.
+      var appBoundDomains = settings.SavedPagesEnabled
+          ? ",\n    // Saved pages need a service worker, which iOS runs only for the app's own domains.\n    limitsNavigationsToAppBoundDomains: true"
+          : string.Empty;
 
         return $$"""
 import type { CapacitorConfig } from '@capacitor/cli';
@@ -104,13 +110,13 @@ const config: CapacitorConfig = {
   ios: {
     // The tabs are native, so the site leaves out its web tab bar, and sign-in uses the system
     // sign-in sheet (see prism-system-sign-in.js).
-    appendUserAgent: '{{EscapeSingleQuotes(marker)}} {{PrismMobileRequestDetection.NativeTabsUserAgentToken}} {{PrismMobileRequestDetection.SystemSignInUserAgentToken}}',
+    appendUserAgent: '{{appUserAgent}}',
     // The native shell positions each tab's webview itself (see PrismShell.swift), so WebKit
     // must not add its own safe-area inset on top.
-    contentInset: 'never'
+    contentInset: 'never'{{appBoundDomains}}
   },
   android: {
-    appendUserAgent: '{{EscapeSingleQuotes(marker)}} {{PrismMobileRequestDetection.NativeTabsUserAgentToken}} {{PrismMobileRequestDetection.SystemSignInUserAgentToken}}',
+    appendUserAgent: '{{appUserAgent}}',
     // The native shell keeps each tab's webview clear of the system bars itself (see MainActivity.java).
     adjustMarginsForEdgeToEdge: 'disable'
   },
@@ -139,6 +145,23 @@ const config: CapacitorConfig = {
 export default config;
 """;
     }
+
+  /// <summary>What the app adds to its user agent, which tells the site what the app does natively.</summary>
+  private static string AppUserAgent(MobileBundleSettings settings)
+  {
+    var tokens = new List<string>
+    {
+      settings.UserAgentMarker,
+      PrismMobileRequestDetection.NativeTabsUserAgentToken,
+      PrismMobileRequestDetection.SystemSignInUserAgentToken
+    };
+    if (settings.SavedPagesEnabled)
+    {
+      tokens.Add(PrismMobileRequestDetection.SavedPagesUserAgentToken);
+    }
+
+    return string.Join(' ', tokens);
+  }
 
   private static IReadOnlyList<string> BuildAllowNavigationHosts(PrismTenantSchema tenant, Uri startUri)
   {

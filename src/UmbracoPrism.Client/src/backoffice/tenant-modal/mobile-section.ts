@@ -301,6 +301,30 @@ export class MobileSection implements ReactiveController {
     `;
   }
 
+  /** The optional features the app is built with. */
+  private _renderFeatureToggles() {
+    const d = this.draft;
+    return html`
+      ${this._toggle({
+        title: 'Push Notifications',
+        hint: 'Enable push notifications support in the mobile bundle. Users will be prompted to allow notifications after their first biometric login.',
+        checked: d.pushNotificationsEnabled,
+        enabledTitle: 'Push notifications enabled',
+        disabledTitle: 'Push notifications disabled',
+        onChange: checked => this._patch({ pushNotificationsEnabled: checked })
+      })}
+
+      ${this._toggle({
+        title: 'Saved Pages',
+        hint: 'Keep copies of pages on the device, so the app opens at once and still shows pages the member has seen when there is no connection. Pages the site marks as not to be stored, such as signed-in pages, are never kept. On iOS the app can then show only this site and its sign-in pages.',
+        checked: d.savedPagesEnabled,
+        enabledTitle: 'Saved pages enabled',
+        disabledTitle: 'Saved pages disabled',
+        onChange: checked => this._patch({ savedPagesEnabled: checked })
+      })}
+    `;
+  }
+
   private _renderErrorScreenFields() {
     return html`
       <h5 class="section-title">Startup Error Screen</h5>
@@ -455,14 +479,7 @@ export class MobileSection implements ReactiveController {
 
           ${this._renderAppSignInFields()}
 
-          ${this._toggle({
-            title: 'Push Notifications',
-            hint: 'Enable push notifications support in the mobile bundle. Users will be prompted to allow notifications after their first biometric login.',
-            checked: d.pushNotificationsEnabled,
-            enabledTitle: 'Push notifications enabled',
-            disabledTitle: 'Push notifications disabled',
-            onChange: checked => this._patch({ pushNotificationsEnabled: checked })
-          })}
+          ${this._renderFeatureToggles()}
 
           <div class="helper-actions">
             <uui-button look="outline" label="Use tenant defaults" @click=${this._useTenantDefaults}>Use tenant defaults</uui-button>

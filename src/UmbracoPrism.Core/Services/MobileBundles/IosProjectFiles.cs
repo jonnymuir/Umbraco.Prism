@@ -34,6 +34,10 @@ internal static class IosProjectFiles
 
         var nativeShell = BundleTemplates.Read("ios-native-shell.sh");
 
+        var savedPages = settings.SavedPagesEnabled
+            ? BundleTemplates.Read("ios-saved-pages.sh").Replace("@@PRISM_APP_BOUND_DOMAINS@@", string.Join(' ', AppBoundDomains(settings)))
+            : string.Empty;
+
         return $$"""
 #!/usr/bin/env bash
 set -euo pipefail
@@ -52,7 +56,7 @@ npx cap sync ios
 
 echo "Generating app icon and splash screen from resources/icon.svg..."
 npx capacitor-assets generate --ios
-{{infoPlistInjection}}{{nativeShell}}{{pushNotificationsInjection}}{{BundleTemplates.Read("ios-privacy-manifest.sh")}}
+{{infoPlistInjection}}{{savedPages}}{{nativeShell}}{{pushNotificationsInjection}}{{BundleTemplates.Read("ios-privacy-manifest.sh")}}
 echo "Applying localhost cert trust (if needed)..."
 if ! bash scripts/trust-ios-localhost-cert.sh; then
   echo "⚠️ Cert trust step did not complete. Continuing..."
@@ -70,6 +74,32 @@ else
   echo "Tip: boot a simulator, then run: npx cap run ios"
 fi
 """;
+    }
+
+    /// <summary>
+    /// The domains the app's webviews may load once saved pages limit them to the app's own: the
+    /// site, and the identity provider's sign-in pages for a tenant that signs in inside the app.
+    /// iOS allows at most 10, without wildcards.
+    /// </summary>
+    internal static IReadOnlyList<string> AppBoundDomains(MobileBundleSettings settings)
+    {
+        var tenant = settings.Tenant;
+        var hosts = new List<string> { new Uri(settings.StartUrl).Host };
+
+        if (Uri.TryCreate(tenant.OidcAuthority?.Trim(), UriKind.Absolute, out var authority))
+        {
+            hosts.Add(authority.Host);
+        }
+
+        var entraTenantId = tenant.EntraTenantId?.Trim();
+        if (!string.IsNullOrWhiteSpace(entraTenantId))
+        {
+            hosts.Add("login.microsoftonline.com");
+            hosts.Add($"{entraTenantId}.ciamlogin.com");
+            hosts.Add($"{entraTenantId}.b2clogin.com");
+        }
+
+        return [.. hosts.Select(host => host.ToLowerInvariant()).Distinct().Take(10)];
     }
 
     internal static string BuildTrustIosLocalhostCertScript(MobileBundleSettings settings)

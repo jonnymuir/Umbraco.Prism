@@ -30,6 +30,8 @@ internal sealed record MobileBundleSettings(
 
     public bool DeviceCaptureEnabled => Features.DeviceCapture;
 
+    public bool SavedPagesEnabled => Features.SavedPages;
+
     /// <exception cref="ArgumentException">Thrown when request input contains invalid app identifiers or URLs.</exception>
     public static MobileBundleSettings Resolve(PrismTenantSchema tenant, PrismMobileBundleRequest request)
     {

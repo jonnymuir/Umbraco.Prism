@@ -6,6 +6,7 @@ export default defineConfig({
     // Live-stack tests: require the Aspire stack (Docker + Keycloak + TestSite).
     // Run these with: npm run test:playwright:localhost-auth
     '**/localhost-auth-session.spec.ts',
+    '**/localhost-saved-pages.spec.ts',
     '**/service-blueprint-gds-journey.spec.ts',
     '**/walkthroughs/**',
     '**/four-service-blueprint-contract.spec.ts',
