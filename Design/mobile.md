@@ -121,7 +121,7 @@ ships on iOS and Android together.
 | 1. Store hygiene and quick wins | Privacy manifest (`PrivacyInfo.xcprivacy`), R6 in the generated README, a branded bundled offline screen with retry, D3 on the reference site | App launches to the same first screen as before; a page that fails to load shows the branded offline screen; privacy manifest present in the built `.app`; a repeat page view fetches no CSS or JS |
 | 2. Manifest and native chrome | D1, D2, R4. Remove the web tab bar from app requests. Keep the iOS navigation hold, which covers the gap WKWebView leaves between pages within a tab | Native tab bar matches the backoffice nav; switching tabs is instant and keeps scroll position; sign-in completes in the system auth session; editing a tab in the backoffice changes the app without a rebuild |
 | 3. Native content rendering | D4, behind a per-tenant flag | Tab roots render offline from cache; a publish in the backoffice reaches the app on next foreground; protected pages are refused without a valid member token |
-| 4. Flagship capabilities | Live Activity for journey status, then others from D5 as needed | A journey status change updates the Live Activity without opening the app |
+| 4. Flagship capabilities | Live Activity for journey status ([mobile-journey-status.md](mobile-journey-status.md)), then others from D5 as needed | A journey status change updates the Live Activity without opening the app |
 
 The phases are breaking changes to generated apps: each tenant regenerates and resubmits.
 
