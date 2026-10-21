@@ -53,16 +53,26 @@ images are not saved by the worker: the HTTP cache already keeps the versioned o
 
 ## 5) How a page is served
 
-- **A tab's first page, and any saved page on launch:** served from the saved copy at once, then
-  fetched in the background. If the fresh page differs and the member has not touched the page yet,
-  it quietly replaces the saved one on screen; once they have, a small "Updated, tap to refresh"
-  bar offers it instead, so nothing moves under their thumb.
+- **A tab's first page:** served from the saved copy at once, and fetched in the background.
 - **Every other navigation:** from the network, falling back to the saved copy when the network
   fails or has not answered within 3 seconds.
 - **No connection and no saved copy:** the branded offline screen, as today.
 
-A page served from a saved copy says so: a small bar at the top, "Saved copy from 10:42", with the
-same wording on both platforms. It disappears when a fresh copy replaces the page.
+A fresh copy replaces what is on screen only at moments the member is not in the middle of
+something: on launch, on coming back from the background, and on switching to the tab, and then
+only until they first scroll, type or tap. On iOS the navigation hold covers the swap, so it looks
+like the page settling rather than reloading. A fresh copy that arrives after the member has started
+reading is kept for the next of those moments; it never replaces the page under them, never moves
+their scroll position, and never takes a screen reader's focus away. The cost is that a page can
+stay one visit out of date, which suits tab first pages: they change least, and publishing
+refreshes them (section 6).
+
+The app tells the member nothing about copies, versions or refreshing. Those are the app's business,
+and nothing a member could do with them. What the member can act on is having no connection, since
+anything that needs the site will not work until it comes back. So while the app has no connection,
+a page shows one line at the top, "You're offline. Some information may be out of date.", announced
+once to screen readers as a status message. It goes as soon as the connection returns, and the page
+quietly refreshes at the next of the moments above.
 
 ## 6) Keeping saved copies fresh and separate
 
@@ -93,14 +103,16 @@ off.
 2. **A service worker rather than a cache in each native shell.** One implementation, standard and
    inspectable in browser devtools, and reusable later if the site becomes installable as a web
    app. The cost is App-Bound Domains on iOS, which the system sign-in already makes cheap.
-3. **Saved copy first only for tab first pages.** Showing an old copy of every page first would
+3. **No status about saved copies.** Members see only whether they are offline, in plain words;
+   fresh copies swap in silently at quiet moments rather than through a refresh prompt.
+4. **Saved copy first only for tab first pages.** Showing an old copy of every page first would
    make most navigations show stale content briefly; for tab first pages, which are the most
    visited and change least, it is worth it.
 
 ## 9) Platforms
 
 Both platforms use the same worker and the same page script (`prism-offline.js`, which shows the
-saved copy bar and the update bar). iOS adds the App-Bound Domains to the generated Info.plist and
+offline line and swaps in fresh copies). iOS adds the App-Bound Domains to the generated Info.plist and
 sets `limitsNavigationsToAppBoundDomains` in the Capacitor config. Android needs nothing native.
 
 ## 10) Verification
@@ -110,7 +122,9 @@ sets `limitsNavigationsToAppBoundDomains` in the Capacitor config. Android needs
 - Worker tests (Playwright against the local stack with an app user agent): a public page is saved
   and served offline; a `no-store` page and a POST response are never saved; sign-in and sign-out
   delete everything; `contentVersion` moving refreshes saved pages.
-- Both apps, local stack: launch with no connection shows the saved tab first pages; a page never
+- Both apps, local stack: launch with no connection shows the saved tab first pages with the
+  offline line, which VoiceOver and TalkBack read once; a fresh copy never replaces a page after a
+  scroll or tap; a page never
   visited shows the offline screen; signing out and in again shows no page saved before.
 - Launch time to first content, with and without saved pages, on the iOS simulator and the Android
   emulator.
