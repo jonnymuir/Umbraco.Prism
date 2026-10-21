@@ -1,5 +1,6 @@
 package @@PRISM_PACKAGE@@;
 
+import android.net.Uri;
 import android.webkit.CookieManager;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -21,8 +22,10 @@ public class PrismIdentityCookiePlugin extends Plugin {
     public void clearCookies(PluginCall call) {
         CookieManager cookieManager = CookieManager.getInstance();
         int cleared = 0;
-        for (String host : hosts(call)) {
-            if (host.equalsIgnoreCase(PrismShell.START_URL.getHost())) continue;
+        for (String given : hosts(call)) {
+            // A cookie belongs to a host name whatever the port, so the port is dropped first.
+            String host = Uri.parse("https://" + given).getHost();
+            if (host == null || host.equalsIgnoreCase(PrismShell.START_URL.getHost())) continue;
             cleared += expireCookies(cookieManager, host);
         }
         cookieManager.flush();

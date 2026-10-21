@@ -10,7 +10,8 @@ namespace UmbracoPrism.Core.Services;
 /// side effect, so it's left stale in the WebView's persistent cookie store until something else
 /// clears it).
 ///
-/// Deliberately concrete hosts only, no wildcard patterns, unlike
+/// Host names without ports, since a cookie belongs to a host name whatever the port. Deliberately
+/// concrete hosts only, no wildcard patterns, unlike
 /// <see cref="Auth.PrismContentSecurityPolicy.SignInSources"/>, which needs the <c>*.</c>
 /// form for a CSP directive. Kept as its own small list rather than shared with that one
 /// because the two callers need different shapes of the same underlying tenant data.
@@ -27,7 +28,7 @@ public static class PrismIdentityProviderHosts
         if (!string.IsNullOrWhiteSpace(oidcAuthority) &&
             Uri.TryCreate(oidcAuthority, UriKind.Absolute, out var authorityUri))
         {
-            hosts.Add(authorityUri.Authority);
+            hosts.Add(authorityUri.Host);
         }
 
         var entraTenantId = tenant.EntraTenantId?.Trim();

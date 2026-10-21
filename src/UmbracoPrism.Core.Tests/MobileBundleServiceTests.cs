@@ -99,13 +99,15 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("@objc func clearCookies(_ call: CAPPluginCall)");
         iosBootstrap.Should().Contain("let store = WKWebsiteDataStore.default()");
         iosBootstrap.Should().Contain("store.removeData(ofTypes: [WKWebsiteDataTypeCookies], for: matching)");
+        iosBootstrap.Should().Contain(".filter { $0 != PrismShell.origin.host?.lowercased() }", "the site's own cookies are never cleared");
 
         var androidBootstrap = ReadPlatform(archive, "android");
         androidBootstrap.Should().Contain("JAVA_DIR=\"android/app/src/main/java/com/example/test\"");
         androidBootstrap.Should().Contain("cp native/android/java/*.java \"$JAVA_DIR/\"");
         androidBootstrap.Should().Contain("package com.example.test;");
         androidBootstrap.Should().Contain("@CapacitorPlugin(name = \"PrismIdentityCookiePlugin\")");
-        androidBootstrap.Should().Contain("if (host.equalsIgnoreCase(PrismShell.START_URL.getHost())) continue;");
+        androidBootstrap.Should().Contain("String host = Uri.parse(\"https://\" + given).getHost();", "a cookie belongs to a host name whatever the port");
+        androidBootstrap.Should().Contain("if (host == null || host.equalsIgnoreCase(PrismShell.START_URL.getHost())) continue;", "the site's own cookies are never cleared");
         androidBootstrap.Should().NotContain("removeAllCookies", "clearing every cookie would race the sign-out request for the site's own");
 
         // Plain Java only: the app module Capacitor generates has no Kotlin Gradle plugin, so a

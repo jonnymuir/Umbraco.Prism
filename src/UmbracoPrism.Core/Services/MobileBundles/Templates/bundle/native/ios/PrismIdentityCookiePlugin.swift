@@ -2,7 +2,9 @@ import Capacitor
 import WebKit
 
 /// Removes the identity provider's own session cookies from the shared cookie store on sign-out
-/// (see prism-biometric-signout.js), since the provider's pages cannot be asked to do it.
+/// (see prism-biometric-signout.js), since the provider's pages cannot be asked to do it. The
+/// site's own cookies are never touched: the sign-out request still needs them, and locally the
+/// identity provider can share the site's host name on another port.
 @objc(PrismIdentityCookiePlugin)
 public class PrismIdentityCookiePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "PrismIdentityCookiePlugin"
@@ -12,7 +14,10 @@ public class PrismIdentityCookiePlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     @objc func clearCookies(_ call: CAPPluginCall) {
-        let hosts = call.getArray("hosts", String.self) ?? []
+        // A cookie belongs to a host name whatever the port, so the port is dropped first.
+        let hosts = (call.getArray("hosts", String.self) ?? [])
+            .compactMap { URL(string: "https://" + $0)?.host?.lowercased() }
+            .filter { $0 != PrismShell.origin.host?.lowercased() }
         guard !hosts.isEmpty else {
             call.resolve(["cleared": 0])
             return

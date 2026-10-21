@@ -85,9 +85,10 @@
     var hostsAttr = (scriptEl && scriptEl.getAttribute('data-prism-idp-hosts')) || '';
     var hosts = hostsAttr.split(',').map(function (h) { return h.trim(); }).filter(Boolean);
 
-    // Best-effort, not awaited, the same as every other call in this file. Both platforms remove
-    // only the cookies of the hosts given, and Android leaves the site's own host alone, so the
-    // cookies this sign-out request still needs survive it.
+    // Best-effort, not awaited, the same as every other call in this file, so it races the
+    // sign-out request. Both platforms remove only the cookies of the hosts given, by host name
+    // whatever the port, and never the site's own host, so the cookies that request still needs
+    // survive it even when the identity provider shares the site's host name (locally).
     Cap.nativePromise('PrismIdentityCookiePlugin', 'clearCookies', { hosts: hosts }).catch(function () {});
   }
 
