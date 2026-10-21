@@ -27,7 +27,8 @@ needs a new build.
 
 ### R3. Every screen has a cached state
 Tab roots and recently viewed screens render from cache first and refresh in the background. No
-screen shows a blank page or a raw connection error while a copy exists on the device.
+screen shows a blank page or a raw connection error while a copy exists on the device. Server-rendered
+pages are covered first, in [mobile-offline-pages.md](mobile-offline-pages.md).
 
 ### R4. Sign-in is standards-aligned
 Interactive sign-in uses the system authentication session (`ASWebAuthenticationSession` on iOS,
