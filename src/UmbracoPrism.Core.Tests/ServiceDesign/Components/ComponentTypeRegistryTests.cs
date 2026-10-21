@@ -11,7 +11,7 @@ public class ComponentTypeRegistryTests
     // slider/stat-group/chart).
     private static readonly string[] ExpectedDiscriminators =
     [
-        "accordion", "body", "boolean", "bulk-data-review", "chart", "checkboxlist", "date",
+        "accordion", "body", "boolean", "bulk-data-review", "chart", "checkboxlist", "conversation", "date",
         "decimal", "details", "email", "fieldset", "file-upload", "guidance-checklist", "heading",
         "inset-text", "location-picker", "notification-banner", "number", "panel", "radio", "select", "slider",
         "stat-group", "summary-list", "task-list", "text", "textarea", "waiting", "warning-text"
