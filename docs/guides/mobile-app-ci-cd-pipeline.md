@@ -20,14 +20,17 @@ running a script by hand.
 1. Checks out the repo, sets up .NET 10 and Node 20+.
 2. Runs `src/UmbracoPrism.MobileBundleCli` — the headless equivalent of "Produce Mobile" — to
    generate the bundle `.zip` for the configured tenant hostname.
-3. Unzips it, `npm install`s the bundle's own generated `package.json`, then runs its
-   `npm run bootstrap:ios` script (`npx cap add ios` + `npx cap sync ios` + the biometric
-   `Info.plist` patch, if enabled) — the exact same script a developer would run by hand.
-4. Signs and archives the app via `xcodebuild -allowProvisioningUpdates`, using an App Store
+3. Unzips it, writes the Firebase config into `resources/` when push notifications are on,
+   `npm install`s the bundle's own generated `package.json`, then runs its
+   `npm run bootstrap:ios` script, the same script a developer would run by hand. It adds the
+   native tab shell and the native setup for each feature the bundle includes.
+4. Builds the app for the iOS Simulator, launches it, and checks that the site's content renders
+   rather than a blank or error screen, keeping the screenshot as an artifact.
+5. Signs and archives the app via `xcodebuild -allowProvisioningUpdates`, using an App Store
    Connect API key rather than a manually-exported `.p12` certificate or provisioning profile —
    Xcode resolves/creates what it needs itself, scoped to the bundle ID.
-5. Exports a `.ipa` and uploads it to TestFlight via `xcrun altool`.
-6. Uploads the `.ipa` and dSYMs as a workflow artifact regardless of whether the TestFlight
+6. Exports a `.ipa` and uploads it to TestFlight via `xcrun altool`.
+7. Uploads the `.ipa` and dSYMs as a workflow artifact regardless of whether the TestFlight
    upload step is reached, so a build is inspectable even if upload fails.
 
 No `.p12` certificate or `.mobileprovision` file is ever generated or stored — that's the whole
@@ -42,20 +45,25 @@ point of the API-key/automatic-signing approach.
       — Team Keys are the account-level, service-account-style keys meant for CI/automation;
       Individual Keys are tied to your own personal account access): Users and Access →
       Integrations → App Store Connect API → generate a key with the **Admin** role.
-      **Admin, not App Manager** — found live: App Manager can create/manage a Development
+      **Admin, not App Manager**: App Manager can create/manage a Development
       certificate (enough for `xcodebuild archive` to succeed) but cannot create or query an
       **iOS Distribution** certificate or provisioning profile via cloud-managed signing, so the
       later `-exportArchive` step fails with `Cloud signing permission error` / `No signing
       certificate "iOS Distribution" found` even though archiving worked. Note its **Key ID** and
       **Issuer ID**, and download the `.p8` file once — Apple only lets you download it once, so
       store it somewhere safe until it's in GitHub Secrets.
+- [ ] With journey status on (it follows push notifications), the app carries a widget
+      extension signed as its own identity: the app's Bundle ID with `.JourneyStatus` added (e.g.
+      `com.jonnymuir.prismreference.JourneyStatus`). An Admin API key registers it and its
+      profile automatically on the first archive. If your key can't, register that ID by hand
+      under **Certificates, Identifiers & Profiles** before running the workflow.
 - [ ] Confirm the Apple Developer Program membership is a paid one covering Distribution.
 - [ ] Note your **Team ID** (Apple Developer portal → **Account** → **Membership details**) —
       needed below. This isn't a secret (it ends up embedded in every `.ipa`'s own provisioning
       profile anyway), but `xcodebuild -allowProvisioningUpdates` still needs to be told which
       team to provision for explicitly — a freshly-generated Capacitor Xcode project has no team
       set at all, and archiving fails outright ("Signing for 'App' requires a development team")
-      without it. Found live on this pipeline's first real dispatch run.
+      without it.
 
 ## GitHub repository configuration
 
@@ -140,9 +148,8 @@ dispatch failing outright, same pattern as push notifications' own soft gate on 
 
 ### One-time Google Play Console / Firebase setup
 
-**Play Console's own navigation has moved more than once since this doc was first written** —
-the steps below reflect where things actually live, found live during this account's first real
-setup (Sep 2026). If a named page is gone by the time you read this, the underlying operation
+**Play Console's navigation changes from time to time.** The steps below name the pages as of
+September 2026. If a named page has moved, the underlying operation
 (register app / confirm signing / create service account / grant Play permissions) still exists
 somewhere; the old "Setup" section in particular has been dissolved into other pages entirely.
 
@@ -169,8 +176,8 @@ somewhere; the old "Setup" section in particular has been dissolved into other p
       replacement) rather than fatal, which a bare self-managed keystore setup would not allow —
       proportionate for a reference app with no real users: worst case is a support-mediated key
       reset, not a dead app.
-- [ ] Create a **service account** for CI. The standalone "Setup → API access" page some older
-      docs describe no longer exists for a personal account; the actual flow, found live:
+- [ ] Create a **service account** for CI. A personal account has no standalone "Setup → API
+      access" page; instead:
       1. In **Google Cloud Console**, reuse the same project your Firebase iOS setup already uses
          (Play Console's own **Settings → Linked services → Firebase → "Manage service account
          permissions"** link drops you straight into that project's Service Accounts page) rather

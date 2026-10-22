@@ -5,7 +5,8 @@ external identity provider (a demo Keycloak realm, or a Microsoft Entra ID tenan
 production reference app), and there's no separate account record kept inside the app beyond
 what your session needs while you're signed in. See the
 [Reference App overview](README.md) and [Privacy Policy](privacy-policy.md) for what the app
-does hold onto (a push notification token, if you enabled notifications).
+does hold onto: a push notification token if you enabled notifications, and the tokens and
+latest statuses behind any journey status on your lock screen.
 
 ## How to request deletion
 
@@ -14,9 +15,10 @@ stating:
 
 1. The identity provider account you signed in with (e.g. your `@prism.local` demo username, or
    your Entra ID email).
-2. That you'd like your push notification registration (if any) removed.
+2. That you'd like your push notification and journey status registrations (if any) removed.
 
-We'll confirm removal of any push token tied to that identity within a few days.
+We'll confirm removal of any push token, journey status token and stored status tied to that
+identity within a few days. Signing out of the app removes them straight away.
 
 ## What this doesn't cover
 

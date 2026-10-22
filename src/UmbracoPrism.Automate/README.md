@@ -40,16 +40,6 @@ follow it.
 Delivery goes through Prism's notification service, so it needs Firebase set up as described in
 [Notifications](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/notifications.md).
 
-## Versions
-
-Released together with `UmbracoPrism`, with the same version number. Install the same version of
-both.
-
-## Licence
-
-MIT. See the [Umbraco Prism repository](https://github.com/jonnymuir/Umbraco.Prism) for source,
-issues and the [security policy](https://github.com/jonnymuir/Umbraco.Prism/blob/main/SECURITY.md).
-
 ## Update journey status
 
 Shows where one of a member's journeys has got to on their phone's lock screen, in an app built
@@ -70,4 +60,16 @@ later status with the same journey key updates it in place.
 The status is queued and delivered in the background, so the step never waits on it. Write the
 status as what kind of thing is happening, never the outcome or personal detail: anyone holding
 the phone can read a lock screen. Send the outcome as a push notification instead, which opens the
-page behind sign-in.
+page behind sign-in. See
+[Journey status](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/journey-status.md) for
+how statuses reach the phone.
+
+## Versions
+
+Released together with `UmbracoPrism`, with the same version number. Install the same version of
+both.
+
+## Licence
+
+MIT. See the [Umbraco Prism repository](https://github.com/jonnymuir/Umbraco.Prism) for source,
+issues and the [security policy](https://github.com/jonnymuir/Umbraco.Prism/blob/main/SECURITY.md).

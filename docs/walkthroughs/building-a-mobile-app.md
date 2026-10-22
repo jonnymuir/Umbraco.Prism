@@ -64,9 +64,16 @@ npm install
 npm run bootstrap:ios       # or bootstrap:android
 ```
 
-The iOS script adds the iOS platform, syncs Capacitor, generates icons, and writes the native shell
-(`PrismShell.swift`: the tab bar, one Capacitor bridge per tab, and the tab icon loader) into the
-Xcode project. Both scripts can be run again safely after changing settings or regenerating the zip.
+Each script adds its platform, syncs Capacitor, generates icons, and writes the native shell into
+the project: on iOS the tab bar, one Capacitor bridge per tab and the tab icon loader; on Android
+the same in `MainActivity.java` and `PrismTabFragment.java`. It also does the native setup for the
+features you chose: the Face ID usage text for biometric sign-in, the push entitlement and Firebase
+files for push notifications, and the `PrismJourneyStatus` widget extension for journey status.
+Both scripts can be run again safely after changing settings or regenerating the zip.
+
+With push notifications, put the two Firebase files in `resources/` before bootstrapping:
+`GoogleService-Info.plist` for iOS and `google-services.json` for Android (see
+[Push notification setup](../PUSH_SETUP.md)).
 
 ---
 
@@ -384,62 +391,32 @@ settles, alongside the decision's own push notification.
 
 On iOS the Live Activity is drawn by a widget extension, `PrismJourneyStatus`, signed as its own
 app identity: the app's ID with `.JourneyStatus` added. The generated README says how to register
-it. The design is in `Design/mobile-journey-status.md`.
+it. [Journey status](../journey-status.md) describes the API, the app's endpoints and delivery in
+full; the design is in `Design/mobile-journey-status.md`.
 
 ---
 
 ## Part 8: Building for iOS
 
-### Step 3: Open the Xcode Project
-
 ```bash
 npx cap open ios
 ```
 
-Xcode opens with the generated project. Before building:
+In Xcode, under **Signing & Capabilities**, choose your team for the **App** target and, with
+journey status, the **PrismJourneyStatus** target. Then pick a simulator or device and press
+**⌘R**. The app opens on its first tab, showing the tenant's site.
 
-1. Select the **App** target.
-2. Under **Signing & Capabilities**, set your Team and Bundle Identifier.
-3. If using biometric auth, verify the `NSFaceIDUsageDescription` key is set in `Info.plist`:
-   ```xml
-   <key>NSFaceIDUsageDescription</key>
-   <string>Use Face ID to sign in to your Prism account.</string>
-   ```
-4. If using push notifications, add the **Push Notifications** capability (see [Push notification setup](../PUSH_SETUP.md#part-1--firebase-console-setup-you-do-this-once-per-app)).
+The push entitlement is set to `production`, which is what TestFlight and the App Store need. To
+receive notifications in a build run from Xcode on a device, change `aps-environment` in
+`ios/App/App/App.entitlements` to `development` for that run.
 
-### Step 4: Build and Run (iOS)
-
-1. Select a physical device or simulator in the Xcode target dropdown.
-2. Press **⌘R** to build and run.
-3. The app launches with the Prism TestSite loaded in a full-screen WebView.
-
-<!-- manual capture: iOS app screenshot requires physical iOS device or Xcode simulator -->
-
-💡 **What's happening:** The native Xcode project (`ios/App/`) embeds your compiled web assets in a `WKWebView`. Capacitor bridges JavaScript calls from the web layer to native Swift/Obj-C plugin implementations, this is how `@aparajita/capacitor-biometric-auth` calls Face ID/Touch ID, and how `@capacitor/push-notifications` registers with APNs.
-
-For App Store distribution builds, change the `aps-environment` entitlement from `development` to `production` (see [Push notification setup](../PUSH_SETUP.md#part-1--firebase-console-setup-you-do-this-once-per-app)).
+💡 **What's happening:** each tab is a Capacitor bridge with its own `WKWebView` loading the
+tenant's site. Plugin calls from the page (biometric sign-in, push registration, the system
+sign-in sheet) reach their native implementations through that tab's bridge.
 
 ---
 
 ## Part 9: Building for Android
-
-### Step 5: Place `google-services.json`
-
-If push notifications are enabled, place the Firebase `google-services.json` in:
-
-```
-android/app/google-services.json
-```
-
-Then sync:
-
-```bash
-npx cap sync android
-```
-
-See [Push notification setup](../PUSH_SETUP.md#part-1--firebase-console-setup-you-do-this-once-per-app) for the full Firebase project setup steps.
-
-### Step 6: Open and Build in Android Studio
 
 ```bash
 npx cap open android
@@ -447,34 +424,35 @@ npx cap open android
 
 Android Studio opens. Select a device or emulator and click **Run** (▶).
 
-<!-- manual capture: Android app screenshot requires Android Studio emulator or physical device -->
+💡 **What's happening:** the Android project's `MainActivity` is the native tab shell: a Material
+bottom navigation bar with one Capacitor bridge and `WebView` per tab (`PrismTabFragment.java`),
+all loading the tenant's site.
 
-💡 **What's happening:** The Android project (`android/`) replaces Capacitor's `MainActivity` with the native tab shell (`MainActivity.java`, `PrismTabFragment.java`): a Material bottom navigation bar with one Capacitor bridge and `WebView` per tab, all loading the tenant's site. Plugin calls (biometric, push, secure storage, the system sign-in sheet) go to their native implementations through each tab's Capacitor bridge.
-
-For detailed Android-specific guidance, refer to the [Capacitor Android documentation](https://capacitorjs.com/docs/android).
+For detailed Android-specific guidance, refer to the
+[Capacitor Android documentation](https://capacitorjs.com/docs/android).
 
 ---
 
 ## Part 10: Development Tips
 
-### Iterating Without Rebuilding Native Apps
+### Running Against Your Local Stack
 
-Point `server.url` in `capacitor.config.ts` at your running Prism stack, then in Xcode/Android Studio simply re-run the app. The WebView loads fresh from the live server on every launch, no Capacitor sync needed.
+The app always loads its pages from the start URL, so a change to the site shows in the app on its
+next page load, with no rebuild. To run an app against the local stack, generate the bundle with
+the local site as its start URL (`--start-url https://localhost:44345` for the CLI). The simulator or emulator must trust
+the site's development certificate, and the Android emulator reaches your machine's ports through
+`adb reverse tcp:44345 tcp:44345` (and `tcp:8443` for the local Keycloak).
 
-```typescript
-server: {
-  url: 'https://localhost:44345',
-  cleartext: false,
-},
-```
+### Testing Push Notifications and Journey Status
 
-> ⚠️ Remove `server.url` before App Store or Play Store submission, production builds should use the bundled assets in `webDir`.
-
-### Testing Push Notifications
-
-- **iOS:** Push notifications require a physical device, they do not work on the iOS Simulator.
-- **Android:** Emulators with Google Play Services installed support push notifications.
-- For token registration failures and delivery issues, see [Push notification setup](../PUSH_SETUP.md#testing) and [Notifications](../notifications.md#when-firebase-isnt-configured).
+- **iOS:** push notifications and remotely started Live Activities need a physical device; the
+  Simulator can't receive them.
+- **Android:** emulators with Google Play Services receive push notifications and journey statuses.
+- The shell logs what it does under `PrismShell` on both platforms, including registration and why
+  a page failed to load. The generated README says how to read it.
+- For token registration failures and delivery issues, see
+  [Push notification setup](../PUSH_SETUP.md#testing) and
+  [Notifications](../notifications.md#when-firebase-isnt-configured).
 
 ### Biometric Auth During Development
 
@@ -497,6 +475,7 @@ adb shell pm clear com.prism.portal
 | Biometric key configuration | [docs/biometric-setup.md](../biometric-setup.md) |
 | Native push setup (APNs, FCM) | [docs/PUSH_SETUP.md](../PUSH_SETUP.md) |
 | How Prism sends notifications | [docs/notifications.md](../notifications.md) |
+| Journey status on the lock screen | [docs/journey-status.md](../journey-status.md) |
 | Capacitor documentation | [capacitorjs.com/docs](https://capacitorjs.com/docs) |
 | Storybook: Mobile Nav story | `src/UmbracoPrism.Client/src/mobile/prism-mobile-nav.stories.ts` |
 
