@@ -348,6 +348,16 @@ jobs:
             --apiKey "$APP_STORE_CONNECT_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
 
+      # Archiving creates an Apple Development certificate on every fresh runner, and the account
+      # refuses to archive once it holds its limit of them. This revokes the one this run created,
+      # matched by serial number to the runner's own keychain, so no other certificate is touched.
+      - name: Revoke this run's development certificate
+        if: always()
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: node scripts/revoke-ci-development-certificates.mjs
+
       - name: Remove API key from disk
         if: always()
         run: rm -rf "$HOME/.appstoreconnect"

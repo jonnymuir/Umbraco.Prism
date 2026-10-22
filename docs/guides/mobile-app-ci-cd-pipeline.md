@@ -30,7 +30,12 @@ running a script by hand.
    Connect API key rather than a manually-exported `.p12` certificate or provisioning profile —
    Xcode resolves/creates what it needs itself, scoped to the bundle ID.
 6. Exports a `.ipa` and uploads it to TestFlight via `xcrun altool`.
-7. Uploads the `.ipa` and dSYMs as a workflow artifact regardless of whether the TestFlight
+7. Revokes the Apple Development certificate that archiving created on the runner
+   (`scripts/revoke-ci-development-certificates.mjs`). Each fresh runner creates one, and Apple
+   stops archiving once the account holds its limit of them. The script matches by serial number
+   to the runner's own keychain, so it never touches your own Mac's certificate or the
+   distribution certificate.
+8. Uploads the `.ipa` and dSYMs as a workflow artifact regardless of whether the TestFlight
    upload step is reached, so a build is inspectable even if upload fails.
 
 No `.p12` certificate or `.mobileprovision` file is ever generated or stored — that's the whole
