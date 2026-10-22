@@ -143,12 +143,23 @@ private final class PrismNavigationDecorator: NSObject, WKNavigationDelegate, WK
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         events().navigationFailed()
+        guard !Self.wasCancelled(error) else { return }
         navigationTarget?.webView?(webView, didFail: navigation, withError: error)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         events().navigationFailed()
+        guard !Self.wasCancelled(error) else { return }
+        let failure = error as NSError
+        PrismShell.log.error("Page failed to load (\(failure.domain, privacy: .public) \(failure.code)): \(failure.localizedDescription, privacy: .public)")
         navigationTarget?.webView?(webView, didFailProvisionalNavigation: navigation, withError: error)
+    }
+
+    // A load cancelled by a newer one, such as tapping the selected tab twice, is not a failure.
+    // Capacitor would show its offline page for it.
+    private static func wasCancelled(_ error: Error) -> Bool {
+        let error = error as NSError
+        return error.domain == NSURLErrorDomain && error.code == NSURLErrorCancelled
     }
 
     // Capacitor sends every window.open() to Safari, even for this app's own pages (sign-out uses
