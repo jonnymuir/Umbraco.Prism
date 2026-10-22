@@ -9,7 +9,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -22,7 +24,25 @@ final class PrismShell {
     static final Uri START_URL = Uri.parse("@@PRISM_START_URL@@");
     static final String MANIFEST_PATH = "/umbraco/prism/mobile/manifest";
 
+    /** An intent extra naming a page of the site to open, such as the one a tapped journey status points to. */
+    static final String EXTRA_OPEN_PATH = "prismOpenPath";
+
+    /** Told when the member signs in or out. */
+    interface SessionListener {
+        void sessionChanged(boolean signedIn);
+    }
+
+    private static final List<SessionListener> sessionListeners = new CopyOnWriteArrayList<>();
+
     private PrismShell() {}
+
+    static void addSessionListener(SessionListener listener) {
+        sessionListeners.add(listener);
+    }
+
+    static void sessionChanged(boolean signedIn) {
+        for (SessionListener listener : sessionListeners) listener.sessionChanged(signedIn);
+    }
 
     static String origin() {
         return START_URL.getScheme() + "://" + START_URL.getEncodedAuthority();
@@ -49,6 +69,11 @@ final class PrismShell {
             }
         }
         return builder.appendQueryParameter("prismMobile", "1").build().toString();
+    }
+
+    /** A path on this site, such as /orders: one leading slash, so never another site's address. */
+    static boolean isSitePath(String path) {
+        return path != null && path.startsWith("/") && !path.startsWith("//");
     }
 
     /** A site path without its query or trailing slash, so a tab's path and a link can be compared. */

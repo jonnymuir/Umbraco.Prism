@@ -34,6 +34,10 @@ internal static class IosProjectFiles
 
         var nativeShell = BundleTemplates.Read("ios-native-shell.sh");
 
+        var journeyStatus = settings.JourneyStatusEnabled
+            ? BundleTemplates.Read("ios-journey-status.sh")
+            : string.Empty;
+
         var savedPages = settings.SavedPagesEnabled
             ? BundleTemplates.Read("ios-saved-pages.sh").Replace("@@PRISM_APP_BOUND_DOMAINS@@", string.Join(' ', AppBoundDomains(settings)))
             : string.Empty;
@@ -56,7 +60,7 @@ npx cap sync ios
 
 echo "Generating app icon and splash screen from resources/icon.svg..."
 npx capacitor-assets generate --ios
-{{BundleTemplates.Read("ios-launch-screen.sh")}}{{infoPlistInjection}}{{savedPages}}{{nativeShell}}{{pushNotificationsInjection}}{{BundleTemplates.Read("ios-privacy-manifest.sh")}}
+{{BundleTemplates.Read("ios-launch-screen.sh")}}{{infoPlistInjection}}{{savedPages}}{{nativeShell}}{{pushNotificationsInjection}}{{journeyStatus}}{{BundleTemplates.Read("ios-privacy-manifest.sh")}}
 echo "Applying localhost cert trust (if needed)..."
 if ! bash scripts/trust-ios-localhost-cert.sh; then
   echo "⚠️ Cert trust step did not complete. Continuing..."

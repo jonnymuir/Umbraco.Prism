@@ -554,7 +554,7 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("plutil -insert UIBackgroundModes -json '[\"remote-notification\"]'");
         iosBootstrap.Should().Contain("/usr/libexec/PlistBuddy -c \"Add :aps-environment string production\" ios/App/App/App.entitlements");
         iosBootstrap.Should().Contain("cp resources/GoogleService-Info.plist ios/App/App/GoogleService-Info.plist");
-        iosBootstrap.Should().Contain("project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements');");
+        iosBootstrap.Should().Contain("project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements', null, 'App');");
         iosBootstrap.Should().Contain("project.addResourceFile('App/GoogleService-Info.plist'");
         iosBootstrap.Should().Contain("didRegisterForRemoteNotificationsWithDeviceToken");
         iosBootstrap.Should().Contain("didFailToRegisterForRemoteNotificationsWithError");
@@ -598,7 +598,7 @@ public class MobileBundleServiceTests
         iosBootstrap.Should().Contain("<key>com.apple.developer.associated-domains</key>");
         iosBootstrap.Should().Contain("<string>webcredentials:members.example.org</string>");
         iosBootstrap.Should().Contain("project.updateBuildProperty('IPHONEOS_DEPLOYMENT_TARGET', '17.4');");
-        iosBootstrap.Should().Contain("project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements');");
+        iosBootstrap.Should().Contain("project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements', null, 'App');");
     }
 
     [Fact]

@@ -96,7 +96,8 @@ public static class Program
         BiometricAuthEnabled = ParseOptionalBool(flags.GetValueOrDefault("biometric-auth")),
         PushNotificationsEnabled = ParseOptionalBool(flags.GetValueOrDefault("push-notifications")),
         DeviceCaptureEnabled = ParseOptionalBool(flags.GetValueOrDefault("device-capture")),
-        SavedPagesEnabled = ParseOptionalBool(flags.GetValueOrDefault("saved-pages"))
+        SavedPagesEnabled = ParseOptionalBool(flags.GetValueOrDefault("saved-pages")),
+        JourneyStatusEnabled = ParseOptionalBool(flags.GetValueOrDefault("journey-status"))
     };
 
     private static Dictionary<string, string> ParseFlags(string[] args)
@@ -169,6 +170,11 @@ public static class Program
                                             the app opens its tabs at once and shows pages it has
                                             seen when offline. On iOS this limits the app to its
                                             own site and identity provider (App-Bound Domains).
+              --journey-status <true|false>
+                                            Shows where a member's journeys have got to on the
+                                            lock screen: an iOS Live Activity (a widget extension
+                                            signed as <app-id>.JourneyStatus) and an Android Live
+                                            Update. Needs --push-notifications true.
             """);
     }
 }

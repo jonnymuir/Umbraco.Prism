@@ -91,7 +91,7 @@ public class NotificationDeepLinkTests
         var dbFactory = new Mock<IUmbracoDatabaseFactory>();
         dbFactory.Setup(f => f.CreateDatabase()).Returns(db.Object);
         var logger = new Mock<ILogger<PrismNotificationService>>();
-        var service = new PrismNotificationService(dbFactory.Object, new ConfigurationBuilder().Build(), logger.Object);
+        var service = new PrismNotificationService(dbFactory.Object, new PrismFirebase(new ConfigurationBuilder().Build(), NullLogger<PrismFirebase>.Instance), logger.Object);
 
         await service.SendNotificationToUserAsync("user-1", "tenant-1", "Title", "Body", deepLinkPath: link);
 

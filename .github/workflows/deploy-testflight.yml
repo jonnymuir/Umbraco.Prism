@@ -78,6 +78,10 @@ jobs:
       # --saved-pages: keeps the site's pages on the device (Design/mobile-offline-pages.md). On
       # iOS it limits the app to its own domains, which needs App Sign-In, as the reference tenant
       # has, since no identity provider host is passed here.
+      #
+      # --journey-status: a journey's status on the lock screen (Design/mobile-journey-status.md),
+      # through Firebase, so with push. Adds the PrismJourneyStatus widget extension, signed as
+      # <app id>.JourneyStatus, which automatic signing registers on the first archive.
       - name: Generate mobile bundle
         run: >
           dotnet run --project src/UmbracoPrism.MobileBundleCli --
@@ -89,6 +93,7 @@ jobs:
           --device-capture true
           --push-notifications "$PUSH_NOTIFICATIONS_ENABLED"
           --saved-pages true
+          --journey-status "$PUSH_NOTIFICATIONS_ENABLED"
           --output mobile-bundle.zip
 
       - name: Unzip mobile bundle

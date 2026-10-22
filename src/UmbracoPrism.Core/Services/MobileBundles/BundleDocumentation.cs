@@ -9,25 +9,21 @@ namespace UmbracoPrism.Core.Services.MobileBundles;
 /// </summary>
 internal static class BundleDocumentation
 {
+    /// <summary>The README sections for the optional features the app was built with.</summary>
+    private static string FeatureSections(MobileBundleSettings settings) =>
+        (settings.BiometricAuthEnabled ? BundleTemplates.Read("readme-biometric.md") : string.Empty)
+        + (settings.PushNotificationsEnabled ? BundleTemplates.Read("readme-push.md") : string.Empty)
+        + (settings.JourneyStatusEnabled ? BundleTemplates.Read("readme-journey-status.md").Replace("{{appId}}", settings.AppId) : string.Empty);
+
     internal static string BuildReadme(MobileBundleSettings settings)
     {
         var appName = settings.AppName;
         var startUrl = settings.StartUrl;
         var iconUrl = settings.IconUrl;
         var splashUrl = settings.SplashUrl;
-        var biometricAuthEnabled = settings.BiometricAuthEnabled;
-        var pushNotificationsEnabled = settings.PushNotificationsEnabled;
 
       var iconLine = string.IsNullOrWhiteSpace(iconUrl) ? "(not provided)" : iconUrl;
       var splashLine = string.IsNullOrWhiteSpace(splashUrl) ? "(not provided)" : splashUrl;
-
-      var biometricSection = biometricAuthEnabled
-          ? BundleTemplates.Read("readme-biometric.md")
-          : string.Empty;
-
-      var pushSection = pushNotificationsEnabled
-          ? BundleTemplates.Read("readme-push.md")
-          : string.Empty;
 
         return $$"""
 # {{appName}} Mobile Shell
@@ -148,7 +144,7 @@ Choose this explicitly per tenant/security policy. If strict in-WebView is manda
 ## Customize mobile-specific UI
 
 Use `www/mobile-overrides.css` as your starting point for mobile-scoped styles.
-{{biometricSection}}{{pushSection}}
+{{FeatureSections(settings)}}
 ## Icons & Splash
 
 - Icon source: {{iconLine}}

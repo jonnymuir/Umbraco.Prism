@@ -21,5 +21,5 @@ for (const file of fs.readdirSync('native/ios').filter(name => name.endsWith('.s
 
 // iOS 17.4 is the first with https callbacks for the system sign-in sheet.
 project.updateBuildProperty('IPHONEOS_DEPLOYMENT_TARGET', '17.4');
-project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements');
+project.updateBuildProperty('CODE_SIGN_ENTITLEMENTS', 'App/App.entitlements', null, 'App');
 fs.writeFileSync(pbxprojPath, project.writeSync());

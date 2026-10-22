@@ -116,4 +116,21 @@ public class PrismDeviceCredentialSchema
     [Length(500)]
     [NullSetting(NullSetting = NullSettings.Null)]
     public string? PushToken { get; set; }
+
+    /// <summary>
+    /// Gets or sets the platform ('ios' or 'android') of an app on this device that shows journey
+    /// statuses. Null when it does not.
+    /// </summary>
+    [Column("JourneyStatusPlatform")]
+    [Length(16)]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? JourneyStatusPlatform { get; set; }
+
+    /// <summary>
+    /// Gets or sets the iOS token that lets the site start a journey's Live Activity on this device.
+    /// </summary>
+    [Column("LiveActivityStartToken")]
+    [Length(500)]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? LiveActivityStartToken { get; set; }
 }

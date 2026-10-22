@@ -64,6 +64,7 @@ public class MainActivity extends AppCompatActivity {
         createTabSlots(containerId, tabs);
         listenForNavigation();
         showTabs(tabs);
+        openRequestedPage(getIntent());
         refreshManifest();
     }
 
@@ -255,6 +256,7 @@ public class MainActivity extends AppCompatActivity {
         hasSession = signedIn;
         if (previous == null || previous == signedIn) return;
         Log.i(PrismShell.LOG_TAG, "Member signed " + (signedIn ? "in" : "out") + "; other tabs reload when next shown");
+        PrismShell.sessionChanged(signedIn);
         for (PrismTabFragment slot : slots) {
             if (slot != selected) slot.markStale();
         }
@@ -277,6 +279,34 @@ public class MainActivity extends AppCompatActivity {
         super.onNewIntent(intent);
         if (PrismSystemSignInPlugin.deliver(intent.getData())) return;
         setIntent(intent);
+        if (openRequestedPage(intent)) return;
         selected.onNewIntent(intent);
+    }
+
+    /** A page of the site the intent names opens in the tab whose first page it is, or else in the tab showing. */
+    private boolean openRequestedPage(Intent intent) {
+        String page = intent == null ? null : intent.getStringExtra(PrismShell.EXTRA_OPEN_PATH);
+        if (!PrismShell.isSitePath(page)) return false;
+        intent.removeExtra(PrismShell.EXTRA_OPEN_PATH);
+
+        int index = tabIndexFor(page);
+        PrismTabFragment target = index >= 0 ? slotForTab.get(index) : selected;
+        Log.i(PrismShell.LOG_TAG, "Opening " + PrismShell.normalizedPath(page));
+        target.open(page);
+        if (target == selected) {
+            target.showPage();
+        } else {
+            nav.post(() -> nav.setSelectedItemId(index + 1));
+        }
+        return true;
+    }
+
+    /** The shown tab whose first page this is, or -1. */
+    private int tabIndexFor(String page) {
+        String path = PrismShell.normalizedPath(page);
+        for (int i = 0; i < shown.size(); i++) {
+            if (PrismShell.normalizedPath(shown.get(i).path).equals(path)) return i;
+        }
+        return -1;
     }
 }

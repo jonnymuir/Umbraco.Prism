@@ -12,7 +12,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return true
     }
 
+    /// A page of the site, from a tapped journey status, opens in the app; anything else goes to Capacitor.
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        if PrismShell.isOwnSite(url), let tabs = window?.rootViewController as? PrismTabBarController {
+            tabs.open(url)
+            return true
+        }
         return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
     }
 

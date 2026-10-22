@@ -4,6 +4,7 @@ using Umbraco.Cms.Core.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
+using UmbracoPrism.Core.Services.JourneyStatus;
 using Umbraco.Cms.Web.Common.ApplicationBuilder;
 using UmbracoPrism.Core.Middleware;
 using Umbraco.Cms.Core.Notifications;
@@ -51,15 +52,7 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IPrismTenantBindingValidator, PrismTenantBindingValidator>();
         builder.Services.AddScoped<IPrismContext, PrismContext>();
         builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
-        // Singleton, not scoped: PrismNotificationService holds no per-request state — its
-        // constructor deps (IUmbracoDatabaseFactory, IConfiguration, ILogger) are all
-        // singleton-safe, and every method opens its own short-lived IUmbracoDatabase via
-        // _databaseFactory.CreateDatabase() rather than holding one across calls. Needs to be a
-        // singleton specifically so UmbracoPrism.Automate's PrismSendPushNotificationAction (an
-        // Umbraco Automate [Action], singleton-lifetime by that package's own convention) can
-        // consume it directly — a scoped service consumed by a singleton fails ASP.NET Core's
-        // own ValidateOnBuild captive-dependency check at startup.
-        builder.Services.AddSingleton<IPrismNotificationService, PrismNotificationService>();
+        ComposeNotifications(builder.Services);
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
         // 3. Middleware Registration
@@ -160,5 +153,29 @@ public class PrismComposer : IComposer
         services.AddSingleton<PrismContentVersion>();
         builder.AddNotificationHandler<ContentPublishedNotification, PrismContentVersionHandler>();
         builder.AddNotificationHandler<ContentUnpublishedNotification, PrismContentVersionHandler>();
+        ComposeJourneyStatus(services);
+    }
+
+    private static void ComposeNotifications(IServiceCollection services)
+    {
+        // Singleton, not scoped: PrismNotificationService holds no per-request state — its
+        // constructor deps (IUmbracoDatabaseFactory, PrismFirebase, ILogger) are all
+        // singleton-safe, and every method opens its own short-lived IUmbracoDatabase via
+        // _databaseFactory.CreateDatabase() rather than holding one across calls. Needs to be a
+        // singleton specifically so UmbracoPrism.Automate's PrismSendPushNotificationAction (an
+        // Umbraco Automate [Action], singleton-lifetime by that package's own convention) can
+        // consume it directly — a scoped service consumed by a singleton fails ASP.NET Core's
+        // own ValidateOnBuild captive-dependency check at startup.
+        services.AddSingleton<PrismFirebase>();
+        services.AddSingleton<IPrismNotificationService, PrismNotificationService>();
+    }
+
+    private static void ComposeJourneyStatus(IServiceCollection services)
+    {
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<PrismJourneyStatusQueue>();
+        services.AddSingleton<IPrismJourneyStatusService>(provider => provider.GetRequiredService<PrismJourneyStatusQueue>());
+        services.AddSingleton<PrismJourneyStatusDelivery>();
+        services.AddHostedService<PrismJourneyStatusSender>();
     }
 }

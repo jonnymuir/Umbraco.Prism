@@ -14,12 +14,12 @@ internal static class BundleTemplates
 {
     private const string ResourcePrefix = "MobileBundleTemplates/";
 
-    /// <summary>The files under <c>Templates/bundle/</c>, by their path in the bundle.</summary>
-    public static IEnumerable<string> BundleFiles()
+    /// <summary>The files under a folder of <c>Templates/</c>, such as <c>bundle/</c>, by their template name.</summary>
+    public static IEnumerable<string> FilesIn(string folder)
     {
-        const string bundlePrefix = ResourcePrefix + "bundle/";
+        var folderPrefix = ResourcePrefix + folder;
         return typeof(BundleTemplates).Assembly.GetManifestResourceNames()
-            .Where(name => name.Replace('\\', '/').StartsWith(bundlePrefix, StringComparison.Ordinal))
+            .Where(name => name.Replace('\\', '/').StartsWith(folderPrefix, StringComparison.Ordinal))
             .Select(name => name.Replace('\\', '/')[ResourcePrefix.Length..])
             .Order(StringComparer.Ordinal);
     }

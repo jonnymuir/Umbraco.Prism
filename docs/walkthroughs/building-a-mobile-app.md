@@ -18,6 +18,7 @@ backoffice. The shell adds what a website cannot do on its own:
   inside the app (see Part 3).
 - **Biometric sign-in** (`@aparajita/capacitor-biometric-auth`, `@aparajita/capacitor-secure-storage`).
 - **Push notifications** (`@capacitor-firebase/messaging`) that open a page when tapped.
+- **Journey status** on the lock screen while a member waits on something (see Part 7).
 - **A branded offline screen** when a page cannot be reached.
 
 ---
@@ -343,7 +344,51 @@ The design is in `Design/mobile-offline-pages.md`.
 
 ---
 
-## Part 7: Building for iOS
+## Part 7: Journey Status
+
+With the **Journey Status** bundle option (`--journey-status true` for the CLI, alongside push
+notifications), a member sees where one of their journeys has got to on the lock screen while they
+wait on it: a Live Activity on iPhone, on the lock screen and in the Dynamic Island, and a Live
+Update on Android 16 and later (an ongoing notification on earlier versions). It updates in place
+with the app closed, and tapping it opens the journey's page in the app.
+
+The site publishes each status. Prism does not know about journeys, so the host decides when:
+
+```csharp
+journeyStatus.Publish(memberEmail, tenantHostname, new PrismJourneyStatus(
+    Key: request.InstanceId,
+    ServiceName: "Apply for a juggling licence",
+    Status: "Deciding your application",
+    Step: null, Steps: null,
+    Path: "/apply-for-a-juggling-licence",
+    Kind: PrismJourneyStatusKind.Waiting));
+```
+
+- **Waiting** starts the status, or updates it if one is showing. **Done** ends it, with its last
+  status showing for 15 minutes.
+- **`Publish` returns at once.** A background sender delivers the status through Firebase, so a
+  slow or failed delivery never holds up whatever caused the change.
+- **The status line says what kind of thing is happening, never the outcome:** "A decision has
+  been made", not "Your licence was refused". Anyone holding the phone can read a lock screen.
+  The outcome belongs in a push notification that opens the page behind sign-in.
+- **A Live Activity is for a wait of hours,** since iOS ends one within 12. A change days later is a
+  push notification.
+- The member is identified as push notifications identify them, by email address and the tenant's
+  host name, and only their own devices receive the status.
+
+The **Update journey status** Umbraco Automate action publishes a status without code. The
+reference site publishes from Wayfinder.Umbraco's `ServiceRequestTransitionedNotification`
+(`JourneyStatuses` in the TestSite): a signed-in member's juggling licence application shows
+"Deciding your application" while the decision runs, and "A decision has been made" when it
+settles, alongside the decision's own push notification.
+
+On iOS the Live Activity is drawn by a widget extension, `PrismJourneyStatus`, signed as its own
+app identity: the app's ID with `.JourneyStatus` added. The generated README says how to register
+it. The design is in `Design/mobile-journey-status.md`.
+
+---
+
+## Part 8: Building for iOS
 
 ### Step 3: Open the Xcode Project
 
@@ -376,7 +421,7 @@ For App Store distribution builds, change the `aps-environment` entitlement from
 
 ---
 
-## Part 8: Building for Android
+## Part 9: Building for Android
 
 ### Step 5: Place `google-services.json`
 
@@ -410,7 +455,7 @@ For detailed Android-specific guidance, refer to the [Capacitor Android document
 
 ---
 
-## Part 9: Development Tips
+## Part 10: Development Tips
 
 ### Iterating Without Rebuilding Native Apps
 
