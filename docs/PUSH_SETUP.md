@@ -55,8 +55,9 @@ registers.
 ## Part 2 — Server-side configuration
 
 Set `Prism:Firebase:CredentialJson` to the full contents of the service-account JSON from step 6
-above (or a file path to it — `PrismNotificationService.TryInitFirebase` accepts either: a raw
-JSON string starting with `{`, or a path to a file containing it).
+above, or a path to a file containing it. Prism treats a value starting with `{` as the JSON
+itself and anything else as a file path. Push notifications and
+[journey status](journey-status.md) both send with this credential.
 
 On the reference app's VPS (a systemd `EnvironmentFile`, same convention as
 `Prism__SeedTenant__Hostname` etc. — see `docs/umbraco-setup.md`), that's:
@@ -65,9 +66,8 @@ On the reference app's VPS (a systemd `EnvironmentFile`, same convention as
 Prism__Firebase__CredentialJson={"type":"service_account","project_id":"...", ...}
 ```
 
-Without this set, `PrismNotificationService` logs "push notifications disabled" and every send is
-a silent no-op — safe to leave unset while you're still doing the Firebase setup above; nothing
-else breaks.
+Without this set, Prism logs that push notifications are disabled and every send is a no-op. It
+is safe to leave unset while you're still doing the Firebase setup above; nothing else breaks.
 
 ---
 
@@ -83,7 +83,7 @@ dotnet run --project src/UmbracoPrism.MobileBundleCli -- \
 ```
 
 (Or, in CI, `deploy-testflight.yml` turns this on automatically once the
-`GOOGLE_SERVICE_INFO_PLIST_BASE64` repo secret is set — see below.)
+`GOOGLE_SERVICE_INFO_PLIST` repo secret is set — see below.)
 
 Before running `npm run bootstrap:ios` / `npm run bootstrap:android`, place the two files you
 downloaded in Part 1 here:
@@ -108,20 +108,28 @@ Then:
   permission, calls `FirebaseMessaging.getToken()`, and registers the token with
   `POST /umbraco/prism/push/register`. `prism-biometric-signout.js` clears the locally-cached
   token fingerprint and calls `DELETE /umbraco/prism/push/register` on sign-out.
+- **Journey Status** (`--journey-status true`, which needs push notifications) adds the
+  `PrismJourneyStatus` widget extension to the iOS project, signed as the app's ID with
+  `.JourneyStatus` added, and a messaging service to the Android app that shows statuses as an
+  ongoing notification. Both apps register for statuses natively; see
+  [Journey status](journey-status.md).
 
 None of this is gated on a per-tenant database flag (unlike `AllowBiometricLogin`) — whether the
 native plugin is compiled in at all is a bundle-generation-time decision, not something a runtime
 toggle could change after the fact.
 
-### CI (TestFlight)
+### CI (TestFlight and Play)
 
 `deploy-testflight.yml` reads a `GOOGLE_SERVICE_INFO_PLIST` repo secret
 (**Settings → Secrets and variables → Actions → New repository secret**) — open your downloaded
 `GoogleService-Info.plist` in a text editor, copy its entire contents, and paste them as the
 secret value (it's plain XML text, no encoding needed). When that secret is set, the workflow
-automatically passes `--push-notifications true` and writes the file into the bundle's
-`resources/` folder before bootstrapping. When it's unset, the pipeline still runs — it just
-produces a build without push notifications compiled in, same as today.
+automatically passes `--push-notifications true` and `--journey-status true`, and writes the file
+into the bundle's `resources/` folder before bootstrapping. When it's unset, the pipeline still
+runs and produces a build without push notifications or journey status.
+
+`deploy-play-internal.yml` does the same for Android with a `GOOGLE_SERVICES_JSON` secret holding
+the contents of `google-services.json`.
 
 ---
 

@@ -13,7 +13,8 @@ set up Firebase and the generated app, follow [Push notification setup](PUSH_SET
 3. The member can subscribe to named **genres** (topics your site defines, such as
    `jazz` or `planning-updates`) with `POST /umbraco/prism/push/subscribe`.
 4. On sign-out the app calls `DELETE /umbraco/prism/push/register`, so that device stops
-   receiving notifications.
+   receiving notifications. Prism also forgets the device's [journey status](journey-status.md)
+   registration and any statuses it was showing.
 
 | Endpoint | Body | Purpose |
 |---|---|---|
@@ -67,6 +68,12 @@ automatically, so a member who uninstalls the app stops being sent to.
 If `Prism:Firebase:CredentialJson` is not set, sending is disabled: the service logs that push notifications are disabled, and
 every send returns without delivering. Registration and subscriptions still work, so a site can
 run locally without Firebase. See [Push notification setup](PUSH_SETUP.md#part-2--server-side-configuration).
+
+## Journey statuses
+
+A notification tells a member that something happened. For a wait that is still running, such as
+a decision expected within the hour, an app built with the Journey Status option can show its
+progress on the lock screen instead, updating in place. See [Journey status](journey-status.md).
 
 ## Worked example
 

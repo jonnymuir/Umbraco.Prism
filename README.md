@@ -85,16 +85,18 @@ Two optional add-ons, released alongside it with the same version:
 - **Stateless OIDC identity**: any OIDC-compliant provider (Entra ID, Keycloak, ...) per tenant,
   zero local Members, tenant isolation enforced by authorization policy, downstream identity
   propagation to your own APIs.
-- **Produce Mobile**: turn tenant settings into an iOS/Android app — biometric login, push
-  notifications, offline-ready layouts, tenant branding at runtime. See [Mobile Setup](docs/PUSH_SETUP.md) /
-  [Biometric Auth](docs/biometric-setup.md).
+- **Produce Mobile**: turn tenant settings into an iOS/Android app: native tabs from your site's
+  navigation, sign-in through the system sign-in sheet, biometric login, push notifications, saved
+  pages that open offline, tenant branding at runtime. See
+  [Building a Mobile App](docs/walkthroughs/building-a-mobile-app.md) /
+  [Mobile Setup](docs/PUSH_SETUP.md) / [Biometric Auth](docs/biometric-setup.md).
 - **Push notifications**: `IPrismNotificationService` sends to generated mobile apps through
   Firebase, to one member, a genre's subscribers, or a whole tenant. Notify on content publish
   from configuration alone, from an Umbraco Automate action, or from your own code. See
   [Notifications](docs/notifications.md).
 - **Journey status**: `IPrismJourneyStatusService` shows where a member's journey has got to on
   their lock screen while they wait on it, as an iOS Live Activity or Android Live Update. See
-  [Building a Mobile App, Part 7](docs/walkthroughs/building-a-mobile-app.md#part-7-journey-status).
+  [Journey status](docs/journey-status.md).
 - **Page access policies**: require sign-in for any page and limit it to named tenants, from
   **Settings → Advanced → Page access**.
 - **Secure-by-default secrets**: production tenants resolve confidential-client secrets through

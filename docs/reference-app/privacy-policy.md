@@ -1,6 +1,6 @@
 # Privacy Policy — Prism Reference App
 
-_Effective 24 September 2026_
+_Effective 22 October 2026_
 
 This app is a **reference and internal-testing build** for the open-source
 [Umbraco Prism](https://github.com/jonnymuir/Umbraco.Prism) package — it demonstrates
@@ -20,6 +20,16 @@ intended for general public use.
   email, username) from the demo identity provider (Keycloak) used to run this test environment.
 - **Push notification token.** If notifications are enabled on your device, a device token is
   registered with Firebase Cloud Messaging solely to deliver demo notifications from this app.
+- **Journey status.** While you are signed in, the app registers tokens with the demo site that
+  let it show the progress of an application you started on your lock screen (an iOS Live
+  Activity or an Android ongoing notification), delivered through Firebase Cloud Messaging. The
+  site keeps the latest status of each such application until it is finished. A status line says
+  only what kind of thing is happening, such as "Deciding your application", never its outcome.
+  Signing out deletes these tokens and statuses, and you can turn Live Activities off for the app
+  in iOS Settings or the notifications in Android's settings.
+- **Saved pages.** The app keeps copies of pages of the demo site you have visited on your device,
+  so they open quickly and without a connection. Pages shown only to signed-in members are not
+  saved, and signing in or out deletes every saved copy.
 - **Biometric unlock.** If you enable biometric sign-in, your device's own biometric system
   (Face ID / fingerprint) handles this locally. No biometric data is ever collected, transmitted,
   or stored by the app or its servers.

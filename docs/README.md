@@ -34,10 +34,13 @@ installs.
 ## Mobile apps and notifications
 
 - **[Building a mobile app](walkthroughs/building-a-mobile-app.md)**: generate a Capacitor
-  iOS/Android app from a tenant.
+  iOS/Android app from a tenant, with native tabs, system sign-in, saved pages for offline use and
+  journey status on the lock screen.
 - **[Biometric setup](biometric-setup.md)**: signing and encryption keys for biometric sign-in.
 - **[Notifications](notifications.md)**: how Prism registers devices and sends push
   notifications.
+- **[Journey status](journey-status.md)**: show a member's journey on their lock screen while
+  they wait on it, as an iOS Live Activity or Android Live Update.
 - **[Push notification setup](PUSH_SETUP.md)**: Firebase, and what the generated app does.
 - **[Mobile app CI/CD pipeline](guides/mobile-app-ci-cd-pipeline.md)**: build, sign and upload
   the app to TestFlight from GitHub Actions.
