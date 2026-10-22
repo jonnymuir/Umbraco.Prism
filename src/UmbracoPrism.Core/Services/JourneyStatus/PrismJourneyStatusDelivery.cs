@@ -35,13 +35,13 @@ public sealed class PrismJourneyStatusDelivery(
         await CarryOutAsync(db, plan, stored, update.Status.Key, cancellationToken);
     }
 
-    /// <summary>A Live Activity's own token, from the device that is running it.</summary>
-    public async Task ActivityStartedAsync(string userId, string tenantId, string journeyKey, string activityToken, CancellationToken cancellationToken)
+    /// <summary>A Live Activity's own token, from the member's device that is running it.</summary>
+    public async Task ActivityStartedAsync(PrismJourneyStatusMember member, string journeyKey, string activityToken, CancellationToken cancellationToken)
     {
         using var db = databaseFactory.CreateDatabase();
-        var iPhone = db.Fetch<PrismDeviceCredentialSchema>(DevicesWhere, userId, tenantId)
+        var iPhone = db.Fetch<PrismDeviceCredentialSchema>(DevicesWhere, member.UserId, member.TenantId)
             .FirstOrDefault(device => device.JourneyStatusPlatform == PrismJourneyStatusPlan.Ios);
-        var stored = db.FirstOrDefault<PrismJourneyStatusSchema>(StatusWhere, userId, tenantId, journeyKey);
+        var stored = db.FirstOrDefault<PrismJourneyStatusSchema>(StatusWhere, member.UserId, member.TenantId, journeyKey);
         var plan = PrismJourneyStatusPlan.ForActivityToken(iPhone, stored, activityToken, time.GetUtcNow());
         await CarryOutAsync(db, plan, stored, journeyKey, cancellationToken);
     }
@@ -51,12 +51,12 @@ public sealed class PrismJourneyStatusDelivery(
     /// registered for push notifications yet, which makes the device's row; it registers again later.
     /// Signing out clears this with the push token (<see cref="PrismNotificationService.UnregisterDeviceTokenAsync"/>).
     /// </summary>
-    public bool RegisterDevice(string userId, string tenantId, string platform, string? startToken)
+    public bool RegisterDevice(PrismJourneyStatusMember member, string platform, string? startToken)
     {
         using var db = databaseFactory.CreateDatabase();
         return db.Execute(
             "UPDATE prismDeviceCredentials SET JourneyStatusPlatform = @0, LiveActivityStartToken = @1 WHERE UserId = @2 AND TenantId = @3 AND PushToken IS NOT NULL",
-            platform, (object?)startToken ?? DBNull.Value, userId, tenantId) > 0;
+            platform, (object?)startToken ?? DBNull.Value, member.UserId, member.TenantId) > 0;
     }
 
     private async Task CarryOutAsync(

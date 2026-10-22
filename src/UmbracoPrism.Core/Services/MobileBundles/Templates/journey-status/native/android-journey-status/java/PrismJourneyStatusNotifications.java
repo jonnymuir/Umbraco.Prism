@@ -34,7 +34,7 @@ final class PrismJourneyStatusNotifications {
     static void show(Context context, Map<String, String> data) {
         String key = data.get("key");
         String path = data.get("path");
-        if (key == null || path == null || !path.startsWith("/") || path.startsWith("//")) return;
+        if (key == null || !PrismShell.isSitePath(path)) return;
 
         NotificationManager manager = context.getSystemService(NotificationManager.class);
         boolean waiting = "Waiting".equals(data.get("kind"));

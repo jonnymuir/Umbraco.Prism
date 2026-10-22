@@ -29,10 +29,12 @@ public sealed class JourneyStatuses(IServiceRequestStore requests, IPrismJourney
     public void Handle(ServiceRequestTransitionedNotification notification)
     {
         var move = notification.Transition;
-        if (move.ToStageKey is not { } stage
-            || !requests.TryGet(move.InstanceId, out var request)
-            || !request.IsAuthenticated
-            || !Lines.TryGetValue((request.BlueprintKey, stage), out var line))
+        if (!requests.TryGet(move.InstanceId, out var request) || !request.IsAuthenticated)
+        {
+            return;
+        }
+
+        if (move.ToStageKey is not { } stage || !Lines.TryGetValue((request.BlueprintKey, stage), out var line))
         {
             return;
         }

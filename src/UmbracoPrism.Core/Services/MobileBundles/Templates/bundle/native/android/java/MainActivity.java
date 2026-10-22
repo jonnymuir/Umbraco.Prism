@@ -286,23 +286,27 @@ public class MainActivity extends AppCompatActivity {
     /** A page of the site the intent names opens in the tab whose first page it is, or else in the tab showing. */
     private boolean openRequestedPage(Intent intent) {
         String page = intent == null ? null : intent.getStringExtra(PrismShell.EXTRA_OPEN_PATH);
-        if (page == null || !page.startsWith("/") || page.startsWith("//")) return false;
+        if (!PrismShell.isSitePath(page)) return false;
         intent.removeExtra(PrismShell.EXTRA_OPEN_PATH);
 
-        String path = PrismShell.normalizedPath(page);
-        int index = -1;
-        for (int i = 0; i < shown.size(); i++) {
-            if (PrismShell.normalizedPath(shown.get(i).path).equals(path)) index = i;
-        }
+        int index = tabIndexFor(page);
         PrismTabFragment target = index >= 0 ? slotForTab.get(index) : selected;
-        Log.i(PrismShell.LOG_TAG, "Opening " + path);
+        Log.i(PrismShell.LOG_TAG, "Opening " + PrismShell.normalizedPath(page));
         target.open(page);
         if (target == selected) {
             target.showPage();
         } else {
-            int itemId = index + 1;
-            nav.post(() -> nav.setSelectedItemId(itemId));
+            nav.post(() -> nav.setSelectedItemId(index + 1));
         }
         return true;
+    }
+
+    /** The shown tab whose first page this is, or -1. */
+    private int tabIndexFor(String page) {
+        String path = PrismShell.normalizedPath(page);
+        for (int i = 0; i < shown.size(); i++) {
+            if (PrismShell.normalizedPath(shown.get(i).path).equals(path)) return i;
+        }
+        return -1;
     }
 }

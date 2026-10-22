@@ -46,6 +46,9 @@ public sealed record PrismJourneyStatus(
     };
 }
 
+/// <summary>A member of a tenant, identified as push notifications identify them: their email address and the tenant's host name.</summary>
+public readonly record struct PrismJourneyStatusMember(string UserId, string TenantId);
+
 /// <summary>Shows members where their journeys have got to, outside the app (Design/mobile-journey-status.md).</summary>
 public interface IPrismJourneyStatusService
 {

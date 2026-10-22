@@ -30,10 +30,10 @@ public sealed class PrismJourneyStatusController(PrismJourneyStatusDelivery deli
     public IActionResult RegisterDevice([FromBody] PrismJourneyStatusDeviceRequest request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        if (Member() is not ({ } userId, { } tenantId)) return Unauthorized();
+        if (Member() is not { } member) return Unauthorized();
 
         var startToken = request.Platform == PrismJourneyStatusPlan.Ios ? request.StartToken : null;
-        return delivery.RegisterDevice(userId, tenantId, request.Platform, startToken)
+        return delivery.RegisterDevice(member, request.Platform, startToken)
             ? NoContent()
             : Conflict(new { error = "Register for push notifications first." });
     }
@@ -43,14 +43,14 @@ public sealed class PrismJourneyStatusController(PrismJourneyStatusDelivery deli
     public async Task<IActionResult> ActivityStarted([FromBody] PrismJourneyStatusActivityRequest request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        if (Member() is not ({ } userId, { } tenantId)) return Unauthorized();
+        if (Member() is not { } member) return Unauthorized();
 
-        await delivery.ActivityStartedAsync(userId, tenantId, request.Key, request.Token, cancellationToken);
+        await delivery.ActivityStartedAsync(member, request.Key, request.Token, cancellationToken);
         return NoContent();
     }
 
-    private (string UserId, string TenantId)? Member() =>
+    private PrismJourneyStatusMember? Member() =>
         userContext.IsAuthenticated && userContext.Email is { } email && userContext.CurrentTenant?.Hostname is { } host
-            ? (email, host)
+            ? new PrismJourneyStatusMember(email, host)
             : null;
 }

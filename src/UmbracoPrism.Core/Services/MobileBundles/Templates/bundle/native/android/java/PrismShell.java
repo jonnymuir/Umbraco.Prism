@@ -71,6 +71,11 @@ final class PrismShell {
         return builder.appendQueryParameter("prismMobile", "1").build().toString();
     }
 
+    /** A path on this site, such as /orders: one leading slash, so never another site's address. */
+    static boolean isSitePath(String path) {
+        return path != null && path.startsWith("/") && !path.startsWith("//");
+    }
+
     /** A site path without its query or trailing slash, so a tab's path and a link can be compared. */
     static String normalizedPath(String path) {
         String withoutQuery = path == null ? "/" : path.split("\\?", 2)[0];
