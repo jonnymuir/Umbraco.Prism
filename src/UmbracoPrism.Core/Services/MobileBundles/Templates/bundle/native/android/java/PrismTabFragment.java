@@ -3,11 +3,14 @@ package @@PRISM_PACKAGE@@;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -219,6 +222,23 @@ public class PrismTabFragment extends Fragment {
         public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
             if (request.isForMainFrame() && openInAnotherTab(request)) return true;
             return super.shouldOverrideUrlLoading(view, request);
+        }
+
+        // Capacitor shows its offline page for both of these, so the log says which it was.
+        @Override
+        public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+            if (request.isForMainFrame()) {
+                Log.w(PrismShell.LOG_TAG, "Page failed to load (" + error.getErrorCode() + "): " + error.getDescription());
+            }
+            super.onReceivedError(view, request, error);
+        }
+
+        @Override
+        public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse response) {
+            if (request.isForMainFrame()) {
+                Log.w(PrismShell.LOG_TAG, "Page answered " + response.getStatusCode() + ": " + request.getUrl().getPath());
+            }
+            super.onReceivedHttpError(view, request, response);
         }
 
         private boolean openInAnotherTab(WebResourceRequest request) {

@@ -136,6 +136,40 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
             "because generic OIDC providers use standard OIDC endpoints");
     }
 
+    [Fact]
+    public async Task Login_ForgetsAbandonedSignIns_SoTheirCookiesCannotOutgrowTheCallbackRequest()
+    {
+        // A member who keeps opening a members-only page while signed out starts a sign-in each
+        // time; their cookies would otherwise pile up until the callback is refused with a 431.
+        var options = ConfigureOptions(LocalhostKeycloakTenant);
+        var context = CreateRedirectContext(options, LocalhostKeycloakTenant);
+        context.HttpContext.Request.Headers.Cookie = string.Join("; ", Enumerable.Range(1, PrismOidcConfiguration.MaxSignInsUnderWay)
+            .SelectMany(i => new[] { $".AspNetCore.OpenIdConnect.Nonce.n{i}=N", $".AspNetCore.Correlation.c{i}=N" })
+            .Append("PrismMemberCookie=keep"));
+
+        await options.Events.OnRedirectToIdentityProvider(context);
+
+        var deleted = context.HttpContext.Response.Headers.SetCookie
+            .Where(cookie => cookie!.Contains("expires=Thu, 01 Jan 1970", StringComparison.Ordinal))
+            .Select(cookie => cookie![..cookie.IndexOf('=')])
+            .ToList();
+        deleted.Should().HaveCount(PrismOidcConfiguration.MaxSignInsUnderWay * 2)
+            .And.OnlyContain(name => name.StartsWith(".AspNetCore.OpenIdConnect.Nonce.") || name.StartsWith(".AspNetCore.Correlation."));
+        context.HttpContext.Response.Headers.SetCookie.Should().OnlyContain(cookie => cookie!.Contains("path=/signin-oidc"));
+    }
+
+    [Fact]
+    public async Task Login_KeepsSignInsUnderWayInOtherTabs()
+    {
+        var options = ConfigureOptions(LocalhostKeycloakTenant);
+        var context = CreateRedirectContext(options, LocalhostKeycloakTenant);
+        context.HttpContext.Request.Headers.Cookie = ".AspNetCore.OpenIdConnect.Nonce.n1=N; .AspNetCore.Correlation.c1=N";
+
+        await options.Events.OnRedirectToIdentityProvider(context);
+
+        context.HttpContext.Response.Headers.SetCookie.Should().BeEmpty();
+    }
+
     // ------------------------------------------------------------------ 
     // 2. DOWNSTREAM REFRESH BEHAVIOR / TOKEN REQUEST
     // ------------------------------------------------------------------ 

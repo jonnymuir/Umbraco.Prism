@@ -224,7 +224,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
         // We capture the handlers registered by Microsoft.Identity.Web and wrap them.
 
         var onRedirectToIdentityProvider = options.Events.OnRedirectToIdentityProvider;
-        options.Events.OnRedirectToIdentityProvider = SendAppsToTheirSignInPage(async context =>
+        options.Events.OnRedirectToIdentityProvider = ForgetAbandonedSignIns(SendAppsToTheirSignInPage(async context =>
         {
             var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
             var tenant = prismContext?.CurrentTenant;
@@ -288,7 +288,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             {
                 context.Properties.Items[PrismNoncePropertiesKey] = context.ProtocolMessage.Nonce;
             }
-        });
+        }));
 
         options.Events.OnAuthorizationCodeReceived = async context =>
         {
@@ -639,12 +639,38 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
     }
 
+    /// <summary>The most sign-ins a browser can have under way before older ones are abandoned.</summary>
+    internal const int MaxSignInsUnderWay = 4;
+
     /// <summary>
-    /// Gives every registered <see cref="IPrismPostSignInHandler"/> a chance to react to "this
-    /// identity just authenticated" — e.g. a service-design host's own anonymous-instance
-    /// reattachment. Zero registered handlers (a host using Prism's auth without any optional
-    /// feature that needs this hook) is a normal no-op.
+    /// Each sign-in leaves a nonce and a correlation cookie for 15 minutes. A member who keeps
+    /// opening a members-only page while signed out starts a sign-in each time, and enough of them
+    /// make the callback's request too large to be accepted (431), so sign-in fails. Past a few
+    /// under way, the older ones are forgotten; the new sign-in's own cookies are already written.
     /// </summary>
+    private static Func<RedirectContext, Task> ForgetAbandonedSignIns(Func<RedirectContext, Task> next) => context =>
+    {
+        var cookies = context.Request.Cookies;
+        var nonceCookie = context.Options.NonceCookie;
+        var correlationCookie = context.Options.CorrelationCookie;
+        var nonces = cookies.Keys.Where(name => name.StartsWith(nonceCookie.Name!, StringComparison.Ordinal)).ToList();
+        if (nonces.Count >= MaxSignInsUnderWay)
+        {
+            var correlations = cookies.Keys.Where(name => name.StartsWith(correlationCookie.Name!, StringComparison.Ordinal));
+            Delete(nonces, nonceCookie.Build(context.HttpContext));
+            Delete(correlations, correlationCookie.Build(context.HttpContext));
+        }
+        return next(context);
+
+        void Delete(IEnumerable<string> names, CookieOptions cookieOptions)
+        {
+            foreach (var name in names)
+            {
+                context.Response.Cookies.Delete(name, cookieOptions);
+            }
+        }
+    };
+
     /// <summary>
     /// An app that signs in through the system authentication session does so from /auth/login,
     /// so a challenge raised by any other page goes there instead of to the identity provider,
@@ -668,6 +694,12 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
         path.Equals("/auth/login", StringComparison.OrdinalIgnoreCase)
         || path.Equals("/auth/register", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Gives every registered <see cref="IPrismPostSignInHandler"/> a chance to react to "this
+    /// identity just authenticated" — e.g. a service-design host's own anonymous-instance
+    /// reattachment. Zero registered handlers (a host using Prism's auth without any optional
+    /// feature that needs this hook) is a normal no-op.
+    /// </summary>
     internal static void NotifySignedIn(HttpContext httpContext, ClaimsIdentity newIdentity)
     {
         var handlers = httpContext.RequestServices.GetServices<IPrismPostSignInHandler>();
