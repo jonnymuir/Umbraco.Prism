@@ -33,13 +33,8 @@ internal static class MemberJourneyHarness
 
     public static ServiceBlueprint LoadDefinition(string definitionKey)
     {
-        var path = Path.Combine(TestSupportSystems.FindTestSiteDirectory(), "service-blueprints", $"{definitionKey}.json");
-        return JsonSerializer.Deserialize<ServiceBlueprint>(File.ReadAllText(path), new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            PropertyNameCaseInsensitive = true,
-            AllowOutOfOrderMetadataProperties = true,
-        }) ?? throw new InvalidOperationException("Deserialized to null.");
+        var path = Path.Combine(TestSupportSystems.FindTestSiteDirectory(), "service-blueprints", $"{definitionKey}.yaml");
+        return ServiceBlueprintYaml.Deserialize(File.ReadAllText(path)) ?? throw new InvalidOperationException("Deserialized to null.");
     }
 
     public sealed record RecordedRequest(HttpMethod Method, string? Authorization, string Body);

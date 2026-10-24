@@ -69,7 +69,7 @@ None of the above is hand-coded into a controller. The citizen/caseworker pages 
 content nodes, an ordinary CMS editor drops Wayfinder.Umbraco's packaged
 `wayfinderServiceRequestStage`/`wayfinderServiceRequestWorklist` Block Grid blocks onto them, the
 same way they'd compose any other page. The blueprint itself
-([`bulk-contributions.json`](../../src/UmbracoPrism.TestSite/service-blueprints/bulk-contributions.json))
+([`bulk-contributions.yaml`](../../src/UmbracoPrism.TestSite/service-blueprints/bulk-contributions.yaml))
 declares one queue (`njf-upload`, assign-to-initiator, a submission comes back to whoever started
 it, all the way through review, correction, and resubmission, never a teammate), a
 `bulk-dataset-materialize`/`bulk-dataset-ingest` action pair, and a

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AwesomeAssertions;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
@@ -118,22 +117,15 @@ public class ServiceBlueprintSimulationRunnerTests
         {
             var candidate = Path.Combine(
                 directory.FullName,
-                "src", "UmbracoPrism.MockBusinessApp", "service-blueprints", "money-modeller.json");
+                "src", "UmbracoPrism.MockBusinessApp", "service-blueprints", "money-modeller.yaml");
             if (File.Exists(candidate))
             {
-                return JsonSerializer.Deserialize<ServiceBlueprint>(
-                    File.ReadAllText(candidate),
-                    new JsonSerializerOptions
-                    {
-                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                        PropertyNameCaseInsensitive = true,
-                        AllowOutOfOrderMetadataProperties = true
-                    })!;
+                return ServiceBlueprintYaml.Deserialize(File.ReadAllText(candidate));
             }
 
             directory = directory.Parent;
         }
 
-        throw new FileNotFoundException("money-modeller.json not found walking up from test bin.");
+        throw new FileNotFoundException("money-modeller.yaml not found walking up from test bin.");
     }
 }

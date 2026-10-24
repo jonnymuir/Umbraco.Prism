@@ -133,7 +133,7 @@ code -n ~/Documents/Projects/Umbraco.Prism
 
 VS Code tabs, in order:
 
-- `Wayfinder.Umbraco` window: `Wayfinder.Umbraco.ReferenceApp/Program.cs`, `AutomateCoachingStandardsSeeder.cs`, `service-blueprints/njf-coaching-register.json`
+- `Wayfinder.Umbraco` window: `Wayfinder.Umbraco.ReferenceApp/Program.cs`, `AutomateCoachingStandardsSeeder.cs`, `service-blueprints/njf-coaching-register.yaml`
 - `Umbraco.Prism` window: `src/UmbracoPrism.TestSite/Program.cs`, `src/UmbracoPrism.TestSite/TestSiteComposer.cs`
 
 Browser tabs (open them from the URL table):
@@ -164,7 +164,7 @@ Increase the editor font size so the back row can read it.
 | Full Stack 1 reset (also removes the Demo 3 stage) | Ctrl+C in Terminal 1, then repeat 1.2 |
 | Full Stack 2 reset | Ctrl+C in Terminal 2, then repeat 1.3 with the reset variable |
 
-Seed JSON edits only take effect after a full Stack 1 wipe. Demo 3 edits `njf-coaching-register`
+Seed YAML edits only take effect after a full Stack 1 wipe. Demo 3 edits `njf-coaching-register`
 itself and leaves a resolved design note on it, so rehearsing Demos 1 to 3 again without a wipe adds
 a second nickname stage and a second note. The wipe removes both.
 
@@ -198,7 +198,7 @@ Open the `Program.cs` tab. Do not read linearly. Jump to three places.
 4. Click the **Definition** tab briefly.
    > "Same editor whether a human built this or an AI agent did. That matters in ten minutes."
 
-✔ The graph fits the screen and the Definition tab shows JSON.
+✔ The graph fits the screen and the Definition tab shows YAML.
 
 ### Beat C: run it as a citizen (2 min)
 

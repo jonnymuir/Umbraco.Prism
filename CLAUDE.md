@@ -20,7 +20,7 @@ Solo developer project, but every change reaches `main` through a pull request. 
 | `UmbracoPrism.uSync` | Published as `UmbracoPrism.uSync`: uSync portability for Prism's own tenants and page access policies (`PrismTenantHandler`, `PrismPageAccessPolicyHandler`). Service blueprint uSync portability lives entirely in `Wayfinder.Umbraco` now (`ServiceBlueprintHandler`/`ServiceBlueprintSerializer`), with no Prism dependency. |
 | `UmbracoPrism.Automate` | Published as `UmbracoPrism.Automate`: the "Send Prism push notification" Umbraco Automate action. |
 | `UmbracoPrism.Client` | TypeScript/Lit web components, backoffice extensions (tenant management, branding, mobile), mobile shell. No longer builds any service blueprint editor bundle, that moved entirely to the `Wayfinder` repo's own `Wayfinder.Editor.Client`. |
-| `UmbracoPrism.MockBusinessApp` | A separate downstream business API that journeys call as the signed-in member (member records, contributions-file validation) and that proves Prism's bearer-token identity propagation. Hosts no Wayfinder engine. Its `service-blueprints/*.json` are test fixtures read by `UmbracoPrism.Core.Tests`. |
+| `UmbracoPrism.MockBusinessApp` | A separate downstream business API that journeys call as the signed-in member (member records, contributions-file validation) and that proves Prism's bearer-token identity propagation. Hosts no Wayfinder engine. Its `service-blueprints/*.yaml` are test fixtures read by `UmbracoPrism.Core.Tests`. |
 | `UmbracoPrism.TestSite` | Demo Umbraco site wired to Prism Core and MockBusinessApp. Also installs `Wayfinder.Umbraco` directly and owns its own small demo-queue implementation (`PublicVisitorQueue`, `PublicServiceRequestPageController`, file upload/download controllers), the reference pattern for any host wanting a Wayfinder.Umbraco-backed service blueprint page. |
 | `UmbracoPrism.AppHost` | .NET Aspire orchestrator for local dev (Keycloak + TestSite + MockBusinessApp) |
 | `UmbracoPrism.KeycloakProxy` | YARP reverse proxy for Keycloak in Aspire |
@@ -115,7 +115,7 @@ blocks and backoffice **Settings → Advanced → Blueprints** screen are in
 
 What this repo does have:
 
-- **The reference site's runtime blueprints**, in `src/UmbracoPrism.TestSite/service-blueprints/`,
+- **The reference site's runtime blueprints**, YAML files in `src/UmbracoPrism.TestSite/service-blueprints/`,
   seeded into Wayfinder.Umbraco's database-backed store. Their queues are `public-visitor` (the
   citizen side), `njf-upload` (the contributions team), `web-user`/`business-user` (the money
   modeller), and `automation`/`identification` (system lanes).

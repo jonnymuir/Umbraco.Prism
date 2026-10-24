@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AwesomeAssertions;
 using Wayfinder.Extensions;
 using Wayfinder.Models.ServiceDesign;
@@ -8,38 +7,30 @@ namespace UmbracoPrism.Core.Tests.ServiceDesign.ProcessManager;
 
 public class ServiceBlueprintInferenceTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     [Fact]
     public void WaitingComponentWithoutAuthoredStepType_InfersWaitingMetadata()
     {
-        var json = """
-        {
-          "definitionKey": "test",
-          "displayName": "Test",
-          "version": 1,
-          "initialStage": "processing",
-          "stages": [
-            {
-              "stageKey": "processing",
-              "displayName": "Processing",
-              "components": [
-                {
-                  "type": "waiting",
-                  "content": "Please wait while we process your request.",
-                  "expectedWaitSeconds": 45,
-                  "pollIntervalMs": 2500,
-                  "allowDefer": false,
-                  "deferMessage": "Come back later."
-                }
-              ]
-            }
-          ],
-          "transitions": []
-        }
+        var yaml = """
+        definitionKey: test
+        displayName: Test
+        version: 1
+        initialStage: processing
+        requestPolicy: single
+        stages:
+          - stageKey: processing
+            displayName: Processing
+            queueKey: ""
+            components:
+              - type: waiting
+                content: Please wait while we process your request.
+                expectedWaitSeconds: 45
+                pollIntervalMs: 2500
+                allowDefer: false
+                deferMessage: Come back later.
         """;
 
-        var workflow = JsonSerializer.Deserialize<ServiceBlueprint>(json, JsonOptions);
+        var workflow = ServiceBlueprintYaml.Deserialize(yaml);
 
         var state = workflow!.Stages.Single();
         // StepType is inferred from components via the InferStepType extension.
@@ -107,27 +98,22 @@ public class ServiceBlueprintInferenceTests
     }
 
     [Theory]
-    [InlineData("payment-demo.json")]
-    [InlineData("community-enquiry.json")]
-    [InlineData("information-request.json")]
-    [InlineData("planning-notification.json")]
+    [InlineData("payment-demo.yaml")]
+    [InlineData("community-enquiry.yaml")]
+    [InlineData("information-request.yaml")]
+    [InlineData("planning-notification.yaml")]
     public void DemoWorkflowSeeds_DoNotAuthorLegacyStepMetadata(string fileName)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(GetSeedPath(fileName)));
+        var yaml = File.ReadAllText(GetSeedPath(fileName));
 
-        foreach (var state in document.RootElement.GetProperty("stages").EnumerateArray())
-        {
-            state.TryGetProperty("stepType", out _).Should().BeFalse();
-            state.TryGetProperty("waitingConfig", out _).Should().BeFalse();
-        }
+        yaml.Should().NotContain("stepType:").And.NotContain("waitingConfig:");
+        ServiceBlueprintYaml.Deserialize(yaml).Stages.Should().NotBeEmpty();
     }
 
     [Fact]
     public void CommunityEnquirySeed_ModelsExplanatoryCopyAsComponents()
     {
-        var workflow = JsonSerializer.Deserialize<ServiceBlueprint>(
-            File.ReadAllText(GetSeedPath("community-enquiry.json")),
-            JsonOptions);
+        var workflow = ServiceBlueprintYaml.Deserialize(File.ReadAllText(GetSeedPath("community-enquiry.yaml")));
 
         var state = workflow!.Stages.Single(s => s.StageKey == "collecting-details");
 

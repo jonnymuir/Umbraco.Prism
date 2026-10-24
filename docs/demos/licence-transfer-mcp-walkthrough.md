@@ -241,7 +241,7 @@ is the same editor a human would use to adjust anything here by hand."
 narrate each briefly. (The agent chooses its own exact question wording each run, so don't
    script an exact string to click; match loosely, e.g. on "professionally"/"upload".)
 3. **Switch to the Definition tab** (`data-prism-confidence-tab="definition"`), the real
-   `ServiceBlueprint` JSON, CodeMirror-rendered, not just the graph. Point out the
+   `ServiceBlueprint` YAML, CodeMirror-rendered, not just the graph. Point out the
    upload-evidence state's plain `file-upload` components, and the existing-licence-details
    state's professional-category field carrying a `defaultFrom` pointing at a calculated
    `membershipTier` value, the hook that'll fire for real in Act 5.

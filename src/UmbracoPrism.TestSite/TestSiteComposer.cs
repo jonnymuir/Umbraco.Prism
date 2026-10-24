@@ -122,7 +122,7 @@ public class TestSiteComposer : IComposer
         // RequireAuthenticatedUser() here, correct while the bulk-contributions demo's Join
         // gateway (always an authenticated NJF Contributions Team member, see
         // NjfContributionsTeam) was the only one that ever showed a waiting screen. The juggling
-        // licence demo's own "application-decided" Join (apply-for-a-juggling-licence.json) can
+        // licence demo's own "application-decided" Join (apply-for-a-juggling-licence.yaml) can
         // now be reached anonymously too — the same visitor PublicVisitorQueue.AccessProfile
         // already lets read/act on their own instance everywhere else in this flow, so this
         // endpoint must allow them as well. Not a broadened access surface: GetCurrent's own

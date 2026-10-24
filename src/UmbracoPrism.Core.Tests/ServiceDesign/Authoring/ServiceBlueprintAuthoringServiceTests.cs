@@ -1,6 +1,6 @@
-using System.Text.Json;
 using AwesomeAssertions;
 using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Serialization;
 using Wayfinder.Models.ServiceDesign.Calculations;
 using Wayfinder.Engine.Abstractions;
 using Wayfinder.Engine.Services;
@@ -118,12 +118,17 @@ public class ServiceBlueprintAuthoringServiceTests
         // Regression coverage: an MCP-authored workflow once saved successfully with stageType
         // "Outcome" — a value no authoring surface recognises — and only surfaced as a confusing
         // error later in the editor. StageType is now an enum, so an unrecognised value can no
-        // longer reach the authoring service at all: it is refused where the JSON is read.
-        const string json = """{ "definitionKey": "x", "stages": [ { "stageKey": "done", "stageType": "Outcome" } ] }""";
+        // longer reach the authoring service at all: it is refused where the YAML is read.
+        const string yaml = """
+            definitionKey: x
+            stages:
+              - stageKey: done
+                stageType: Outcome
+            """;
 
-        var read = () => JsonSerializer.Deserialize<ServiceBlueprint>(json, ServiceBlueprintJson.ReadOptions);
+        var read = () => ServiceBlueprintYaml.Deserialize(yaml);
 
-        read.Should().Throw<JsonException>();
+        read.Should().Throw<ServiceBlueprintYamlException>();
     }
 
     private static ServiceBlueprint ProjectLinearWorkflow() => new()

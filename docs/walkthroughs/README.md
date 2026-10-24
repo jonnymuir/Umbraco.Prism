@@ -40,7 +40,7 @@ Prism pages, not Prism features. These walkthroughs show the two working togethe
 ## Where the service blueprints live
 
 The reference site's runtime blueprints are in `src/UmbracoPrism.TestSite/service-blueprints/`,
-hosted by Wayfinder.Umbraco. The JSON files in `src/UmbracoPrism.MockBusinessApp/service-blueprints/`
+hosted by Wayfinder.Umbraco, all YAML. The YAML files in `src/UmbracoPrism.MockBusinessApp/service-blueprints/`
 are test fixtures that `UmbracoPrism.Core.Tests` reads from disk, not live services. To learn the
 blueprint format or the editor, use
 [Wayfinder's guides](https://github.com/jonnymuir/Wayfinder/blob/main/docs/guides/README.md).

@@ -3,7 +3,7 @@ namespace UmbracoPrism.TestSite.Services.ServiceDesign;
 /// <summary>
 /// A member's savings record as held by the (mock) NJF records system — Money Modeller's own
 /// service-sourced input. Monetary values are per-year (the Guaranteed Award) or absolute
-/// (lump sum/Flexible Pot), in today's money. See money-modeller.json's own <c>member.*</c>
+/// (lump sum/Flexible Pot), in today's money. See money-modeller.yaml's own <c>member.*</c>
 /// calculation fields for the exact shape this feeds.
 /// </summary>
 public sealed record MemberSavingsRecord
