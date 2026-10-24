@@ -1,0 +1,306 @@
+definitionKey: record-a-butterfly-sighting
+displayName: Record a butterfly sighting
+version: 1
+description: 'Field recording reference service: a practitioner photographs a butterfly, the device supplies where and when, an AI model suggests what it is through an Umbraco Automate automation, and the practitioner confirms or corrects it. One practitioner queue starts the service and does all the work; the identification support system is its own system queue.'
+schemaVersion: "1.0"
+initialStage: record-sighting
+requestPolicy: single
+allowManualRestart: true
+queues:
+  - key: public-visitor
+    displayName: Site visitor touchpoints
+    description: The practitioner recording the sighting, in the field, on a phone or at a desk.
+    actor: applicant
+  - key: identification
+    displayName: Butterfly identification
+    description: Never human-visible. Resolved by the butterfly-identification Umbraco Automate automation, which asks an Umbraco.AI agent what is in the photo.
+    actor: system
+stages:
+  - stageKey: record-sighting
+    displayName: Record your sighting
+    stageType: Question
+    actor: applicant
+    queueKey: public-visitor
+    components:
+      - type: body
+        content: Take a clear, close photo of the butterfly, then confirm where and when you saw it.
+      - type: fieldset
+        children:
+          - type: file-upload
+            fieldKey: sightingPhoto
+            label: Photo of the butterfly
+            hint: On a phone you can take the photo now or choose one you took earlier.
+            required: true
+            maxSizeBytes: 10485760
+            captureMode: choose
+            acceptedFileTypes:
+              - .jpg
+              - .jpeg
+              - .png
+              - .webp
+      - type: fieldset
+        children:
+          - type: location-picker
+            fieldKey: location
+            label: Where did you see it?
+            required: true
+      - type: fieldset
+        children:
+          - type: date
+            fieldKey: sightingDate
+            label: Date of the sighting
+            hint: For example, 27 3 2026
+            required: true
+            defaultToToday: true
+          - type: text
+            fieldKey: sightingTime
+            label: Time of the sighting (optional)
+            hint: Use the 24-hour clock, for example 14:30
+            maxLength: 5
+            pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+            defaultToCurrentTime: true
+          - type: textarea
+            fieldKey: notes
+            label: Notes (optional)
+            hint: Anything useful about the place or what the butterfly was doing
+            maxLength: 500
+    routes:
+      - id: record-sighting--continue--submit-sighting
+        target: submit-sighting
+        trigger: continue
+  - stageKey: identify
+    displayName: Identifying the butterfly
+    description: Never human-visible. The practitioner waits at the identification-complete join gateway while this stage's onEnter action calls out to the butterfly-identification Umbraco Automate automation.
+    stageType: Question
+    actor: system
+    queueKey: identification
+    actions:
+      - type: support-system-call
+        timing: onEnter
+        params:
+          supportSystemKey: butterfly-identification
+          capabilityKey: identify-butterfly
+          inputs:
+            photo: sightingPhoto
+            location: location
+            sightingDate: sightingDate
+            sightingTime: sightingTime
+            notes: notes
+            lookAgainHint: lookAgainHint
+          onFailure:
+            outcome: busy
+    components: []
+    routes:
+      - id: identify--identified--identification-complete
+        target: identification-complete
+        trigger: identified
+      - id: identify--unclear--identification-complete
+        target: identification-complete
+        trigger: unclear
+      - id: identify--not-a-butterfly--identification-complete
+        target: identification-complete
+        trigger: not-a-butterfly
+      - id: identify--busy--identification-complete
+        target: identification-complete
+        trigger: busy
+  - stageKey: confirm-sighting
+    displayName: Confirm what you saw
+    stageType: Question
+    actor: applicant
+    queueKey: public-visitor
+    components:
+      - type: stat-group
+        title: What the AI model suggests
+        items:
+          - label: Scientific name
+            fieldKey: speciesGuess
+          - label: Common name
+            fieldKey: commonName
+          - label: Confidence
+            fieldKey: confidence
+          - label: Life stage
+            fieldKey: lifeStage
+          - label: Habitat and surroundings
+            fieldKey: habitatNotes
+            width: full
+      - type: inset-text
+        content: This is a suggestion from an AI model and it can be wrong. What you confirm below is what gets recorded.
+      - type: fieldset
+        children:
+          - type: text
+            fieldKey: confirmedCommonName
+            label: Common name
+            defaultFrom: commonName
+            maxLength: 100
+          - type: text
+            fieldKey: confirmedScientificName
+            label: Scientific name
+            hint: Leave it as suggested, correct it, or clear it if you are not sure
+            defaultFrom: speciesGuess
+            maxLength: 100
+      - type: fieldset
+        legend: Not right, or not sure?
+        children:
+          - type: textarea
+            fieldKey: lookAgainHint
+            label: Tell the AI where to look
+            hint: For example, look closer at the red butterfly in the middle of the photo
+            maxLength: 300
+    routes:
+      - id: confirm-sighting--continue--route-from-confirm-sighting
+        target: route-from-confirm-sighting
+        trigger: continue
+        label: Record the sighting
+      - id: confirm-sighting--look-again--look-again
+        target: look-again
+        trigger: look-again
+        label: Ask the AI to look again
+        style: secondary
+    validations:
+      - code: COMMON_NAME_REQUIRED
+        rule: matches(confirmedCommonName, '\S')
+        field: confirmedCommonName
+        message: Enter the common name of the butterfly
+        actions:
+          - continue
+      - code: LOOK_AGAIN_HINT_REQUIRED
+        rule: matches(lookAgainHint, '\S')
+        field: lookAgainHint
+        message: Tell the AI where to look in the photo
+        actions:
+          - look-again
+  - stageKey: identification-busy
+    displayName: The identification service is busy
+    stageType: Question
+    actor: applicant
+    queueKey: public-visitor
+    components:
+      - type: body
+        content: We could not get a suggestion because the AI service is busy right now. Your photo, place and date are kept.
+      - type: body
+        content: Wait a minute and try again, or enter what you saw yourself.
+    routes:
+      - id: identification-busy--try-again--retry-identification
+        target: retry-identification
+        trigger: try-again
+        label: Try again
+      - id: identification-busy--enter-myself--to-confirm-sighting
+        target: to-confirm-sighting
+        trigger: enter-myself
+        label: Enter it yourself
+        style: secondary
+  - stageKey: recorded
+    displayName: Sighting recorded
+    stageType: Confirmation
+    actor: applicant
+    queueKey: public-visitor
+    components:
+      - type: panel
+        heading: Sighting recorded
+      - type: stat-group
+        title: Your record
+        items:
+          - label: Common name
+            fieldKey: confirmedCommonName
+          - label: Scientific name
+            fieldKey: confirmedScientificName
+          - label: Date
+            fieldKey: sightingDate
+          - label: Where
+            fieldKey: location
+            display: map
+      - type: body
+        content: Thank you. Your sighting is saved with the photo, the place and the date.
+    routes: []
+  - stageKey: not-a-butterfly
+    displayName: We could not see a butterfly
+    stageType: Confirmation
+    actor: applicant
+    queueKey: public-visitor
+    components:
+      - type: panel
+        heading: We could not see a butterfly in that photo
+      - type: body
+        content: Nothing has been recorded. Start again with a clear, close photo of the butterfly.
+    routes: []
+gateways:
+  - key: submit-sighting
+    displayName: Send the photo for identification
+    gatewayType: Split
+    queueKey: public-visitor
+    routes:
+      - id: submit-sighting--continue--identification-complete
+        target: identification-complete
+        trigger: continue
+      - id: submit-sighting--continue--identify
+        target: identify
+        trigger: continue
+  - key: identification-complete
+    displayName: Asking the AI to identify your butterfly
+    gatewayType: Join
+    queueKey: public-visitor
+    waitingContent: We have sent your photo to an AI model to suggest what the butterfly is. This page moves on by itself when it answers.
+    waitingExpectedSeconds: 60
+    waitingPollIntervalMs: 10000
+    routes:
+      - id: identification-complete--identified--confirm-sighting
+        target: confirm-sighting
+        trigger: identified
+      - id: identification-complete--unclear--confirm-sighting
+        target: confirm-sighting
+        trigger: unclear
+      - id: identification-complete--not-a-butterfly--not-a-butterfly
+        target: not-a-butterfly
+        trigger: not-a-butterfly
+      - id: identification-complete--busy--identification-busy
+        target: identification-busy
+        trigger: busy
+    requiredIncomingQueues:
+      - public-visitor
+      - identification
+  - key: retry-identification
+    displayName: Send the photo again
+    gatewayType: Split
+    queueKey: public-visitor
+    routes:
+      - id: retry-identification--try-again--identification-complete
+        target: identification-complete
+        trigger: try-again
+      - id: retry-identification--try-again--identify
+        target: identify
+        trigger: try-again
+  - key: look-again
+    displayName: Send the photo for a second look
+    gatewayType: Split
+    queueKey: public-visitor
+    routes:
+      - id: look-again--look-again--identification-complete
+        target: identification-complete
+        trigger: look-again
+      - id: look-again--look-again--identify
+        target: identify
+        trigger: look-again
+  - key: to-confirm-sighting
+    displayName: Enter the sighting by hand
+    gatewayType: Split
+    queueKey: public-visitor
+    routes:
+      - id: to-confirm-sighting--enter-myself--confirm-sighting
+        target: confirm-sighting
+        trigger: enter-myself
+  - key: route-from-confirm-sighting
+    displayName: Record the sighting
+    gatewayType: Split
+    queueKey: public-visitor
+    routes:
+      - id: route-from-confirm-sighting--continue--recorded
+        target: recorded
+        trigger: continue
+calculations:
+  fields:
+    speciesGuess:
+      source: service
+      valueKind: string
+    commonName:
+      source: service
+      valueKind: string

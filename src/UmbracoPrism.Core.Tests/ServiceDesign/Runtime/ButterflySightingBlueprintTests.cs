@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -104,11 +103,11 @@ public class ButterflySightingBlueprintTests
     {
         var definition = LoadDefinition();
         var call = definition.Stages.Single(s => s.StageKey == "identify").Actions!.Single(a => a.Type == "support-system-call");
-        var inputs = call.Parameters!["inputs"]!.AsObject().ToDictionary(p => p.Key, p => p.Value!.GetValue<string>());
+        var inputs = call.Parameters.GetMap("inputs")!.ToDictionary(p => p.Key, p => p.Value as string);
         var formFields = AllComponents(definition).OfType<InputComponent>().Select(c => c.FieldKey).ToHashSet();
 
-        call.Parameters["supportSystemKey"]!.GetValue<string>().Should().Be(SupportSystemKey);
-        call.Parameters["capabilityKey"]!.GetValue<string>().Should().Be(CapabilityKey);
+        call.Parameters.GetString("supportSystemKey").Should().Be(SupportSystemKey);
+        call.Parameters.GetString("capabilityKey").Should().Be(CapabilityKey);
         inputs["photo"].Should().Be("sightingPhoto");
         inputs.Values.Should().OnlyContain(field => formFields.Contains(field),
             "a typo here would send nothing and the identification would have no photo");
@@ -338,16 +337,16 @@ public class ButterflySightingBlueprintTests
         var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (directory is not null)
         {
-            var candidate = Path.Combine(directory.FullName, "src", "UmbracoPrism.TestSite", "service-blueprints", $"{Slug}.json");
+            var candidate = Path.Combine(directory.FullName, "src", "UmbracoPrism.TestSite", "service-blueprints", $"{Slug}.yaml");
             if (File.Exists(candidate))
             {
-                return JsonSerializer.Deserialize<ServiceBlueprint>(File.ReadAllText(candidate), ServiceBlueprintJson.ReadOptions)
+                return ServiceBlueprintYaml.Deserialize(File.ReadAllText(candidate))
                     ?? throw new InvalidOperationException("Deserialized to null.");
             }
 
             directory = directory.Parent;
         }
 
-        throw new FileNotFoundException($"Could not find {Slug}.json walking up from {Directory.GetCurrentDirectory()}.");
+        throw new FileNotFoundException($"Could not find {Slug}.yaml walking up from {Directory.GetCurrentDirectory()}.");
     }
 }

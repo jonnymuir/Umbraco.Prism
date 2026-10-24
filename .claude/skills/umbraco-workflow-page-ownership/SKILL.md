@@ -36,7 +36,7 @@ Use this skill when reviewing or building Prism workflow pages, member dashboard
 - `src/UmbracoPrism.TestSite/Views/WorkflowPage.cshtml`
 - `src/UmbracoPrism.TestSite/Views/WorkflowDemoPage.cshtml`
 - `src/UmbracoPrism.Core/wwwroot/umbraco-package.json`
-- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.json`
+- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.yaml`
 
 ## Anti-Patterns
 

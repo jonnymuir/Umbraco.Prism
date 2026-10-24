@@ -65,7 +65,7 @@ Someone who can sign in to the tenant but is not a member is told so instead of 
 
 | Piece | File |
 |---|---|
-| Blueprint | `src/UmbracoPrism.TestSite/service-blueprints/update-my-details.json` |
+| Blueprint | `src/UmbracoPrism.TestSite/service-blueprints/update-my-details.yaml` |
 | Capabilities (`load-profile`, `save-profile`) and the client that calls them | `src/UmbracoPrism.TestSite/Services/ServiceDesign/MockBusinessAppProfileClient.cs` |
 | The business app's endpoints | `src/UmbracoPrism.MockBusinessApp/Services/Profile/ProfileEndpoints.cs` |
 | Tests | `UpdateMyDetailsBlueprintTests.cs`, `MockBusinessAppProfileEndpointsTests.cs` in `UmbracoPrism.Core.Tests` |

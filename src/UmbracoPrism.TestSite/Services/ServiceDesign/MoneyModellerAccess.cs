@@ -7,7 +7,7 @@ namespace UmbracoPrism.TestSite.Services.ServiceDesign;
 /// <see cref="NjfContributionsTeam"/> — a third, distinct persona: any signed-in Prism member
 /// (not role-gated to a named roster like <see cref="NjfContributionsTeam"/>, and not anonymous
 /// like <see cref="PublicVisitorQueue"/>), modelling their own savings pot scenarios. Money
-/// Modeller's own <c>queues</c> array (<c>money-modeller.json</c>, copied verbatim from
+/// Modeller's own <c>queues</c> array (<c>money-modeller.yaml</c>, copied verbatim from
 /// <c>UmbracoPrism.MockBusinessApp/service-blueprints</c> rather than renamed to fit TestSite's
 /// other queue-key conventions, so the two copies stay easy to diff/re-sync) uses <c>web-user</c>
 /// for the citizen-facing modelling stages and <c>business-user</c> for the formal-quote review

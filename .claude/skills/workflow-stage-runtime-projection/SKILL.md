@@ -50,7 +50,7 @@ Use this when a workflow editor needs to describe service design concepts like s
 - `src/UmbracoPrism.Shared/Models/Workflow/WorkflowResponseEnvelope.cs`
 - `src/UmbracoPrism.Core/Models/Workflow/WorkflowRenderShellResolver.cs`
 - `src/UmbracoPrism.MockBusinessApp/Services/BusinessAppWorkflowEngine.cs`
-- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.json`
+- `src/UmbracoPrism.MockBusinessApp/workflow-seeds/planning-notification.yaml`
 
 ## Anti-Patterns
 

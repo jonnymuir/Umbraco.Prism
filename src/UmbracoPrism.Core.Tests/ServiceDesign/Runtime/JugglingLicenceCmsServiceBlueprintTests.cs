@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AwesomeAssertions;
 using Moq;
 using Wayfinder.Models.ServiceDesign;
@@ -276,23 +275,16 @@ public class JugglingLicenceCmsServiceBlueprintTests
         {
             var candidate = Path.Combine(
                 directory.FullName,
-                "src", "UmbracoPrism.TestSite", "service-blueprints", "apply-for-a-juggling-licence.json");
+                "src", "UmbracoPrism.TestSite", "service-blueprints", "apply-for-a-juggling-licence.yaml");
             if (File.Exists(candidate))
             {
-                var workflow = JsonSerializer.Deserialize<ServiceBlueprint>(
-                    File.ReadAllText(candidate),
-                    new JsonSerializerOptions
-                    {
-                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                        PropertyNameCaseInsensitive = true,
-                        AllowOutOfOrderMetadataProperties = true
-                    });
+                var workflow = ServiceBlueprintYaml.Deserialize(File.ReadAllText(candidate));
                 return workflow ?? throw new InvalidOperationException("Deserialized to null.");
             }
 
             directory = directory.Parent;
         }
 
-        throw new FileNotFoundException("Could not locate apply-for-a-juggling-licence.json by walking up from the test working directory.");
+        throw new FileNotFoundException("Could not locate apply-for-a-juggling-licence.yaml by walking up from the test working directory.");
     }
 }
