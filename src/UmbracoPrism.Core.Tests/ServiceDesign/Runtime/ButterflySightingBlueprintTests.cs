@@ -10,6 +10,7 @@ using Wayfinder.Engine.Stores;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Models.ServiceDesign.SupportSystems;
+using UmbracoPrism.TestSite.FieldRecording;
 using Wayfinder.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
@@ -216,6 +217,74 @@ public class ButterflySightingBlueprintTests
         client.InvocationIds.Should().ContainSingle();
     }
 
+    [Fact]
+    public void ALowConfidenceSuggestion_CanBeSentBackWithAHint_AndTheNewSuggestionPrefillsTheConfirmFields()
+    {
+        var client = new RecordingButterflyClient();
+        var engine = new ProcessManagerEngine(
+            NullLogger.Instance,
+            new SingleDefinitionServiceBlueprintStore(LoadDefinition()),
+            new PassthroughContentSanitizer(),
+            supportSystemClients: [client]);
+
+        var started = engine.GetCurrent(Slug, "tenant", "practitioner", Practitioner);
+        engine.Advance(started.InstanceId, "tenant", "practitioner", Practitioner, "continue", started.StateVersion, Sighting());
+        var unsure = engine.ResolveSupportSystemOutcome(client.InvocationIds[0], "unclear", new JsonObject
+        {
+            ["confidence"] = "low",
+            ["habitatNotes"] = "Climbing plant stems obscure almost the entire butterfly.",
+        });
+        unsure.Render!.StateDisplayName.Should().Be("Confirm what you saw");
+        unsure.Render.AvailableActions.Select(a => a.Label).Should().Contain("Ask the AI to look again");
+
+        var noHint = engine.Advance(unsure.InstanceId, "tenant", "practitioner", Practitioner, "look-again", unsure.StateVersion,
+            new Dictionary<string, object?> { ["confirmedCommonName"] = "", ["confirmedScientificName"] = "", ["lookAgainHint"] = "" });
+        noHint.Problems.Should().ContainSingle(p => p.FieldKey == "lookAgainHint", "a second look needs to know where to look");
+
+        var lookingAgain = engine.Advance(unsure.InstanceId, "tenant", "practitioner", Practitioner, "look-again", unsure.StateVersion,
+            new Dictionary<string, object?> { ["confirmedCommonName"] = "", ["confirmedScientificName"] = "", ["lookAgainHint"] = "The red butterfly in the middle" });
+        lookingAgain.ResponseState.Should().Be("defer", "the common name is only needed to record the sighting, not to ask for a second look");
+        client.Inputs[1]["lookAgainHint"].RawValue.Should().Be("The red butterfly in the middle");
+
+        var identified = engine.ResolveSupportSystemOutcome(client.InvocationIds[1], "identified", PeacockPayload());
+
+        FieldValue(identified, "confirmedCommonName").Should().Be("Peacock", "the new suggestion replaces the blank the recorder had");
+        FieldValue(identified, "confirmedScientificName").Should().Be("Aglais io");
+    }
+
+    [Fact]
+    public void RecordingTheSighting_StillNeedsACommonName()
+    {
+        var client = new RecordingButterflyClient();
+        var engine = new ProcessManagerEngine(
+            NullLogger.Instance,
+            new SingleDefinitionServiceBlueprintStore(LoadDefinition()),
+            new PassthroughContentSanitizer(),
+            supportSystemClients: [client]);
+
+        var started = engine.GetCurrent(Slug, "tenant", "practitioner", Practitioner);
+        engine.Advance(started.InstanceId, "tenant", "practitioner", Practitioner, "continue", started.StateVersion, Sighting());
+        var unsure = engine.ResolveSupportSystemOutcome(client.InvocationIds[0], "unclear", new JsonObject());
+
+        var blank = engine.Advance(unsure.InstanceId, "tenant", "practitioner", Practitioner, "continue", unsure.StateVersion,
+            new Dictionary<string, object?> { ["confirmedCommonName"] = " ", ["confirmedScientificName"] = "", ["lookAgainHint"] = "" });
+
+        blank.Problems.Should().ContainSingle(p => p.FieldKey == "confirmedCommonName");
+        blank.Render!.StateDisplayName.Should().Be("Confirm what you saw");
+    }
+
+    private static JsonObject PeacockPayload() => ButterflyIdentificationPayload.From(new ResolveButterflyIdentificationSettings
+    {
+        InvocationId = "inv",
+        Outcome = "identified",
+        SpeciesGuess = "Aglais io",
+        CommonName = "Peacock",
+        Confidence = "high",
+    }).Payload;
+
+    private static object? FieldValue(ServiceRequestResponseEnvelope envelope, string fieldKey) =>
+        envelope.Render!.Components.SelectMany(c => c.Fields).Single(f => f.FieldKey == fieldKey).Value;
+
     private static readonly ActorProfile Practitioner = new()
     {
         VisibleQueues = ["public-visitor"],
@@ -236,6 +305,8 @@ public class ButterflySightingBlueprintTests
 
         public List<string> InvocationIds { get; } = [];
 
+        public List<IReadOnlyDictionary<string, SupportSystemInputValue>> Inputs { get; } = [];
+
         public Task<SupportSystemInvocationReceipt> InvokeAsync(
             string capabilityKey,
             IReadOnlyDictionary<string, SupportSystemInputValue> inputs,
@@ -243,6 +314,7 @@ public class ButterflySightingBlueprintTests
             CancellationToken ct = default)
         {
             InvocationIds.Add(context.InvocationId);
+            Inputs.Add(inputs);
             return Task.FromResult(new SupportSystemInvocationReceipt { ExternalReference = context.InvocationId });
         }
 
