@@ -121,6 +121,9 @@ What this repo does have:
   modeller), and `automation`/`identification` (system lanes).
 - **`PublicVisitorQueue`** in TestSite: the single-queue constraint and tenant scoping for the
   public journeys, enforced through Wayfinder.Umbraco's `SingleQueueStructuralValidator`.
+- **Wayfinder's MCP authoring endpoint**, wired in TestSite's `Program.cs` at
+  `/wayfinder/service-blueprint-authoring/mcp`, with sign-in through the backoffice. The Blueprints
+  screen's **Connect a design partner** panel shows how to connect.
 - **Access control is the host's job.** Wayfinder.Umbraco calls TestSite's `ResolveAccessProfile`
   (asynchronous since Wayfinder.Umbraco 3.0) to decide which queues a person can see and act on.
 - **Test fixtures** in `src/UmbracoPrism.MockBusinessApp/service-blueprints/`

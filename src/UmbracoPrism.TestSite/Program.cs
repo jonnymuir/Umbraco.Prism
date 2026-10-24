@@ -1,6 +1,16 @@
+using Microsoft.AspNetCore.Authorization;
+using Umbraco.Cms.Core;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.TestSite;
 using Wayfinder.Engine.Http;
+using Wayfinder.Engine.Mcp;
+using Wayfinder.Umbraco;
+using Wayfinder.Umbraco.Extensions;
+using Wayfinder.Umbraco.Mcp;
+
+// Where an AI design partner connects to author blueprints over MCP, signing in through the
+// backoffice. Settings, Advanced, Blueprints, "Connect a design partner" shows the setup.
+const string McpEndpointPath = "/wayfinder/service-blueprint-authoring/mcp";
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -37,10 +47,13 @@ if (runtimeLayout.IsEnabled)
         $"(db: '{runtimeLayout.DatabasePath}', reset: {runtimeLayout.WasReset}).");
 }
 
+builder.Services.AddServiceBlueprintAuthoringMcp();
+
 builder.CreateUmbracoBuilder()
     .AddBackOffice()
     .AddWebsite()
     .AddComposers()
+    .AddWayfinderUmbracoMcpAuthentication()
     .Build();
 
 WebApplication app = builder.Build();
@@ -75,6 +88,9 @@ if (testSitePublicUrl is not null)
     });
 }
 
+// Outermost, so it sees the MCP endpoint's 401 and adds the hint an MCP client follows to sign in.
+app.UseWayfinderUmbracoMcpAuthChallenge(McpEndpointPath);
+
 await app.BootUmbracoAsync();
 
 // Lightweight health check — responds immediately once Kestrel starts (which only
@@ -107,6 +123,15 @@ app.UseUmbraco()
         u.UseBackOfficeEndpoints();
         u.UseWebsiteEndpoints();
     });
+
+// Backoffice users with BlueprintsAdmin only. The schemes are explicit because a minimal API
+// mapped outside Umbraco's Management API would otherwise challenge the site's default scheme.
+app.MapServiceBlueprintAuthoringMcp(McpEndpointPath).RequireAuthorization(new AuthorizeAttribute
+{
+    Policy = WayfinderUmbracoAuthorizationPolicies.BlueprintsAdmin,
+    AuthenticationSchemes = $"{Constants.Security.BackOfficeAuthenticationType},OpenIddict.Validation.AspNetCore",
+});
+app.MapWayfinderUmbracoMcpOAuthDiscovery(McpEndpointPath);
 
 // The juggling-licence-decision automation runs on this same host and resolves its support-system
 // outcome in-process (ResolveSupportSystemOutcomeAction), so nothing here needs the HTTP callback
