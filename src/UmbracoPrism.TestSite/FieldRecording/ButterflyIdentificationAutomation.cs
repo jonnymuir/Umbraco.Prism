@@ -50,17 +50,7 @@ public static class ButterflyIdentificationAutomation
                 Id = resolve,
                 ActionAlias = "prism.resolveButterflyIdentification",
                 Name = "Hand the answer back",
-                Settings = new()
-                {
-                    ["invocationId"] = "${trigger.body.invocationId}",
-                    ["agentStepId"] = runAgent.ToString(),
-                    ["outcome"] = $"${{steps.{runAgent}.outcome}}",
-                    ["speciesGuess"] = $"${{steps.{runAgent}.speciesGuess}}",
-                    ["commonName"] = $"${{steps.{runAgent}.commonName}}",
-                    ["confidence"] = $"${{steps.{runAgent}.confidence}}",
-                    ["lifeStage"] = $"${{steps.{runAgent}.lifeStage}}",
-                    ["habitatNotes"] = $"${{steps.{runAgent}.habitatNotes}}",
-                },
+                Settings = HandBackSettings(runAgent),
             },
         };
 
@@ -103,6 +93,18 @@ public static class ButterflyIdentificationAutomation
             Connections = connections,
         };
     }
+
+    private static Dictionary<string, object?> HandBackSettings(Guid runAgent) => new()
+    {
+        ["invocationId"] = "${trigger.body.invocationId}",
+        ["agentStepId"] = runAgent.ToString(),
+        ["outcome"] = $"${{steps.{runAgent}.outcome}}",
+        ["speciesGuess"] = $"${{steps.{runAgent}.speciesGuess}}",
+        ["commonName"] = $"${{steps.{runAgent}.commonName}}",
+        ["confidence"] = $"${{steps.{runAgent}.confidence}}",
+        ["lifeStage"] = $"${{steps.{runAgent}.lifeStage}}",
+        ["habitatNotes"] = $"${{steps.{runAgent}.habitatNotes}}",
+    };
 
     // The notes are the practitioner's own words about the sighting, so they are quoted as data
     // and the agent's instructions say never to treat them as instructions.
