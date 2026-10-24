@@ -32,12 +32,11 @@ public sealed class FieldRecordingAiSetup(
     public const string ModelConfigKey = "Prism:FieldRecording:GeminiModel";
     // The model must accept function calling together with a JSON output schema, because the agent
     // runtime always declares tools and the automation reads the answer from a schema: gemini-2.5-flash
-    // rejects that combination outright, the Gemini 3 family accepts it. Free-tier availability shifts
-    // quickly (a flash-lite model has already been withdrawn for new keys, and the newest models answer
-    // 503 "high demand" for long stretches while older ones stay quick), so this is a model that has
-    // answered a photo promptly and correctly in a run of repeated calls (it answered every one while the
-    // newer models were returning 503 half the time), and it stays configurable.
-    public const string DefaultModel = "gemini-3.5-flash";
+    // rejects that combination outright, the Gemini 3 family accepts it. This alias follows the newest
+    // Flash model, so the site never pins one Google has deprecated. The newest model is also the
+    // likeliest to answer 503 "high demand", which the automation retries and then offers the recorder
+    // a retry for, so it stays configurable.
+    public const string DefaultModel = "gemini-flash-latest";
 
     private const string AutomationsSurface = "automations";
 

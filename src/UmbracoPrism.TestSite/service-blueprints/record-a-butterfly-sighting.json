@@ -341,7 +341,7 @@
     },
     {
       "key": "identification-complete",
-      "displayName": "Identification complete",
+      "displayName": "Asking the AI to identify your butterfly",
       "gatewayType": "Join",
       "queueKey": "public-visitor",
       "routes": [
@@ -366,9 +366,9 @@
           "trigger": "busy"
         }
       ],
-      "waitingContent": "We are looking at your photo. This usually takes a few seconds.",
+      "waitingContent": "We have sent your photo to an AI model to suggest what the butterfly is. This page moves on by itself when it answers.",
       "waitingExpectedSeconds": 20,
-      "waitingPollIntervalMs": 2000,
+      "waitingPollIntervalMs": 5000,
       "requiredIncomingQueues": ["public-visitor", "identification"]
     },
     {
