@@ -135,7 +135,7 @@ public class WayfinderServicePageSeeder(
     // backoffice or an MCP-driven walkthrough) since it was last synced" — only the former should
     // ever silently overwrite what's in the database. Deliberately a hash of the FILE's raw
     // content, not the deserialized-and-reserialized ServiceBlueprint (which would need every
-    // nested type to round-trip identically through YAML to compare reliably) — simpler and just
+    // nested type to round-trip identically through YAML to compare reliably), simpler and just
     // as sufficient for "did the source of truth change at all".
     private const string SeedSourceHashTagKey = "_prismSeedSourceHash";
 
