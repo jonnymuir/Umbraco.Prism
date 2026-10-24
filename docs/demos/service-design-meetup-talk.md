@@ -11,7 +11,7 @@ demo, written to be glanced at while standing up.
 Say the role switch out loud each time. The system, not the person's memory, enforces the contract
 between the two jobs, which is why one person can do both.
 
-**Timing (~30 min):** intro 5, Demo 1+2 9-10, Demo 3 4-5, Demo 4 7-8, takeaways 3.
+**Timing (~32 min):** intro 5, Demo 1+2 9-10, Demo 3 7-8, Demo 4 6-7, takeaways 3.
 
 ---
 
@@ -94,7 +94,7 @@ What each line does:
 5. Start Aspire. The first boot after a wipe takes a couple of minutes.
 
 ✔ Ready when `https://localhost:44399/umbraco` shows the login screen and, after signing in,
-**Settings > Blueprints** lists `njf-coaching-register`.
+**Settings > Advanced > Blueprints** lists `njf-coaching-register`.
 
 ## 1.3 Terminal 2: Stack 2 (Umbraco.Prism)
 
@@ -165,7 +165,8 @@ Increase the editor font size so the back row can read it.
 | Full Stack 2 reset | Ctrl+C in Terminal 2, then repeat 1.3 with the reset variable |
 
 Seed JSON edits only take effect after a full Stack 1 wipe. Demo 3 edits `njf-coaching-register`
-itself, so rehearsing Demos 1 to 3 again without a wipe adds a second nickname stage.
+itself and leaves a resolved design note on it, so rehearsing Demos 1 to 3 again without a wipe adds
+a second nickname stage and a second note. The wipe removes both.
 
 ---
 
@@ -190,7 +191,7 @@ Open the `Program.cs` tab. Do not read linearly. Jump to three places.
 
 ### Beat B: tour the blueprint (🎨, browser Window A, 2 min)
 
-1. Backoffice, **Settings > Blueprints**, open **njf-coaching-register**.
+1. Backoffice, **Settings > Advanced > Blueprints**, open **njf-coaching-register**.
 2. Click **Fit**.
 3. Click through: "Apply to coach", the Split, "Review application", the Split into the standards
    check, the three outcome routes.
@@ -238,28 +239,36 @@ Open the `Program.cs` tab. Do not read linearly. Jump to three places.
 
 ---
 
-## Demo 3: MCP, have a conversation with a blueprint (~4-5 min)
+## Demo 3: MCP, the design loop (~7-8 min)
 
-Goal: a blueprint is something you talk to. A small, real change to the `njf-coaching-register` the
-room just watched run.
+Goal: a blueprint is something you talk to, and point at. Describe a change, watch it appear on the
+canvas, pin a note on what's wrong, and have the agent work through it. A small, real change to the
+`njf-coaching-register` the room just watched run.
 
 > "Everything we just did in the backoffice, an AI agent can do too, over the same identity and
-> permissions. Right now, the thing you'll reach for most days: a small change to a live service."
+> permissions. Right now, the thing you'll reach for most days: a small change to a service."
 
-Use **Terminal 3**. Everything below runs there.
+### Beat A: connect (🧑‍💻, 1 min)
 
-### Beat A: connect (🧑‍💻, 30 sec)
+1. Window A backoffice, **Settings > Advanced > Blueprints**, click **Connect a design partner…**.
+   Stay on the **Claude Code** tab.
+   > "Connecting an agent used to be a page of instructions. Now the site tells you, with its own
+   > address and sign-in details filled in. Claude Code, Claude Desktop, VS Code, anything that
+   > speaks MCP. There are starter prompts at the bottom."
 
-```bash
-scripts/demo.sh mcp-connect
-```
+   Click **Close**.
+2. Terminal 3:
 
-The script registers the Wayfinder MCP server with Claude Code, opens the browser login (sign in as
-`admin@example.test` / `Wayfinder123!`), then lists the servers.
+   ```bash
+   scripts/demo.sh mcp-connect
+   ```
+
+   The script registers the Wayfinder MCP server with Claude Code, opens the browser login (sign in as
+   `admin@example.test` / `Wayfinder123!`), then lists the servers.
 
 ✔ A browser tab opens, completes, and the list shows `wayfinder-umbraco` as **Connected**.
 
-> "Same OAuth screen the backoffice uses. Whatever group membership I have is what the agent gets."
+> "Same sign-in screen the backoffice uses. Whatever group membership I have is what the agent gets."
 
 If you would rather show the individual commands, this is what the script runs, from `~/demo-scratch`:
 
@@ -272,16 +281,23 @@ claude mcp login wayfinder-umbraco
 claude mcp list
 ```
 
-**Why http and not https.** The Claude CLI does not trust the .NET development certificate. It
-ignores the macOS keychain that `dotnet dev-certs https --trust` fills, and it ignores
-`NODE_EXTRA_CA_CERTS`, so an `https://localhost:44399` MCP URL fails with "unable to verify the first
-certificate". The Wayfinder ReferenceApp also listens on `http://localhost:5299`, and the OAuth
-discovery documents and login work the same over loopback, so the MCP leg uses that. Nothing to
-trust, nothing to export, nothing to forget. The rest of the talk stays on https.
+**Why the script uses http when the panel shows https.** The panel shows the address you opened the
+backoffice on, `https://localhost:44399`. Claude Code only accepts the .NET development certificate
+when it is exported and named in `NODE_EXTRA_CA_CERTS`, as the panel's link to the walkthrough
+explains. The Wayfinder ReferenceApp also listens on `http://localhost:5299`, and sign-in works the
+same over loopback, so the script uses that. Nothing to export, nothing to forget. The rest of the
+talk stays on https.
 
 **Role switch, out loud:** "From here I'm a designer, I'm just going to talk to it."
 
-### Beat B: ask the room, then the agent (🎨, 2-3 min, the centrepiece)
+### Beat B: set the stage (🎨, 30 sec)
+
+1. Window A backoffice, open **njf-coaching-register** and click **Fit**.
+2. Put the browser and Terminal 3 side by side, so the room sees both.
+
+> "I'm going to leave the canvas open and not touch it. Watch it."
+
+### Beat C: ask the room, then the agent (2-3 min, the centrepiece)
 
 Still in Terminal 3, from `~/demo-scratch` (a directory outside both repos, so the agent has no
 codebase context):
@@ -311,25 +327,50 @@ In the njf-coaching-register definition, right after a coach is accredited, befo
 > how routing works. It knows that from reading this definition."
 
 > While it works: "It's reading the live definition as its style reference, adding one stage in the
-> right place, and it'll validate and simulate before saving. That's knowledge in the system, not in
-> an agent's head, which goes stale."
+> right place, and it'll validate and simulate before saving."
 
-✔ The agent reports the blueprint saved, well under a minute.
+✔ The agent reports the blueprint saved, and within a few seconds the canvas moves to the new version
+on its own: the new nickname stage is highlighted between the accredited outcome and confirmation, and
+the editor says it was updated elsewhere, with the version numbers.
 
-### Beat C: see it (1 min)
+The canvas keeps your zoom, so if the new stage lands off screen, click **Fit** again.
 
-Window A backoffice, **Settings > Blueprints > njf-coaching-register**, click **Fit**.
+> "Nobody clicked reload. The canvas follows the agent, and shows me what changed."
 
-✔ A new nickname stage sits between the accredited outcome and confirmation.
+### Beat D: point at it (🎨, 2 min)
 
-> "That's live. The next coach who's accredited sees this. No restart, no redeploy, nobody touched
-> code."
+1. On the canvas, click the new nickname stage. In the panel, **Add a note to** that stage. Ask the
+   room what's wrong with it, or type this fallback:
 
-If time allows, open `https://localhost:44399/apply-to-coach?action=start-new` as Alex and watch the
-new stage render.
+   ```text
+   Make the nicknames sillier, and add one for diabolo players.
+   ```
 
-> Close: "That's the capability at its smallest. Given more space, the same conversation builds the
-> whole thing from nothing. Ask me afterwards."
+   Click **Add note**. A note marker appears on the stage.
+   > "This is the bit that used to be prose: 'the third question on the eligibility bit'. Now I
+   > point at the thing."
+2. Terminal 3:
+
+   ```text
+   Work through my notes on njf-coaching-register.
+   ```
+
+✔ The canvas moves to the next version again, the marker clears, and the **Notes** tab shows the note
+resolved, with the agent's one-line summary of what it did and the version it did it in.
+
+> "The agent answers on the thing I pointed at. If it needs a decision from me, it replies to the note
+> with a question instead of guessing."
+
+### Beat E: run it (1 min, if time allows)
+
+Open `https://localhost:44399/apply-to-coach?action=start-new` as Alex and watch the new stage render.
+
+> "That's live, here, because this is my development site. On a real team this is where you'd work:
+> design on a development site, then the blueprint goes to staging and live through uSync, like
+> everything else in Umbraco."
+
+> Close: "That's the loop at its smallest. Given more space, the same conversation builds the whole
+> thing from nothing. Ask me afterwards."
 
 Type `/exit` before moving on.
 
@@ -435,6 +476,9 @@ stack, and again whenever the blueprint or backoffice changes.
 |---|---|---|
 | 1+2 (Automate) | `npm run demo:record:automate` | `~/Documents/Projects/Wayfinder.Umbraco/tests/demo` |
 | 3 (add a stage) | `npm run demo:record:add-stage` | `~/Documents/Projects/Wayfinder.Umbraco/tests/demo` |
+
+Demo 3's recording covers Beat C only, the agent adding the stage. There is no recording of Beat D,
+the design note. If Beat D fails live, describe it and move on.
 | 4 (Prism) | `npm run demo:record:tenancy-branding` | `~/Documents/Projects/Umbraco.Prism/src/UmbracoPrism.Client` |
 
 The Demo 1 code beats have no recording. Keep a static screenshot of `Program.cs` as the fallback.
