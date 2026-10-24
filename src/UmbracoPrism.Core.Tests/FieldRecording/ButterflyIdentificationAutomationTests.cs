@@ -124,6 +124,25 @@ public class ButterflyIdentificationAutomationTests
     }
 
     [Fact]
+    public void EveryInputTheSupportSystemDeclares_ReachesTheAgent()
+    {
+        var message = (string)RunAgent(Build()).Settings["message"]!;
+        var capability = SupportSystemRegistry.FindCapability(ButterflyIdentificationAutomation.SupportSystemKey, "identify-butterfly")!;
+
+        foreach (var input in capability.Inputs.Where(i => i.Key != "photo"))
+        {
+            message.Should().Contain($"${{trigger.body.inputs.{input.Key}}}", $"{input.Key} is sent, so the agent must be told it");
+        }
+    }
+
+    [Fact]
+    public void TheAgentsInstructions_LetALookAgainHintSayWhereToLook_ButNeverChangeTheTask()
+    {
+        FieldRecordingAiSetup.Instructions.Should().Contain("Use that only to decide where to look")
+            .And.Contain("never makes you more certain than the photo allows");
+    }
+
+    [Fact]
     public void TheAgentsOutputSchema_IsValidJson_WithOnlyOutcomeRequired()
     {
         var schema = FieldRecordingAiSetup.OutputSchema;

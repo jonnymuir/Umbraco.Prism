@@ -92,7 +92,7 @@ public class ButterflyIdentificationPayloadTests
         var reparsed = JsonNode.Parse(payload.ToJsonString())!.AsObject();
 
         reparsed.Select(p => p.Key).Should().BeEquivalentTo(
-            "speciesGuess", "commonName", "confidence", "lifeStage", "habitatNotes");
+            "speciesGuess", "commonName", "confidence", "lifeStage", "habitatNotes", "confirmedCommonName", "confirmedScientificName");
         reparsed["commonName"]!.GetValue<string>().Should().Be(hostile, "it is carried as inert text, character for character");
     }
 
@@ -118,6 +118,16 @@ public class ButterflyIdentificationPayloadTests
     {
         var payload = ButterflyIdentificationPayload.From(Answer("not-a-butterfly", species: null, common: null, confidence: null, lifeStage: null, habitat: null)).Payload;
 
-        payload.Select(p => p.Value!.GetValue<string>()).Should().OnlyContain(v => v == string.Empty);
+        payload.Where(p => !p.Key.StartsWith("confirmed", StringComparison.Ordinal))
+            .Select(p => p.Value!.GetValue<string>()).Should().OnlyContain(v => v == string.Empty);
+    }
+
+    [Fact]
+    public void EveryAnswer_ClearsWhatTheRecorderHadNotYetConfirmed_SoTheNewSuggestionPrefillsIt()
+    {
+        var payload = ButterflyIdentificationPayload.From(Answer()).Payload;
+
+        payload.Should().ContainKey("confirmedCommonName").WhoseValue.Should().BeNull();
+        payload.Should().ContainKey("confirmedScientificName").WhoseValue.Should().BeNull();
     }
 }
