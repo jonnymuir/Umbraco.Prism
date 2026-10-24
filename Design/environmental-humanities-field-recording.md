@@ -288,17 +288,18 @@ boot, following `JugglingLicenceDecisionAutomationSeeder`: create or update, the
 
 ### The model
 
-The default model is `gemini-3.5-flash`, configurable with `Prism:FieldRecording:GeminiModel`. A model set there is
+The default model is `gemini-flash-latest`, Google's alias for the newest Flash model, configurable with `Prism:FieldRecording:GeminiModel`. A model set there is
 applied on every boot, including to a profile that already exists; with none set, the profile keeps the model it has
 (for example one chosen in the backoffice).
 
 - The agent runtime always declares tools alongside a JSON output schema. `gemini-2.5-flash` rejects
   that combination outright (HTTP 400, "Function calling with a response mime type: 'application/json'
   is unsupported"). The Gemini 3 family accepts it.
-- Free-tier availability shifts quickly. A flash-lite model has already been withdrawn for new keys,
-  and the newest models answer 503 "high demand" for long stretches. The default is a model that answered
-  every call in a repeated test (3 to 6 seconds with a photo, a tool declaration and a JSON schema) while the
-  newer ones failed half of theirs. Check again if it starts failing: the ranking moves through the day.
+- Free-tier availability shifts quickly. Google deprecates Flash models within months and routes a
+  deprecated id to its successor, and the newest models are the likeliest to answer 503 "high demand".
+  A busy model reaches the recorder as the `identification-busy` stage, not as a failed sighting. If
+  it stays busy, set `Prism:FieldRecording:GeminiModel` to a named earlier Flash model, such as
+  `gemini-3.6-flash`.
 - The free tier has a daily request quota per model per project
   (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`), observed at 20 requests a day. Each sighting
   costs at least one request, and every retry costs another, so a busy day or a long test session can
@@ -328,6 +329,11 @@ applied on every boot, including to a profile that already exists; with none set
 - Wayfinder has no timeout for a call that was sent but never answered. A failed AI step is covered
   as above, but an automation that is accepted and then never completes would still leave the
   practitioner at the wait screen.
+- The wait screen checks every 5 seconds, and Wayfinder's poll script stops after 100 checks, so it
+  follows an identification for a little over 8 minutes. The slowest failure is three attempts that
+  each time out at 100 seconds plus two 10-second pauses, about 5.5 minutes, so even that reaches
+  `identification-busy` on its own. A page left open longer still picks up the result when the
+  practitioner reopens the service.
 - The confirm stage's habitat tile asks for `width: "full"`, so the longer free text gets the whole
   row on a phone instead of a narrow card.
 
