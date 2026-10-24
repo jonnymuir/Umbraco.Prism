@@ -329,11 +329,17 @@ applied on every boot, including to a profile that already exists; with none set
 - Wayfinder has no timeout for a call that was sent but never answered. A failed AI step is covered
   as above, but an automation that is accepted and then never completes would still leave the
   practitioner at the wait screen.
-- The wait screen checks every 5 seconds, and Wayfinder's poll script stops after 100 checks, so it
-  follows an identification for a little over 8 minutes. The slowest failure is three attempts that
-  each time out at 100 seconds plus two 10-second pauses, about 5.5 minutes, so even that reaches
-  `identification-busy` on its own. A page left open longer still picks up the result when the
-  practitioner reopens the service.
+- Each request to Gemini may take up to 4 minutes. Umbraco.AI's Google provider gives the Google SDK
+  no timeout, so .NET's default of 100 seconds would cut off a busy free-tier model that answers in
+  100 to 200 seconds. TestSite swaps in `PatientGoogleProvider` (registered in `Program.cs`), the same
+  provider with a longer timeout and the same `google` id. This is a workaround for the free tier: a
+  paid tier answers in seconds, and it goes once Umbraco.AI.Google lets a connection set its own
+  timeout. 4 minutes stays inside Umbraco Automate's 5-minute limit for a step.
+- The wait screen says it usually takes about a minute, checks every 10 seconds, and Wayfinder's poll
+  script stops after 100 checks, so it follows an identification for a little over 16 minutes. The
+  slowest failure is three attempts that each time out at 4 minutes plus two 10-second pauses, about
+  12.5 minutes, so even that reaches `identification-busy` on its own. A page left open longer still
+  picks up the result when the practitioner reopens the service.
 - The confirm stage's habitat tile asks for `width: "full"`, so the longer free text gets the whole
   row on a phone instead of a narrow card.
 

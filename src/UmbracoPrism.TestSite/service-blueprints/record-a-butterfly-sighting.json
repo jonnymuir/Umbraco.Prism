@@ -367,8 +367,8 @@
         }
       ],
       "waitingContent": "We have sent your photo to an AI model to suggest what the butterfly is. This page moves on by itself when it answers.",
-      "waitingExpectedSeconds": 20,
-      "waitingPollIntervalMs": 5000,
+      "waitingExpectedSeconds": 60,
+      "waitingPollIntervalMs": 10000,
       "requiredIncomingQueues": ["public-visitor", "identification"]
     },
     {

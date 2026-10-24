@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Umbraco.AI.Extensions;
 using Umbraco.Cms.Core;
 using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.TestSite;
@@ -49,12 +50,23 @@ if (runtimeLayout.IsEnabled)
 
 builder.Services.AddServiceBlueprintAuthoringMcp();
 
-builder.CreateUmbracoBuilder()
+var umbraco = builder.CreateUmbracoBuilder()
     .AddBackOffice()
     .AddWebsite()
     .AddComposers()
-    .AddWayfinderUmbracoMcpAuthentication()
-    .Build();
+    .AddWayfinderUmbracoMcpAuthentication();
+
+// WORKAROUND, not a pattern to copy. The butterfly identification runs on Gemini's free tier,
+// where a model such as gemini-flash-latest can take 100 to 200 seconds to answer when it is busy.
+// Umbraco.AI's Google provider gives the Google SDK no timeout, so .NET's default of 100 seconds
+// cuts those answers off. This swaps in the same provider with a longer timeout. A paid Gemini
+// tier answers in seconds and would not need it; remove this once Umbraco.AI.Google lets a
+// connection set its own timeout.
+umbraco.AIProviders()
+    .Exclude<Umbraco.AI.Google.GoogleProvider>()
+    .Add<UmbracoPrism.TestSite.FieldRecording.PatientGoogleProvider>();
+
+umbraco.Build();
 
 WebApplication app = builder.Build();
 
