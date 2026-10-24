@@ -147,13 +147,8 @@ var testsite = builder.AddProject("testsite", "../UmbracoPrism.TestSite/UmbracoP
     .WaitFor(keycloakProxy)
     .WaitFor(businessApp)
     .WaitFor(prismClient);
-    // NOTE: this used to advertise a "CMS Service Blueprint Authoring MCP" shortcut at
-    // /prism/service-blueprint-authoring/mcp — that route belonged to Prism's own
-    // CmsServiceBlueprintAuthoringController, removed once Wayfinder.Umbraco's independent
-    // "Blueprints" backoffice section made it redundant (see docs/demos/licence-transfer-mcp-walkthrough.md's
-    // own historical-record note). Wayfinder.Engine.Mcp's MapServiceBlueprintAuthoringMcp() is
-    // still a real, current capability (see docs/guides/ai-service-blueprint-authoring.md in the
-    // core Wayfinder repo) — TestSite just doesn't wire it up today.
+    // TestSite serves Wayfinder's MCP authoring endpoint at /wayfinder/service-blueprint-authoring/mcp.
+    // Settings, Advanced, Blueprints, "Connect a design partner" shows how to connect to it.
 
 // In Codespaces, tell the TestSite its public URL so OIDC generates the correct redirect_uri.
 if (testSitePublicUrl != null)
