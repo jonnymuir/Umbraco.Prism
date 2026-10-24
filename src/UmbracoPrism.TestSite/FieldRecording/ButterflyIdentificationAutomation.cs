@@ -37,9 +37,10 @@ public static class ButterflyIdentificationAutomation
                 },
                 // Gemini answers 503 "high demand" in bursts that last a while, so a few patient retries
                 // are worth it: a single retry five seconds later usually met the same overload. Not
-                // more, because a quota error (429) is not transient and every attempt spends the same
-                // exhausted daily allowance. A step that still fails is skipped by Automate and the next
-                // step hands the practitioner an "unclear" answer to correct by hand.
+                // more, because a daily quota error (429) will not clear in seconds and every attempt
+                // spends the same exhausted allowance. A rejected key or unknown model is not retried at
+                // all. A step that still fails is skipped by Automate, and the next step reads why: busy
+                // or rate limited offers the practitioner a retry, anything else a manual entry.
                 ErrorBehavior = StepErrorBehavior.Retry,
                 MaxRetries = 2,
                 RetryInterval = TimeSpan.FromSeconds(10),
@@ -49,16 +50,7 @@ public static class ButterflyIdentificationAutomation
                 Id = resolve,
                 ActionAlias = "prism.resolveButterflyIdentification",
                 Name = "Hand the answer back",
-                Settings = new()
-                {
-                    ["invocationId"] = "${trigger.body.invocationId}",
-                    ["outcome"] = $"${{steps.{runAgent}.outcome}}",
-                    ["speciesGuess"] = $"${{steps.{runAgent}.speciesGuess}}",
-                    ["commonName"] = $"${{steps.{runAgent}.commonName}}",
-                    ["confidence"] = $"${{steps.{runAgent}.confidence}}",
-                    ["lifeStage"] = $"${{steps.{runAgent}.lifeStage}}",
-                    ["habitatNotes"] = $"${{steps.{runAgent}.habitatNotes}}",
-                },
+                Settings = HandBackSettings(runAgent),
             },
         };
 
@@ -101,6 +93,18 @@ public static class ButterflyIdentificationAutomation
             Connections = connections,
         };
     }
+
+    private static Dictionary<string, object?> HandBackSettings(Guid runAgent) => new()
+    {
+        ["invocationId"] = "${trigger.body.invocationId}",
+        ["agentStepId"] = runAgent.ToString(),
+        ["outcome"] = $"${{steps.{runAgent}.outcome}}",
+        ["speciesGuess"] = $"${{steps.{runAgent}.speciesGuess}}",
+        ["commonName"] = $"${{steps.{runAgent}.commonName}}",
+        ["confidence"] = $"${{steps.{runAgent}.confidence}}",
+        ["lifeStage"] = $"${{steps.{runAgent}.lifeStage}}",
+        ["habitatNotes"] = $"${{steps.{runAgent}.habitatNotes}}",
+    };
 
     // The notes are the practitioner's own words about the sighting, so they are quoted as data
     // and the agent's instructions say never to treat them as instructions.

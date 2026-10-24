@@ -125,10 +125,7 @@
               "sightingTime": "sightingTime",
               "notes": "notes"
             },
-            "onFailure": {
-              "outcome": "unclear",
-              "outputs": { "habitatNotes": "No suggestion was available. Enter what you saw yourself." }
-            }
+            "onFailure": { "outcome": "busy" }
           }
         }
       ],
@@ -147,6 +144,11 @@
           "id": "identify--not-a-butterfly--identification-complete",
           "target": "identification-complete",
           "trigger": "not-a-butterfly"
+        },
+        {
+          "id": "identify--busy--identification-complete",
+          "target": "identification-complete",
+          "trigger": "busy"
         }
       ]
     },
@@ -199,6 +201,38 @@
           "id": "confirm-sighting--continue--route-from-confirm-sighting",
           "target": "route-from-confirm-sighting",
           "trigger": "continue"
+        }
+      ]
+    },
+    {
+      "stageKey": "identification-busy",
+      "displayName": "The identification service is busy",
+      "stageType": "Question",
+      "actor": "applicant",
+      "queueKey": "public-visitor",
+      "components": [
+        {
+          "type": "body",
+          "content": "We could not get a suggestion because the AI service is busy right now. Your photo, place and date are kept."
+        },
+        {
+          "type": "body",
+          "content": "Wait a minute and try again, or enter what you saw yourself."
+        }
+      ],
+      "routes": [
+        {
+          "id": "identification-busy--try-again--retry-identification",
+          "target": "retry-identification",
+          "trigger": "try-again",
+          "label": "Try again"
+        },
+        {
+          "id": "identification-busy--enter-myself--to-confirm-sighting",
+          "target": "to-confirm-sighting",
+          "trigger": "enter-myself",
+          "label": "Enter it yourself",
+          "style": "secondary"
         }
       ]
     },
@@ -288,12 +322,48 @@
           "id": "identification-complete--not-a-butterfly--not-a-butterfly",
           "target": "not-a-butterfly",
           "trigger": "not-a-butterfly"
+        },
+        {
+          "id": "identification-complete--busy--identification-busy",
+          "target": "identification-busy",
+          "trigger": "busy"
         }
       ],
       "waitingContent": "We are looking at your photo. This usually takes a few seconds.",
       "waitingExpectedSeconds": 20,
       "waitingPollIntervalMs": 2000,
       "requiredIncomingQueues": ["public-visitor", "identification"]
+    },
+    {
+      "key": "retry-identification",
+      "displayName": "Send the photo again",
+      "gatewayType": "Split",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "retry-identification--try-again--identification-complete",
+          "target": "identification-complete",
+          "trigger": "try-again"
+        },
+        {
+          "id": "retry-identification--try-again--identify",
+          "target": "identify",
+          "trigger": "try-again"
+        }
+      ]
+    },
+    {
+      "key": "to-confirm-sighting",
+      "displayName": "Enter the sighting by hand",
+      "gatewayType": "Split",
+      "queueKey": "public-visitor",
+      "routes": [
+        {
+          "id": "to-confirm-sighting--enter-myself--confirm-sighting",
+          "target": "confirm-sighting",
+          "trigger": "enter-myself"
+        }
+      ]
     },
     {
       "key": "route-from-confirm-sighting",

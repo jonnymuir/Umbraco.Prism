@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Umbraco.Automate.Core.Actions;
+using Umbraco.Automate.Core.Runs;
 using Umbraco.Automate.Core.Settings;
 using Wayfinder.Umbraco.Services;
 
@@ -12,6 +13,9 @@ public sealed class ResolveButterflyIdentificationSettings
 {
     [Field(Label = "Invocation id", Description = "The invocationId from the trigger body.", SupportsBindings = true)]
     public string InvocationId { get; set; } = string.Empty;
+
+    [Field(Label = "Agent step", Description = "The id of the Run AI Agent step, whose failure category tells a busy AI service from one that cannot help.", SortOrder = 7)]
+    public string? AgentStepId { get; set; }
 
     [Field(Label = "Outcome", Description = "identified, unclear or not-a-butterfly.", SortOrder = 1, SupportsBindings = true)]
     public string Outcome { get; set; } = string.Empty;
@@ -39,28 +43,32 @@ public sealed class ResolveButterflyIdentificationSettings
 /// restricted to fixed sets, control characters are stripped and lengths are capped.
 /// </summary>
 /// <remarks>
-/// When the agent produced no usable outcome (the AI service was overloaded or unreachable and
-/// Automate skipped past the failed step) the result degrades to <c>unclear</c> with a note, so the
-/// practitioner can still type what they saw, instead of waiting forever for an answer that is
-/// never coming.
+/// When the agent produced no usable outcome, Automate has skipped past the failed step. If it failed
+/// because the AI service was busy, rate limited or timed out, the result is <c>busy</c>, so the
+/// practitioner can try again shortly. Any other failure (a rejected key, an unknown model) will not
+/// get better by asking again, so the result degrades to <c>unclear</c> with a note and the
+/// practitioner types what they saw.
 /// </remarks>
 public static class ButterflyIdentificationPayload
 {
     public sealed record Result(string Outcome, JsonObject Payload, bool Degraded);
 
     public static readonly IReadOnlyList<string> Outcomes = ["identified", "unclear", "not-a-butterfly"];
+    public const string Busy = "busy";
     private static readonly string[] Confidences = ["low", "medium", "high"];
 
     public const int ShortTextLimit = 150;
     public const int NotesLimit = 600;
     public const string UnavailableNote = "No suggestion was available. Enter what you saw yourself.";
 
-    public static Result From(ResolveButterflyIdentificationSettings settings)
+    public static Result From(ResolveButterflyIdentificationSettings settings, StepRunErrorCategory? agentFailure = null)
     {
         var outcome = (settings.Outcome ?? string.Empty).Trim();
         if (!Outcomes.Contains(outcome, StringComparer.Ordinal))
         {
-            return new Result("unclear", Payload(string.Empty, string.Empty, string.Empty, string.Empty, UnavailableNote), Degraded: true);
+            return IsWorthRetrying(agentFailure)
+                ? new Result(Busy, Payload(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty), Degraded: true)
+                : new Result("unclear", Payload(string.Empty, string.Empty, string.Empty, string.Empty, UnavailableNote), Degraded: true);
         }
 
         return new Result(
@@ -73,6 +81,9 @@ public static class ButterflyIdentificationPayload
                 Clean(settings.HabitatNotes, NotesLimit)),
             Degraded: false);
     }
+
+    private static bool IsWorthRetrying(StepRunErrorCategory? category) =>
+        category is StepRunErrorCategory.ServiceUnavailable or StepRunErrorCategory.RateLimiting or StepRunErrorCategory.Timeout;
 
     private static JsonObject Payload(string species, string common, string confidence, string lifeStage, string notes) => new()
     {
@@ -123,6 +134,7 @@ public static class ButterflyIdentificationPayload
 public sealed class ResolveButterflyIdentificationAction(
     ActionInfrastructure infrastructure,
     UmbracoProcessManagerEngine engine,
+    IAutomationRunService runs,
     ILogger<ResolveButterflyIdentificationAction> logger)
     : ActionBase<ResolveButterflyIdentificationSettings, ResolveButterflyIdentificationAction.Output>(infrastructure)
 {
@@ -131,29 +143,43 @@ public sealed class ResolveButterflyIdentificationAction(
         public string ResponseState { get; set; } = string.Empty;
     }
 
-    public override Task<ActionResult> ExecuteAsync(ActionContext context, CancellationToken cancellationToken)
+    public override async Task<ActionResult> ExecuteAsync(ActionContext context, CancellationToken cancellationToken)
     {
         var settings = context.GetSettings<ResolveButterflyIdentificationSettings>();
 
         if (string.IsNullOrWhiteSpace(settings.InvocationId))
         {
-            return Task.FromResult(ActionResult.Failed(
+            return ActionResult.Failed(
                 new ArgumentException("An invocationId is required."),
-                StepRunErrorCategory.Validation));
+                StepRunErrorCategory.Validation);
         }
 
-        var result = ButterflyIdentificationPayload.From(settings);
+        var agentFailure = await AgentFailureAsync(context.RunId, settings.AgentStepId, cancellationToken);
+        var result = ButterflyIdentificationPayload.From(settings, agentFailure);
         if (result.Degraded)
         {
             logger.LogWarning(
-                "Butterfly identification {InvocationId} had no usable outcome from the AI agent; resolving as unclear so the practitioner can enter it.",
-                settings.InvocationId);
+                "Butterfly identification {InvocationId} had no usable outcome from the AI agent (failure category {Category}); resolving as {Outcome}.",
+                settings.InvocationId, agentFailure, result.Outcome);
         }
 
         var resolution = SupportSystemOutcomeResolver.Resolve(engine, logger, settings.InvocationId, result.Outcome, result.Payload);
 
-        return Task.FromResult(resolution.Error is null
+        return resolution.Error is null
             ? Success(new Output { ResponseState = resolution.ResponseState })
-            : ActionResult.Failed(new InvalidOperationException(resolution.Error), StepRunErrorCategory.InvalidResponse));
+            : ActionResult.Failed(new InvalidOperationException(resolution.Error), StepRunErrorCategory.InvalidResponse);
+    }
+
+    // Each retry is its own step run, so the last attempt says why the agent finally gave up.
+    private async Task<StepRunErrorCategory?> AgentFailureAsync(Guid runId, string? agentStepId, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(agentStepId, out var stepId))
+        {
+            return null;
+        }
+
+        var run = await runs.GetRunAsync(runId, cancellationToken);
+        var lastAttempt = run?.StepRuns.Where(s => s.StepId == stepId).MaxBy(s => s.StartedUtc);
+        return lastAttempt?.Status == StepRunStatus.Failed ? lastAttempt.ErrorCategory : null;
     }
 }
