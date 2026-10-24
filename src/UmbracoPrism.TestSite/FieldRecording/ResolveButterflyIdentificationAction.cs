@@ -85,6 +85,9 @@ public static class ButterflyIdentificationPayload
     private static bool IsWorthRetrying(StepRunErrorCategory? category) =>
         category is StepRunErrorCategory.ServiceUnavailable or StepRunErrorCategory.RateLimiting or StepRunErrorCategory.Timeout;
 
+    // The confirm stage's own fields are cleared too: after "Ask the AI to look again" they hold
+    // whatever the recorder had (often nothing), and a saved value would hide the new suggestion
+    // they default from.
     private static JsonObject Payload(string species, string common, string confidence, string lifeStage, string notes) => new()
     {
         ["speciesGuess"] = species,
@@ -92,6 +95,8 @@ public static class ButterflyIdentificationPayload
         ["confidence"] = confidence,
         ["lifeStage"] = lifeStage,
         ["habitatNotes"] = notes,
+        ["confirmedCommonName"] = null,
+        ["confirmedScientificName"] = null,
     };
 
     private static string Confidence(string? value)

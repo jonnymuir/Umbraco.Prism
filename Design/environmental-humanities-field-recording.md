@@ -87,12 +87,13 @@ the work. There is no frontstage and backstage split in this scenario.
 | `record-sighting` | Photo (file upload, capture mode as configured), location picker, date and time, optional notes. |
 | `identify` | A `support-system-call` action invokes the identification capability. The practitioner sees a wait screen. |
 | `identification-busy` | Reached when the AI service is busy or rate limited. The photo, place and date are kept, and the practitioner chooses **Try again** (the photo goes back for identification) or **Enter it yourself** (straight to `confirm`). |
-| `confirm` | Shows the suggested species, confidence and habitat notes beside the photo and the pin. The practitioner accepts or corrects, and the confirmed values are the record. |
+| `confirm` | Shows the suggested species, confidence and habitat notes beside the photo and the pin. The practitioner accepts or corrects, and the confirmed values are the record. If the suggestion is wrong or unsure, they can say where to look ("the red butterfly in the middle of the photo") and choose **Ask the AI to look again**: the photo goes back for identification with that hint, and the new suggestion fills the confirm fields. The common name is needed only to record the sighting, and the hint only to look again. |
 | `recorded` | Confirmation page with the record summary. |
 
 The `identify` capability is declared in `appsettings.json` under `Wayfinder:SupportSystems`:
 
-- **Inputs:** `photo` (the file reference), `location`, `capturedAt`, `notes`.
+- **Inputs:** `photo` (the file reference), `location`, `sightingDate`, `sightingTime`, `notes`,
+  and `lookAgainHint` (empty on a first look).
 - **Outputs:** `speciesGuess`, `commonName`, `confidence`, `lifeStage`, `habitatNotes`.
 - **Outcomes:** `identified`, `unclear`, `not-a-butterfly` and `busy`. The join after the stage
   routes `identified` and `unclear` to `confirm`, `not-a-butterfly` to a terminal stage that asks for
@@ -278,6 +279,12 @@ boot, following `JugglingLicenceDecisionAutomationSeeder`: create or update, the
   `lifeStage` and `habitatNotes`.
 - The instructions require an honest `unclear` when the photo does not support an identification,
   say never to guess a species to be helpful, and limit habitat notes to what is visible.
+- A look-again hint is quoted as data, like the notes. The instructions let it say where in the
+  photo to look, and say it never changes the task or the answer format and never makes the agent
+  more certain than the photo allows.
+- Every answer the hand-back step sends also clears `confirmedCommonName` and
+  `confirmedScientificName`. After a look-again those fields hold whatever the practitioner had
+  typed, often nothing, and a saved value would hide the new suggestion they default from.
 
 ### The model
 
