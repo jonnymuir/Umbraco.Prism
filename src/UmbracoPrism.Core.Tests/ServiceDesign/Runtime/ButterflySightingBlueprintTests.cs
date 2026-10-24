@@ -1,11 +1,16 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AwesomeAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfinder.Engine.Abstractions;
+using Wayfinder.Engine.Models;
 using Wayfinder.Engine.Services;
+using Wayfinder.Engine.Stores;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
 using Wayfinder.Models.ServiceDesign.SupportSystems;
+using Wayfinder.Services.Sanitization;
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Runtime;
 
@@ -115,7 +120,7 @@ public class ButterflySightingBlueprintTests
         var declared = SupportSystemRegistry.Find(SupportSystemKey)!.Capabilities.Single(c => c.Key == CapabilityKey)
             .Outcomes.Select(o => o.Key).ToList();
 
-        declared.Should().BeEquivalentTo("identified", "unclear", "not-a-butterfly");
+        declared.Should().BeEquivalentTo("identified", "unclear", "not-a-butterfly", "busy");
         definition.Stages.Single(s => s.StageKey == "identify").Routes.Select(r => r.Trigger)
             .Should().BeEquivalentTo(declared, "an outcome with no route would strand the practitioner at the wait screen");
         definition.Gateways.Single(g => g.Key == "identification-complete").Routes.Select(r => r.Trigger)
@@ -159,6 +164,90 @@ public class ButterflySightingBlueprintTests
         result.Trace[^1].ResponseState.Should().Be("render");
         result.Trace[^1].Render!.StateDisplayName.Should().Be("Identifying the butterfly",
             "the simulation harness shows the system queue's own stage, as for the juggling licence; a real practitioner waits at the join gateway");
+    }
+
+    [Fact]
+    public void ABusyAiService_OffersTryAgain_AndTryingAgainSendsThePhotoForASecondLook()
+    {
+        var client = new RecordingButterflyClient();
+        var engine = new ProcessManagerEngine(
+            NullLogger.Instance,
+            new SingleDefinitionServiceBlueprintStore(LoadDefinition()),
+            new PassthroughContentSanitizer(),
+            supportSystemClients: [client]);
+
+        var started = engine.GetCurrent(Slug, "tenant", "practitioner", Practitioner);
+        var waiting = engine.Advance(started.InstanceId, "tenant", "practitioner", Practitioner, "continue", started.StateVersion, Sighting());
+        waiting.ResponseState.Should().Be("defer", "the practitioner waits while the photo is looked at");
+
+        var busy = engine.ResolveSupportSystemOutcome(client.InvocationIds[0], "busy", new JsonObject());
+        busy.Render!.StateDisplayName.Should().Be("The identification service is busy");
+        busy.Render.AvailableActions.Select(a => a.Label).Should().BeEquivalentTo("Try again", "Enter it yourself");
+
+        var retrying = engine.Advance(busy.InstanceId, "tenant", "practitioner", Practitioner, "try-again", busy.StateVersion, null);
+        retrying.ResponseState.Should().Be("defer");
+        client.InvocationIds.Should().HaveCount(2, "trying again sends the photo to the AI service a second time");
+
+        var identified = engine.ResolveSupportSystemOutcome(client.InvocationIds[1], "identified", new JsonObject
+        {
+            ["speciesGuess"] = "Aglais io",
+            ["commonName"] = "Peacock",
+        });
+        identified.Render!.StateDisplayName.Should().Be("Confirm what you saw");
+    }
+
+    [Fact]
+    public void ABusyAiService_LetsThePractitionerEnterTheSightingThemselvesInstead()
+    {
+        var client = new RecordingButterflyClient();
+        var engine = new ProcessManagerEngine(
+            NullLogger.Instance,
+            new SingleDefinitionServiceBlueprintStore(LoadDefinition()),
+            new PassthroughContentSanitizer(),
+            supportSystemClients: [client]);
+
+        var started = engine.GetCurrent(Slug, "tenant", "practitioner", Practitioner);
+        engine.Advance(started.InstanceId, "tenant", "practitioner", Practitioner, "continue", started.StateVersion, Sighting());
+        var busy = engine.ResolveSupportSystemOutcome(client.InvocationIds[0], "busy", new JsonObject());
+
+        var confirm = engine.Advance(busy.InstanceId, "tenant", "practitioner", Practitioner, "enter-myself", busy.StateVersion, null);
+
+        confirm.Render!.StateDisplayName.Should().Be("Confirm what you saw");
+        client.InvocationIds.Should().ContainSingle();
+    }
+
+    private static readonly ActorProfile Practitioner = new()
+    {
+        VisibleQueues = ["public-visitor"],
+        StartableQueues = ["public-visitor"],
+        ActionableQueues = ["public-visitor"],
+    };
+
+    private static Dictionary<string, object?> Sighting() => new()
+    {
+        ["sightingPhoto"] = new ServiceRequestFileReference { StorageKey = "umb://media/1f8204160c6c45e482ad0a393c1567e6", OriginalFileName = "peacock.jpg", ContentType = "image/jpeg", SizeBytes = 1000 },
+        ["location"] = "51.752000,-1.257700",
+        ["sightingDate"] = "2026-10-05",
+    };
+
+    private sealed class RecordingButterflyClient : ISupportSystemClient
+    {
+        public string SupportSystemKey => ButterflySightingBlueprintTests.SupportSystemKey;
+
+        public List<string> InvocationIds { get; } = [];
+
+        public Task<SupportSystemInvocationReceipt> InvokeAsync(
+            string capabilityKey,
+            IReadOnlyDictionary<string, SupportSystemInputValue> inputs,
+            SupportSystemInvocationContext context,
+            CancellationToken ct = default)
+        {
+            InvocationIds.Add(context.InvocationId);
+            return Task.FromResult(new SupportSystemInvocationReceipt { ExternalReference = context.InvocationId });
+        }
+
+        public Task<SupportSystemOutcome?> CheckStatusAsync(string capabilityKey, SupportSystemInvocationReceipt receipt, CancellationToken ct = default) =>
+            Task.FromResult<SupportSystemOutcome?>(null);
     }
 
     private static IEnumerable<Component> AllComponents(ServiceBlueprint definition) =>

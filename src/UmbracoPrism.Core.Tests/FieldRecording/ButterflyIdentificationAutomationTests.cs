@@ -72,6 +72,7 @@ public class ButterflyIdentificationAutomationTests
         var settings = Resolve(automation).Settings;
 
         settings["invocationId"].Should().Be("${trigger.body.invocationId}");
+        settings["agentStepId"].Should().Be(runId.ToString(), "the hand-back reads why the agent step failed, to tell a busy AI service from one that cannot help");
         foreach (var key in new[] { "outcome", "speciesGuess", "commonName", "confidence", "lifeStage", "habitatNotes" })
         {
             settings[key].Should().Be($"${{steps.{runId}.{key}}}", $"{key} must come from the agent's structured answer");
@@ -103,7 +104,7 @@ public class ButterflyIdentificationAutomationTests
     }
 
     [Fact]
-    public void TheAgentsOutcomeEnum_IsExactlyTheSetThePayloadAndTheBlueprintAccept()
+    public void TheAgentsOutcomeEnum_IsExactlyTheSetThePayloadAndTheBlueprintAccept_PlusBusy_WhichOnlyTheHandBackDecides()
     {
         var enumValues = FieldRecordingAiSetup.OutputSchema.GetProperty("properties").GetProperty("outcome").GetProperty("enum")
             .EnumerateArray().Select(e => e.GetString()).ToList();
@@ -111,7 +112,8 @@ public class ButterflyIdentificationAutomationTests
             .Outcomes.Select(o => o.Key).ToList();
 
         enumValues.Should().BeEquivalentTo(ButterflyIdentificationPayload.Outcomes);
-        declared.Should().BeEquivalentTo(ButterflyIdentificationPayload.Outcomes);
+        enumValues.Should().NotContain(ButterflyIdentificationPayload.Busy, "a model that answered was not busy");
+        declared.Should().BeEquivalentTo(ButterflyIdentificationPayload.Outcomes.Append(ButterflyIdentificationPayload.Busy));
     }
 
     [Fact]

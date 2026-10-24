@@ -37,9 +37,10 @@ public static class ButterflyIdentificationAutomation
                 },
                 // Gemini answers 503 "high demand" in bursts that last a while, so a few patient retries
                 // are worth it: a single retry five seconds later usually met the same overload. Not
-                // more, because a quota error (429) is not transient and every attempt spends the same
-                // exhausted daily allowance. A step that still fails is skipped by Automate and the next
-                // step hands the practitioner an "unclear" answer to correct by hand.
+                // more, because a daily quota error (429) will not clear in seconds and every attempt
+                // spends the same exhausted allowance. A rejected key or unknown model is not retried at
+                // all. A step that still fails is skipped by Automate, and the next step reads why: busy
+                // or rate limited offers the practitioner a retry, anything else a manual entry.
                 ErrorBehavior = StepErrorBehavior.Retry,
                 MaxRetries = 2,
                 RetryInterval = TimeSpan.FromSeconds(10),
@@ -52,6 +53,7 @@ public static class ButterflyIdentificationAutomation
                 Settings = new()
                 {
                     ["invocationId"] = "${trigger.body.invocationId}",
+                    ["agentStepId"] = runAgent.ToString(),
                     ["outcome"] = $"${{steps.{runAgent}.outcome}}",
                     ["speciesGuess"] = $"${{steps.{runAgent}.speciesGuess}}",
                     ["commonName"] = $"${{steps.{runAgent}.commonName}}",

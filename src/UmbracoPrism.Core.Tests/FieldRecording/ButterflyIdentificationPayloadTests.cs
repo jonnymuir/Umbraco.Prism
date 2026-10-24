@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using AwesomeAssertions;
+using Umbraco.Automate.Core.Actions;
 using UmbracoPrism.TestSite.FieldRecording;
 
 namespace UmbracoPrism.Core.Tests.FieldRecording;
@@ -69,6 +70,41 @@ public class ButterflyIdentificationPayloadTests
         result.Payload["habitatNotes"]!.GetValue<string>().Should().Be(ButterflyIdentificationPayload.UnavailableNote);
         result.Payload["speciesGuess"]!.GetValue<string>().Should().BeEmpty("a failed run must not carry over a stale or half-parsed species");
         result.Payload["commonName"]!.GetValue<string>().Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(StepRunErrorCategory.ServiceUnavailable)]
+    [InlineData(StepRunErrorCategory.RateLimiting)]
+    [InlineData(StepRunErrorCategory.Timeout)]
+    public void AnAgentThatGaveUpBecauseTheAiServiceWasBusy_IsBusy_SoThePractitionerCanTryAgain(StepRunErrorCategory failure)
+    {
+        var result = ButterflyIdentificationPayload.From(Answer(""), failure);
+
+        result.Outcome.Should().Be(ButterflyIdentificationPayload.Busy);
+        result.Degraded.Should().BeTrue();
+        result.Payload["speciesGuess"]!.GetValue<string>().Should().BeEmpty();
+        result.Payload["habitatNotes"]!.GetValue<string>().Should().BeEmpty("the busy screen says what happened, so no note is carried into the record");
+    }
+
+    [Theory]
+    [InlineData(StepRunErrorCategory.Authentication)]
+    [InlineData(StepRunErrorCategory.ConfigurationError)]
+    [InlineData(StepRunErrorCategory.Unknown)]
+    public void AnAgentThatFailedForAReasonAskingAgainCannotFix_IsUnclear_SoThePractitionerEntersIt(StepRunErrorCategory failure)
+    {
+        var result = ButterflyIdentificationPayload.From(Answer(""), failure);
+
+        result.Outcome.Should().Be("unclear");
+        result.Payload["habitatNotes"]!.GetValue<string>().Should().Be(ButterflyIdentificationPayload.UnavailableNote);
+    }
+
+    [Fact]
+    public void AUsableAnswer_IsKept_EvenIfAnEarlierAttemptWasBusy()
+    {
+        var result = ButterflyIdentificationPayload.From(Answer("identified"), StepRunErrorCategory.ServiceUnavailable);
+
+        result.Outcome.Should().Be("identified");
+        result.Degraded.Should().BeFalse();
     }
 
     [Theory]

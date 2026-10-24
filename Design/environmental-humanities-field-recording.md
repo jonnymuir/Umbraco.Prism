@@ -86,6 +86,7 @@ the work. There is no frontstage and backstage split in this scenario.
 |---|---|
 | `record-sighting` | Photo (file upload, capture mode as configured), location picker, date and time, optional notes. |
 | `identify` | A `support-system-call` action invokes the identification capability. The practitioner sees a wait screen. |
+| `identification-busy` | Reached when the AI service is busy or rate limited. The photo, place and date are kept, and the practitioner chooses **Try again** (the photo goes back for identification) or **Enter it yourself** (straight to `confirm`). |
 | `confirm` | Shows the suggested species, confidence and habitat notes beside the photo and the pin. The practitioner accepts or corrects, and the confirmed values are the record. |
 | `recorded` | Confirmation page with the record summary. |
 
@@ -93,9 +94,10 @@ The `identify` capability is declared in `appsettings.json` under `Wayfinder:Sup
 
 - **Inputs:** `photo` (the file reference), `location`, `capturedAt`, `notes`.
 - **Outputs:** `speciesGuess`, `commonName`, `confidence`, `lifeStage`, `habitatNotes`.
-- **Outcomes:** `identified`, `unclear`, `notButterfly`. The gateway after the stage routes
-  `notButterfly` back to `record-sighting` with a message, and `unclear` to `confirm` with an empty
-  suggestion.
+- **Outcomes:** `identified`, `unclear`, `not-a-butterfly` and `busy`. The join after the stage
+  routes `identified` and `unclear` to `confirm`, `not-a-butterfly` to a terminal stage that asks for
+  a clearer photo, and `busy` to `identification-busy`. The agent only ever answers the first three;
+  `busy` is decided by the hand-back step when the agent could not answer at all.
 - **Completion:** webhook, resolved by an in-process Automate step as in
   `ResolveWayfinderSupportSystemOutcomeAction`.
 
@@ -231,13 +233,13 @@ declined permission, an existing value being kept, and the no-script fallback.
 `UmbracoPrism.TestSite` references `Umbraco.Automate` 17.4.0 and adds the Umbraco 17 line of the AI
 packages:
 
-- `Umbraco.AI` 17.5.0 and `Umbraco.AI.Agent` 17.3.0
-- `Umbraco.AI.Automate` 17.0.1, which adds the **Run AI Agent** and **Transcribe Audio** actions and
-  the AI triggers to Automate's catalogue
-- `Umbraco.AI.Google` 17.0.3, the Gemini provider
-- `Google.GenAI` 1.24.0, pinned by the host. `Umbraco.AI.Google` accepts any 1.x and resolves
-  1.10.0 by default, which rejects an inline image part's `displayName` with a Gemini Developer API
-  key and so fails every photo sent to a free AI Studio key.
+- `Umbraco.AI` 17.6.0 and `Umbraco.AI.Agent` 17.4.0
+- `Umbraco.AI.Automate` 17.1.0, which adds the **Run AI Agent** and **Transcribe Audio** actions and
+  the AI triggers to Automate's catalogue. A failed AI step records a step error category that
+  matches the provider's failure (rate limited, service unavailable, authentication, configuration).
+- `Umbraco.AI.Google` 17.0.4, the Gemini provider. It classifies Google API errors (a 503 is
+  transient, a 429 rate limited, a bad key an authentication failure) and requires `Google.GenAI`
+  1.22.0 or later, which accepts image attachments with a Gemini Developer API key.
 
 The 18.x line targets Umbraco 18 and is not used.
 
@@ -252,11 +254,12 @@ The 18.x line targets Umbraco 18 and is not used.
 3. The agent returns structured output. Each schema field is exposed to later steps as a named
    binding under the step's id.
 4. A typed in-process action, `prism.resolveButterflyIdentification`, reads each binding as its own
-   setting and completes the invocation. It builds the payload with `JsonObject` from individual
+   setting, plus the id of the agent step, and completes the invocation. It builds the payload with `JsonObject` from individual
    fields, so model text is never spliced into JSON. The outcome is restricted to `identified`,
    `unclear` and `not-a-butterfly`, confidence to `low`, `medium` and `high`, control characters are
    replaced, and lengths are capped. No branch step is needed because the agent's `outcome` field is
-   passed straight through.
+   passed straight through, or replaced by `busy` or `unclear` when the agent gave no answer (see
+   below).
 
 ### The Umbraco.AI setup
 
@@ -293,24 +296,28 @@ applied on every boot, including to a profile that already exists; with none set
   (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`), observed at 20 requests a day. Each sighting
   costs at least one request, and every retry costs another, so a busy day or a long test session can
   exhaust it (HTTP 429, with a retry delay of many hours). The quota is per model, so switching
-  `Prism:FieldRecording:GeminiModel` to another Gemini 3 model gives a fresh allowance. Umbraco.AI
-  reports every Google client error as "Couldn't reach the AI service", so the real cause is only in
-  the site's log.
+  `Prism:FieldRecording:GeminiModel` to another Gemini 3 model gives a fresh allowance. The step run
+  in the Automate backoffice shows the real cause and its category.
 
 ### When the AI does not answer
 
-- The agent step retries twice, ten seconds apart. An overload (503) comes in bursts that outlast a single
-  quick retry; a live run met the same 503 five seconds later. It does not retry more, because a quota
-  error (429) is not transient and every attempt spends the same exhausted allowance.
+- The agent step retries twice, ten seconds apart, when the AI service is busy (503), rate limited
+  (429) or unreachable. An overload comes in bursts that outlast a single quick retry. It does not
+  retry more, because a daily quota error will not clear in seconds and every attempt spends the
+  same exhausted allowance. A rejected API key, an unknown model or an invalid request is not retried
+  at all, since asking again cannot change the answer.
 - If the step still fails, Automate skips past it and runs the next step with empty bindings. The
-  typed action treats a missing or unrecognised outcome as `unclear` with the note "No suggestion was
-  available. Enter what you saw yourself.", so the practitioner reaches the confirm stage and types
-  the species instead of waiting.
-- If the call to Automate cannot be sent at all (unreachable, or an error status), Wayfinder no longer
-  leaves the case waiting at the join. Its default is to stay on the stage with a try-again message
-  and save nothing. The identify stage opts into `onFailure`: it carries on as `unclear` with the same
-  "No suggestion was available" note, so the visitor types the species instead. There are no retries
-  on the dispatch (`retries` is opt-in), because Automate would run the identification twice.
+  typed action reads the error category of the agent step's last attempt:
+  - Service unavailable, rate limited or timed out: the outcome is `busy`. The practitioner reaches
+    `identification-busy` and can try again in a minute or enter the sighting themselves.
+  - Anything else (authentication, configuration, an unrecognised answer): the outcome is `unclear`
+    with the note "No suggestion was available. Enter what you saw yourself.", so the practitioner
+    reaches the confirm stage and types the species, since trying again would not help.
+- If the call to Automate cannot be sent at all (unreachable, or an error status), Wayfinder's
+  default is to stay on the stage with a try-again message and save nothing. The identify stage opts
+  into `onFailure` with `busy`, so the practitioner gets the same try-again or enter-it-yourself
+  choice. There are no retries on the dispatch (`retries` is opt-in), because Automate would run the
+  identification twice.
 - Wayfinder has no timeout for a call that was sent but never answered. A failed AI step is covered
   as above, but an automation that is accepted and then never completes would still leave the
   practitioner at the wait screen.
