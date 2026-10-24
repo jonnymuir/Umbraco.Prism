@@ -156,11 +156,16 @@ private final class PrismNavigationDecorator: NSObject, WKNavigationDelegate, WK
     }
 
     // A load cancelled by a newer one, such as tapping the selected tab twice, is not a failure.
-    // Capacitor would show its offline page for it.
+    // Nor is one this app stopped itself: when another tab takes a page after a server redirect,
+    // such as the one that follows signing in, WebKit reports "frame load interrupted" (102). Capacitor
+    // would show its offline page for either, and this tab would briefly show it when next opened.
     private static func wasCancelled(_ error: Error) -> Bool {
         let error = error as NSError
-        return error.domain == NSURLErrorDomain && error.code == NSURLErrorCancelled
+        return (error.domain == NSURLErrorDomain && error.code == NSURLErrorCancelled)
+            || (error.domain == "WebKitErrorDomain" && error.code == frameLoadInterruptedByPolicyChange)
     }
+
+    private static let frameLoadInterruptedByPolicyChange = 102
 
     // Capacitor sends every window.open() to Safari, even for this app's own pages (sign-out uses
     // one). Trusted hosts stay in the tab.
