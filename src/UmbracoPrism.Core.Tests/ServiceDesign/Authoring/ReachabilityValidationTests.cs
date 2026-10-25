@@ -47,7 +47,7 @@ public class ReachabilityValidationTests
     [Fact]
     public void ValidateReachability_SelfLoopWithAnEscapeRoute_ReturnsNoErrors()
     {
-        // Mirrors money-modeller.json's "model" stage: a "recalculate" route loops back to itself
+        // Mirrors money-modeller.yaml's "model" stage: a "recalculate" route loops back to itself
         // via a gateway, but a second route out of the same stage still leads to a terminal state.
         // Only *some* path needs to reach a terminal — a self-loop alongside a real exit is fine.
         var workflow = new ServiceBlueprint

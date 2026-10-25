@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AwesomeAssertions;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Components;
@@ -7,16 +6,11 @@ using Xunit;
 namespace UmbracoPrism.Core.Tests.ServiceDesign.Components;
 
 /// <summary>
-/// Tests for polymorphic JSON serialization/deserialization of v2.0 component hierarchy.
+/// Tests for polymorphic YAML serialization/deserialization of v2.0 component hierarchy.
 /// Verifies that each component type roundtrips correctly with its discriminator.
 /// </summary>
 public class ComponentPolymorphismTests
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true
-    };
 
     [Theory]
     [InlineData("fieldset")]
@@ -56,17 +50,17 @@ public class ComponentPolymorphismTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions);
+        var yaml = ServiceBlueprintYaml.Serialize(component);
+        var deserialized = ServiceBlueprintYaml.Deserialize<Component>(yaml);
 
         // Assert
         deserialized.Should().NotBeNull();
         deserialized.Should().BeOfType(component.GetType());
-        json.Should().Contain($"\"type\": \"{componentType}\"");
+        yaml.Should().Contain($"type: {componentType}\n");
         
         // Verify round-trip by re-serializing and comparing JSON
-        var reserializedJson = JsonSerializer.Serialize(deserialized, JsonOptions);
-        reserializedJson.Should().Be(json);
+        var reserializedYaml = ServiceBlueprintYaml.Serialize(deserialized);
+        reserializedYaml.Should().Be(yaml);
     }
 
     [Theory]
@@ -182,17 +176,17 @@ public class ComponentPolymorphismTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions);
+        var yaml = ServiceBlueprintYaml.Serialize(component);
+        var deserialized = ServiceBlueprintYaml.Deserialize<Component>(yaml);
 
         // Assert
         deserialized.Should().NotBeNull();
         deserialized.Should().BeOfType(component.GetType());
-        json.Should().Contain($"\"type\": \"{componentType}\"");
+        yaml.Should().Contain($"type: {componentType}\n");
         
         // Verify round-trip by re-serializing and comparing JSON
-        var reserializedJson = JsonSerializer.Serialize(deserialized, JsonOptions);
-        reserializedJson.Should().Be(json);
+        var reserializedYaml = ServiceBlueprintYaml.Serialize(deserialized);
+        reserializedYaml.Should().Be(yaml);
     }
 
     [Theory]
@@ -226,17 +220,17 @@ public class ComponentPolymorphismTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions);
+        var yaml = ServiceBlueprintYaml.Serialize(component);
+        var deserialized = ServiceBlueprintYaml.Deserialize<Component>(yaml);
 
         // Assert
         deserialized.Should().NotBeNull();
         deserialized.Should().BeOfType(component.GetType());
-        json.Should().Contain($"\"type\": \"{componentType}\"");
+        yaml.Should().Contain($"type: {componentType}\n");
         
         // Verify round-trip by re-serializing and comparing JSON
-        var reserializedJson = JsonSerializer.Serialize(deserialized, JsonOptions);
-        reserializedJson.Should().Be(json);
+        var reserializedYaml = ServiceBlueprintYaml.Serialize(deserialized);
+        reserializedYaml.Should().Be(yaml);
     }
 
     [Theory]
@@ -307,17 +301,17 @@ public class ComponentPolymorphismTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions);
+        var yaml = ServiceBlueprintYaml.Serialize(component);
+        var deserialized = ServiceBlueprintYaml.Deserialize<Component>(yaml);
 
         // Assert
         deserialized.Should().NotBeNull();
         deserialized.Should().BeOfType(component.GetType());
-        json.Should().Contain($"\"type\": \"{componentType}\"");
+        yaml.Should().Contain($"type: {componentType}\n");
 
         // Verify round-trip by re-serializing and comparing JSON
-        var reserializedJson = JsonSerializer.Serialize(deserialized, JsonOptions);
-        reserializedJson.Should().Be(json);
+        var reserializedYaml = ServiceBlueprintYaml.Serialize(deserialized);
+        reserializedYaml.Should().Be(yaml);
     }
 
     [Fact]
@@ -395,21 +389,21 @@ public class ComponentPolymorphismTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(definition, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<ServiceBlueprint>(json, JsonOptions);
+        var yaml = ServiceBlueprintYaml.Serialize(definition);
+        var deserialized = ServiceBlueprintYaml.Deserialize(yaml);
 
         // Assert
         deserialized.Should().NotBeNull();
         deserialized.Should().BeEquivalentTo(definition);
         deserialized!.Layout!.Nodes.Should().ContainKey("gateway:route-from-start")
             .WhoseValue.Should().BeEquivalentTo(new NodePosition { X = 356, Y = 320 });
-        json.Should().Contain("\"type\": \"heading\"");
-        json.Should().Contain("\"type\": \"body\"");
-        json.Should().Contain("\"type\": \"fieldset\"");
-        json.Should().Contain("\"type\": \"text\"");
-        json.Should().Contain("\"type\": \"email\"");
-        json.Should().Contain("\"type\": \"summary-list\"");
-        json.Should().Contain("\"type\": \"panel\"");
+        yaml.Should().Contain("type: heading\n");
+        yaml.Should().Contain("type: body\n");
+        yaml.Should().Contain("type: fieldset\n");
+        yaml.Should().Contain("type: text\n");
+        yaml.Should().Contain("type: email\n");
+        yaml.Should().Contain("type: summary-list\n");
+        yaml.Should().Contain("type: panel\n");
     }
 
     [Fact]
@@ -443,8 +437,8 @@ public class ComponentPolymorphismTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize<Component>(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions) as RadiosComponent;
+        var yaml = ServiceBlueprintYaml.Serialize(component);
+        var deserialized = ServiceBlueprintYaml.Deserialize<Component>(yaml) as RadiosComponent;
 
         // Assert
         deserialized.Should().NotBeNull();
@@ -488,8 +482,8 @@ public class ComponentPolymorphismTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize<Component>(component, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<Component>(json, JsonOptions) as FieldsetComponent;
+        var yaml = ServiceBlueprintYaml.Serialize(component);
+        var deserialized = ServiceBlueprintYaml.Deserialize<Component>(yaml) as FieldsetComponent;
 
         // Assert
         deserialized.Should().NotBeNull();
@@ -522,8 +516,8 @@ public class ComponentPolymorphismTests
         };
 
         // Act
-        var json = JsonSerializer.Serialize(components, JsonOptions);
-        var deserialized = JsonSerializer.Deserialize<List<Component>>(json, JsonOptions);
+        var yaml = ServiceBlueprintYaml.Serialize(components);
+        var deserialized = ServiceBlueprintYaml.Deserialize<List<Component>>(yaml);
 
         // Assert
         deserialized.Should().NotBeNull();

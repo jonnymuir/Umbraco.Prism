@@ -1,0 +1,150 @@
+definitionKey: information-request
+displayName: Information Request
+version: 1
+schemaVersion: "1.0"
+initialStage: collecting-info
+requestPolicy: single
+allowManualRestart: true
+queues:
+  - key: web-user
+    displayName: Requestor touchpoints
+    description: Web user submitting and tracking an information request.
+    actor: applicant
+    roleGates: []
+    tags: {}
+  - key: business-user
+    displayName: Review team touchpoints
+    description: Back-office team reviewing and responding to requests.
+    actor: reviewer
+    roleGates: []
+    tags: {}
+stages:
+  - stageKey: collecting-info
+    displayName: Tell us about yourself
+    stageType: Question
+    actor: applicant
+    queueKey: web-user
+    roleGates: []
+    actions: []
+    components:
+      - type: fieldset
+        legend: Your details
+        children:
+          - type: text
+            fieldKey: firstName
+            label: First name
+            hint: As it appears on your ID
+            required: true
+          - type: text
+            fieldKey: lastName
+            label: Last name
+            required: true
+          - type: date
+            fieldKey: dateOfBirth
+            label: Date of birth
+            hint: For example, 12 03 1985
+            required: true
+          - type: email
+            fieldKey: email
+            label: Email address
+            hint: We'll only use this to contact you about your request
+            required: true
+      - type: fieldset
+        legend: Your request
+        children:
+          - type: select
+            fieldKey: requestType
+            label: What type of request is this?
+            required: true
+            options:
+              - General enquiry
+              - Data subject access request
+              - Complaint
+              - Technical support
+          - type: textarea
+            fieldKey: description
+            label: Tell us more about your request
+            hint: Include as much detail as possible. Maximum 1000 characters.
+            required: true
+          - type: radio
+            fieldKey: urgency
+            label: How urgent is this?
+            required: true
+            options:
+              - Standard (5-7 working days)
+              - Urgent (2 working days)
+              - Critical (same day)
+    routes:
+      - id: collecting-info--submit--route-from-collecting-info
+        target: route-from-collecting-info
+        trigger: submit
+        actions: []
+  - stageKey: under-review
+    displayName: Under Review
+    stageType: Question
+    actor: reviewer
+    queueKey: business-user
+    roleGates:
+      - reviewer
+    actions: []
+    components:
+      - type: body
+        content: This is a review
+    routes:
+      - id: under-review--approve--await-review
+        target: await-review
+        trigger: approve
+        requiresRole: reviewer
+        actions: []
+  - stageKey: complete
+    displayName: Request Complete
+    stageType: Confirmation
+    actor: applicant
+    queueKey: web-user
+    roleGates: []
+    actions: []
+    components:
+      - type: panel
+        heading: Application complete
+      - type: heading
+        level: 2
+        content: What happens next
+      - type: body
+        content: We've sent you a confirmation email.
+      - type: body
+        content: A member of our team will be in touch shortly.
+    routes: []
+gateways:
+  - key: route-from-collecting-info
+    displayName: Submit Request
+    gatewayType: Split
+    queueKey: web-user
+    roleGates: []
+    routes:
+      - id: route-from-collecting-info--submit--under-review
+        target: under-review
+        trigger: submit
+        actions: []
+      - id: route-from-collecting-info--wait--await-review
+        target: await-review
+        trigger: submit
+        actions: []
+    requiredIncomingQueues: []
+  - key: await-review
+    displayName: Your request is being reviewed
+    gatewayType: Join
+    queueKey: web-user
+    waitingContent: We've received your submission and it's currently being reviewed. You'll hear from us soon — no further action is needed right now.
+    waitingExpectedSeconds: 60
+    waitingPollIntervalMs: 5000
+    waitingAllowDefer: true
+    waitingDeferMessage: You can leave this page and return later.
+    roleGates: []
+    routes:
+      - id: await-review--release--complete
+        target: complete
+        trigger: release
+        actions: []
+    requiredIncomingQueues:
+      - web-user
+      - business-user

@@ -1,10 +1,9 @@
-using System.Text.Json;
 using AwesomeAssertions;
 using UmbracoPrism.MockBusinessApp.Services.MoneyModeller;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Models.ServiceDesign.Calculations;
 using Wayfinder.Services.Calculations;
-// The maths under test is the declarative block in money-modeller.json; the scope is
+// The maths under test is the declarative block in money-modeller.yaml; the scope is
 // built exactly as the engine builds it (definition input types + service inputs).
 
 namespace UmbracoPrism.Core.Tests.ServiceDesign.ProcessManager;
@@ -12,7 +11,7 @@ namespace UmbracoPrism.Core.Tests.ServiceDesign.ProcessManager;
 /// <summary>
 /// Behavioural tests for the money-modeller maths as declared in the seed's
 /// calculations block — the single source of the projection logic. These evaluate the
-/// real money-modeller.json exactly as the engine does (CalculationScopeBuilder +
+/// real money-modeller.yaml exactly as the engine does (CalculationScopeBuilder +
 /// CalculationEvaluator) and assert scheme behaviour, not implementation.
 /// </summary>
 public class MoneyModellerCalculationTests
@@ -271,21 +270,14 @@ public class MoneyModellerCalculationTests
         {
             var candidate = Path.Combine(
                 directory.FullName,
-                "src", "UmbracoPrism.MockBusinessApp", "service-blueprints", "money-modeller.json");
+                "src", "UmbracoPrism.MockBusinessApp", "service-blueprints", "money-modeller.yaml");
             if (File.Exists(candidate))
             {
-                var definition = JsonSerializer.Deserialize<ServiceBlueprint>(
-                    File.ReadAllText(candidate),
-                    new JsonSerializerOptions
-                    {
-                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                        PropertyNameCaseInsensitive = true,
-                        AllowOutOfOrderMetadataProperties = true
-                    })!;
+                var definition = ServiceBlueprintYaml.Deserialize(File.ReadAllText(candidate));
 
                 if (definition.Calculations is null)
                 {
-                    throw new InvalidOperationException("money-modeller.json has no calculations block.");
+                    throw new InvalidOperationException("money-modeller.yaml has no calculations block.");
                 }
 
                 return definition;
@@ -294,6 +286,6 @@ public class MoneyModellerCalculationTests
             directory = directory.Parent;
         }
 
-        throw new FileNotFoundException("money-modeller.json not found walking up from test bin.");
+        throw new FileNotFoundException("money-modeller.yaml not found walking up from test bin.");
     }
 }

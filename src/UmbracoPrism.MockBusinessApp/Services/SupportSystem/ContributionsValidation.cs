@@ -39,7 +39,7 @@ public static class ContributionsValidation
     /// <summary>
     /// Parses <paramref name="csvBytes"/> against the NJF contributions schema and returns the
     /// same columns plus this app's own three appended ones, one row per input row — exactly the
-    /// shape <c>bulk-dataset-ingest</c>'s column schema in bulk-contributions.json expects back.
+    /// shape <c>bulk-dataset-ingest</c>'s column schema in bulk-contributions.yaml expects back.
     /// </summary>
     public static byte[] Validate(byte[] csvBytes)
     {

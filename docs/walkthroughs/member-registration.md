@@ -75,7 +75,7 @@ Someone who is already a member is told so, and is not given a second membership
 
 | Piece | File |
 |---|---|
-| Blueprint | `src/UmbracoPrism.TestSite/service-blueprints/register-as-a-member.json` |
+| Blueprint | `src/UmbracoPrism.TestSite/service-blueprints/register-as-a-member.yaml` |
 | The `register-member` capability and its client | `src/UmbracoPrism.TestSite/Services/ServiceDesign/MockBusinessAppProfileClient.cs` |
 | The business app's endpoint | `src/UmbracoPrism.MockBusinessApp/Services/Members/MemberEndpoints.cs` |
 | Who counts as a member | `src/UmbracoPrism.MockBusinessApp/Services/Members/MemberDirectory.cs` |

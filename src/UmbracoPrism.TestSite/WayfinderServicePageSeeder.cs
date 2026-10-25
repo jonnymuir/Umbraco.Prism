@@ -14,6 +14,7 @@ using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Persistence;
 using UmbracoPrism.Core.Services;
 using Wayfinder.Models.ServiceDesign;
+using Wayfinder.Serialization;
 using Wayfinder.Engine.Abstractions;
 
 namespace UmbracoPrism.TestSite;
@@ -66,12 +67,6 @@ public class WayfinderServicePageSeeder(
     ILogger<WayfinderServicePageSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
-    private static readonly JsonSerializerOptions ReadOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        AllowOutOfOrderMetadataProperties = true
-    };
-
     // Matches Wayfinder.Umbraco's own CreateServiceRequestStageBlock.cs/
     // CreateServiceRequestWorklistBlock.cs fixed element type keys.
     private static readonly Guid StageElementTypeKey = new("6f2a1c3d-8b4e-4a1f-9c6d-2e7b5a9f1c30");
@@ -89,12 +84,12 @@ public class WayfinderServicePageSeeder(
 
         try
         {
-            await EnsureDefinitionSeededAsync(TestSiteSeedContract.JugglingLicenceBlueprintSlug, "apply-for-a-juggling-licence.json", cancellationToken);
-            await EnsureDefinitionSeededAsync(TestSiteSeedContract.ContributionsBlueprintSlug, "bulk-contributions.json", cancellationToken);
-            await EnsureDefinitionSeededAsync(TestSiteSeedContract.MoneyModellerBlueprintSlug, "money-modeller.json", cancellationToken);
-            await EnsureDefinitionSeededAsync(TestSiteSeedContract.ButterflySightingBlueprintSlug, "record-a-butterfly-sighting.json", cancellationToken);
-            await EnsureDefinitionSeededAsync(TestSiteSeedContract.UpdateMyDetailsBlueprintSlug, "update-my-details.json", cancellationToken);
-            await EnsureDefinitionSeededAsync(TestSiteSeedContract.RegisterAsAMemberBlueprintSlug, "register-as-a-member.json", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.JugglingLicenceBlueprintSlug, "apply-for-a-juggling-licence.yaml", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.ContributionsBlueprintSlug, "bulk-contributions.yaml", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.MoneyModellerBlueprintSlug, "money-modeller.yaml", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.ButterflySightingBlueprintSlug, "record-a-butterfly-sighting.yaml", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.UpdateMyDetailsBlueprintSlug, "update-my-details.yaml", cancellationToken);
+            await EnsureDefinitionSeededAsync(TestSiteSeedContract.RegisterAsAMemberBlueprintSlug, "register-as-a-member.yaml", cancellationToken);
 
             EnsureStagePage(TestSiteSeedContract.JugglingLicencePageName, TestSiteSeedContract.JugglingLicenceBlueprintSlug);
             EnsureStagePage(TestSiteSeedContract.ButterflySightingPageName, TestSiteSeedContract.ButterflySightingBlueprintSlug);
@@ -140,7 +135,7 @@ public class WayfinderServicePageSeeder(
     // backoffice or an MCP-driven walkthrough) since it was last synced" — only the former should
     // ever silently overwrite what's in the database. Deliberately a hash of the FILE's raw
     // content, not the deserialized-and-reserialized ServiceBlueprint (which would need every
-    // nested type to round-trip identically through JSON to compare reliably) — simpler and just
+    // nested type to round-trip identically through YAML to compare reliably), simpler and just
     // as sufficient for "did the source of truth change at all".
     private const string SeedSourceHashTagKey = "_prismSeedSourceHash";
 
@@ -153,8 +148,8 @@ public class WayfinderServicePageSeeder(
             return;
         }
 
-        var json = await File.ReadAllTextAsync(path, cancellationToken);
-        var fileHash = ComputeHash(json);
+        var yaml = await File.ReadAllTextAsync(path, cancellationToken);
+        var fileHash = ComputeHash(yaml);
 
         var existing = await workflowSourceStore.LoadAsync(blueprintSlug, cancellationToken);
         if (existing is not null)
@@ -172,7 +167,7 @@ public class WayfinderServicePageSeeder(
             // own remarks), so re-sync it. A row that was instead hand-edited live keeps its
             // stored hash matching whatever the FILE was last synced to, so it's left untouched
             // here unless the file itself also changed.
-            var updatedBlueprint = DeserializeOrWarn(json, fileName);
+            var updatedBlueprint = DeserializeOrWarn(yaml, fileName);
             if (updatedBlueprint is null) return;
             updatedBlueprint = updatedBlueprint with { Tags = MergeTag(updatedBlueprint.Tags, SeedSourceHashTagKey, fileHash) };
 
@@ -187,7 +182,7 @@ public class WayfinderServicePageSeeder(
             return;
         }
 
-        var blueprint = DeserializeOrWarn(json, fileName);
+        var blueprint = DeserializeOrWarn(yaml, fileName);
         if (blueprint is null) return;
         blueprint = blueprint with { Tags = MergeTag(blueprint.Tags, SeedSourceHashTagKey, fileHash) };
 
@@ -201,15 +196,17 @@ public class WayfinderServicePageSeeder(
         logger.LogInformation("WAYFINDER SERVICE PAGE SEEDER: {Slug} seeded and pushed to the live engine", blueprintSlug);
     }
 
-    private ServiceBlueprint? DeserializeOrWarn(string json, string fileName)
+    private ServiceBlueprint? DeserializeOrWarn(string yaml, string fileName)
     {
-        var blueprint = JsonSerializer.Deserialize<ServiceBlueprint>(json, ReadOptions);
-        if (blueprint is null)
+        try
         {
-            logger.LogWarning("WAYFINDER SERVICE PAGE SEEDER: {File} failed to deserialize; skipping", fileName);
+            return ServiceBlueprintYaml.Deserialize(yaml);
         }
-
-        return blueprint;
+        catch (ServiceBlueprintYamlException ex)
+        {
+            logger.LogWarning(ex, "WAYFINDER SERVICE PAGE SEEDER: {File} is not a valid service blueprint; skipping", fileName);
+            return null;
+        }
     }
 
     private static string ComputeHash(string content)
