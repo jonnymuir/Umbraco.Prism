@@ -55,6 +55,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The seeder reads these from the content root. The Web SDK publishes *.json by default
+         but not *.yaml, so without this a deployed site starts with no blueprints. -->
+    <None Remove="service-blueprints\**\*.yaml" />
+    <Content Include="service-blueprints\**\*.yaml" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Update="cms-service-blueprints\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
