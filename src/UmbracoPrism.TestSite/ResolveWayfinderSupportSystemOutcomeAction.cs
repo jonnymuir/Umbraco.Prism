@@ -18,7 +18,9 @@ public sealed class ResolveWayfinderSupportSystemOutcomeSettings
     [Field(Label = "Outcome key", Description = "One of the capability's declared outcomes.", SortOrder = 1, SupportsBindings = true)]
     public string OutcomeKey { get; set; } = string.Empty;
 
-    [Field(Label = "Result payload (JSON)", Description = "Merged into the instance's field values under the capability's declared Outputs.", SortOrder = 2, SupportsBindings = true)]
+    [Field(Label = "Result payload (JSON)", Description = "Merged into the instance's field values under the capability's declared Outputs.", SortOrder = 2, SupportsBindings = true,
+        EditorUiAlias = "Umb.PropertyEditorUi.CodeEditor",
+        EditorConfig = """[{ "alias": "language", "value": "json" }, { "alias": "height", "value": 160 }, { "alias": "wordWrap", "value": true }]""")]
     public string? ResultPayload { get; set; }
 }
 

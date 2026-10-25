@@ -11,7 +11,7 @@ demo, written to be glanced at while standing up.
 Say the role switch out loud each time. The system, not the person's memory, enforces the contract
 between the two jobs, which is why one person can do both.
 
-**Timing (~32 min):** intro 5, Demo 1+2 9-10, Demo 3 7-8, Demo 4 6-7, takeaways 3.
+**Timing (~33 min):** intro 5, Demo 1+2 10-11, Demo 3 7-8, Demo 4 6-7, takeaways 3.
 
 ---
 
@@ -216,7 +216,7 @@ redeploy adds a second nickname stage and a second note. The fallback does the s
 
 ---
 
-## Demo 1 + 2: Wayfinder.Umbraco, then Automate (~9-10 min)
+## Demo 1 + 2: Wayfinder.Umbraco, then Automate (~10-11 min)
 
 Goal: the backoffice service design surface, and that wiring in a real external system is config plus
 a few seeded steps.
@@ -258,28 +258,60 @@ Open the `Program.cs` tab. Do not read linearly. Jump to three places.
 
 ✔ The page says the application is being reviewed.
 
-### Beat D: the registrar and Automate (🎨, 3 min)
+### Beat D: the registrar and Automate (🎨, 4 min)
 
 > Up front: "I haven't gone back to code once since Beat A."
 
 1. Casey's private window: `https://localhost:44399/demo/login`, pick **Casey Caseworker**. Open
    **Coaching register queue**, pick up the application, open **Review application**.
-2. Click **Run coaching-standards check**. The stage shows its own waiting screen.
+2. Click **Run coaching-standards check**. The page reads **Awaiting the coaching-standards
+   decision**.
    > "This is the third lane of a service blueprint, the support process. This app just POSTed a
    > signed webhook out to an Automate automation. Let's go and look at it."
-3. Backoffice, **Umbraco Automate** section. Optional: show `AutomateCoachingStandardsSeeder.cs` first.
-   > "This whole automation is built and published in C# on every boot via `IAutomationService`."
-4. **Approvals** tab: point at the pending request naming the applicant.
-5. Mailpit (`https://localhost:8025`): open the "needs review" email.
-6. Back in Automate **Approvals**, approve via the dialog. Point at the run resolving.
-7. Casey's window: the wait screen has become **Confirm the outcome**. Click **Record and notify the
-   applicant**.
-8. Alex's window: refresh.
+3. Window A backoffice, **Automation** section, tree **Default > NJF Coaching Standards**. The
+   canvas opens: Webhook trigger, the If, then the auto path on the left and the human path on the
+   right.
+   > "This whole automation is built and published in C# on every boot, but it's an ordinary
+   > Automate automation. Anyone could have drawn it here."
+4. Select **Meets the fast-track criteria?**, then its edit button. Point at the two conditions,
+   joined by AND.
+   > "Everything Wayfinder sent arrives as `trigger.body`. `inputs.yearsCoaching` is the number
+   > the coach typed. Two years or more and a disclosure reference, and it accredits on its own.
+   > Our coach said one year, so this goes to a person."
 
-✔ Alex's page reads **Application complete** with the outcome.
+   Click **Close**, never **Save**, so the seeded automation stays as it is.
+5. Select **Resolve: provisional**, then its edit button, and scroll to **Result payload (JSON)**.
+   > "This is the way back. The outcome key picks the blueprint's route, and the note is whatever
+   > the standards officer writes in the approval, word for word. Leave it blank and it falls back
+   > to a standard note." The red marker under `${` is expected: it's a template, and becomes
+   > JSON once Automate fills it in.
 
-> Close: "Branching logic, a real external system, a human approval gate, a notification back to the
-> applicant, and the only code we wrote for the integration was three delegates and a callback route."
+   Click **Close**.
+6. Mailpit (`https://localhost:8025`): open the "needs review" email.
+7. Backoffice, **Automation** section, **Approvals** tab. Select **Approve** on the NJF Coaching
+   Standards row. Read the prompt aloud, then type this in **Comment**:
+
+   ```text
+   Lovely three-ball cascade. Book a mentored session before 1 March.
+   ```
+
+   Select **Approve**.
+8. **Runs** tab, open the NJF Coaching Standards run. Every step shows **Completed**, ending with
+   **Resolve Wayfinder support-system outcome**.
+   > "The run history shows what ran and how long the human took. The comment isn't shown here,
+   > it's already gone back to the service."
+9. Casey's window: refresh. The wait screen has become **Confirm the outcome**: Outcome
+   `provisional`, and the **Standards officer's note** is the comment from step 7.
+   > "Typed into Automate thirty seconds ago, now in front of the caseworker."
+
+   Click **Record and notify the applicant**.
+10. Alex's window: refresh.
+
+✔ Alex's page reads **Application complete**, with the outcome and the officer's comment.
+
+> Close: "Branching logic, a real external system, a human approval gate, the reviewer's own words
+> fed back to the caseworker and the applicant, and the only code we wrote for the integration was
+> three delegates and a callback route."
 
 **If it breaks:** cut to the recorded backup. Do not debug live.
 
@@ -522,9 +554,19 @@ Front end `https://localhost:44345`, sign in via Keycloak SSO as `demo@prism.loc
 > "Tenancy and branding from Prism. The service journey from Wayfinder.Umbraco. One site, the same
 > pattern we spent twenty minutes looking at from the other side."
 
-Optional, 30 seconds: open `JugglingLicenceDecisionAutomationSeeder.cs` and the Automate section.
-
 ✔ The licence journey renders in the tenant's branding after SSO sign-in.
+
+Optional, 1-2 minutes, the same feedback loop inside Prism:
+
+1. Apply with a **Competitive** licence. Only Recreational fast-tracks, so the page waits on the
+   decision.
+2. Window B backoffice, **Automation** section, **Approvals** tab. Select **Approve** on the
+   Juggling Licence Decision row, type a **Comment** such as `Approved. See you at the Easter
+   convention.`, and select **Approve**.
+3. Back on the front end, the **Application submitted** page shows that comment as the decision
+   **Outcome**.
+
+> "Same Automate, same approval box, and the reviewer's words land on the applicant's page."
 
 > Closing line for the whole talk: "Four demos, one running joke. Every time, the same person opened
 > `Program.cs` and then closed it and opened a browser, or for ten minutes in the middle opened
