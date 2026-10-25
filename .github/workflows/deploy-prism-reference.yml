@@ -62,6 +62,17 @@ jobs:
           dotnet publish src/UmbracoPrism.TestSite/UmbracoPrism.TestSite.csproj
           -c Release --no-self-contained -o publish
 
+      # The site seeds every service page from these files on a fresh install, so a publish
+      # without them deploys a site whose service pages all fail.
+      - name: Check the seed blueprints were published
+        run: |
+          expected=$(ls src/UmbracoPrism.TestSite/service-blueprints/*.yaml | wc -l)
+          published=$(ls publish/service-blueprints/*.yaml 2>/dev/null | wc -l)
+          if [ "$published" -ne "$expected" ]; then
+            echo "::error::publish/service-blueprints has $published of $expected blueprint files"
+            exit 1
+          fi
+
       - name: Stop the service (release file locks)
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
