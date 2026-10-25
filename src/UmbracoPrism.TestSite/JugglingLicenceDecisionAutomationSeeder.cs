@@ -162,33 +162,23 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
         // rather than an HTTP Request step: Automate's built-in HttpRequestAction blocks loopback
         // (SSRF protection), so an automation on the same box as Wayfinder cannot call the site
         // back over HTTP.
-        //
-        // noteJson is already a JSON value: a literal for the automatic path, or a binding ending
-        // in "| json" for the reviewed paths, which encodes whatever the reviewer typed (quotes,
-        // line breaks) so the payload stays valid JSON.
-        static StepConfiguration Resolve(Guid id, string alias, string name, string outcome, string noteJson) => new()
+        static StepConfiguration Resolve(Guid id, ResolveOutcome outcome) => new()
         {
             Id = id,
-            Alias = alias,
+            Alias = outcome.Alias,
             ActionAlias = "wayfinder.resolveSupportSystemOutcome",
-            Name = name,
+            Name = outcome.Name,
             Settings = new()
             {
                 ["invocationId"] = "${trigger.body.invocationId}",
-                ["outcomeKey"] = outcome,
+                ["outcomeKey"] = outcome.OutcomeKey,
                 ["resultPayload"] = $$"""
                     {
-                      "applicationDecisionNote": {{noteJson}}
+                      "applicationDecisionNote": {{NoteJson(outcome)}}
                     }
                     """,
             },
         };
-
-        // The reviewer's comment from the approval dialog becomes the applicant's decision note,
-        // falling back to a standard note when they leave it blank. Fallback text can't contain
-        // ':', '|' or '}', which delimit bindings, filters and their arguments.
-        static string ReviewerComment(string fallback) =>
-            $"${{steps.{ReviewStepAlias}.comment | fallback:{fallback} | json}}";
 
         var steps = new List<StepConfiguration>
         {
@@ -219,8 +209,8 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             },
             Notify(autoNotify, "Notify: approved (auto)", "Juggling licence approved",
                 "Good news, your recreational juggling licence has been approved automatically.", resolveOwner),
-            Resolve(autoResolve, "resolveApprovedAuto", "Resolve: approved (auto)", "approved",
-                "\"Automatically approved. Recreational licences fast-track with no review.\""),
+            Resolve(autoResolve, new("resolveApprovedAuto", "Resolve: approved (auto)", "approved",
+                "Automatically approved. Recreational licences fast-track with no review.", FromReviewer: false)),
             new()
             {
                 Id = requestApproval,
@@ -237,12 +227,12 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             },
             Notify(approvedNotify, "Notify: approved (reviewed)", "Juggling licence approved",
                 "Good news, your juggling licence application has been approved.", resolveOwner),
-            Resolve(approvedResolve, "resolveApprovedReviewed", "Resolve: approved (reviewed)", "approved",
-                ReviewerComment("Approved after review.")),
+            Resolve(approvedResolve, new("resolveApprovedReviewed", "Resolve: approved (reviewed)", "approved",
+                "Approved after review.", FromReviewer: true)),
             Notify(referredNotify, "Notify: referred", "Juggling licence needs more information",
                 "We need to take a closer look at your juggling licence application. We'll be in touch.", resolveOwner),
-            Resolve(referredResolve, "resolveReferred", "Resolve: referred", "referred",
-                ReviewerComment("Referred for further review by the licensing team.")),
+            Resolve(referredResolve, new("resolveReferred", "Resolve: referred", "referred",
+                "Referred for further review by the licensing team.", FromReviewer: true)),
         };
 
         // SourceHandle is the canvas node's output handle id; for a branching step it is the same
@@ -306,6 +296,20 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             CanvasState = canvasState,
         };
     }
+
+    /// <summary>One resolve step: which outcome it reports, and the decision note that goes with it.</summary>
+    /// <param name="FromReviewer">
+    /// The note is the reviewer's comment from the approval dialog, with <paramref name="Note"/> as
+    /// the fallback when they leave it blank.
+    /// </param>
+    private sealed record ResolveOutcome(string Alias, string Name, string OutcomeKey, string Note, bool FromReviewer);
+
+    // The note as a JSON value. A reviewer's comment is bound with "| json", which encodes whatever
+    // they typed (quotes, line breaks) so the payload stays valid JSON. The fixed notes are plain
+    // text with no quotes, and can't contain ':', '|' or '}', which delimit bindings and filters.
+    private static string NoteJson(ResolveOutcome outcome) => outcome.FromReviewer
+        ? $"${{steps.{ReviewStepAlias}.comment | fallback:{outcome.Note} | json}}"
+        : $"\"{outcome.Note}\"";
 
     /// <summary>
     /// Lays out a step graph left-to-right by BFS depth from the trigger (step <see cref="Guid.Empty"/>
