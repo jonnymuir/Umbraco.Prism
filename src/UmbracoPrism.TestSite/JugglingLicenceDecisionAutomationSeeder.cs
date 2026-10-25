@@ -1,7 +1,7 @@
+using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Umbraco.Automate.Core.Automations;
-using Umbraco.Automate.Core.Conditions;
 using Umbraco.Automate.Core.Workspaces;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Services;
@@ -11,12 +11,13 @@ namespace UmbracoPrism.TestSite;
 /// <summary>
 /// Seeds the "Juggling Licence Decision" Umbraco Automate automation, so the config-only webhook
 /// support system (<c>appsettings.json</c> -> <c>Wayfinder:SupportSystems</c>) has a real
-/// automation ready and waiting, with no manual canvas build — TestSite's own copy of the pattern
+/// automation ready and waiting, with no manual canvas build. TestSite's own copy of the pattern
 /// <c>Wayfinder.Umbraco.ReferenceApp/AutomateCoachingStandardsSeeder.cs</c> establishes. Built
 /// entirely in code via <see cref="IAutomationService"/>: a webhook trigger, an If branch on the
 /// applicant's own declared licence type, a push notification + resolve step per outcome, and a
 /// human approval step (Automate's own built-in <c>umbracoAutomate.requestApproval</c>) for the
-/// two licence types that don't fast-track.
+/// two licence types that don't fast-track. The reviewer's comment on that approval becomes the
+/// decision note the applicant sees on their confirmation page.
 /// <para/>
 /// Runs as a background service, not a startup notification handler: Automate has no default
 /// workspace on a fresh install and stands one up lazily, so this polls (and creates one itself
@@ -33,6 +34,13 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
 {
     // Must match the automation guid in appsettings.json's Wayfinder:SupportSystems[0].endpoint.url.
     private static readonly Guid AutomationId = new("6a99b1ce-0000-0000-0000-00000000c0de");
+
+    private const double ColumnWidth = 360;
+    private const double RowHeight = 180;
+
+    // The approval step's alias, so later steps bind to its output by name
+    // (${steps.licenceReview.comment}) rather than by a generated step id.
+    private const string ReviewStepAlias = "licenceReview";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -98,6 +106,7 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             existing.Trigger = automation.Trigger;
             existing.Steps = automation.Steps;
             existing.Connections = automation.Connections;
+            existing.CanvasState = automation.CanvasState;
             await automationService.UpdateAutomationAsync(existing, cancellationToken: ct);
             logger.LogInformation("JUGGLING LICENCE DECISION SEEDER: refreshed automation {Id}.", AutomationId);
         }
@@ -107,7 +116,7 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
         return true;
     }
 
-    private static Automation BuildAutomation(Guid workspaceId, string? signingKey)
+    internal static Automation BuildAutomation(Guid workspaceId, string? signingKey)
     {
         var resolveOwner = Guid.NewGuid();
         var checkLicenceType = Guid.NewGuid();
@@ -120,7 +129,7 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
         var referredResolve = Guid.NewGuid();
 
         // The webhook envelope (docs/guides/support-systems.md) carries no member identity, only
-        // instanceId — resolve the owner once, up front, so every later notification step can
+        // instanceId. Resolve the owner once, up front, so every later notification step can
         // bind to its output rather than each re-deriving it.
         var resolveOwnerStep = new StepConfiguration
         {
@@ -137,9 +146,8 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             Name = name,
             Settings = new()
             {
-                // A step's own outputs sit directly under its GUID in the "steps" binding scope
-                // (Umbraco.Automate.Core.Execution.BindingDataBuilder.AddStepEntry) — no
-                // intermediate "output" segment, unlike this file's own earlier (wrong) guess.
+                // A step's own outputs sit directly under its GUID (or alias) in the "steps"
+                // binding scope, with no intermediate "output" segment.
                 ["userId"] = $"${{steps.{resolveOwnerStepId}.userId}}",
                 ["tenantId"] = $"${{steps.{resolveOwnerStepId}.tenantId}}",
                 ["title"] = title,
@@ -154,17 +162,20 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
         // rather than an HTTP Request step: Automate's built-in HttpRequestAction blocks loopback
         // (SSRF protection), so an automation on the same box as Wayfinder cannot call the site
         // back over HTTP.
-        static StepConfiguration Resolve(Guid id, string name, string outcome, string note) => new()
+        static StepConfiguration Resolve(Guid id, ResolveOutcome outcome) => new()
         {
             Id = id,
+            Alias = outcome.Alias,
             ActionAlias = "wayfinder.resolveSupportSystemOutcome",
-            Name = name,
+            Name = outcome.Name,
             Settings = new()
             {
                 ["invocationId"] = "${trigger.body.invocationId}",
-                ["outcomeKey"] = outcome,
+                ["outcomeKey"] = outcome.OutcomeKey,
                 ["resultPayload"] = $$"""
-                    {"applicationDecisionNote":"{{note}}"}
+                    {
+                      "applicationDecisionNote": {{NoteJson(outcome)}}
+                    }
                     """,
             },
         };
@@ -179,51 +190,49 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
                 Name = "Fast-track licence type?",
                 Settings = new()
                 {
-                    ["conditions"] = new ConditionSet
-                    {
-                        Groups =
-                        [
-                            new ConditionGroup
+                    // Written exactly as the canvas's condition builder saves it (PascalCase keys,
+                    // operator names). A typed ConditionSet is stored camelCase with numeric
+                    // operators, which the engine still evaluates but the builder opens as empty,
+                    // and saving an empty set makes every application fast-track.
+                    ["conditions"] = JsonSerializer.Deserialize<JsonElement>("""
+                        {
+                          "Groups": [
                             {
-                                Conditions =
-                                [
-                                    new Condition
-                                    {
-                                        LeftOperand = "${trigger.body.inputs.licenceType}",
-                                        Operator = ConditionOperator.Equals,
-                                        RightOperand = "Recreational",
-                                    },
-                                ],
-                            },
-                        ],
-                    },
+                              "Conditions": [
+                                { "LeftOperand": "${trigger.body.inputs.licenceType}", "Operator": "Equals", "RightOperand": "Recreational" }
+                              ]
+                            }
+                          ]
+                        }
+                        """),
                 },
             },
             Notify(autoNotify, "Notify: approved (auto)", "Juggling licence approved",
-                "Good news — your recreational juggling licence has been approved automatically.", resolveOwner),
-            Resolve(autoResolve, "Resolve: approved (auto)", "approved",
-                "Automatically approved — recreational licences fast-track with no review."),
+                "Good news, your recreational juggling licence has been approved automatically.", resolveOwner),
+            Resolve(autoResolve, new("resolveApprovedAuto", "Resolve: approved (auto)", "approved",
+                "Automatically approved. Recreational licences fast-track with no review.", FromReviewer: false)),
             new()
             {
                 Id = requestApproval,
+                Alias = ReviewStepAlias,
                 ActionAlias = "umbracoAutomate.requestApproval",
                 Name = "Approve competitive/professional licence?",
                 Settings = new()
                 {
                     ["prompt"] = "${trigger.body.inputs.applicantName} (${trigger.body.inputs.applicantEmail}) is applying for a " +
                         "${trigger.body.inputs.licenceType} juggling licence. This needs a human decision because only " +
-                        "Recreational licences fast-track automatically.",
+                        "Recreational licences fast-track automatically. Your comment is shown to the applicant as the decision note.",
                     ["timeoutHours"] = 72,
                 },
             },
             Notify(approvedNotify, "Notify: approved (reviewed)", "Juggling licence approved",
-                "Good news — your juggling licence application has been approved.", resolveOwner),
-            Resolve(approvedResolve, "Resolve: approved (reviewed)", "approved",
-                "Approved after review."),
+                "Good news, your juggling licence application has been approved.", resolveOwner),
+            Resolve(approvedResolve, new("resolveApprovedReviewed", "Resolve: approved (reviewed)", "approved",
+                "Approved after review.", FromReviewer: true)),
             Notify(referredNotify, "Notify: referred", "Juggling licence needs more information",
-                "We need to take a closer look at your juggling licence application — we'll be in touch.", resolveOwner),
-            Resolve(referredResolve, "Resolve: referred", "referred",
-                "Referred for further review by the licensing team."),
+                "We need to take a closer look at your juggling licence application. We'll be in touch.", resolveOwner),
+            Resolve(referredResolve, new("resolveReferred", "Resolve: referred", "referred",
+                "Referred for further review by the licensing team.", FromReviewer: true)),
         };
 
         // SourceHandle is the canvas node's output handle id; for a branching step it is the same
@@ -245,16 +254,18 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             new() { SourceStepId = referredNotify, TargetStepId = referredResolve },
         };
 
-        // Automate itself has no auto-arrange feature to call (checked: no such API in
-        // Umbraco.Automate.Core, nothing client-side either) — hand-picked X/Y here previously
-        // overlapped once the graph grew past a simple chain, because the values didn't respect
-        // the canvas's own step-card width (see LayoutSteps' own remarks). Compute every
-        // position from the graph shape instead, so it stays untangled regardless of future edits.
+        // Automate has no auto-arrange to call, so compute every position from the graph shape,
+        // sized against the canvas's step-card width, and the layout stays untangled as it grows.
         var positions = LayoutSteps(steps, connections);
         foreach (var step in steps)
         {
             step.Position = positions[step.Id];
         }
+
+        // The canvas draws the trigger from the saved canvas state, defaulting to a spot that
+        // sits on top of the first column, so place it one column left of the first step.
+        var entry = positions[resolveOwner];
+        var canvasState = JsonSerializer.Serialize(new { triggerPosition = new { x = entry.X - ColumnWidth, y = entry.Y } });
 
         var trigger = new TriggerConfiguration
         {
@@ -282,18 +293,33 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             Trigger = trigger,
             Steps = steps,
             Connections = connections,
+            CanvasState = canvasState,
         };
     }
 
+    /// <summary>One resolve step: which outcome it reports, and the decision note that goes with it.</summary>
+    /// <param name="FromReviewer">
+    /// The note is the reviewer's comment from the approval dialog, with <paramref name="Note"/> as
+    /// the fallback when they leave it blank.
+    /// </param>
+    private sealed record ResolveOutcome(string Alias, string Name, string OutcomeKey, string Note, bool FromReviewer);
+
+    // The note as a JSON value. A reviewer's comment is bound with "| json", which encodes whatever
+    // they typed (quotes, line breaks) so the payload stays valid JSON. The fixed notes are plain
+    // text with no quotes, and can't contain ':', '|' or '}', which delimit bindings and filters.
+    private static string NoteJson(ResolveOutcome outcome) => outcome.FromReviewer
+        ? $"${{steps.{ReviewStepAlias}.comment | fallback:{outcome.Note} | json}}"
+        : $"\"{outcome.Note}\"";
+
     /// <summary>
     /// Lays out a step graph left-to-right by BFS depth from the trigger (step <see cref="Guid.Empty"/>
-    /// in <paramref name="connections"/>), and top-to-bottom within each column by DFS leaf order —
+    /// in <paramref name="connections"/>), and top-to-bottom within each column by DFS leaf order:
     /// a parent centres over the midpoint of its own children's rows, so a single-child chain stays
     /// in a straight line and only fans out where the graph actually branches. Column/row spacing is
     /// sized against the canvas's own step-card CSS (Umbraco.Automate.Core's ua-automation-canvas
     /// element: <c>min-width:220px;max-width:280px</c>, height varies with how much a step's
     /// description wraps), with enough clearance either side that adjacent cards and their
-    /// connecting edges never overlap. Assumes a tree — a step with more than one incoming
+    /// connecting edges never overlap. Assumes a tree: a step with more than one incoming
     /// connection keeps whichever column/row it was assigned on first visit, which is correct for
     /// every shape this automation actually uses (branch, never rejoin).
     /// </summary>
@@ -301,9 +327,6 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
         IReadOnlyList<StepConfiguration> steps,
         IReadOnlyList<StepConnection> connections)
     {
-        const double ColumnWidth = 360;
-        const double RowHeight = 180;
-
         var childrenOf = connections
             .GroupBy(c => c.SourceStepId)
             .ToDictionary(g => g.Key, g => g.Select(c => c.TargetStepId).Distinct().ToList());
