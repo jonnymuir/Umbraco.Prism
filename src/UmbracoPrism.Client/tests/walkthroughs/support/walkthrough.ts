@@ -11,7 +11,7 @@ const docsRoot = path.resolve(process.cwd(), '../../docs/images/walkthroughs');
 
 export const businessAppOrigin = 'https://localhost:7245';
 // Keycloak's outgoing mail lands here (Mailpit, started by the AppHost), so a registration can be completed.
-export const mailpitOrigin = 'http://localhost:8025';
+export const mailpitOrigin = 'http://localhost:8026';
 
 // Two distinct personas seeded in keycloak/realm-export.json — demo@prism.local is a plain,
 // no-special-access Prism member (see NjfContributionsTeam's own remarks: this is deliberate,

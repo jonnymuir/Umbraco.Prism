@@ -164,7 +164,7 @@ until they have verified their email, using the `VERIFY_EMAIL` required action. 
 `verifyEmail: true` on its own does nothing: **the required action must also be registered**, or a new user
 signs in with `email_verified: false`. This app does not rely on that configuration. It checks
 `email_verified` itself before creating a membership, so a provider that is misconfigured, or a different
-provider, fails closed. The local stack runs Mailpit (http://localhost:8025) so the verification email can be
+provider, fails closed. The local stack runs Mailpit (http://localhost:8026) so the verification email can be
 read.
 
 ### Running it internally on the reference VPS

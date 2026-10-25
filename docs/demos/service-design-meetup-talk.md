@@ -19,8 +19,8 @@ between the two jobs, which is why one person can do both.
 
 ## Fixed URLs
 
-Every URL is pinned by a launch profile, so nothing changes between runs. Type them, bookmark them,
-never hunt for a port.
+Every local URL is pinned by a launch profile, so nothing changes between runs. Type them, bookmark
+them, never hunt for a port.
 
 | Stack | What | URL | Login |
 |---|---|---|---|
@@ -28,14 +28,23 @@ never hunt for a port.
 | 1 | Front end personas | `https://localhost:44399/demo/login` | pick a persona |
 | 1 | Coach journey restart | `https://localhost:44399/apply-to-coach?action=start-new` | none |
 | 1 | Mailpit inbox | `https://localhost:8025` | none |
-| 1 | MCP server (plain http, see Demo 3) | `http://localhost:5299/wayfinder/service-blueprint-authoring/mcp` | OAuth in browser |
+| 1 | MCP server (Demo 3 fallback only, plain http) | `http://localhost:5299/wayfinder/service-blueprint-authoring/mcp` | OAuth in browser |
 | 2 Umbraco.Prism | Backoffice | `https://localhost:44345/umbraco` | `admin@prism.local` / `PrismLocal!12345` |
 | 2 | Front end | `https://localhost:44345` | Keycloak SSO: `demo@prism.local` / `password` |
 | 2 | Licence journey restart | `https://localhost:44345/apply-for-a-juggling-licence?action=start-new` | none |
 | 2 | Aspire dashboard | `https://localhost:17214` | none |
+| 2 | Mailpit inbox (not used in the talk) | `http://localhost:8026` | none |
+| Prism Reference | Backoffice | `https://prismreference.com/umbraco` | your Prism Reference admin account |
+| Prism Reference | Licence journey restart | `https://prismreference.com/apply-for-a-juggling-licence?action=start-new` | none |
+| Prism Reference | MCP server (Demo 3) | `https://prismreference.com/wayfinder/service-blueprint-authoring/mcp` | OAuth in browser |
 
 Stack 1's Aspire dashboard port changes every run. You do not need it: the table above has every
 URL the talk uses.
+
+Demo 3 runs in **Claude Desktop** against **Prism Reference**, the public reference site. A Claude
+Desktop connector reaches its MCP server from Anthropic's servers, not from your laptop, so it can
+only connect to a site on the internet, never to `localhost`. If the venue network fails, Demo 3
+falls back to **Claude Code** against Stack 1, which needs no network (see Demo 3).
 
 ## Terminals
 
@@ -43,7 +52,7 @@ URL the talk uses.
 |---|---|---|
 | 1 | `~/Documents/Projects/Wayfinder.Umbraco` | Stack 1, stays running |
 | 2 | `~/Documents/Projects/Umbraco.Prism` | Stack 2, stays running |
-| 3 | `~/Documents/Projects/Umbraco.Prism` | the helper script for Demo 3 and the pre-flight check |
+| 3 | `~/Documents/Projects/Umbraco.Prism` | the pre-flight check, and the Demo 3 fallback |
 
 ## The one command that tells you if you are ready
 
@@ -52,9 +61,9 @@ scripts/demo.sh check
 ```
 
 It prints a tick or a cross for every tool and every URL above, including whether the dev
-certificate is trusted. Run it after both stacks are up, again 10 minutes before you go on, and
-again if anything feels off. If it is all ticks, the talk will not hit a certificate or port
-problem.
+certificate is trusted and whether Prism Reference answers. Run it after both stacks are up, again
+10 minutes before you go on (on the venue network), and again if anything feels off. If it is all
+ticks, the talk will not hit a certificate or port problem.
 
 ---
 
@@ -69,7 +78,7 @@ the `cd` paths and use `set VAR=value` or `$env:VAR="value"` in place of `export
 dotnet dev-certs https --trust
 ```
 
-Do the full dry run (1.2 to 1.5, then Part 2) the day before. macOS may ask for your password.
+Do the full dry run (1.2 to 1.6, then Part 2) the day before. macOS may ask for your password.
 
 ## 1.2 Terminal 1: Stack 1 (Wayfinder.Umbraco)
 
@@ -112,7 +121,38 @@ once it has booted so a later restart does not wipe again.
 ✔ Ready when `https://localhost:17214` shows every resource **Running**, and **Settings > Prism
 Dashboard** in the backoffice shows the seeded "Local Dev (Keycloak)" tenant.
 
-## 1.4 Terminal 3: check everything
+## 1.4 Prism Reference and Claude Desktop
+
+Demo 3 changes `apply-for-a-juggling-licence` on Prism Reference, so start from a fresh deploy.
+Every deploy is a fresh install: blueprint edits, design notes and connector sign-ins from earlier
+rehearsals all go, so deploy first and connect afterwards.
+
+```bash
+cd ~/Documents/Projects/Umbraco.Prism
+gh workflow run deploy-prism-reference.yml --ref main
+gh run watch "$(gh run list --workflow deploy-prism-reference.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+```
+
+✔ The run finishes green and `https://prismreference.com/umbraco` shows the login screen.
+
+Then, in Claude Desktop, rehearse the connection once (this is Demo 3 Beat A):
+
+1. **Settings > Connectors > Add custom connector**. Name it `Prism Reference`, server URL
+   `https://prismreference.com/wayfinder/service-blueprint-authoring/mcp`. Under **Advanced
+   settings**, OAuth client ID `umbraco-back-office-wayfinder-mcp`, no secret.
+2. **Connect**. The browser opens Prism Reference's backoffice sign-in. Sign in and approve.
+3. In the connector's settings, allow its tools without asking, so the talk does not stop for an
+   approval on every call.
+4. Start a new chat and, in its tools menu, turn off every other connector and web search, so the
+   agent works only through Wayfinder. Pick the model you will use on stage.
+
+Then choose how Beat A will go on the day. To add the connector live, remove it after the
+rehearsal, and set step 3's tool permission straight after connecting on stage. To keep the stage
+time short, leave it in place and only show it connected.
+
+The Claude Code fallback against Stack 1 needs nothing extra beforehand.
+
+## 1.5 Terminal 3: check everything
 
 ```bash
 cd ~/Documents/Projects/Umbraco.Prism
@@ -122,9 +162,9 @@ scripts/demo.sh check
 ✔ Ready when it ends with **All good. Ready for the talk.** Fix every cross before continuing. The
 message beside each cross says what to do.
 
-## 1.5 Screen layout
+## 1.6 Screen layout
 
-Two VS Code windows and two browser windows, so a stack switch is one click.
+Two VS Code windows, three browser windows and Claude Desktop, so a switch is one click.
 
 ```bash
 code ~/Documents/Projects/Wayfinder.Umbraco
@@ -140,11 +180,15 @@ Browser tabs (open them from the URL table):
 
 - Window A (Stack 1): backoffice, front end, Mailpit. Signed in as `admin@example.test`.
 - Window B (Stack 2): Aspire dashboard, backoffice, front end. Signed in as `admin@prism.local`.
+- Window C (Prism Reference): backoffice with `apply-for-a-juggling-licence` open, and the licence
+  journey restart URL. Signed in with your Prism Reference admin account.
 - Two private windows for Demo 1+2: one for Alex Applicant, one for Casey Caseworker.
 
-Increase the editor font size so the back row can read it.
+Claude Desktop: the new chat from 1.4 open, ready to sit beside Window C.
 
-## 1.6 Last checks
+Increase the editor and Claude Desktop font sizes so the back row can read them.
+
+## 1.7 Last checks
 
 - A one-page PDF on the Desktop for any file-upload step.
 - Backup recordings queued (see the end of this page).
@@ -161,12 +205,14 @@ Increase the editor font size so the back row can read it.
 |---|---|
 | Restart the coach journey | open `https://localhost:44399/apply-to-coach?action=start-new` |
 | Restart the licence journey | open `https://localhost:44345/apply-for-a-juggling-licence?action=start-new` |
-| Full Stack 1 reset (also removes the Demo 3 stage) | Ctrl+C in Terminal 1, then repeat 1.2 |
+| Full Stack 1 reset (also removes a Demo 3 fallback stage) | Ctrl+C in Terminal 1, then repeat 1.2 |
 | Full Stack 2 reset | Ctrl+C in Terminal 2, then repeat 1.3 with the reset variable |
+| Prism Reference reset (removes the Demo 3 stage and note) | redeploy and reconnect, as in 1.4 |
 
-Seed YAML edits only take effect after a full Stack 1 wipe. Demo 3 edits `njf-coaching-register`
-itself and leaves a resolved design note on it, so rehearsing Demos 1 to 3 again without a wipe adds
-a second nickname stage and a second note. The wipe removes both.
+Seed YAML edits only take effect after a full Stack 1 wipe. Demo 3 edits `apply-for-a-juggling-licence`
+on Prism Reference and leaves a resolved design note on it, so rehearsing Demo 3 again without a
+redeploy adds a second nickname stage and a second note. The fallback does the same to
+`njf-coaching-register` on Stack 1, and a Stack 1 wipe removes it.
 
 ---
 
@@ -242,96 +288,67 @@ Open the `Program.cs` tab. Do not read linearly. Jump to three places.
 ## Demo 3: MCP, the design loop (~7-8 min)
 
 Goal: a blueprint is something you talk to, and point at. Describe a change, watch it appear on the
-canvas, pin a note on what's wrong, and have the agent work through it. A small, real change to the
-`njf-coaching-register` the room just watched run.
+canvas, pin a note on what's wrong, and have the agent work through it. A small, real change to
+`apply-for-a-juggling-licence` on Prism Reference, a public site running the same Wayfinder.Umbraco
+inside Prism.
 
 > "Everything we just did in the backoffice, an AI agent can do too, over the same identity and
-> permissions. Right now, the thing you'll reach for most days: a small change to a service."
+> permissions. And so you know it isn't a laptop trick, this is a real site on the internet,
+> prismreference.com. Same Wayfinder.Umbraco, this time inside Prism, which you'll see more of next.
+> Right now, the thing you'll reach for most days: a small change to a service."
+
+**Switch now:** browser Window C, Claude Desktop. No network? Skip to
+[the fallback](#fallback-claude-code-against-stack-1).
 
 ### Beat A: connect (🧑‍💻, 1 min)
 
-1. Window A backoffice, **Settings > Advanced > Blueprints**, click **Connect a design partner…**.
-   Stay on the **Claude Code** tab.
+1. Window C backoffice, **Settings > Advanced > Blueprints**, click **Connect a design partner…**,
+   and choose the **Claude Desktop** tab.
    > "Connecting an agent used to be a page of instructions. Now the site tells you, with its own
-   > address and sign-in details filled in. Claude Code, Claude Desktop, VS Code, anything that
+   > address and sign-in details filled in. Claude Desktop, Claude Code, VS Code, anything that
    > speaks MCP. There are starter prompts at the bottom."
 
-   Click **Close**.
-2. Terminal 3:
+   Leave the panel open, you copy from it next.
+2. Claude Desktop, **Settings > Connectors > Add custom connector**. Name it `Prism Reference`, and
+   paste the server URL and, under **Advanced settings**, the OAuth client ID from the panel.
+3. Click **Connect**. The browser opens Prism Reference's backoffice sign-in. Sign in and approve.
+4. Allow the connector's tools without asking, as in 1.4. Close the panel in Window C.
 
-   ```bash
-   scripts/demo.sh mcp-connect
-   ```
-
-   The script registers the Wayfinder MCP server with Claude Code, opens the browser login (sign in as
-   `admin@example.test` / `Wayfinder123!`), then lists the servers.
-
-✔ A browser tab opens, completes, and the list shows `wayfinder-umbraco` as **Connected**.
+✔ Claude Desktop lists **Prism Reference** as connected.
 
 > "Same sign-in screen the backoffice uses. Whatever group membership I have is what the agent gets."
 
-If you would rather show the individual commands, this is what the script runs, from `~/demo-scratch`:
-
-```bash
-claude mcp add --transport http wayfinder-umbraco \
-  http://localhost:5299/wayfinder/service-blueprint-authoring/mcp \
-  --client-id umbraco-back-office-wayfinder-mcp \
-  --callback-port 33418
-claude mcp login wayfinder-umbraco
-claude mcp list
-```
-
-**Why the script uses http when the panel shows https.** The panel shows the address you opened the
-backoffice on, `https://localhost:44399`. Claude Code only accepts the .NET development certificate
-when it is exported and named in `NODE_EXTRA_CA_CERTS`, as the panel's link to the walkthrough
-explains. The Wayfinder ReferenceApp also listens on `http://localhost:5299`, and sign-in works the
-same over loopback, so the script uses that. Nothing to export, nothing to forget. The rest of the
-talk stays on https.
+Connector left in place from 1.4? Show the panel, then open **Settings > Connectors**, point at
+**Prism Reference** already connected, and say the same line.
 
 **Role switch, out loud:** "From here I'm a designer, I'm just going to talk to it."
 
 ### Beat B: set the stage (🎨, 30 sec)
 
-1. Window A backoffice, open **njf-coaching-register** and click **Fit**.
-2. Put the browser and Terminal 3 side by side, so the room sees both.
+1. Window C backoffice, open **apply-for-a-juggling-licence** and click **Fit**.
+2. Put Window C and Claude Desktop side by side, so the room sees both.
+3. In Claude Desktop, use the chat from 1.4: only the Prism Reference connector on, no web search.
 
 > "I'm going to leave the canvas open and not touch it. Watch it."
 
 ### Beat C: ask the room, then the agent (2-3 min, the centrepiece)
 
-Still in Terminal 3, from `~/demo-scratch` (a directory outside both repos, so the agent has no
-codebase context):
-
-```bash
-cd ~/demo-scratch
-claude --model sonnet \
-  --tools "mcp__wayfinder-umbraco__*,ListMcpResourcesTool,ReadMcpResourceDirTool,ReadMcpResourceTool" \
-  --permission-mode bypassPermissions
-```
-
-The flags are staging choices, not requirements. `--tools` limits the agent to the Wayfinder tools (no
-Bash or file tools), `--permission-mode bypassPermissions` stops it asking approval before each call,
-and `--model` picks the model. A plain `claude` from `~/demo-scratch` also finds the registered
-server, which is fine for a rehearsal.
-
-✔ The Claude Code prompt appears.
-
-Ask the room: "A coach just got accredited. What's one small, fun thing we should give them?" Take a
-suggestion. If the room is quiet, paste this fallback verbatim:
+Ask the room: "Someone has just been granted a juggling licence. What's one small, fun thing we
+should give them?" Take a suggestion. If the room is quiet, paste this fallback verbatim:
 
 ```text
-In the njf-coaching-register definition, right after a coach is accredited, before the final confirmation, add a stage where they pick a fun coaching nickname from a short list you invent, juggling-themed, playful (think "The Whirling Dervish," "Captain Diabolo"). Show their chosen nickname back to them on the confirmation screen. Validate and simulate the accredited path, then save.
+In the apply-for-a-juggling-licence definition, after the application is decided and before the confirmation, add a stage where the applicant picks a fun juggling nickname from a short list you invent, playful (think "The Whirling Dervish," "Captain Diabolo"). Show their chosen nickname back to them on the confirmation screen. Validate and simulate an approved application, then save.
 ```
 
-> While typing: "Notice what I'm not telling it. Not which component type, not where in the JSON, not
-> how routing works. It knows that from reading this definition."
+> While typing: "Notice what I'm not telling it. Not which component type, not where in the
+> definition, not how routing works. It knows that from reading this definition."
 
 > While it works: "It's reading the live definition as its style reference, adding one stage in the
 > right place, and it'll validate and simulate before saving."
 
 ✔ The agent reports the blueprint saved, and within a few seconds the canvas moves to the new version
-on its own: the new nickname stage is highlighted between the accredited outcome and confirmation, and
-the editor says it was updated elsewhere, with the version numbers.
+on its own: the new nickname stage is highlighted between the decision and the confirmation, and the
+editor says it was updated elsewhere, with the version numbers.
 
 The canvas keeps your zoom, so if the new stage lands off screen, click **Fit** again.
 
@@ -349,10 +366,10 @@ The canvas keeps your zoom, so if the new stage lands off screen, click **Fit** 
    Click **Add note**. A note marker appears on the stage.
    > "This is the bit that used to be prose: 'the third question on the eligibility bit'. Now I
    > point at the thing."
-2. Terminal 3:
+2. Claude Desktop:
 
    ```text
-   Work through my notes on njf-coaching-register.
+   Work through my notes on apply-for-a-juggling-licence.
    ```
 
 ✔ The canvas moves to the next version again, the marker clears, and the **Notes** tab shows the note
@@ -363,14 +380,78 @@ resolved, with the agent's one-line summary of what it did and the version it di
 
 ### Beat E: run it (1 min, if time allows)
 
-Open `https://localhost:44399/apply-to-coach?action=start-new` as Alex and watch the new stage render.
+Open `https://prismreference.com/apply-for-a-juggling-licence?action=start-new` in a private window
+and go through the journey. Choose a recreational licence, which Automate approves straight away,
+and the new stage renders after the decision.
 
-> "That's live, here, because this is my development site. On a real team this is where you'd work:
-> design on a development site, then the blueprint goes to staging and live through uSync, like
-> everything else in Umbraco."
+> "That's live straight away because this is a reference site. On a real team you'd design on a
+> development site, then the blueprint goes to staging and live through uSync, like everything else
+> in Umbraco."
 
 > Close: "That's the loop at its smallest. Given more space, the same conversation builds the whole
 > thing from nothing. Ask me afterwards."
+
+### Fallback: Claude Code against Stack 1
+
+Use this when Prism Reference does not answer (the Prism Reference lines of `scripts/demo.sh check`
+show a cross). It needs no network. The beats and the lines are the same, with three swaps:
+Window A instead of Window C, Terminal 3 instead of Claude Desktop, and `njf-coaching-register`
+instead of `apply-for-a-juggling-licence`. Drop the "real site on the internet" line from the intro.
+
+**Connect (Beat A).** Open the panel on the **Claude Code** tab in Window A, close it, then in
+Terminal 3:
+
+```bash
+scripts/demo.sh mcp-connect
+```
+
+The script registers Stack 1's MCP server with Claude Code, opens the browser login (sign in as
+`admin@example.test` / `Wayfinder123!`), then lists the servers.
+
+✔ A browser tab opens, completes, and the list shows `wayfinder-umbraco` as **Connected**.
+
+If you would rather show the individual commands, this is what the script runs, from `~/demo-scratch`:
+
+```bash
+claude mcp add --transport http wayfinder-umbraco \
+  http://localhost:5299/wayfinder/service-blueprint-authoring/mcp \
+  --client-id umbraco-back-office-wayfinder-mcp \
+  --callback-port 33418
+claude mcp login wayfinder-umbraco
+claude mcp list
+```
+
+**Why the script uses http when the panel shows https.** The panel shows the address you opened the
+backoffice on, `https://localhost:44399`. Claude Code only accepts the .NET development certificate
+when it is exported and named in `NODE_EXTRA_CA_CERTS`, as the panel's link to the walkthrough
+explains. The Wayfinder ReferenceApp also listens on `http://localhost:5299`, and sign-in works the
+same over loopback, so the script uses that. Nothing to export, nothing to forget.
+
+**Start the agent (Beat B).** From `~/demo-scratch`, a directory outside both repos, so the agent has
+no codebase context:
+
+```bash
+cd ~/demo-scratch
+claude --model sonnet \
+  --tools "mcp__wayfinder-umbraco__*,ListMcpResourcesTool,ReadMcpResourceDirTool,ReadMcpResourceTool" \
+  --permission-mode bypassPermissions
+```
+
+The flags are staging choices, not requirements. `--tools` limits the agent to the Wayfinder tools (no
+Bash or file tools), `--permission-mode bypassPermissions` stops it asking approval before each call,
+and `--model` picks the model.
+
+**Prompts (Beats C and D).** Ask the room "A coach just got accredited. What's one small, fun thing
+we should give them?", or paste:
+
+```text
+In the njf-coaching-register definition, right after a coach is accredited, before the final confirmation, add a stage where they pick a fun coaching nickname from a short list you invent, juggling-themed, playful (think "The Whirling Dervish," "Captain Diabolo"). Show their chosen nickname back to them on the confirmation screen. Validate and simulate the accredited path, then save.
+```
+
+The note prompt is `Work through my notes on njf-coaching-register.`
+
+**Run it (Beat E).** Open `https://localhost:44399/apply-to-coach?action=start-new` as Alex. Use
+"this is my development site" in place of "this is a reference site".
 
 Type `/exit` before moving on.
 
@@ -446,8 +527,8 @@ Optional, 30 seconds: open `JugglingLicenceDecisionAutomationSeeder.cs` and the 
 ✔ The licence journey renders in the tenant's branding after SSO sign-in.
 
 > Closing line for the whole talk: "Four demos, one running joke. Every time, the same person opened
-> `Program.cs` and then closed it and opened a browser, or for ten minutes in the middle opened a
-> terminal and just talked. Two roles, same afternoon. That's the point of building these packages
+> `Program.cs` and then closed it and opened a browser, or for ten minutes in the middle opened
+> Claude and just talked. Two roles, same afternoon. That's the point of building these packages
 > this way."
 
 Then straight into takeaways.
@@ -456,11 +537,14 @@ Then straight into takeaways.
 
 # Part 3: Teardown
 
-Ctrl+C in Terminals 1 and 2, then:
+Ctrl+C in Terminals 1 and 2. If you used the Demo 3 fallback, also run:
 
 ```bash
 claude mcp remove wayfinder-umbraco
 ```
+
+In Claude Desktop, remove the **Prism Reference** connector under **Settings > Connectors** if you
+do not want to keep it. Redeploy Prism Reference to clear the talk's changes from the public site.
 
 ✔ Both terminals return to a prompt, and Docker Desktop shows no leftover `mailpit`, Keycloak or proxy
 containers.
@@ -476,10 +560,11 @@ stack, and again whenever the blueprint or backoffice changes.
 |---|---|---|
 | 1+2 (Automate) | `npm run demo:record:automate` | `~/Documents/Projects/Wayfinder.Umbraco/tests/demo` |
 | 3 (add a stage) | `npm run demo:record:add-stage` | `~/Documents/Projects/Wayfinder.Umbraco/tests/demo` |
-
-Demo 3's recording covers Beat C only, the agent adding the stage. There is no recording of Beat D,
-the design note. If Beat D fails live, describe it and move on.
 | 4 (Prism) | `npm run demo:record:tenancy-branding` | `~/Documents/Projects/Umbraco.Prism/src/UmbracoPrism.Client` |
+
+Demo 3's recording is the fallback version, Claude Code against Stack 1's `njf-coaching-register`,
+and covers Beat C only, the agent adding the stage. There is no recording of Beat D, the design
+note. If Beat D fails live, describe it and move on.
 
 The Demo 1 code beats have no recording. Keep a static screenshot of `Program.cs` as the fallback.
 

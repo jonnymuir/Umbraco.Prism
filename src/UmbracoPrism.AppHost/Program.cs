@@ -68,9 +68,11 @@ var needsKeycloakSveWorkaround =
 // next boot to force a fresh import.
 // 26.1 or later: registration links use OIDC `prompt=create`, which 26.0 ignores (it shows the
 // ordinary sign-in page). The mail catcher below is where Keycloak's verification emails land.
+// Port 8026, not Mailpit's usual 8025: Wayfinder.Umbraco's AppHost takes 8025, and the two stacks
+// run side by side.
 var mailpitPort = int.TryParse(Environment.GetEnvironmentVariable("PRISM_MAILPIT_PORT"), out var configuredMailpitPort)
     ? configuredMailpitPort
-    : 8025;
+    : 8026;
 builder.AddContainer("mailpit", "axllent/mailpit", "v1.31")
     .WithHttpEndpoint(port: mailpitPort, targetPort: 8025, name: "http")
     .WithEndpoint(port: null, targetPort: 1025, name: "smtp", scheme: "tcp");

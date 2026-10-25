@@ -103,7 +103,7 @@ const readinessChecks = [
   },
   { name: 'MockBusinessApp', url: 'https://localhost:7245/api/backoffice/me', allowedStatuses: [401] },
   // The catcher for Keycloak's verification emails (registration walkthrough reads them from here).
-  { name: 'Mailpit', url: 'http://localhost:8025/api/v1/info', allowedStatuses: [200] }
+  { name: 'Mailpit', url: 'http://localhost:8026/api/v1/info', allowedStatuses: [200] }
 ] as const;
 
 const requiredPorts = [
@@ -115,7 +115,7 @@ const requiredPorts = [
   { name: 'TestSite', port: 44345 },
   { name: 'Keycloak proxy', port: 8443 },
   { name: 'MockBusinessApp', port: 7245 },
-  { name: 'Mailpit', port: 8025 }
+  { name: 'Mailpit', port: 8026 }
 ] as const;
 
 type ProbeResult = {

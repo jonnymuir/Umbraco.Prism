@@ -94,7 +94,7 @@ Keycloak 26.1 or later is needed: 26.0 ignores `prompt=create` and shows the ord
 The realm file turns on registration, uses the email as the username, and requires email
 verification. **`verifyEmail: true` on its own does nothing.** The `VERIFY_EMAIL` required action
 must also be registered in the realm, or a new person signs in with `email_verified: false` and
-nothing stops them. The local stack runs Mailpit at http://localhost:8025 to catch the email.
+nothing stops them. The local stack runs Mailpit at http://localhost:8026 to catch the email.
 
 ## How the business app decides who the person is
 
@@ -126,7 +126,7 @@ only imports the realm file when the realm does not exist yet, so if it predates
 
 1. Browse to `https://localhost:44345/auth/register?returnUrl=/register-as-a-member`.
 2. Register with any email, for example `robin@prism.local`.
-3. Open http://localhost:8025, open the email, and follow the link.
+3. Open http://localhost:8026, open the email, and follow the link.
 4. Finish the journey. The confirmation shows an `MBR-` membership id from the business app.
 5. Open `/update-my-details`: the new member's record is there.
 

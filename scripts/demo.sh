@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Talk helper for docs/demos/service-design-meetup-talk.md.
 #
-#   scripts/demo.sh check         are both stacks up, on their fixed URLs, with a trusted certificate?
-#   scripts/demo.sh mcp-connect   register the Wayfinder MCP server with Claude Code and log in
+#   scripts/demo.sh check         are both stacks and Prism Reference up, on their fixed URLs, with a
+#                                 trusted certificate?
+#   scripts/demo.sh mcp-connect   Demo 3 fallback: register Stack 1's MCP server with Claude Code and log in
 #
-# Every URL here is fixed by a launch profile, so nothing depends on which port Aspire picks.
-# The MCP leg uses plain http://localhost:5299 on purpose: the Claude CLI does not trust the
+# Every local URL here is fixed by a launch profile, so nothing depends on which port Aspire picks.
+# Demo 3 itself runs in Claude Desktop against Prism Reference. The Claude Code fallback uses plain http://localhost:5299 on purpose: the Claude CLI does not trust the
 # .NET dev certificate (it ignores the macOS keychain and NODE_EXTRA_CA_CERTS), and the browser
 # OAuth login works the same over loopback http. No TLS setting, nothing to forget.
 
@@ -16,6 +17,7 @@ MCP_URL="${DEMO_MCP_URL:-http://localhost:5299/wayfinder/service-blueprint-autho
 MCP_CLIENT_ID="umbraco-back-office-wayfinder-mcp"
 MCP_CALLBACK_PORT=33418
 SCRATCH_DIR="$HOME/demo-scratch"
+REFERENCE_URL="https://prismreference.com"
 
 ok()   { printf '  \033[32m✔\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✘\033[0m %s\n' "$1"; failures=$((failures + 1)); }
@@ -51,6 +53,11 @@ cmd_check() {
   probe "TestSite              " "https://localhost:44345" "start Stack 2"
   probe "Keycloak              " "https://localhost:8443/realms/prism-dev/.well-known/openid-configuration" "start Stack 2"
   probe "MockBusinessApp       " "https://localhost:7245" "start Stack 2"
+  probe "Mailpit inbox         " "http://localhost:8026" "start Stack 2"
+
+  echo "Prism Reference (Demo 3)"
+  probe "site health           " "$REFERENCE_URL/api/health" "check the network, or deploy Prism Reference"
+  probe "MCP OAuth metadata    " "$REFERENCE_URL/.well-known/oauth-protected-resource" "deploy Prism Reference"
 
   echo
   if [[ $failures -eq 0 ]]; then
