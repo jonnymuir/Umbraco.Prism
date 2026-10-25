@@ -42,6 +42,9 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
     // (${steps.licenceReview.comment}) rather than by a generated step id.
     private const string ReviewStepAlias = "licenceReview";
 
+    // The applicant lookup's alias, so each notification binds to ${steps.applicant.userId}.
+    private const string ApplicantStepAlias = "applicant";
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
@@ -128,28 +131,17 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
         var referredNotify = Guid.NewGuid();
         var referredResolve = Guid.NewGuid();
 
-        // The webhook envelope (docs/guides/support-systems.md) carries no member identity, only
-        // instanceId. Resolve the owner once, up front, so every later notification step can
-        // bind to its output rather than each re-deriving it.
-        var resolveOwnerStep = new StepConfiguration
-        {
-            Id = resolveOwner,
-            ActionAlias = "wayfinder.resolveInstanceOwner",
-            Name = "Resolve applicant",
-            Settings = new() { ["instanceId"] = "${trigger.body.instanceId}" },
-        };
-
-        static StepConfiguration Notify(Guid id, string name, string title, string body, Guid resolveOwnerStepId) => new()
+        static StepConfiguration Notify(Guid id, string name, string title, string body) => new()
         {
             Id = id,
             ActionAlias = "prism.sendPushNotification",
             Name = name,
             Settings = new()
             {
-                // A step's own outputs sit directly under its GUID (or alias) in the "steps"
-                // binding scope, with no intermediate "output" segment.
-                ["userId"] = $"${{steps.{resolveOwnerStepId}.userId}}",
-                ["tenantId"] = $"${{steps.{resolveOwnerStepId}.tenantId}}",
+                // A step's own outputs sit directly under its alias in the "steps" binding scope,
+                // with no intermediate "output" segment.
+                ["userId"] = $"${{steps.{ApplicantStepAlias}.userId}}",
+                ["tenantId"] = $"${{steps.{ApplicantStepAlias}.tenantId}}",
                 ["title"] = title,
                 ["body"] = body,
                 // Tapping the notification should land the applicant back on their (single,
@@ -182,7 +174,7 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
 
         var steps = new List<StepConfiguration>
         {
-            resolveOwnerStep,
+            ResolveApplicant(resolveOwner),
             new()
             {
                 Id = checkLicenceType,
@@ -208,7 +200,7 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
                 },
             },
             Notify(autoNotify, "Notify: approved (auto)", "Juggling licence approved",
-                "Good news, your recreational juggling licence has been approved automatically.", resolveOwner),
+                "Good news, your recreational juggling licence has been approved automatically."),
             Resolve(autoResolve, new("resolveApprovedAuto", "Resolve: approved (auto)", "approved",
                 "Automatically approved. Recreational licences fast-track with no review.", FromReviewer: false)),
             new()
@@ -226,11 +218,11 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
                 },
             },
             Notify(approvedNotify, "Notify: approved (reviewed)", "Juggling licence approved",
-                "Good news, your juggling licence application has been approved.", resolveOwner),
+                "Good news, your juggling licence application has been approved."),
             Resolve(approvedResolve, new("resolveApprovedReviewed", "Resolve: approved (reviewed)", "approved",
                 "Approved after review.", FromReviewer: true)),
             Notify(referredNotify, "Notify: referred", "Juggling licence needs more information",
-                "We need to take a closer look at your juggling licence application. We'll be in touch.", resolveOwner),
+                "We need to take a closer look at your juggling licence application. We'll be in touch."),
             Resolve(referredResolve, new("resolveReferred", "Resolve: referred", "referred",
                 "Referred for further review by the licensing team.", FromReviewer: true)),
         };
@@ -296,6 +288,18 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             CanvasState = canvasState,
         };
     }
+
+    // The webhook envelope (docs/guides/support-systems.md) carries no member identity, only
+    // instanceId. Resolve the owner once, up front, so every later notification step can bind to
+    // its output rather than each re-deriving it.
+    private static StepConfiguration ResolveApplicant(Guid id) => new()
+    {
+        Id = id,
+        Alias = ApplicantStepAlias,
+        ActionAlias = "wayfinder.resolveInstanceOwner",
+        Name = "Resolve applicant",
+        Settings = new() { ["instanceId"] = "${trigger.body.instanceId}" },
+    };
 
     /// <summary>One resolve step: which outcome it reports, and the decision note that goes with it.</summary>
     /// <param name="FromReviewer">

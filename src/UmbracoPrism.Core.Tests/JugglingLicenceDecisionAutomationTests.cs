@@ -72,6 +72,31 @@ public class JugglingLicenceDecisionAutomationTests
     }
 
     [Fact]
+    public void EveryNotification_GoesToTheApplicantTheLookupFound()
+    {
+        // A run exposes each step's output under its alias, so the lookup's result is keyed by
+        // the "Resolve applicant" step's own alias, proving each notification reads that step.
+        var lookupAlias = Step("Resolve applicant").Alias!;
+        var run = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["steps"] = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                [lookupAlias] = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["userId"] = "member-42",
+                    ["tenantId"] = "tenant-7",
+                },
+            },
+        };
+
+        var notifications = _automation.Steps.Where(s => s.ActionAlias == "prism.sendPushNotification").ToList();
+
+        notifications.Should().HaveCount(3);
+        notifications.Select(n => (Bindings.Evaluate((string)n.Settings["userId"]!, run), Bindings.Evaluate((string)n.Settings["tenantId"]!, run)))
+            .Should().AllBeEquivalentTo(("member-42", "tenant-7"));
+    }
+
+    [Fact]
     public void TheTriggerCard_SitsClearOfEveryStepCardOnTheCanvas()
     {
         var trigger = JsonNode.Parse(_automation.CanvasState!)!["triggerPosition"]!;

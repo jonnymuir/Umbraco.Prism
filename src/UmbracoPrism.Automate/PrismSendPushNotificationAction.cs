@@ -10,7 +10,7 @@ namespace UmbracoPrism.Automate;
 /// </summary>
 public sealed class PrismSendPushNotificationSettings
 {
-    [Field(Label = "User id", Description = "The Prism member to notify — the same id RegisterDeviceTokenAsync stored their push token under.", SupportsBindings = true)]
+    [Field(Label = "User id", Description = "The Prism member to notify: the same id RegisterDeviceTokenAsync stored their push token under.", SupportsBindings = true)]
     public string UserId { get; set; } = string.Empty;
 
     [Field(Label = "Tenant id", Description = "The Prism tenant the user belongs to.", SortOrder = 1, SupportsBindings = true)]
@@ -29,11 +29,11 @@ public sealed class PrismSendPushNotificationSettings
 /// <summary>
 /// A custom Umbraco Automate action that sends a push notification to one Prism member,
 /// calling <see cref="IPrismNotificationService.SendNotificationToUserAsync"/> directly in
-/// process. Ships as part of <c>UmbracoPrism.Automate</c> — a host that already installs both
+/// process. Ships as part of <c>UmbracoPrism.Automate</c>: a host that already installs both
 /// this package and Umbraco Automate gets it for free, no bespoke wiring, the same "no
 /// duplication, config/attribute discovery only" shape Wayfinder.Umbraco's own
 /// <c>ResolveSupportSystemOutcomeAction</c> demonstrates for resolving a support-system
-/// invocation. This action carries no Wayfinder dependency at all — any Automate automation, for
+/// invocation. This action carries no Wayfinder dependency at all, so any Automate automation, for
 /// any reason, can send a Prism member a push notification. Auto-discovered by <c>[Action]</c>,
 /// no explicit registration needed.
 /// </summary>
@@ -90,12 +90,10 @@ public sealed class PrismSendPushNotificationAction(
         else
         {
             // Not a failure: a citizen who never installed the mobile app, or never signed in as
-            // a member, has no registered device to send to — a legitimate outcome, not an
-            // automation error. But it must be visible, unlike before: this action used to log
-            // "sent" and report Success unconditionally, regardless of whether the underlying
-            // send actually found a device.
+            // a member, has no registered device to send to. That's a legitimate outcome, not an
+            // automation error, but it must still be visible in the log.
             logger.LogInformation(
-                "No registered device found for user {UserId} in tenant {TenantId} — push notification not sent.",
+                "No registered device found for user {UserId} in tenant {TenantId}, so no push notification was sent.",
                 settings.UserId, settings.TenantId);
         }
 
