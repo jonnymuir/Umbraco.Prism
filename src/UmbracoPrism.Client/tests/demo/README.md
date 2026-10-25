@@ -34,7 +34,7 @@ output either way.
 a new person registers at the identity provider (Keycloak, via Prism's `prompt=create` link), verifies
 their email from the local Mailpit inbox, the journey then creates their membership in the business app
 with their own bearer token, and Update my details finds them. About two minutes, no AI agent. Needs the
-full Aspire stack warmed first, including Mailpit (http://localhost:8025) and a Keycloak realm imported
+full Aspire stack warmed first, including Mailpit (http://localhost:8026) and a Keycloak realm imported
 from the current `keycloak/realm-export.json` (clear `artifacts/aspire/keycloak-data` if it predates
 registration). Each take registers a fresh address, so it is safe to re-record without restarting.
 

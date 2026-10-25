@@ -32,7 +32,7 @@ function tryConvertToMp4(webmPath: string): void {
 // tests/demo/README.md: warm the Aspire stack first, off-camera). UI-only, no AI agent, so there is
 // no long unattended wait. Walks docs/walkthroughs/member-registration.md.
 
-const mailpitOrigin = 'http://localhost:8025';
+const mailpitOrigin = 'http://localhost:8026';
 // Nothing about a brand-new person exists anywhere until they register, so each take makes its own.
 const unique = Date.now().toString(36);
 const newcomer = { email: `robin.${unique}@prism.local`, password: 'Passw0rd!reg', first: 'Robin', last: 'Reed' };
