@@ -239,7 +239,9 @@ gateways:
     displayName: Asking the AI to identify your butterfly
     gatewayType: Join
     queueKey: public-visitor
-    waitingContent: We have sent your photo to an AI model to suggest what the butterfly is. This page moves on by itself when it answers.
+    waitingContent: We have sent your photo to an AI model to suggest what the butterfly is.
+    waitingPace: WhileTheyWait
+    waitingIcon: Butterfly
     waitingExpectedSeconds: 60
     waitingPollIntervalMs: 10000
     routes:

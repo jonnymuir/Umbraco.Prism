@@ -219,7 +219,8 @@ gateways:
     displayName: Awaiting Mock Business App
     gatewayType: Join
     queueKey: njf-upload
-    waitingContent: Mock Business App is processing the contributions file. We'll update this page once it's done.
+    waitingContent: Mock Business App is processing the contributions file.
+    waitingPace: WhileTheyWait
     waitingExpectedSeconds: 15
     waitingPollIntervalMs: 3000
     routes:

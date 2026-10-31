@@ -204,6 +204,7 @@ gateways:
     gatewayType: Join
     queueKey: public-visitor
     waitingContent: We are looking up your details.
+    waitingPace: WhileTheyWait
     waitingExpectedSeconds: 5
     waitingPollIntervalMs: 1000
     routes:
@@ -232,6 +233,7 @@ gateways:
     gatewayType: Join
     queueKey: public-visitor
     waitingContent: We are saving your details.
+    waitingPace: WhileTheyWait
     waitingExpectedSeconds: 5
     waitingPollIntervalMs: 1000
     routes:

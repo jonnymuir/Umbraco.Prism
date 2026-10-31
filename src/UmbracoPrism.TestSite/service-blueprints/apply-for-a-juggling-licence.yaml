@@ -235,7 +235,8 @@ gateways:
     displayName: Application decided
     gatewayType: Join
     queueKey: public-visitor
-    waitingContent: We're deciding your application. This usually takes just a few seconds.
+    waitingContent: We're deciding your application.
+    waitingPace: WhileTheyWait
     waitingExpectedSeconds: 10
     waitingPollIntervalMs: 2000
     routes:
