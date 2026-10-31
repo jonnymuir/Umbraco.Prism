@@ -16,7 +16,7 @@ Solo developer project, but every change reaches `main` through a pull request. 
 
 | Project | Purpose |
 |---|---|
-| `UmbracoPrism.Core` | The publishable Umbraco package, multi-tenant OIDC, branding, mobile, controllers/middleware/services for those. No service-design opinion of its own at all; carries no dependency on `Wayfinder`/`Wayfinder.Umbraco`. |
+| `UmbracoPrism.Core` | The publishable Umbraco package, multi-tenant OIDC, branding, mobile, controllers/middleware/services for those. Ships the starter branding design system (`wwwroot/branding/*.css`, served at `/App_Plugins/UmbracoPrism/branding/` and read from the assembly by `BrandingService`), including the GOV.UK token bridge; TestSite uses it like any other host. No service-design opinion of its own at all; carries no dependency on `Wayfinder`/`Wayfinder.Umbraco`. |
 | `UmbracoPrism.uSync` | Published as `UmbracoPrism.uSync`: uSync portability for Prism's own tenants and page access policies (`PrismTenantHandler`, `PrismPageAccessPolicyHandler`). Service blueprint uSync portability lives entirely in `Wayfinder.Umbraco` now (`ServiceBlueprintHandler`/`ServiceBlueprintSerializer`), with no Prism dependency. |
 | `UmbracoPrism.Automate` | Published as `UmbracoPrism.Automate`: the "Send Prism push notification" Umbraco Automate action. |
 | `UmbracoPrism.Client` | TypeScript/Lit web components, backoffice extensions (tenant management, branding, mobile), mobile shell. No longer builds any service blueprint editor bundle, that moved entirely to the `Wayfinder` repo's own `Wayfinder.Editor.Client`. |
@@ -130,6 +130,10 @@ What this repo does have:
   (`community-enquiry`, `information-request`, `money-modeller`, `payment-demo`,
   `planning-notification`), read from disk by `UmbracoPrism.Core.Tests`. Validated copies of the
   same examples, used by the guides, live in Wayfinder's `docs/examples/`.
+- **Agent-facing guidance for site builders** lives in Wayfinder.Umbraco
+  (`docs/building-a-site.md`, the `wayfinder-agents` template) and Wayfinder
+  (`docs/guides/building-with-wayfinder.md`, the MCP server's instructions and prompts). Prism's
+  README points to it; keep that pointer, and don't write a second copy here.
 - **Business maths** belongs in a blueprint's `calculations` block, never in a host service or a
   client component. Prism ships no calculation or live-form runtime of its own; Wayfinder's
   `wayfinder-calculations.js` and `wayfinder-live-form.js` are the only ones.

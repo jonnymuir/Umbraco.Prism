@@ -535,8 +535,6 @@ If/when PoP is built, it should be:
 - **Transparent** (same UX, just better crypto under the hood)
 - **Backward-compatible** (support both JWT and PoP flows during migration)
 
-**Decision logged:** `.squad/decisions/inbox/kicks-proof-of-possession-feasibility.md`
-
 ---
 
 ## Appendix: Key Technical Terms Explained
@@ -555,4 +553,3 @@ If/when PoP is built, it should be:
 1. Jonny reviews and decides: defer, stage, or prioritize?
 2. If staged: create tracking issue "Support hardware-bound biometric authentication (PoP)"
 3. Update `Design/biometric-auth.md` with "convenience-grade" framing
-4. Log decision in squad decisions

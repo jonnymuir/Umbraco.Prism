@@ -26,7 +26,7 @@ function trackedPaths() {
   }
 }
 const isPresent = (path) => (tracked ? tracked.has(path.replace(/[\\/]+$/, '')) : existsSync(path));
-const skipDirs = new Set(['node_modules', 'bin', 'obj', '.git', 'artifacts', 'test-results', 'archive', '.claude', '.copilot', '.squad', '.agents', 'agents']);
+const skipDirs = new Set(['node_modules', 'bin', 'obj', '.git', 'artifacts', 'test-results', 'archive', '.claude', '.agents', 'agents']);
 
 function* markdownFiles(dir) {
   for (const entry of readdirSync(dir)) {

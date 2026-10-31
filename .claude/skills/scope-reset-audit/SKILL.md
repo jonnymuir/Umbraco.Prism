@@ -28,5 +28,5 @@ When a user issues a hard scope reset on an accumulated feature ("take it back t
 
 ## Deliverables
 
-- One decision record with: pinned directive, canonical model, validation rules, visual contract, sliced plan, supersedes list, open questions. (This used to file to `.squad/decisions/inbox/` under the retired multi-agent workflow — no current equivalent location is established, so ask the user where they want it captured.)
+- One decision record with: pinned directive, canonical model, validation rules, visual contract, sliced plan, supersedes list, open questions. Ask the user where they want it captured.
 - A learnings note that captures surprises (most useful when the next agent thinks they already understand the surface).

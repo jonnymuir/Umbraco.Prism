@@ -153,4 +153,3 @@ When backchannel calls timeout:
 - Implementation: PR #49 (commit `2a46494`)
 - Failed HTTPS attempt: Commit `ffc32c5` (removed `businessApp.GetEndpoint("https")`)
 - Test contract: `DashboardLocalEndpointsValidationTests.AppHost_ConfiguresBusinessAppBackchannel_ForCodespacesServerCalls`
-- Decision: `.squad/decisions/inbox/blathers-backchannel-dynamic-discovery.md`

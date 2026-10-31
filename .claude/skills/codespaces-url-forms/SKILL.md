@@ -138,7 +138,3 @@ what URL the request arrived on.
 - Confirmed working in production: `fix/codespaces-url-derivation` — 647 tests pass with
   regional URL form (`v7ldkc4c-8443.uks1.app.github.dev`) covered in Group D of
   `BackchannelRewriteTests`.
-- See `.squad/decisions/blathers-codespaces-url-forms.md` (after Scribe merges
-  the inbox file).
-- Originating investigation: `.squad/agents/blathers/history.md` entry
-  `2026-05-02 — Codespaces URL Forms`.

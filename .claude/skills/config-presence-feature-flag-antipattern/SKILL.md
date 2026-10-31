@@ -133,4 +133,3 @@ If any answer is yes, refactor to decouple capability from infrastructure.
 ## References
 
 - Commit `42b85e5` (Umbraco.Prism): Removed `isAuthEnabled` gate, made auth scheme registration unconditional
-- PR #38 decision log: `.squad/decisions.md` — "DefaultAuthenticateScheme Must Not Depend on Prism:VaultUri"

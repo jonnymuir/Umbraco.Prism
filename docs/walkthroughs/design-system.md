@@ -13,7 +13,7 @@ Prism's design system has three layers:
 | Layer | Where | What it does |
 |---|---|---|
 | **GDS Components** | `src/UmbracoPrism.Client/` | Lit web components implementing the GOV.UK Design System pattern library |
-| **Branding annotation** | `wwwroot/branding/*.css` | CSS `@property` declarations + `@prism` comments that drive the tenant editor UI |
+| **Branding annotation** | The starter design system at `/App_Plugins/UmbracoPrism/branding/*.css`, and any annotated `.css` in your site | CSS `@property` declarations + `@prism` comments that drive the tenant editor UI |
 | **Token pipeline** | Backoffice → database → HTTP → `:root` | CSS variables set per-tenant and served as a thin override stylesheet |
 
 This walkthrough covers all three layers and shows you how to extend the system with a custom component.
@@ -150,7 +150,7 @@ CSS variables cascade to every element, including web components that use var(--
 <!-- TODO: capture 05-branding-updated-frontend.png via TestSite after changing primary colour -->
 <!-- pending capture -->
 
-💡 **What's happening:** The override stylesheet is served per-tenant with a short cache TTL (or cache-busted on save). The `:root` rule overrides the default value set in `wwwroot/branding/prism-colors.css`, and because CSS custom properties cascade naturally through the shadow DOM via `inherits: true` on each `@property`, web components pick up the new value without re-render.
+💡 **What's happening:** The override stylesheet is served per-tenant with a short cache TTL (or cache-busted on save). The `:root` rule overrides the default value set in the starter design system's `prism-colors.css`, and because CSS custom properties cascade naturally through the shadow DOM via `inherits: true` on each `@property`, web components pick up the new value without re-render.
 
 ---
 

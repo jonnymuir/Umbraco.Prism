@@ -85,7 +85,38 @@ Types are inferred from `@property` syntax, but can be overridden with `type:` i
 
 ---
 
-## File Structure (test client example)
+## The starter design system
+
+The `UmbracoPrism` package ships a starter design system, served from
+`/App_Plugins/UmbracoPrism/branding/`. A site that installs Prism gets every file below, editable
+per tenant, with no CSS of its own. Load it after GOV.UK Frontend and your site's CSS, and load the
+tenant's overrides last:
+
+```html
+<link rel="stylesheet" href="/css/govuk-frontend.min.css" />
+<link rel="stylesheet" href="/css/your-site.css" />
+<link rel="stylesheet" href="/App_Plugins/UmbracoPrism/branding/prism-branding.css" />
+<link rel="stylesheet" href="/umbraco/prism/branding.css" />
+```
+
+To change a starter file's defaults, put a file with the same name anywhere in your site (for
+example `wwwroot/branding/prism-colors.css`) and load it after `prism-branding.css`: the tenant
+editor then shows your file in place of the packaged one. Any other annotated `.css` file in your
+site appears as a tab of its own.
+
+### Styling Wayfinder journeys
+
+[Wayfinder for Umbraco](https://github.com/jonnymuir/Wayfinder.Umbraco) renders its journeys as
+real GOV.UK Design System markup. `prism-govuk-bridge.css` points GOV.UK Frontend's `--govuk-*`
+colour properties at the tenant's `--prism-*` tokens, so a tenant's brand reaches every Wayfinder
+component, error summary and button without overriding any markup, and `prism-forms.css` brings
+Wayfinder's slider, stat group and chart onto the same tokens. To apply a design (from a design
+tool, a mock-up or an existing site) to a Prism and Wayfinder site, put its colours, type and
+spacing into the tenant's tokens; do not copy GOV.UK markup into templates to restyle it. See
+[GOV.UK token bridge](guides/govuk-token-bridge.md) and Wayfinder.Umbraco's
+[Building a site](https://github.com/jonnymuir/Wayfinder.Umbraco/blob/main/docs/building-a-site.md).
+
+## File Structure
 
 Branding is organized across focused CSS files, aggregated by a single entry point:
 
@@ -94,12 +125,13 @@ Branding is organized across focused CSS files, aggregated by a single entry poi
 The single import point. Other modules import from here.
 
 ```css
-@import url("/branding/prism-colors.css");
-@import url("/branding/prism-typography.css");
-@import url("/branding/prism-layout.css");
-@import url("/branding/prism-imagery.css");
-@import url("/branding/prism-components.css");
-@import url("/branding/prism-forms.css");
+@import url("./prism-colors.css");
+@import url("./prism-typography.css");
+@import url("./prism-layout.css");
+@import url("./prism-imagery.css");
+@import url("./prism-components.css");
+@import url("./prism-forms.css");
+@import url("./prism-govuk-bridge.css");
 ```
 
 ### **`prism-colors.css`** (Brand Identity)
@@ -244,7 +276,7 @@ The `PrismBrandingMetadataService` parses all CSS files and builds metadata for 
 
 ### Parsing Pipeline
 
-1. **Scan**: Read all CSS files in `wwwroot/branding/` (except `prism-branding.css`)
+1. **Scan**: Read the starter design system from the package, and every `.css` file in the site (a site file with the same name as a starter file replaces it)
 2. **Extract**: Find all `/* @prism ... */` comments and variable declarations
 3. **Infer**: Extract `@property` syntax to infer types
 4. **Group**: Organize by section name from `@prism section:`
@@ -340,7 +372,7 @@ safe to reference unconditionally.
 front-end asset (e.g. `prism-mobile-nav.js`):
 
 ```html
-<link rel="stylesheet" href="/branding/prism-branding.css" />   <!-- your own base stylesheet -->
+<link rel="stylesheet" href="/App_Plugins/UmbracoPrism/branding/prism-branding.css" />   <!-- the starter design system, or your own -->
 <link rel="stylesheet" href="/umbraco/prism/branding.css" />    <!-- Prism's tenant overrides, loaded last -->
 ```
 
@@ -348,9 +380,8 @@ Load it **after** your own base stylesheet so tenant overrides win the cascade �
 rules of matching specificity apply in source order, and the override endpoint doesn't know or
 care what came before it.
 
-This is a deliberate design choice (SEC-PT2-004): earlier versions of Prism spliced the override
-CSS inline into every HTML response via middleware. Serving it as its own resource instead means
-it never needs a Content-Security-Policy `unsafe-inline`/nonce exception, no matter how often a
+This is a deliberate design choice (SEC-PT2-004): serving the overrides as their own resource,
+rather than inline in each HTML response, means they never need a Content-Security-Policy `unsafe-inline`/nonce exception, no matter how often a
 tenant's branding changes — CSP only restricts literal inline `<style>` content, never an
 externally-referenced stylesheet, regardless of how dynamic what's behind that URL is.
 
@@ -555,12 +586,11 @@ The editor will show this as a text input. Advanced tenants can paste custom gra
 ### Variable Not Appearing in Editor
 
 **Checklist:**
-1. ✅ File is in `wwwroot/branding/` and ends with `.css`
-2. ✅ File is NOT named `prism-branding.css`
-3. ✅ Variable has a `/* @prism ... */` comment immediately before the declaration
-4. ✅ Comment follows the format: `section: X | label: Y | description: Z`
-5. ✅ Variable declaration: `--prism-name: value;` (with semicolon)
-6. ✅ Wait 1 hour for cache to expire, or restart the app
+1. ✅ File is in your site (not under `node_modules`, `bin` or `obj`) and ends with `.css`
+2. ✅ Variable has a `/* @prism ... */` comment immediately before the declaration
+3. ✅ Comment follows the format: `section: X | label: Y | description: Z`
+4. ✅ Variable declaration: `--prism-name: value;` (with semicolon)
+5. ✅ Wait 1 hour for cache to expire, or restart the app
 
 ### Type Inference Not Working
 

@@ -24,6 +24,22 @@ no Wayfinder dependency and no service-design features: it's tenancy, branding a
 [`Wayfinder.Umbraco`](https://github.com/jonnymuir/Wayfinder.Umbraco) for its citizen-journey
 and caseworker-queue pages, exactly the way any other Prism-hosted site would.
 
+### Building a site with Prism and Wayfinder, or asking an AI agent to
+
+Each part of the site has one home:
+
+| What you are building | Where it goes |
+|---|---|
+| Brands, sign-in, mobile apps | Prism tenants, under **Settings → Advanced → Tenants** |
+| Colours, type and spacing | The tenant's design system: Prism's starter tokens, which also restyle GOV.UK markup through the [token bridge](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/guides/govuk-token-bridge.md) |
+| Forms, journeys, decisions, calculations and staff queues | [Wayfinder](https://github.com/jonnymuir/Wayfinder.Umbraco) service blueprints, not document types, templates or controllers |
+| Pages that only inform | Ordinary Umbraco content |
+
+Give your agent
+[Building a site with Wayfinder for Umbraco](https://github.com/jonnymuir/Wayfinder.Umbraco/blob/main/docs/building-a-site.md)
+before it writes anything, or run `dotnet new install Wayfinder.Umbraco.Templates` and
+`dotnet new wayfinder-agents` to add those rules to your repository as an `AGENTS.md`.
+
 ## Try it Now: No Install Required
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/jonnymuir/Umbraco.Prism)
@@ -77,7 +93,9 @@ Two optional add-ons, released alongside it with the same version:
 
 - **Multi-tenant web**: domain-based tenant resolution, one content tree serving every branded
   portal, live branding editor (CSS custom properties become a labelled, type-aware settings
-  form — see [Branding Design System](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/branding-design-system.md)).
+  form, see [Branding Design System](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/branding-design-system.md)), and a starter design
+  system that also brands GOV.UK and Wayfinder markup through the
+  [GOV.UK token bridge](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/guides/govuk-token-bridge.md).
 - **Stateless OIDC identity**: any OIDC-compliant provider (Entra ID, Keycloak, ...) per tenant,
   zero local Members, tenant isolation enforced by authorization policy, downstream identity
   propagation to your own APIs.

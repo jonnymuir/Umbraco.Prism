@@ -44,4 +44,3 @@ When a LitElement web component needs to be brandable:
 - `src/UmbracoPrism.TestSite/wwwroot/branding/prism-colors.css` — `@property` + `:root {}` pattern (good); `--bg-offset` (bad)
 - `src/UmbracoPrism.TestSite/wwwroot/branding/prism-components.css:120` — hardcoded hover (bad)
 - `src/UmbracoPrism.Client/src/mobile/prism-mobile-nav.ts` — reference implementation for Shadow DOM theming (good)
-- `.squad/reviews/2026-05-01-prism-reflection/02-isabelle-design-system.md` — full audit
