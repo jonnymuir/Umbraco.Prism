@@ -57,7 +57,7 @@ public sealed class MediaBackedSightingPhotoStorage(
         EnsureAnImage(extension, buffer);
 
         var media = CreateMedia(extension, buffer);
-        logger.LogInformation("Stored a sighting photo as media {MediaKey} for instance {InstanceId}.", media.Key, instanceId);
+        logger.LogInformation("Stored a sighting photo as media {MediaKey}.", media.Key);
         return new ServiceRequestFileReference
         {
             StorageKey = Udi.Create(Constants.UdiEntityType.Media, media.Key).ToString(),
