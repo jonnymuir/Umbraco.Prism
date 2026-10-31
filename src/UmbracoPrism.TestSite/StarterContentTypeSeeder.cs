@@ -215,12 +215,11 @@ public class StarterContentTypeSeeder(
         {
             if (existingProperty.DataTypeKey == newDataType.Key)
             {
-                logger.LogDebug("StarterContentTypeSeeder: mobileNavLinks already uses correct data type {Key}", newDataType.Key);
+                logger.LogDebug("StarterContentTypeSeeder: mobileNavLinks already uses the Prism Mobile Nav Links data type");
                 return contentType;
             }
 
-            logger.LogInformation("StarterContentTypeSeeder: mobileNavLinks has wrong data type {OldKey}, removing and re-adding with {NewKey}",
-                existingProperty.DataTypeKey, newDataType.Key);
+            logger.LogInformation("StarterContentTypeSeeder: mobileNavLinks has the wrong data type, removing and re-adding it");
 
             // Remove the property type entirely and fall through to re-create it correctly
             contentType.RemovePropertyType(propertyAlias);
@@ -255,8 +254,7 @@ public class StarterContentTypeSeeder(
         contentTypeService.Save(contentType);
 #pragma warning restore CS0618
 
-        var savedProperty = contentType.PropertyTypes.FirstOrDefault(p => p.Alias == propertyAlias);
-        logger.LogInformation("StarterContentTypeSeeder: mobileNavLinks property data type key: {Key}", savedProperty?.DataTypeKey);
+        logger.LogInformation("StarterContentTypeSeeder: mobileNavLinks added with the Prism Mobile Nav Links data type");
 
         return contentType;
     }
@@ -266,7 +264,7 @@ public class StarterContentTypeSeeder(
         const string editorAlias = "Umbraco.MultiUrlPicker";
         const string dataTypeName = "Prism Mobile Nav Links";
 
-        logger.LogInformation("StarterContentTypeSeeder: Getting or creating data type. Fixed key: {Key}", PrismMobileNavDataTypeKey);
+        logger.LogInformation("StarterContentTypeSeeder: getting or creating the Prism Mobile Nav Links data type");
 
         // Try to find by our deterministic fixed GUID
         var existing = await dataTypeService.GetAsync(PrismMobileNavDataTypeKey);

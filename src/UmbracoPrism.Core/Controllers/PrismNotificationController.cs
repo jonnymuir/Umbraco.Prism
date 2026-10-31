@@ -73,7 +73,7 @@ public class PrismNotificationController(
         }
 
         await notificationService.RegisterDeviceTokenAsync(userId, tenantId, request.PushToken);
-        logger.LogInformation("Push token registered for user {UserId} in tenant {TenantId}.", userId, tenantId);
+        logger.LogInformation("Push token registered in tenant {TenantId}.", tenantId);
         return Ok();
     }
 
@@ -88,7 +88,7 @@ public class PrismNotificationController(
             return Unauthorized(new { error = "User identity or tenant context could not be determined." });
 
         await notificationService.UnregisterDeviceTokenAsync(userId, tenantId);
-        logger.LogInformation("Push token unregistered for user {UserId} in tenant {TenantId}.", userId, tenantId);
+        logger.LogInformation("Push token unregistered in tenant {TenantId}.", tenantId);
         return Ok();
     }
 
@@ -123,7 +123,7 @@ public class PrismNotificationController(
         }
 
         await notificationService.SubscribeToGenreAsync(userId, tenantId, request.Genre);
-        logger.LogInformation("User {UserId} subscribed to genre '{Genre}' in tenant {TenantId}.", userId, LogScrub.Line(request.Genre), tenantId);
+        logger.LogInformation("Subscribed to genre '{Genre}' in tenant {TenantId}.", LogScrub.Line(request.Genre), tenantId);
         return Ok();
     }
 
@@ -144,7 +144,7 @@ public class PrismNotificationController(
             return Unauthorized(new { error = "User identity or tenant context could not be determined." });
 
         await notificationService.UnsubscribeFromGenreAsync(userId, tenantId, request.Genre);
-        logger.LogInformation("User {UserId} unsubscribed from genre '{Genre}' in tenant {TenantId}.", userId, LogScrub.Line(request.Genre), tenantId);
+        logger.LogInformation("Unsubscribed from genre '{Genre}' in tenant {TenantId}.", LogScrub.Line(request.Genre), tenantId);
         return Ok();
     }
 

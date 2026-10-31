@@ -57,7 +57,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.17.1
 
@@ -66,7 +66,7 @@ jobs:
       # because a local machine may already have a much newer JDK, e.g. 25) — CI picks a known,
       # broadly AGP-compatible version explicitly rather than inheriting runner ambient state.
       - name: Setup Java
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
         with:
           distribution: temurin
           java-version: '21'
@@ -166,7 +166,7 @@ jobs:
 
       - name: Upload emulator smoke test screenshot (always, for inspection)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: emulator-smoke-test-screenshot
           path: build/emulator-smoke-test*.png
@@ -251,7 +251,7 @@ jobs:
 
       - name: Upload build artifacts (always, for inspection)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: play-internal-build
           path: |
