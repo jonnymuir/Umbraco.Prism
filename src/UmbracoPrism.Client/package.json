@@ -1,7 +1,7 @@
 {
   "name": "umbracoprism-client",
   "private": true,
-  "version": "6.1.1",
+  "version": "7.0.0",
   "type": "module",
   "scripts": {
     "build": "tsc && vite build",

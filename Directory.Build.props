@@ -27,7 +27,7 @@
        together from one tag, so they share one version. Bump it with
        src/UmbracoPrism.Client/package.json; package-release.yml checks both against the tag. -->
   <PropertyGroup>
-    <Version>6.1.1</Version>
+    <Version>7.0.0</Version>
     <Authors>Jonny Muir</Authors>
     <Company>Umbraco Prism</Company>
     <PackageProjectUrl>https://github.com/jonnymuir/Umbraco.Prism</PackageProjectUrl>

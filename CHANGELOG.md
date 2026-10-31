@@ -2,6 +2,35 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v7.0.0] — 2026-10-31
+
+### Check when upgrading
+
+- Generated iOS apps now need iOS 17.4 or later, and generated Android apps need Android 7.0 (API 24) or later, as Google Play's automatic protection requires. Regenerate and resubmit your apps.
+- Generated iOS apps show native tabs read from the new `/umbraco/prism/mobile/manifest` endpoint. Register an `IPrismMobileTabsProvider` to show more than a Home tab, then regenerate the app.
+- Apps sign in through the system sign-in sheet. Set the tenant's App Sign-In settings (or `Prism:SeedTenant:MobileApp`) so the site can name its apps; until then apps keep signing in inside the app. In your layout, use `PrismMobileRequestDetection.SignsInNatively` to leave out `prism-biometric-autologin.js`, and pass no identity provider hosts to `prism-biometric-signout.js` (see the mobile walkthrough).
+- `PrismMobileBundleRequest.MobileDiagnosticsEnabled` and the CLI's `--mobile-diagnostics` flag are removed, and `prism-mobile-content-watcher.js` no longer exists. Remove any reference to it from your layout.
+
+### New Features
+
+- Ships a starter design system with the package, at `/App_Plugins/UmbracoPrism/branding/`: colours, typography, layout, imagery, components, form styles and a GOV.UK token bridge, all editable per tenant with no CSS of your own. The bridge points GOV.UK Frontend's colours at the tenant's tokens, so GOV.UK and Wayfinder journeys take on each tenant's brand without any markup changes. Load `prism-branding.css` after your site CSS and before `/umbraco/prism/branding.css`. A file of your own with the same name replaces a packaged one.
+- Android apps have native tabs, like iOS apps, with one webview per tab, so switching tabs is instant and each keeps its place.
+- Saved pages: generated apps can open chosen pages offline, and tab pages open instantly from a saved copy.
+- Journey status on the lock screen: `IPrismJourneyStatusService` shows where a member's journey has got to as an iOS Live Activity or an Android Live Update.
+- Generated apps ship an iOS privacy manifest and a branded offline screen that retries when the connection returns.
+
+### Bug Fixes & Improvements
+
+- Fixes sign-in failing after repeated visits to members-only pages.
+- Fixes iOS apps opening on a black screen, and flashing the offline page on a tab after signing in or when a load is cancelled.
+- Fixes Android sign-out clearing the site's own cookies before the sign-out reached the site.
+- Fixes app tabs opening each other's pages, and shows a loading ring while a slow page loads.
+- Both apps log why a page failed to load before showing the offline page.
+- The "Send Prism push notification" Automate action's help text is clearer.
+- Requires Umbraco 17.8.0 or later on the 17 line, with October's dependency and security updates.
+
+---
+
 ## [v6.1.1] — 2026-10-17
 
 ### Check when upgrading
