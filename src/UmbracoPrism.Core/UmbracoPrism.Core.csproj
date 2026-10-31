@@ -24,6 +24,9 @@
     <EmbeddedResource Include="Services/MobileBundles/Templates/bundle/**/*" LogicalName="MobileBundleTemplates/bundle/%(RecursiveDir)%(Filename)%(Extension)" />
     <EmbeddedResource Include="Services/MobileBundles/Templates/journey-status/**/*" LogicalName="MobileBundleTemplates/journey-status/%(RecursiveDir)%(Filename)%(Extension)" />
     <EmbeddedResource Include="Controllers/SavedPages/prism-offline-sw.js" LogicalName="SavedPages/prism-offline-sw.js" />
+    <!-- Served as /App_Plugins/UmbracoPrism/branding/*.css, and read from the assembly by BrandingService
+         so the tenant editor finds them however the host serves static web assets. -->
+    <EmbeddedResource Include="wwwroot/branding/*.css" LogicalName="PrismBranding/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

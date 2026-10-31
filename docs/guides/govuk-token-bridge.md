@@ -17,10 +17,11 @@ components keep consuming `--govuk-brand-colour` exactly as before (zero changes
 markup/CSS or to `Wayfinder.Umbraco`), but that property's value now tracks whatever the tenant
 sets on the Prism token.
 
-This is TestSite's own convention, the same way `prism-colors.css`/`prism-typography.css`/etc.
-are TestSite's own convention. `UmbracoPrism.Core` ships no CSS of its own and needs no code
-change to support it: `BrandingService`'s tab discovery scans any `.css` file dropped under
-`wwwroot/branding/`, and any file is fair game to alias whatever properties it wants.
+`prism-govuk-bridge.css` is part of the starter design system the `UmbracoPrism` package ships at
+`/App_Plugins/UmbracoPrism/branding/`, alongside `prism-colors.css`, `prism-typography.css` and the
+rest, so every Prism site has it. A site can replace it with its own file of the same name, or add
+further bridge files: `BrandingService` lists every annotated `.css` file in the site as well as the
+packaged ones. See [the starter design system](../branding-design-system.md#the-starter-design-system).
 
 ## Load order
 

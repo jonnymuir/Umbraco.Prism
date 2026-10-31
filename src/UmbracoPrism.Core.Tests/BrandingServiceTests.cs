@@ -26,10 +26,10 @@ public class BrandingServiceTests
 
             var tabs = service.GetBrandingTabs();
 
-            tabs.Should().HaveCount(1);
-            tabs[0].Label.Should().Be("prism-branding.css");
-            tabs[0].Variables.Should().Contain(v => v.Name == "--prism-primary" && v.DefaultValue == "#4f46e5");
-            tabs[0].Variables.Should().Contain(v => v.Name == "--prism-accent" && v.DefaultValue == "#22c55e");
+            var tab = tabs.Should().ContainSingle(t => t.Label == "prism-branding.css").Subject;
+            tab.Variables.Should().Contain(v => v.Name == "--prism-primary" && v.DefaultValue == "#4f46e5");
+            tab.Variables.Should().Contain(v => v.Name == "--prism-accent" && v.DefaultValue == "#22c55e");
+            tabs.SelectMany(t => t.Variables).Should().NotContain(v => v.Name == "--should-not-read");
         }
         finally
         {
@@ -129,8 +129,8 @@ public class BrandingServiceTests
                 ["--prism-primary"] = "#202020"
             });
 
-            initial.Single().Variables.Single(v => v.Name == "--prism-primary").OverrideValue.Should().Be("#101010");
-            updated.Single().Variables.Single(v => v.Name == "--prism-primary").OverrideValue.Should().Be("#202020");
+            initial.Single(t => t.Label == "prism-branding.css").Variables.Single(v => v.Name == "--prism-primary").OverrideValue.Should().Be("#101010");
+            updated.Single(t => t.Label == "prism-branding.css").Variables.Single(v => v.Name == "--prism-primary").OverrideValue.Should().Be("#202020");
         }
         finally
         {
@@ -224,6 +224,65 @@ public class BrandingServiceTests
 
             refreshedPrimary.DefaultValue.Should().Be("#4f46e5");
             refreshedPrimary.OverrideValue.Should().BeNull();
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void WithNoBrandingCssOfItsOwn_AHostIsOfferedTheStarterDesignSystem_IncludingTheGovUkBridge()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var tabs = CreateService(root).GetBrandingTabs();
+
+            tabs.Select(t => t.Label).Should().Contain(["prism-colors.css", "prism-typography.css", "prism-govuk-bridge.css"]);
+            tabs.Single(t => t.Label == "prism-govuk-bridge.css").Variables
+                .Should().Contain(v => v.Name == "--govuk-brand-colour" && v.DefaultValue.StartsWith("var(--prism-primary"));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void AHostFileWithTheSameNameAsAStarterFile_ReplacesIt()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var cssPath = Path.Combine(root, "wwwroot", "branding", "prism-colors.css");
+            Directory.CreateDirectory(Path.GetDirectoryName(cssPath)!);
+            File.WriteAllText(cssPath, ":root { --prism-primary: #14213d; }");
+
+            var tabs = CreateService(root).GetBrandingTabs();
+
+            var colours = tabs.Should().ContainSingle(t => t.Label == "prism-colors.css").Subject;
+            colours.Variables.Should().ContainSingle().Which.DefaultValue.Should().Be("#14213d");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void APublishedSitesCopyOfTheStarterFiles_IsNotListedTwice()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var cssPath = Path.Combine(root, "wwwroot", "App_Plugins", "UmbracoPrism", "branding", "prism-colors.css");
+            Directory.CreateDirectory(Path.GetDirectoryName(cssPath)!);
+            File.WriteAllText(cssPath, ":root { --prism-primary: #1d70b8; }");
+
+            var tabs = CreateService(root).GetBrandingTabs();
+
+            tabs.Should().ContainSingle(t => t.Label == "prism-colors.css");
         }
         finally
         {

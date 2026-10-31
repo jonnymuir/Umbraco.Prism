@@ -13,6 +13,7 @@ public class BrandingService : IBrandingService
 {
     private const string CacheKey = "Prism_BrandingTabs";
     private const string OtherTabLabel = "Other Styles";
+    private const string PackagedBrandingPrefix = "PrismBranding/";
 
     private static readonly Regex CommentRegex = new(@"/\*[\s\S]*?\*/", RegexOptions.Compiled);
     private static readonly Regex VariableRegex = new(@"(?<name>--[A-Za-z0-9\-_]+)\s*:\s*(?<value>[^;]+);", RegexOptions.Compiled);
@@ -86,47 +87,55 @@ public class BrandingService : IBrandingService
 
     private List<PrismBrandingTab> ScanForBrandingTabs()
     {
-        var contentRoot = _environment.ContentRootPath;
-        var cssFiles = Directory.EnumerateFiles(contentRoot, "*.css", SearchOption.AllDirectories)
+        var hostFiles = Directory.EnumerateFiles(_environment.ContentRootPath, "*.css", SearchOption.AllDirectories)
             .Where(path => !IsExcludedPath(path))
             .ToList();
 
-        var tabs = new List<PrismBrandingTab>();
+        // The starter design system ships in this assembly. A host file with the same name replaces it.
+        var hostNames = hostFiles.Select(Path.GetFileName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var packaged = PackagedBrandingFiles()
+            .Where(file => !hostNames.Contains(file.Name))
+            .Select(file => ParseTab(file.Name, file.Content));
 
-        foreach (var file in cssFiles)
+        return packaged
+            .Concat(hostFiles.Select(path => ParseTab(Path.GetFileName(path), File.ReadAllText(path))))
+            .OfType<PrismBrandingTab>()
+            .ToList();
+    }
+
+    private static IEnumerable<(string Name, string Content)> PackagedBrandingFiles()
+    {
+        var assembly = typeof(BrandingService).Assembly;
+        foreach (var resource in assembly.GetManifestResourceNames()
+                     .Where(name => name.StartsWith(PackagedBrandingPrefix, StringComparison.Ordinal))
+                     .Order(StringComparer.Ordinal))
         {
-            var content = File.ReadAllText(file);
-            content = CommentRegex.Replace(content, string.Empty);
+            using var stream = assembly.GetManifestResourceStream(resource)!;
+            using var reader = new StreamReader(stream);
+            yield return (resource[PackagedBrandingPrefix.Length..], reader.ReadToEnd());
+        }
+    }
 
-            var matches = VariableRegex.Matches(content);
-            if (matches.Count == 0) continue;
+    private static PrismBrandingTab? ParseTab(string label, string content)
+    {
+        content = CommentRegex.Replace(content, string.Empty);
 
-            var variables = new List<PrismBrandingVariable>();
-            var seen = new HashSet<string>();
+        var variables = new List<PrismBrandingVariable>();
+        var seen = new HashSet<string>();
 
-            foreach (Match match in matches)
+        foreach (Match match in VariableRegex.Matches(content))
+        {
+            var name = match.Groups["name"].Value.Trim();
+            if (!seen.Add(name)) continue;
+
+            variables.Add(new PrismBrandingVariable
             {
-                var name = match.Groups["name"].Value.Trim();
-                if (!seen.Add(name)) continue;
-
-                var value = match.Groups["value"].Value.Trim();
-                variables.Add(new PrismBrandingVariable
-                {
-                    Name = name,
-                    DefaultValue = value
-                });
-            }
-
-            if (variables.Count == 0) continue;
-
-            tabs.Add(new PrismBrandingTab
-            {
-                Label = Path.GetFileName(file),
-                Variables = variables
+                Name = name,
+                DefaultValue = match.Groups["value"].Value.Trim()
             });
         }
 
-        return tabs;
+        return variables.Count == 0 ? null : new PrismBrandingTab { Label = label, Variables = variables };
     }
 
     private static bool IsExcludedPath(string path)
@@ -137,6 +146,8 @@ public class BrandingService : IBrandingService
                || normalized.InvariantContains("/obj/")
                || normalized.InvariantContains("/.git/")
                || normalized.InvariantContains("/artifacts/")
-               || normalized.InvariantContains("/wwwroot/umbraco/");
+               || normalized.InvariantContains("/wwwroot/umbraco/")
+               // A published site's copy of the packaged design system, which is read from the assembly instead.
+               || normalized.InvariantContains("/App_Plugins/UmbracoPrism/branding/");
     }
 }

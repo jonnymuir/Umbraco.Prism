@@ -1,0 +1,9 @@
+/* Prism's starter design system. Load this after govuk-frontend.min.css and your own site CSS,
+   then /umbraco/prism/branding.css (the tenant's overrides) last. */
+@import url("./prism-colors.css");
+@import url("./prism-typography.css");
+@import url("./prism-layout.css");
+@import url("./prism-imagery.css");
+@import url("./prism-components.css");
+@import url("./prism-forms.css");
+@import url("./prism-govuk-bridge.css");

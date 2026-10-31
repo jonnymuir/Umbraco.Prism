@@ -57,6 +57,5 @@ If validation shows stale processes after debugger stop:
 
 ## Related
 
-- **Decision:** `.squad/decisions/inbox/tangy-debugger-shutdown-validation.md`
 - **Test patterns:** `src/UmbracoPrism.Client/tests/support/live-app-host.ts` (programmatic cleanup)
-- **Skill:** `.squad/skills/playwright-aspire-restart-harness/SKILL.md` (test-owned restart patterns)
+- **Skill:** `.claude/skills/playwright-aspire-restart-harness/SKILL.md` (test-owned restart patterns)
