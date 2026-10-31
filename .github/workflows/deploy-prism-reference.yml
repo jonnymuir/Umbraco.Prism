@@ -146,3 +146,17 @@ jobs:
           done
           echo "::error::https://prismreference.com/api/health did not become healthy in time"
           exit 1
+
+      # Health only proves the process is up. The content seeders run after it, so wait for the
+      # home page itself: a deploy that leaves the site without published content must fail.
+      - name: Wait for the home page to serve
+        run: |
+          for i in $(seq 1 36); do
+            if curl --fail -s -o /dev/null https://prismreference.com/; then
+              echo "Home page served after $((i * 5))s"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::https://prismreference.com/ did not serve the home page in time"
+          exit 1
