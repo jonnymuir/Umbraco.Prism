@@ -15,6 +15,7 @@ namespace UmbracoPrism.TestSite;
 /// Only runs if:
 ///  1. TestSiteOptions.SeedStarterContent is true, AND
 ///  2. The content tree is empty (no root content exists).
+/// On later boots it publishes a Home a previous boot left unpublished.
 /// </summary>
 public class StarterContentSeeder(
     IOptions<TestSiteOptions> testSiteOptions,
@@ -42,14 +43,47 @@ public class StarterContentSeeder(
             // Only seed Home + Dashboard on a completely empty tree
             if (!rootContent.Any())
             {
-                SeedHomeAndDashboard();
+                try
+                {
+                    SeedHomeAndDashboard();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "StarterContentSeeder: seeding Home did not complete, retrying the publish");
+                }
             }
+
+            EnsureHomePublished();
 
             // Always ensure Settings node exists and has default nav links
             // (idempotent — only sets values if currently empty)
             EnsureSettingsDefaults();
 
         }, cancellationToken);
+    }
+
+    // A first boot can save Home and then lose its publish to another seeder holding the SQLite
+    // write lock, and a later boot no longer sees an empty tree. So publish whatever was left
+    // behind, retrying while the lock is held.
+    private void EnsureHomePublished()
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                var home = TestSiteSeedContract.FindContentByAlias(contentService, TestSiteSeedContract.HomePageAlias);
+                if (home == null || home.Published) return;
+
+                logger.LogWarning("StarterContentSeeder: Home exists but is unpublished, publishing it with its descendants");
+                contentService.PublishBranch(home, PublishBranchFilter.IncludeUnpublished, new[] { "*" });
+                return;
+            }
+            catch (Exception ex) when (attempt < 5)
+            {
+                logger.LogWarning(ex, "StarterContentSeeder: publishing Home failed (attempt {Attempt}), retrying", attempt);
+                Thread.Sleep(TimeSpan.FromSeconds(3));
+            }
+        }
     }
 
     private void SeedBrandingMedia()
