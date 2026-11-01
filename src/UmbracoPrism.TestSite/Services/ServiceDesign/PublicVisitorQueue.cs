@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Wayfinder.Models.ServiceDesign;
 
 namespace UmbracoPrism.TestSite.Services.ServiceDesign;
@@ -9,6 +10,7 @@ namespace UmbracoPrism.TestSite.Services.ServiceDesign;
 /// definition's own <c>queues</c> array. No component infers "this is the public demo" from
 /// queue-count — they all read this shared constant instead.
 /// </summary>
+[SuppressMessage("Naming", "CA1711", Justification = "Names the Wayfinder queue it describes.")]
 public static class PublicVisitorQueue
 {
     public const string Key = "public-visitor";

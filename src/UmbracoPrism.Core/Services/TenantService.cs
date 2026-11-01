@@ -200,7 +200,7 @@ public class TenantService : ITenantService
         }
     }
 
-    private static string BuildCssDeclarations(IReadOnlyDictionary<string, string> overrides)
+    private static string BuildCssDeclarations(Dictionary<string, string> overrides)
     {
         if (overrides.Count == 0)
         {

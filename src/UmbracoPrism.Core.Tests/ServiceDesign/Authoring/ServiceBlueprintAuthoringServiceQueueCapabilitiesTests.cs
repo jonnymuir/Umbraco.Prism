@@ -8,6 +8,9 @@ namespace UmbracoPrism.Core.Tests.ServiceDesign.Authoring;
 
 public class ServiceBlueprintAuthoringServiceQueueCapabilitiesTests
 {
+    private static readonly string[] TextOnly = ["text"];
+    private static readonly string[] TextAndDecimal = ["text", "decimal"];
+
     [Fact]
     public void Validate_NoProviderRegistered_IsUnaffected()
     {
@@ -38,7 +41,7 @@ public class ServiceBlueprintAuthoringServiceQueueCapabilitiesTests
         var provider = new StaticQueueCapabilitiesProvider(
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
             {
-                ["business-user"] = new[] { "text" }
+                ["business-user"] = TextOnly
             });
         var service = new ServiceBlueprintAuthoringService(new InMemoryServiceBlueprintSourceStore(), queueCapabilities: provider);
 
@@ -82,14 +85,14 @@ public class ServiceBlueprintAuthoringServiceQueueCapabilitiesTests
         var provider = new StaticQueueCapabilitiesProvider(
             new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
             {
-                ["business-user"] = new[] { "text", "decimal" }
+                ["business-user"] = TextAndDecimal
             });
         var service = new ServiceBlueprintAuthoringService(new InMemoryServiceBlueprintSourceStore(), queueCapabilities: provider);
 
         var capabilities = service.GetQueueCapabilities();
 
         capabilities.Should().ContainKey("business-user");
-        capabilities["business-user"].Should().BeEquivalentTo(new[] { "text", "decimal" });
+        capabilities["business-user"].Should().BeEquivalentTo(TextAndDecimal);
     }
 
     private static ServiceBlueprint ProjectWorkflowWithFieldsetOnBusinessUser() => new()

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Razor.TagHelpers;
@@ -69,7 +70,7 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
 
         var sb = new StringBuilder();
         sb.Append("""<link rel="stylesheet" href="/App_Plugins/UmbracoPrism/demo/prism-mobile-ua-demo.css" />""");
-        sb.Append($"""
+        sb.Append(CultureInfo.InvariantCulture, $"""
             <script src="/App_Plugins/UmbracoPrism/demo/prism-mobile-ua-bootstrap.js"
                     data-marker="{markerAttr}" data-storage-key="{storageKeyAttr}"
                     data-query-param="{queryParamAttr}" data-cookie-key="{cookieKeyAttr}"></script>
@@ -88,7 +89,7 @@ public class PrismMobileUserAgentDemoTagHelper : TagHelper
                 classes += " prism-mobile-ua-demo--compact";
             }
 
-            sb.Append($"""
+            sb.Append(CultureInfo.InvariantCulture, $"""
                 <aside class="{classes}" aria-live="polite">
                     <button class="prism-mobile-ua-demo__close" id="prism-mobile-ua-close" aria-label="Dismiss">&#x2715;</button>
                     <div class="prism-mobile-ua-demo__row">

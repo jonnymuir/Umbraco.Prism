@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -146,6 +147,7 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
         return SyncAttempt<PrismTenantSchema>.Succeed(ItemAlias(schema), schema, ChangeType.Import, new List<uSyncChange>());
     }
 
+    [SuppressMessage("Security", "CA5351", Justification = "Derives a stable uSync key from the slug; not a security use. Changing the algorithm would re-key every synced item.")]
     private static Guid DeterministicGuid(string slug)
     {
         var hash = MD5.HashData(Encoding.UTF8.GetBytes($"prism-tenant:{slug}"));

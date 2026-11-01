@@ -12,6 +12,8 @@ namespace UmbracoPrism.Core.Controllers;
 [Route(".well-known")]
 public class PrismAppLinksController(IPrismContext prismContext) : Controller
 {
+    private static readonly string[] HandleAllUrls = ["delegate_permission/common.handle_all_urls"];
+
     [HttpGet("apple-app-site-association")]
     public IActionResult AppleAppSiteAssociation()
     {
@@ -37,7 +39,7 @@ public class PrismAppLinksController(IPrismContext prismContext) : Controller
         {
             new
             {
-                relation = new[] { "delegate_permission/common.handle_all_urls" },
+                relation = HandleAllUrls,
                 target = new
                 {
                     @namespace = "android_app",

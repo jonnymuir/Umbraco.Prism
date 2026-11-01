@@ -463,7 +463,7 @@ public class PrismAuthExtensionsSecurityTests
         return new JsonWebToken(rawToken);
     }
 
-    private static SecurityKey CreateSigningKey(string keyId)
+    private static SymmetricSecurityKey CreateSigningKey(string keyId)
     {
         return new SymmetricSecurityKey(Encoding.UTF8.GetBytes("0123456789abcdef0123456789abcdef"))
         {
@@ -567,9 +567,11 @@ public class PrismAuthExtensionsSecurityTests
 
     private sealed class ConcurrentWarmSigningKeyCache(
         SecurityKey[] keysAfterWarm,
-        Func<Task> warmGate) : IPrismSigningKeyCache
+        Func<Task> warmGate) : IPrismSigningKeyCache, IDisposable
     {
         private readonly SemaphoreSlim _lock = new(1, 1);
+
+        public void Dispose() => _lock.Dispose();
         private bool _warmed;
 
         public int UnderlyingFetchCount { get; private set; }

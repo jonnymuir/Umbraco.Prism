@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
@@ -110,7 +111,7 @@ public class BiometricController(
 
         // 4. Issue the BiometricToken JWT
         var lifetime = TimeSpan.FromDays(biometricOptions.Value.TokenLifetimeDays);
-        var tenantId = tenant.Id.ToString();
+        var tenantId = tenant.Id.ToString(CultureInfo.InvariantCulture);
         var jwt = biometricTokenService.IssueToken(request.DeviceId, tenantId, userOid, lifetime);
 
         // 5. Hash the JWT (never store the raw token server-side)
@@ -206,7 +207,7 @@ public class BiometricController(
         if (ipLimited)
         {
             LogExchangeAudit("Failure", "rate_limited", tokenId: null, tenantId: null);
-            Response.Headers.Append("Retry-After", ipRetry.ToString());
+            Response.Headers.Append("Retry-After", ipRetry.ToString(CultureInfo.InvariantCulture));
             return StatusCode(429, new { error = "rate_limited" });
         }
 
@@ -216,7 +217,7 @@ public class BiometricController(
         if (tokenLimited)
         {
             LogExchangeAudit("Failure", "rate_limited", tokenId: null, tenantId: null);
-            Response.Headers.Append("Retry-After", tokenRetry.ToString());
+            Response.Headers.Append("Retry-After", tokenRetry.ToString(CultureInfo.InvariantCulture));
             return StatusCode(429, new { error = "rate_limited" });
         }
 
@@ -255,12 +256,12 @@ public class BiometricController(
         if (!tenant.AllowBiometricLogin)
         {
             logger.LogInformation("Biometric {Action}: disabled for tenant {TenantId}", "Exchange", tenant.Id);
-            LogExchangeAudit("Failure", "biometric_disabled", tokenId: null, tenantId: tenant.Id.ToString());
+            LogExchangeAudit("Failure", "biometric_disabled", tokenId: null, tenantId: tenant.Id.ToString(CultureInfo.InvariantCulture));
             return StatusCode(403, new { error = "Biometric login is not enabled for this tenant." });
         }
 
         // 2. Validate biometric token JWT (signature, lifetime, claims)
-        var tenantId = tenant.Id.ToString();
+        var tenantId = tenant.Id.ToString(CultureInfo.InvariantCulture);
         BiometricTokenClaims claims;
         try
         {
@@ -460,7 +461,7 @@ public class BiometricController(
             return Unauthorized(new { error = "User identity could not be determined." });
         }
 
-        var tenantId = tenant.Id.ToString();
+        var tenantId = tenant.Id.ToString(CultureInfo.InvariantCulture);
         using var db = databaseFactory.CreateDatabase();
 
         List<PrismDeviceCredentialSchema> credentials;
@@ -528,7 +529,7 @@ public class BiometricController(
         }
 
         // 3. Look up and soft-delete the credential (scoped by TenantId + UserId + DeviceId)
-        var tenantId = tenant.Id.ToString();
+        var tenantId = tenant.Id.ToString(CultureInfo.InvariantCulture);
         using var db = databaseFactory.CreateDatabase();
 
         var credential = db.FirstOrDefault<PrismDeviceCredentialSchema>(

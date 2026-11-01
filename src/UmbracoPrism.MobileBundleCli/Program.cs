@@ -45,7 +45,7 @@ public static class Program
         {
             // MobileBundleService only needs a hostname to derive a start URL when --start-url
             // isn't given; if --start-url IS given, the tenant hostname is otherwise unused.
-            if (!flags.ContainsKey("start-url"))
+            if (!flags.TryGetValue("start-url", out _))
             {
                 Console.Error.WriteLine("error: --hostname <host> (or --start-url <url>) is required");
                 return 1;

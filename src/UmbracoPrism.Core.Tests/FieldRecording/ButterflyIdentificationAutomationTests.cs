@@ -30,7 +30,7 @@ public class ButterflyIdentificationAutomationTests
     {
         var trigger = Build("the-key").Trigger;
 
-        trigger.TriggerAlias.Should().Be("umbracoAutomate.webhook");
+        trigger!.TriggerAlias.Should().Be("umbracoAutomate.webhook");
         var authenticator = (Dictionary<string, object?>)trigger.Settings["authenticator"]!;
         authenticator["alias"].Should().Be("hmac-sha256");
         ((Dictionary<string, object?>)authenticator["settings"]!)["signingKey"].Should().Be("the-key");
@@ -39,7 +39,7 @@ public class ButterflyIdentificationAutomationTests
     [Fact]
     public void WithNoKey_TheWebhookFallsBackToAnUnauthenticatedLoopbackOnlyDemo()
     {
-        var authenticator = (Dictionary<string, object?>)Build(null).Trigger.Settings["authenticator"]!;
+        var authenticator = (Dictionary<string, object?>)Build(null).Trigger!.Settings["authenticator"]!;
 
         authenticator["alias"].Should().Be("plain-secret");
     }

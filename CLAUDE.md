@@ -8,7 +8,7 @@ The GDS-style service blueprint engine and its Umbraco-hosted implementation hav
 
 Building this repo from source restores against nuget.org only (`NuGet.config`), no token or secondary feed needed. The compiled service blueprint editor web component no longer has any local copy in this repo at all, `Wayfinder.Editor` and its own TS source now live entirely in the `Wayfinder` repo, consumed here purely as a transitive dependency of `Wayfinder.Umbraco`.
 
-Solo developer project, but every change reaches `main` through a pull request. `main` is protected — required status checks, no admin bypass — and stays green at all times. No direct pushes.
+Solo developer project, but every change reaches `main` through a pull request. `main` is protected (required status checks, no admin bypass) and stays green at all times.
 
 ---
 
@@ -61,6 +61,9 @@ dotnet test src/UmbracoPrism.Core.Tests/
 
 # Run unit tests (Release, full filter)
 dotnet test UmbracoPrism.slnx -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests
+
+# Performance tripwire (k6) against a running stack; nightly in perf.yml
+k6 run -e BASE_URL=https://localhost:44345 tests/perf/smoke.js
 
 # Vulnerability scan
 dotnet list src/UmbracoPrism.Core/UmbracoPrism.Core.csproj package --vulnerable --include-transitive
@@ -144,72 +147,53 @@ Per-tenant OIDC against any compliant provider (Keycloak locally, Entra ID and o
 
 ---
 
+## Releasing
+
+`UmbracoPrism`, `UmbracoPrism.Automate` and `UmbracoPrism.uSync` release together at one version.
+Run `/release` (from the engineering-standards plugin):
+
+- **Version files:** `<Version>` in `Directory.Build.props` and `"version"` in
+  `src/UmbracoPrism.Client/package.json`, kept in sync.
+- **Pre-release checks:** `npm run check:marketplace`, then
+  `dotnet test UmbracoPrism.slnx -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests`.
+- **The `v{version}` tag** triggers `package-release.yml`, which builds, packs and publishes the
+  three packages.
+
 ## Key conventions
+
+Engineering standards (security, simplicity, testing, change flow, docs, writing style) are in
+[jonnymuir/engineering-standards](https://github.com/jonnymuir/engineering-standards/blob/main/STANDARDS.md).
+Follow them. This section adds only what is specific to this repo.
 
 ### Testing
 
-- **Behavioural contracts**: tests assert what the user sees, not implementation details.
-- **Semantic selectors**: `getByRole`, `getByLabel`, `getByText`, `aria-*`, `data-prism-*` attributes. Never CSS classes or web component tag names.
-- **Date inputs**: target sub-fields by generated IDs, `{fieldKey}-day`, `{fieldKey}-month`, `{fieldKey}-year`.
-- **Error assertions**: always check both `[role="alert"]` error summary AND field-level errors.
-- C# tests: XUnit + Moq + AwesomeAssertions. No database mocks, integration tests use a real test host.
-- Playwright configs: `playwright.config.ts` (Storybook tests) and `playwright.localhost-auth.config.ts` (live Aspire stack tests, run separately).
+- **Semantic hooks:** components expose `data-prism-*` attributes for Playwright.
+- **Date inputs:** target sub-fields by generated IDs, `{fieldKey}-day`, `{fieldKey}-month`,
+  `{fieldKey}-year`.
+- C# tests: xUnit + Moq + AwesomeAssertions. No database mocks; integration tests use a real
+  test host.
+- Playwright configs: `playwright.config.ts` (Storybook tests) and
+  `playwright.localhost-auth.config.ts` (live Aspire stack tests, run separately).
+
+### Keep things small
+
+The build treats warnings as errors with the `latest-recommended` analyzers and the CA1502/CA1506
+complexity budgets (`CodeMetricsConfig.txt`), and `node scripts/check-policies.mjs` (CI) enforces
+the size budgets. Code that predates them is baselined: `.policy/size-baseline.json`, the
+complexity baseline in `.editorconfig`, and the `.editorconfig` logging baseline (files whose log
+calls predate `[LoggerMessage]`). All three may only shrink; new code meets the budgets.
 
 ### Documentation
 
-- `docs/README.md` indexes every current document; add new docs there. `docs/archive/` holds
-  superseded docs; never link to it from current documentation.
 - `README.md` is the source; `MARKETPLACE.md` is generated from it (`npm run generate:marketplace`)
   and CI fails if it is stale.
-- `CHANGELOG.md` is written at release time by the `/release` command, from the Conventional
-  Commit history. So write commit subjects a package user can understand, and give a breaking
-  change a `BREAKING CHANGE:` body line that says how to upgrade.
-- `node scripts/check-doc-links.mjs` (CI) fails on a broken relative link or heading anchor.
 - Service-design documentation belongs in Wayfinder or Wayfinder.Umbraco, not here.
-
-### Branch policy
-
-Every change goes through a feature branch + PR. Branch naming: `{type}/{issue-number}-{kebab-slug}` or descriptive. `main` is protected (required checks `security / security-all` and `ci-tests-all`, branch must be current before merge, no admin bypass) — there are no direct commits to `main`, however trivial. An emergency merge means deliberately, and visibly, disabling protection.
-
-### Commit conventions
-
-Always use [Conventional Commits](https://www.conventionalcommits.org/) format. The `/release` skill reads these to infer the semver bump automatically, so the signal must be accurate:
-
-| Prefix | Semver impact | Use for |
-|---|---|---|
-| `feat:` | **minor** | New user-facing capability |
-| `feat!:` or body contains `BREAKING CHANGE:` | **major** | Anything that breaks existing integrations or APIs |
-| `fix:` | patch | Bug fixes |
-| `perf:` | patch | Performance improvements |
-| `refactor:` | patch | Internal restructuring, no behaviour change |
-| `test:` | patch | Test additions/changes only |
-| `chore:` | patch | Tooling, build, deps, no user impact |
-| `docs:` | patch | Documentation only |
-
-When a commit introduces a breaking change, add a `BREAKING CHANGE: <description>` line in the commit body explaining what breaks and how to migrate. This is what the release skill reads to trigger a major bump.
 
 ### Code style
 
-- No speculative abstractions, solve the problem at hand.
-- No comments unless the *why* is genuinely non-obvious.
-- C#: idiomatic .NET 10 / Umbraco v17 patterns. Use `IContentTypeService`, `IDataTypeService` etc. from DI, don't re-register.
-- TypeScript: Lit web components. Use `data-prism-*` attributes to expose semantic hooks for Playwright.
-
-### Writing style
-
-No em dashes anywhere, prose, docs, code comments, commit messages. Use a comma or a full stop
-instead, whichever fits. Emojis are fine sparingly and only where they add real signposting (e.g.
-a short role label), never as decoration.
-
-### Documentation style
-
-Docs, guides, and demo scripts (`docs/**`) describe **current state**, not the history of how
-that state was reached. Never write "X originally had Y", "discovered while...", "verified live",
-"checked and corrected from an earlier draft". A reader coming to the doc cold has no context
-for the "before" and doesn't need it; state the current behaviour directly, as if it had always
-been true. That narrative belongs in the commit message or PR description that introduced the
-change, not in the doc itself. Applies equally to a narrated `docs/demos/` script, someone else
-will read it cold too, not just the person who wrote it.
+- C#: idiomatic .NET 10 / Umbraco v17 patterns. Use `IContentTypeService`, `IDataTypeService` etc.
+  from DI, don't re-register.
+- TypeScript: Lit web components.
 
 ---
 
@@ -227,9 +211,9 @@ will read it cold too, not just the person who wrote it.
 ## Easter eggs
 
 `homePage.cshtml` links to `/games/hedgehogger/index.html`, a small deliberately-undersold 🦔 link
-(no card, no icon — see that view's own comment). The game itself (a deterministic puzzle game,
+(no card, no icon; see that view's own comment). The game itself (a deterministic puzzle game,
 not a Prism feature) has been extracted to its own repo,
-[`jonnymuir/Hedgehogger`](https://github.com/jonnymuir/Hedgehogger) — this repo has zero
+[`jonnymuir/Hedgehogger`](https://github.com/jonnymuir/Hedgehogger). This repo has zero
 dependency on it, carries no copy of its code, and that repo's own deploy pipeline keeps
 `/games/hedgehogger/` populated on prismreference.com's VPS independently of this repo's own
 `deploy-prism-reference.yml`. The link itself never needs to change when the game does.

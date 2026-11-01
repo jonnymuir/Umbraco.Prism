@@ -41,6 +41,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
     {
         Environment.SetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL", _savedBackchannelUrl);
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", _savedAspNetCoreEnv);
+        GC.SuppressFinalize(this);
     }
     private static readonly PrismTenant LocalhostKeycloakTenant = new()
     {
@@ -151,7 +152,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
 
         var deleted = context.HttpContext.Response.Headers.SetCookie
             .Where(cookie => cookie!.Contains("expires=Thu, 01 Jan 1970", StringComparison.Ordinal))
-            .Select(cookie => cookie![..cookie.IndexOf('=')])
+            .Select(cookie => cookie![..cookie!.IndexOf('=')])
             .ToList();
         deleted.Should().HaveCount(PrismOidcConfiguration.MaxSignInsUnderWay * 2)
             .And.OnlyContain(name => name.StartsWith(".AspNetCore.OpenIdConnect.Nonce.") || name.StartsWith(".AspNetCore.Correlation."));

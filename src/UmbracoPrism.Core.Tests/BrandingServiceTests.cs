@@ -241,7 +241,7 @@ public class BrandingServiceTests
 
             tabs.Select(t => t.Label).Should().Contain(["prism-colors.css", "prism-typography.css", "prism-govuk-bridge.css"]);
             tabs.Single(t => t.Label == "prism-govuk-bridge.css").Variables
-                .Should().Contain(v => v.Name == "--govuk-brand-colour" && v.DefaultValue.StartsWith("var(--prism-primary"));
+                .Should().Contain(v => v.Name == "--govuk-brand-colour" && v.DefaultValue!.StartsWith("var(--prism-primary"));
         }
         finally
         {

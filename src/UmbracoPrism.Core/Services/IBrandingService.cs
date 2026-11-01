@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using UmbracoPrism.Core.Models.Branding;
 
 namespace UmbracoPrism.Core.Services;
@@ -18,5 +19,6 @@ public interface IBrandingService
     /// </summary>
     /// <param name="overrides">Tenant override values keyed by CSS variable name.</param>
     /// <returns>A read-only list of branding tabs with default and override values.</returns>
+    [SuppressMessage("Naming", "CA1716", Justification = "Renaming a parameter of this public interface breaks callers that pass it by name.")]
     IReadOnlyList<PrismBrandingTab> GetBrandingTabsWithOverrides(IReadOnlyDictionary<string, string> overrides);
 }

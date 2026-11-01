@@ -73,7 +73,7 @@ public class BrandingService : IBrandingService
             })
             .ToList();
 
-        if (otherOverrides.Any())
+        if (otherOverrides.Count > 0)
         {
             tabs.Add(new PrismBrandingTab
             {

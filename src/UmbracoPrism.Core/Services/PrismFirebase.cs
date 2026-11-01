@@ -70,12 +70,12 @@ public sealed class PrismFirebase(IConfiguration configuration, ILogger<PrismFir
                 if (isJson)
                 {
                     // JSON string (from Key Vault or appsettings dev override)
-                    credential = GoogleCredential.FromJson(credentialValue);
+                    credential = CredentialFactory.FromJson<ServiceAccountCredential>(credentialValue).ToGoogleCredential();
                 }
                 else
                 {
                     // File path (legacy local dev scenario)
-                    credential = GoogleCredential.FromFile(credentialValue);
+                    credential = CredentialFactory.FromFile<ServiceAccountCredential>(credentialValue).ToGoogleCredential();
                 }
 
                 app = FirebaseApp.Create(

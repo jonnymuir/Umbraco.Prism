@@ -36,7 +36,7 @@ public class MediaBackedSightingPhotoStorageTests
         Mock.Of<IContentTypeBaseServiceProvider>(),
         NullLogger<MediaBackedSightingPhotoStorage>.Instance);
 
-    private static IFormFile File(string fileName, byte[] bytes) =>
+    private static FormFile File(string fileName, byte[] bytes) =>
         new FormFile(new MemoryStream(bytes), 0, bytes.Length, "file", fileName)
         {
             Headers = new HeaderDictionary(),

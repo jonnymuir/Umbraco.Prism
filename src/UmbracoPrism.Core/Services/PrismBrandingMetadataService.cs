@@ -55,7 +55,7 @@ public class PrismBrandingMetadataService : IPrismBrandingMetadataService
             {
                 var section = variable.metadata.Section;
                 
-                if (!sectionOrder.ContainsKey(section))
+                if (!sectionOrder.TryGetValue(section, out _))
                 {
                     sectionOrder[section] = globalOrder++;
                 }
@@ -78,7 +78,7 @@ public class PrismBrandingMetadataService : IPrismBrandingMetadataService
         return sections;
     }
 
-    private List<(BrandingVariableMetadata metadata, string section)> ParseCssFile(string content)
+    private static List<(BrandingVariableMetadata metadata, string section)> ParseCssFile(string content)
     {
         var variables = new List<(BrandingVariableMetadata metadata, string section)>();
         
@@ -123,7 +123,7 @@ public class PrismBrandingMetadataService : IPrismBrandingMetadataService
         return variables;
     }
 
-    private Dictionary<string, string> ExtractPropertyDeclarations(string content)
+    private static Dictionary<string, string> ExtractPropertyDeclarations(string content)
     {
         var declarations = new Dictionary<string, string>();
         var propertyPattern = @"@property\s+(--[\w-]+)\s*\{[^}]*syntax:\s*['""]([^'""]+)['""]";
@@ -139,7 +139,7 @@ public class PrismBrandingMetadataService : IPrismBrandingMetadataService
         return declarations;
     }
 
-    private void ParsePrismAnnotation(string annotation, BrandingVariableMetadata metadata)
+    private static void ParsePrismAnnotation(string annotation, BrandingVariableMetadata metadata)
     {
         // Split by pipe and parse key:value pairs
         var parts = annotation.Split('|', StringSplitOptions.RemoveEmptyEntries);
@@ -171,14 +171,14 @@ public class PrismBrandingMetadataService : IPrismBrandingMetadataService
 
     }
 
-    private string ExtractMetadataValue(string annotation, string key)
+    private static string ExtractMetadataValue(string annotation, string key)
     {
         var pattern = $@"{key}:\s*([^|]+)";
         var match = Regex.Match(annotation, pattern, RegexOptions.IgnoreCase);
         return match.Success ? match.Groups[1].Value.Trim() : (key == "section" ? "General" : string.Empty);
     }
 
-    private string InferTypeFromSyntax(string syntax)
+    private static string InferTypeFromSyntax(string syntax)
     {
         return syntax.ToLowerInvariant() switch
         {

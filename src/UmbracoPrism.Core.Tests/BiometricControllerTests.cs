@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -470,7 +471,7 @@ public class BiometricControllerTests
             bool isDevelopment = true)
     {
         tenant ??= ExchangeTenant;
-        var tenantId = tenant.Id.ToString();
+        var tenantId = tenant.Id.ToString(CultureInfo.InvariantCulture);
 
         var tokenService = BuildTokenService();
         var encryptionService = BuildEncryptionService();
@@ -920,7 +921,7 @@ public class BiometricControllerTests
                 expectedLevel,
                 It.IsAny<EventId>(),
                 It.Is<It.IsAnyType>((v, _) =>
-                    v.ToString()!.Contains("BiometricExchangeAttempt") &&
+                    v!.ToString()!.Contains("BiometricExchangeAttempt") &&
                     v.ToString()!.Contains(expectedOutcome) &&
                     (expectedFailureReason == null || v.ToString()!.Contains(expectedFailureReason))),
                 It.IsAny<Exception?>(),
@@ -1021,7 +1022,7 @@ public class BiometricControllerTests
                 LogLevel.Warning,
                 It.IsAny<EventId>(),
                 It.Is<It.IsAnyType>((v, _) =>
-                    v.ToString()!.Contains("BiometricExchangeAttempt") &&
+                    v!.ToString()!.Contains("BiometricExchangeAttempt") &&
                     v.ToString()!.Contains($"TokenId={credential.Id}")),
                 It.IsAny<Exception?>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
@@ -1041,7 +1042,7 @@ public class BiometricControllerTests
                 LogLevel.Information,
                 It.IsAny<EventId>(),
                 It.Is<It.IsAnyType>((v, _) =>
-                    v.ToString()!.Contains("BiometricExchangeAttempt") &&
+                    v!.ToString()!.Contains("BiometricExchangeAttempt") &&
                     v.ToString()!.Contains("TenantId=42")),
                 It.IsAny<Exception?>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
@@ -1062,7 +1063,7 @@ public class BiometricControllerTests
             x => x.Log(
                 It.IsAny<LogLevel>(),
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, _) => CaptureLogMessage(v.ToString()!, logMessages)),
+                It.Is<It.IsAnyType>((v, _) => CaptureLogMessage(v!.ToString()!, logMessages)),
                 It.IsAny<Exception?>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.AtLeastOnce);
@@ -1192,7 +1193,7 @@ public class BiometricControllerTests
         loggerMock.Verify(l => l.Log(
             LogLevel.Warning,
             It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("tenant_mismatch")),
+            It.Is<It.IsAnyType>((v, _) => v!.ToString()!.Contains("tenant_mismatch")),
             null,
             It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.AtLeastOnce);
@@ -1298,7 +1299,7 @@ public class BiometricControllerTests
     /// <summary>
     /// Minimal IServiceProvider to supply IAuthenticationService for HttpContext.AuthenticateAsync.
     /// </summary>
-    private class MockServiceProvider(IAuthenticationService authService) : IServiceProvider
+    private sealed class MockServiceProvider(IAuthenticationService authService) : IServiceProvider
     {
         public object? GetService(Type serviceType) =>
             serviceType == typeof(IAuthenticationService) ? authService : null;
@@ -1374,7 +1375,7 @@ public class BiometricControllerTests
         loggerMock.Verify(l => l.Log(
             LogLevel.Warning,
             It.IsAny<EventId>(),
-            It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("rate_limited")),
+            It.Is<It.IsAnyType>((v, _) => v!.ToString()!.Contains("rate_limited")),
             null,
             It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.AtLeastOnce);

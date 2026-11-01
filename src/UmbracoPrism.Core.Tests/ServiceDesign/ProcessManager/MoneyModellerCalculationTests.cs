@@ -41,7 +41,7 @@ public class MoneyModellerCalculationTests
         DcPot = 21_000m
     };
 
-    private decimal Field(CalculationResult result, string name) => (decimal)result.Fields[name]!;
+    private static decimal Field(CalculationResult result, string name) => (decimal)result.Fields[name]!;
 
     private CalculationResult Evaluate(MemberRecord member, Dictionary<string, object?> fieldValues)
     {

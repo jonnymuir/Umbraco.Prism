@@ -130,7 +130,7 @@ public sealed class MediaBackedSightingPhotoStorage(
         return media?.ParentId == folder.Id ? media : null;
     }
 
-    private string? StoredPath(IMedia media)
+    private static string? StoredPath(IMedia media)
     {
         var stored = media.GetValue<string>(Constants.Conventions.Media.File);
         var isJson = stored is not null && stored.TrimStart().StartsWith('{');

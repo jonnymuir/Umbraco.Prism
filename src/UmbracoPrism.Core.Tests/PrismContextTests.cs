@@ -34,6 +34,7 @@ public class PrismContextTests : IDisposable
     {
         Environment.SetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL", _savedBackchannelUrl);
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", _savedAspNetCoreEnv);
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

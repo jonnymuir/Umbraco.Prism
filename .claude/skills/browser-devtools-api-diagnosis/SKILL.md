@@ -81,7 +81,7 @@ Click the **Headers** subtab (or scroll to the "Request Headers" section).
 ```
 GET https://localhost:7245/api/backoffice/me HTTP/1.1
 Host: localhost:7245
-Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+Authorization: Bearer $ACCESS_TOKEN
 Cookie: .AspNetCore.Cookies=abc123def...
 ```
 
@@ -191,7 +191,7 @@ In the request details panel:
 **Example cURL command:**
 ```bash
 curl -X GET "https://localhost:7245/api/backoffice/me" \
-  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Cookie: .AspNetCore.Cookies=abc123def..." \
   -k  # (macOS/Linux: ignore self-signed cert)
 ```
@@ -210,7 +210,7 @@ This gives you JavaScript you can paste directly into the browser console:
 fetch("https://localhost:7245/api/backoffice/me", {
   "method": "GET",
   "headers": {
-    "Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "Authorization": "Bearer $ACCESS_TOKEN",
     "Cookie": ".AspNetCore.Cookies=abc123def..."
   }
 })

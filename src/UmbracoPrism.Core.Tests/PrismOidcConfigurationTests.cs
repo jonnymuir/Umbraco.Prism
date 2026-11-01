@@ -551,7 +551,7 @@ public class PrismOidcConfigurationTests
         return context;
     }
 
-    private static SecurityKey CreateSigningKey(string keyId)
+    private static SymmetricSecurityKey CreateSigningKey(string keyId)
     {
         return new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes("0123456789abcdef0123456789abcdef"))
         {

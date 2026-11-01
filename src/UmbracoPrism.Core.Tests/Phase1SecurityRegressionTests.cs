@@ -74,6 +74,7 @@ public class Phase1SecurityRegressionTests : IDisposable
     {
         Environment.SetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL", _savedBackchannelUrl);
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", _savedAspNetCoreEnv);
+        GC.SuppressFinalize(this);
     }
 
     // ------------------------------------------------------------------
@@ -687,7 +688,7 @@ public class Phase1SecurityRegressionTests : IDisposable
 
     private static bool HasAuthorizeAttribute<T>()
     {
-        return typeof(T).GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true).Any();
+        return typeof(T).GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true).Length > 0;
     }
 
     private static bool HasAuthorizeAttributeWithScheme<T>(string scheme)

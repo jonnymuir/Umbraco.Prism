@@ -218,7 +218,7 @@ public class PrismAuthorizationHandlersTests
         return prismContext;
     }
 
-    private static IHttpContextAccessor BuildAccessor(IPrismContext prismContext)
+    private static HttpContextAccessor BuildAccessor(IPrismContext prismContext)
     {
         var services = new ServiceCollection()
             .AddSingleton(prismContext)

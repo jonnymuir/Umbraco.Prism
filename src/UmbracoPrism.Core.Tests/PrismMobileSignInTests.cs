@@ -192,7 +192,7 @@ public class PrismMobileSignInTests
         principal.FindFirst("sub")!.Value.Should().Be("member-1");
         principal.HasClaim("prism_auth_method", "system").Should().BeTrue();
         properties!.GetTokenValue("refresh_token").Should().Be("provider-refresh-token");
-        properties.IssuedUtc.Should().BeNull("the webview session starts now, not when the provider signed the member in");
+        properties!.IssuedUtc.Should().BeNull("the webview session starts now, not when the provider signed the member in");
     }
 
     [Fact]

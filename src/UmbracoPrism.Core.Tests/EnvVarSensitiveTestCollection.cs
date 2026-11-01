@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 namespace UmbracoPrism.Core.Tests;
 
 /// <summary>
@@ -8,6 +9,7 @@ namespace UmbracoPrism.Core.Tests;
 /// ASPNETCORE_ENVIRONMENT affecting PrismSigningKeyCache.WarmAsync routing).
 /// </summary>
 [CollectionDefinition(Name)]
+[SuppressMessage("Naming", "CA1711", Justification = "xUnit collection definitions are conventionally named ...Collection.")]
 public sealed class EnvVarSensitiveTestCollection : ICollectionFixture<EnvVarSensitiveTestCollection>
 {
     public const string Name = "EnvVarSensitive";

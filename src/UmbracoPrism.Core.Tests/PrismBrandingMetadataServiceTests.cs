@@ -6,8 +6,10 @@ using UmbracoPrism.Core.Services;
 
 namespace UmbracoPrism.Core.Tests;
 
-public class PrismBrandingMetadataServiceTests
+public sealed class PrismBrandingMetadataServiceTests : IDisposable
 {
+    private static readonly string[] PrimaryAndSecondaryColours = ["--prism-primary", "--prism-secondary"];
+
     private readonly Mock<IWebHostEnvironment> _mockWebHostEnvironment;
     private readonly IMemoryCache _memoryCache;
 
@@ -16,6 +18,8 @@ public class PrismBrandingMetadataServiceTests
         _mockWebHostEnvironment = new Mock<IWebHostEnvironment>();
         _memoryCache = new MemoryCache(new MemoryCacheOptions());
     }
+
+    public void Dispose() => ((IDisposable)_memoryCache).Dispose();
 
     [Fact]
     public void GetBrandingMetadata_ReturnsEmptyList_WhenBrandingDirectoryDoesNotExist()
@@ -143,7 +147,7 @@ public class PrismBrandingMetadataServiceTests
         
         var colorsSection = result.First(s => s.Name == "Colors");
         colorsSection.Variables.Should().HaveCount(2);
-        colorsSection.Variables.Select(v => v.Variable).Should().Contain(new[] { "--prism-primary", "--prism-secondary" });
+        colorsSection.Variables.Select(v => v.Variable).Should().Contain(PrimaryAndSecondaryColours);
         
         var typographySection = result.First(s => s.Name == "Typography");
         typographySection.Variables.Should().HaveCount(1);

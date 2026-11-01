@@ -115,7 +115,7 @@ public class TestSiteComposerResolveAccessProfileTests
         profile.Should().BeSameAs(UmbracoPrism.TestSite.Services.ServiceDesign.NjfContributionsTeam.NoAccessProfile);
     }
 
-    private static HttpContext BuildContext(bool isAuthenticated, string? email)
+    private static DefaultHttpContext BuildContext(bool isAuthenticated, string? email)
     {
         var userContext = new Mock<IPrismUserContext>();
         userContext.SetupGet(u => u.Email).Returns(email);

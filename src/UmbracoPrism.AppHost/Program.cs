@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 var builder = DistributedApplication.CreateBuilder(args);
@@ -30,7 +31,7 @@ else
 var keycloakProxyUri = new Uri(keycloakProxyUrl);
 var keycloakHostname = keycloakProxyUri.Host;
 // -1 means "use the scheme's default port" (443 for HTTPS). For local dev on 8443 we pass the explicit port.
-var keycloakHostnamePort = keycloakProxyUri.IsDefaultPort ? "-1" : keycloakProxyUri.Port.ToString();
+var keycloakHostnamePort = keycloakProxyUri.IsDefaultPort ? "-1" : keycloakProxyUri.Port.ToString(CultureInfo.InvariantCulture);
 // X-Forwarded-Host value for the YARP proxy: host:port for non-default ports (local dev),
 // or just host for standard HTTPS (Codespaces — port 443 is implied by the scheme).
 var keycloakExternalHost = keycloakProxyUri.IsDefaultPort
@@ -134,7 +135,6 @@ var businessApp = builder.AddProject("businessapp", "../UmbracoPrism.MockBusines
             {
                 Url = $"{baseUrl}/queue",
                 DisplayText = "Support System Queue",
-                DisplayOrder = 1,
             });
         }
     });

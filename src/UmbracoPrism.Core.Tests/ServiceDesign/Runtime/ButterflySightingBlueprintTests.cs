@@ -121,9 +121,9 @@ public class ButterflySightingBlueprintTests
             .Outcomes.Select(o => o.Key).ToList();
 
         declared.Should().BeEquivalentTo("identified", "unclear", "not-a-butterfly", "busy");
-        definition.Stages.Single(s => s.StageKey == "identify").Routes.Select(r => r.Trigger)
+        definition.Stages.Single(s => s.StageKey == "identify").Routes!.Select(r => r.Trigger)
             .Should().BeEquivalentTo(declared, "an outcome with no route would strand the practitioner at the wait screen");
-        definition.Gateways.Single(g => g.Key == "identification-complete").Routes.Select(r => r.Trigger)
+        definition.Gateways!.Single(g => g.Key == "identification-complete").Routes!.Select(r => r.Trigger)
             .Should().BeEquivalentTo(declared);
     }
 

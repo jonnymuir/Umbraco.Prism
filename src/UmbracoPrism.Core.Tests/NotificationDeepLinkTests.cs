@@ -97,8 +97,8 @@ public class NotificationDeepLinkTests
 
         return logger.Invocations.Count(i =>
             i.Method.Name == nameof(ILogger.Log)
-            && (LogLevel)i.Arguments[0] == LogLevel.Warning
-            && i.Arguments[2].ToString()!.Contains("not a path on this site"));
+            && (LogLevel)i.Arguments[0]! == LogLevel.Warning
+            && i.Arguments[2]!.ToString()!.Contains("not a path on this site"));
     }
 
     private static PrismSendPushNotificationAction BuildAction(IPrismNotificationService notifications) =>

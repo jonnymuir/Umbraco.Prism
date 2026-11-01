@@ -61,7 +61,7 @@ public class PrismTenantMiddlewareTests
             x => x.Log(
                 LogLevel.Warning,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Unknown tenant domain")),
+                It.Is<It.IsAnyType>((v, _) => v!.ToString()!.Contains("Unknown tenant domain")),
                 It.IsAny<Exception?>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
@@ -107,7 +107,7 @@ public class PrismTenantMiddlewareTests
             x => x.Log(
                 LogLevel.Warning,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("Failed to warm Prism signing keys")),
+                It.Is<It.IsAnyType>((v, _) => v!.ToString()!.Contains("Failed to warm Prism signing keys")),
                 It.IsAny<HttpRequestException>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
