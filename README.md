@@ -91,6 +91,9 @@ Two optional add-ons, released alongside it with the same version:
 | [`UmbracoPrism.uSync`](src/UmbracoPrism.uSync/README.md) | uSync export and import of tenants and page access policies, so they move between environments with the rest of your site. |
 | [`UmbracoPrism.Automate`](src/UmbracoPrism.Automate/README.md) | "Send Prism push notification" and "Update journey status" actions for Umbraco Automate. |
 
+To build your site's app in CI, the [`UmbracoPrism.MobileBundle`](src/UmbracoPrism.MobileBundleCli/README.md)
+dotnet tool generates the same bundle as the backoffice's **Produce Mobile** button.
+
 ![The reference site's home page for a signed-in member, branded for its local Keycloak tenant](docs/images/walkthroughs/home-entry/02-signed-in-hero.png)
 
 ## What you get

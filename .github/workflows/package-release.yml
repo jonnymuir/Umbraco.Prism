@@ -74,12 +74,14 @@ jobs:
         run: |
           dotnet build src/UmbracoPrism.Automate/UmbracoPrism.Automate.csproj -c Release
           dotnet build src/UmbracoPrism.uSync/UmbracoPrism.uSync.csproj -c Release
+          dotnet build src/UmbracoPrism.MobileBundleCli/UmbracoPrism.MobileBundleCli.csproj -c Release
 
-      - name: Pack UmbracoPrism, UmbracoPrism.Automate and UmbracoPrism.uSync
+      - name: Pack UmbracoPrism, UmbracoPrism.Automate, UmbracoPrism.uSync and UmbracoPrism.MobileBundle
         run: |
           dotnet pack src/UmbracoPrism.Core/UmbracoPrism.Core.csproj -c Release -o artifacts --no-build
           dotnet pack src/UmbracoPrism.Automate/UmbracoPrism.Automate.csproj -c Release -o artifacts --no-build
           dotnet pack src/UmbracoPrism.uSync/UmbracoPrism.uSync.csproj -c Release -o artifacts --no-build
+          dotnet pack src/UmbracoPrism.MobileBundleCli/UmbracoPrism.MobileBundleCli.csproj -c Release -o artifacts --no-build
 
       - name: Upload NuGet package artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

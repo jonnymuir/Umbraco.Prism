@@ -18,8 +18,10 @@ running a script by hand.
 `macos-latest`:
 
 1. Checks out the repo, sets up .NET 10 and Node 20+.
-2. Runs `src/UmbracoPrism.MobileBundleCli` — the headless equivalent of "Produce Mobile" — to
-   generate the bundle `.zip` for the configured tenant hostname.
+2. Runs `src/UmbracoPrism.MobileBundleCli`, the headless equivalent of "Produce Mobile", to
+   generate the bundle `.zip` for the configured tenant hostname. In another repo, install it as
+   the [`UmbracoPrism.MobileBundle`](../../src/UmbracoPrism.MobileBundleCli/README.md) dotnet tool
+   and run `dotnet prism-mobile-bundle` with the same flags.
 3. Unzips it, writes the Firebase config into `resources/` when push notifications are on,
    `npm install`s the bundle's own generated `package.json`, then runs its
    `npm run bootstrap:ios` script, the same script a developer would run by hand. It adds the
