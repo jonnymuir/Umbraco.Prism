@@ -27,8 +27,9 @@ backoffice. The shell adds what a website cannot do on its own:
 
 In the backoffice, open **Settings → Advanced → Tenants**, choose the tenant, fill in its mobile
 settings (app name, app ID, start URL, the error screen's text and colours, and which features to
-include) and select **Produce Mobile**. You download a zip. CI builds the same zip with
-`src/UmbracoPrism.MobileBundleCli`, which takes the same settings as command-line flags.
+include) and select **Produce Mobile**. You download a zip. CI builds the same zip with the
+[`UmbracoPrism.MobileBundle`](../../src/UmbracoPrism.MobileBundleCli/README.md) dotnet tool
+(`dotnet prism-mobile-bundle`), which takes the same settings as command-line flags.
 
 The zip contains a Capacitor project:
 

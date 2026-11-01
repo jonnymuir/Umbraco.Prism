@@ -6,12 +6,23 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>UmbracoPrism.MobileBundleCli</RootNamespace>
-    <IsPackable>false</IsPackable>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>prism-mobile-bundle</ToolCommandName>
+    <PackageId>UmbracoPrism.MobileBundle</PackageId>
+    <Title>Umbraco Prism mobile bundle generator</Title>
+    <Description>A dotnet tool that generates a Prism mobile app bundle (Capacitor iOS and Android projects) from command-line settings, for building a Prism site's app in CI.</Description>
+    <PackageTags>Umbraco;Prism;Mobile;Capacitor;iOS;Android;CI</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.13" />
     <ProjectReference Include="..\UmbracoPrism.Core\UmbracoPrism.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
 </Project>

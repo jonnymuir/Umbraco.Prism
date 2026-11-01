@@ -27,11 +27,12 @@ Solo developer project, but every change reaches `main` through a pull request. 
 | `UmbracoPrism.ServiceDefaults` | Shared Aspire service defaults |
 | `UmbracoPrism.Core.Tests` | xUnit unit/integration test suite. References `Wayfinder`, `Wayfinder.Engine` and `Wayfinder.Umbraco` to test the reference site's blueprints and demo queue. |
 
-Three packages are published, together and with one version (`<Version>` in
-`Directory.Build.props`): `UmbracoPrism` (from `UmbracoPrism.Core`), `UmbracoPrism.Automate` and
-`UmbracoPrism.uSync`. The two add-ons depend on `UmbracoPrism`, so a site that doesn't use
-Automate or uSync never takes those dependencies. Each has its own `README.md`, which is its
-NuGet readme.
+Four packages are published, together and with one version (`<Version>` in
+`Directory.Build.props`): `UmbracoPrism` (from `UmbracoPrism.Core`), `UmbracoPrism.Automate`,
+`UmbracoPrism.uSync`, and the `UmbracoPrism.MobileBundle` dotnet tool (from
+`UmbracoPrism.MobileBundleCli`, command `prism-mobile-bundle`) that generates a site's mobile app
+bundle in CI. The two add-ons depend on `UmbracoPrism`, so a site that doesn't use Automate or uSync
+never takes those dependencies. Each has its own `README.md`, which is its NuGet readme.
 
 `Wayfinder`, `Wayfinder.Engine`/`.Api`/`.Mcp`, `Wayfinder.Editor`, and `Wayfinder.Umbraco` are no
 longer part of this repo, see [`jonnymuir/Wayfinder`](https://github.com/jonnymuir/Wayfinder) and
@@ -149,7 +150,8 @@ Per-tenant OIDC against any compliant provider (Keycloak locally, Entra ID and o
 
 ## Releasing
 
-`UmbracoPrism`, `UmbracoPrism.Automate` and `UmbracoPrism.uSync` release together at one version.
+`UmbracoPrism`, `UmbracoPrism.Automate`, `UmbracoPrism.uSync` and `UmbracoPrism.MobileBundle` release
+together at one version.
 Run `/release` (from the engineering-standards plugin):
 
 - **Version files:** `<Version>` in `Directory.Build.props` and `"version"` in
@@ -157,7 +159,7 @@ Run `/release` (from the engineering-standards plugin):
 - **Pre-release checks:** `npm run check:marketplace`, then
   `dotnet test UmbracoPrism.slnx -c Release --filter FullyQualifiedName~UmbracoPrism.Core.Tests`.
 - **The `v{version}` tag** triggers `package-release.yml`, which builds, packs and publishes the
-  three packages.
+  four packages.
 
 ## Key conventions
 

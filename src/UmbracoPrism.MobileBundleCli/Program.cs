@@ -130,9 +130,12 @@ public static class Program
     private static void PrintUsage()
     {
         Console.WriteLine("""
-            UmbracoPrism.MobileBundleCli — headless "Produce Mobile" bundle generation.
+            prism-mobile-bundle: headless "Produce Mobile" bundle generation.
 
             Usage:
+              dotnet prism-mobile-bundle --hostname <host> --output <path.zip> [options]
+
+            In the Umbraco.Prism repo itself:
               dotnet run --project src/UmbracoPrism.MobileBundleCli -- --hostname <host> --output <path.zip> [options]
 
             Required (one of):
