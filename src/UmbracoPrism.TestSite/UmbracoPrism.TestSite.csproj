@@ -73,18 +73,10 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- InMemoryAuto generates models at runtime only; the old SourceCodeAuto .generated.cs
-         files are excluded from compilation below to avoid type conflicts. Build-time Razor
-         compilation is disabled because model types are only available at runtime. -->
-    <RazorCompileOnBuild>false</RazorCompileOnBuild>
-    <RazorCompileOnPublish>false</RazorCompileOnPublish>
+    <!-- Views are compiled at build time rather than at runtime: runtime compilation keeps the
+         Roslyn compiler resident and costs several hundred MB on a small VPS. -->
+    <RazorCompileOnBuild>true</RazorCompileOnBuild>
+    <RazorCompileOnPublish>true</RazorCompileOnPublish>
   </PropertyGroup>
-
-  <ItemGroup>
-    <!-- Exclude SourceCodeAuto-generated model files: InMemoryAuto regenerates these at
-         runtime in ModelsGeneratedAssembly. Compiling them in causes type-ambiguity errors
-         when CollectibleRuntimeViewCompiler compiles views that reference those types. -->
-    <Compile Remove="umbraco/models/**/*.generated.cs" />
-  </ItemGroup>
 
 </Project>

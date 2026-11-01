@@ -93,9 +93,6 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
                 ["Prism:Biometric:SigningKey"] = "prism-authcontract-test-signing-key-not-a-real-secret",
                 ["Prism:Biometric:EncryptionKey"] = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
 
-                ["Umbraco:CMS:ModelsBuilder:ModelsDirectory"] = Path.Combine(_tempRoot, "umbraco", "models"),
-                ["Umbraco:CMS:ModelsBuilder:AcceptUnsafeModelsDirectory"] = "true",
-
                 ["Umbraco:CMS:Unattended:InstallUnattended"] = "true",
                 ["Umbraco:CMS:Unattended:UpgradeUnattended"] = "true",
                 ["Umbraco:CMS:Unattended:PackageMigrationsUnattended"] = "true",
