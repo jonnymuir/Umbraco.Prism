@@ -22,7 +22,7 @@
     "src/UmbracoPrism.Core/Services/MobileBundles/CapacitorProjectFiles.cs": 75,
     "src/UmbracoPrism.Core/Services/MobileBundles/IosProjectFiles.cs": 70,
     "src/UmbracoPrism.Core/Services/PrismFirebase.cs": 97,
-    "src/UmbracoPrism.Core/Services/PrismNotificationService.cs": 88,
+    "src/UmbracoPrism.Core/Services/PrismNotificationService.cs": 77,
     "src/UmbracoPrism.Core/Services/PrismSigningKeyCache.cs": 91,
     "src/UmbracoPrism.Core/Services/PrismTokenRefreshService.cs": 93,
     "src/UmbracoPrism.Core/Services/TenantService.cs": 94,
