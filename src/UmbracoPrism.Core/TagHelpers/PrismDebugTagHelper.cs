@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
@@ -77,7 +78,7 @@ public class PrismDebugTagHelper(
                 """);
 
             // 1. Tenant Section
-            sb.Append($"""
+            sb.Append(CultureInfo.InvariantCulture, $"""
                 <div class="card">
                     <h2>📡 Tenant Info <button class="copy-btn" data-action="copy-to-clipboard" data-copy-target="prism-tenant-data">Copy</button></h2>
                     <div id="prism-tenant-data">
@@ -101,7 +102,7 @@ public class PrismDebugTagHelper(
                 // route), so this renders the same real form/token pair homePage.cshtml's own
                 // working Sign Out button uses, not a link.
                 var antiforgeryTokens = antiforgery.GetAndStoreTokens(ViewContext.HttpContext);
-                sb.Append($"""
+                sb.Append(CultureInfo.InvariantCulture, $"""
                     <div class="card">
                         <h2>👤 Identity <button class="copy-btn" data-action="copy-to-clipboard" data-copy-target="prism-user-data">Copy</button></h2>
                         <div id="prism-user-data">
@@ -117,7 +118,7 @@ public class PrismDebugTagHelper(
                     """);
 
                 // 2.5 Claims Section
-                sb.Append($"""
+                sb.Append(CultureInfo.InvariantCulture, $"""
                     <div class="card">
                         <h2>Attributes & Claims <button class="copy-btn" data-action="copy-to-clipboard" data-copy-target="prism-claims-data">Copy</button></h2>
                         <div id="prism-claims-data" class="claims-box">
@@ -131,7 +132,7 @@ public class PrismDebugTagHelper(
             }
             else
             {
-                sb.Append($"""
+                sb.Append(CultureInfo.InvariantCulture, $"""
                     <div class="card">
                         <h2>👤 Identity</h2>
                         <p>Guest Session</p>
@@ -146,7 +147,7 @@ public class PrismDebugTagHelper(
             var tid = ViewContext.HttpContext.User.FindFirst("http://schemas.microsoft.com/identity/claims/tenantid")?.Value
                       ?? ViewContext.HttpContext.User.FindFirst("tid")?.Value;
 
-            sb.Append($"""
+            sb.Append(CultureInfo.InvariantCulture, $"""
                 <div class="card">
                     <h2>HttpContext Debug <button class="copy-btn" data-action="copy-to-clipboard" data-copy-target="prism-cache-debug">Copy</button></h2>
                     <div id="prism-cache-debug">
@@ -164,7 +165,7 @@ public class PrismDebugTagHelper(
                             .Get("PrismEntraID");
 
 
-            sb.Append($"""
+            sb.Append(CultureInfo.InvariantCulture, $"""
                 <div class="card diagnostics-card">
                     <h2 class="diagnostics-title">🛠 System Diagnostics</h2>
                     <ul>
@@ -185,7 +186,7 @@ public class PrismDebugTagHelper(
         }
         catch (Exception ex)
         {
-            sb.Append($"<div class='card error-card'>{ex.Message}</div>");
+            sb.Append(CultureInfo.InvariantCulture, $"<div class='card error-card'>{ex.Message}</div>");
         }
 
         output.Content.SetHtmlContent(sb.ToString());
@@ -226,22 +227,22 @@ public class PrismDebugTagHelper(
         var sb = new StringBuilder();
         sb.Append("<div class=\"card\"><h2>🎨 Branding Overrides <button class=\"copy-btn\" data-action=\"copy-to-clipboard\" data-copy-target=\"prism-branding-data\">Copy</button></h2>");
         sb.Append("<div id=\"prism-branding-data\">");
-        sb.Append($"<p><strong>Tenant:</strong> <code>#{tenant.Id} {enc.Encode(tenant.Name ?? "")} ({enc.Encode(tenant.Hostname ?? "")})</code></p>");
+        sb.Append(CultureInfo.InvariantCulture, $"<p><strong>Tenant:</strong> <code>#{tenant.Id} {enc.Encode(tenant.Name ?? "")} ({enc.Encode(tenant.Hostname ?? "")})</code></p>");
 
         if (dbError is not null)
         {
-            sb.Append($"<p><strong>DB read failed:</strong> <code>{enc.Encode(dbError)}</code></p>");
+            sb.Append(CultureInfo.InvariantCulture, $"<p><strong>DB read failed:</strong> <code>{enc.Encode(dbError)}</code></p>");
         }
         else
         {
             var matches = SameOverrides(cached, stored!) && SameOverrides(cachedMobile, storedMobile!);
-            sb.Append($"<p><strong>Cache vs DB:</strong> {(matches ? "<b class=\"status-ok\">MATCH</b>" : "<b class=\"status-warn\">DIFFERS (cached tenant is stale)</b>")}</p>");
+            sb.Append(CultureInfo.InvariantCulture, $"<p><strong>Cache vs DB:</strong> {(matches ? "<b class=\"status-ok\">MATCH</b>" : "<b class=\"status-warn\">DIFFERS (cached tenant is stale)</b>")}</p>");
         }
 
         AppendOverrideList(sb, enc, "Cached desktop overrides", cached, stored);
         AppendOverrideList(sb, enc, "Cached mobile overrides", cachedMobile, storedMobile);
-        sb.Append($"<p><strong>Served CSS ({(includeMobileOverrides ? "desktop + mobile" : "desktop only")}, {servedCss.Length} chars):</strong></p>");
-        sb.Append($"<pre><code>{enc.Encode(servedCss.Replace(";", ";\n"))}</code></pre>");
+        sb.Append(CultureInfo.InvariantCulture, $"<p><strong>Served CSS ({(includeMobileOverrides ? "desktop + mobile" : "desktop only")}, {servedCss.Length} chars):</strong></p>");
+        sb.Append(CultureInfo.InvariantCulture, $"<pre><code>{enc.Encode(servedCss.Replace(";", ";\n"))}</code></pre>");
         sb.Append("</div></div>");
         return sb.ToString();
     }
@@ -253,7 +254,7 @@ public class PrismDebugTagHelper(
         Dictionary<string, string> cached,
         Dictionary<string, string>? stored)
     {
-        sb.Append($"<p><strong>{title} ({cached.Count}):</strong></p>");
+        sb.Append(CultureInfo.InvariantCulture, $"<p><strong>{title} ({cached.Count}):</strong></p>");
         if (cached.Count == 0)
         {
             sb.Append("<p><em>none</em></p>");
@@ -268,7 +269,7 @@ public class PrismDebugTagHelper(
                 : !stored.TryGetValue(name, out var dbValue)
                     ? " <b class=\"status-warn\">not in DB</b>"
                     : dbValue == value ? "" : $" <b class=\"status-warn\">DB: {enc.Encode(dbValue)}</b>";
-            sb.Append($"<tr class=\"claims-row\"><td class=\"claims-cell\">{enc.Encode(name)}</td><td><code>{enc.Encode(value)}</code>{dbNote}</td></tr>");
+            sb.Append(CultureInfo.InvariantCulture, $"<tr class=\"claims-row\"><td class=\"claims-cell\">{enc.Encode(name)}</td><td><code>{enc.Encode(value)}</code>{dbNote}</td></tr>");
         }
 
         sb.Append("</table>");

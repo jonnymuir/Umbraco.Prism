@@ -105,7 +105,7 @@ public class PrismPageAccessResolver : IPrismPageAccessResolver
             });
     }
 
-    private static IReadOnlyList<string> ParseAllowList(string? json)
+    private static string[] ParseAllowList(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return [];
 

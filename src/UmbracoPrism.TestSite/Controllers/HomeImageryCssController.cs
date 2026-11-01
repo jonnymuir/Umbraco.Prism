@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -43,11 +44,11 @@ public class HomeImageryCssController(
             css.Append(":root{");
             if (!string.IsNullOrWhiteSpace(heroImageUrl))
             {
-                css.Append($"--prism-hero-image:url('{EscapeCssUrl(heroImageUrl)}');");
+                css.Append(CultureInfo.InvariantCulture, $"--prism-hero-image:url('{EscapeCssUrl(heroImageUrl)}');");
             }
             if (!string.IsNullOrWhiteSpace(cardImageUrl))
             {
-                css.Append($"--prism-card-image:url('{EscapeCssUrl(cardImageUrl)}');");
+                css.Append(CultureInfo.InvariantCulture, $"--prism-card-image:url('{EscapeCssUrl(cardImageUrl)}');");
             }
             css.Append('}');
         }

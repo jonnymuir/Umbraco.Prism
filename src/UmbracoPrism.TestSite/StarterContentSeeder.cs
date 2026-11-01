@@ -26,6 +26,8 @@ public class StarterContentSeeder(
     ILogger<StarterContentSeeder> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
+    private static readonly string[] AllCultures = ["*"];
+
     public async Task HandleAsync(
         UmbracoApplicationStartedNotification notification,
         CancellationToken cancellationToken)
@@ -41,7 +43,7 @@ public class StarterContentSeeder(
             var rootContent = contentService.GetRootContent().ToList();
 
             // Only seed Home + Dashboard on a completely empty tree
-            if (!rootContent.Any())
+            if (rootContent.Count == 0)
             {
                 try
                 {
@@ -75,7 +77,7 @@ public class StarterContentSeeder(
                 if (home == null || home.Published) return;
 
                 logger.LogWarning("StarterContentSeeder: Home exists but is unpublished, publishing it with its descendants");
-                contentService.PublishBranch(home, PublishBranchFilter.IncludeUnpublished, new[] { "*" });
+                contentService.PublishBranch(home, PublishBranchFilter.IncludeUnpublished, AllCultures);
                 return;
             }
             catch (Exception ex) when (attempt < 5)
@@ -144,7 +146,7 @@ public class StarterContentSeeder(
             var saveResult = contentService.Save(homePage);
             if (saveResult.Success)
             {
-                var publishResult = contentService.Publish(homePage, new[] { "*" });
+                var publishResult = contentService.Publish(homePage, AllCultures);
                 
                 if (publishResult.Success)
                 {
@@ -156,7 +158,7 @@ public class StarterContentSeeder(
                         var saveDashResult = contentService.Save(dashboardPage);
                         if (saveDashResult.Success)
                         {
-                            contentService.Publish(dashboardPage, new[] { "*" });
+                            contentService.Publish(dashboardPage, AllCultures);
                         }
                     }
                 }
@@ -191,7 +193,7 @@ public class StarterContentSeeder(
         {
             logger.LogWarning("StarterContentSeeder: mobileNavLinks property not found on settings doc type. Saving without nav links.");
             contentService.Save(settings!);
-            contentService.Publish(settings!, new[] { "*" });
+            contentService.Publish(settings!, AllCultures);
             return;
         }
 
@@ -207,7 +209,7 @@ public class StarterContentSeeder(
             if (isNew)
             {
                 contentService.Save(settings!);
-                contentService.Publish(settings!, new[] { "*" });
+                contentService.Publish(settings!, AllCultures);
             }
             return;
         }
@@ -222,7 +224,7 @@ public class StarterContentSeeder(
         var saveResult = contentService.Save(settings);
         if (saveResult.Success)
         {
-            contentService.Publish(settings, new[] { "*" });
+            contentService.Publish(settings, AllCultures);
         }
 
         logger.LogInformation("StarterContentSeeder: EnsureSettingsDefaults complete");

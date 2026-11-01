@@ -1,3 +1,4 @@
+using System.Globalization;
 namespace UmbracoPrism.Core.Services;
 
 /// <summary>
@@ -9,7 +10,7 @@ namespace UmbracoPrism.Core.Services;
 /// </summary>
 public sealed class PrismContentVersion
 {
-    private readonly string _started = DateTime.UtcNow.Ticks.ToString("x");
+    private readonly string _started = DateTime.UtcNow.Ticks.ToString("x", CultureInfo.InvariantCulture);
     private long _changes;
 
     public string Current => $"{_started}.{Interlocked.Read(ref _changes)}";

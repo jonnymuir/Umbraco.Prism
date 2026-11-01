@@ -31,6 +31,7 @@ public class DashboardLocalEndpointsValidationTests : IDisposable
     public void Dispose()
     {
         Environment.SetEnvironmentVariable("BUSINESSAPP_BACKCHANNEL_URL", _savedBusinessAppBackchannelUrl);
+        GC.SuppressFinalize(this);
     }
 
     [Fact]

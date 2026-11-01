@@ -11,6 +11,8 @@ namespace UmbracoPrism.Core.Tests;
 
 public class TenantServiceCacheStrategyTests
 {
+    private static readonly string[] MixedCaseDomains = ["TENANT-1.EXAMPLE.COM", "tenant-2.example.com", "  tenant-3.example.com  "];
+
     [Fact]
     public async Task GetByDomainAsync_TracksMissThenHit_ForSameTenantDomain()
     {
@@ -57,7 +59,7 @@ public class TenantServiceCacheStrategyTests
 
         var withDuplicates = distinctHosts
             .Concat(distinctHosts.Take(500))
-            .Concat(new[] { "TENANT-1.EXAMPLE.COM", "tenant-2.example.com", "  tenant-3.example.com  " })
+            .Concat(MixedCaseDomains)
             .ToArray();
 
         service.InvalidateDomains(withDuplicates, "high-tenant-stress");

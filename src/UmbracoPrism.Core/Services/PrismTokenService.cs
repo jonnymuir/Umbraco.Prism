@@ -39,7 +39,7 @@ public class PrismTokenService(IHttpContextAccessor httpContextAccessor)
         return auth.Properties.GetTokenValue("access_token");
     }
 
-    private async Task<string?> RefreshTokensAsync(AuthenticateResult auth)
+    private static async Task<string?> RefreshTokensAsync(AuthenticateResult auth)
     {
         // This is where the complexity lies: 
         // 1. Manually call Entra ID /token endpoint using the refresh_token

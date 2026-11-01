@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.Extensions.DependencyInjection;
+using UmbracoPrism.MockBusinessApp;
 
 namespace UmbracoPrism.Core.Tests;
 
@@ -36,7 +37,7 @@ public sealed class MockBusinessAppHostSecurityTests : IClassFixture<MockBusines
 
     public MockBusinessAppHostSecurityTests(ProductionHost host) => _host = host;
 
-    private IReadOnlyList<RouteEndpoint> Routes() =>
+    private List<RouteEndpoint> Routes() =>
         _host.Services.GetServices<EndpointDataSource>()
             .SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>()
@@ -100,7 +101,7 @@ public sealed class MockBusinessAppHostSecurityTests : IClassFixture<MockBusines
 
         foreach (var route in Routes())
         {
-            var method = route.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods.First() ?? "GET";
+            var method = route.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods[0] ?? "GET";
             using var request = new HttpRequestMessage(new HttpMethod(method), Concrete(route.RoutePattern));
             request.Headers.Authorization = new("Bearer", forged);
             using var response = await client.SendAsync(request);

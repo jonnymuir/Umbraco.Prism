@@ -483,7 +483,7 @@ public class DownstreamDemoController(
             return transportUrl;
 
         var displayBaseUrl = ResolveBusinessAppDisplayBaseUrl();
-        return displayBaseUrl + transportUrl.Substring(backchannelUrl.Length);
+        return string.Concat(displayBaseUrl, transportUrl.AsSpan(backchannelUrl.Length));
     }
 
     private bool IsUrlAllowed(string url)
@@ -705,7 +705,7 @@ public class DownstreamDemoController(
         return diagnosticText[..MaxDiagnosticBodyLength] + DiagnosticBodyTruncationNotice;
     }
 
-    private static IReadOnlyList<string> GetDiagnosticHeaders(HttpResponseMessage response)
+    private static List<string> GetDiagnosticHeaders(HttpResponseMessage response)
     {
         return response.Headers
             .Concat(response.Content.Headers)

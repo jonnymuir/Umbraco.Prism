@@ -727,11 +727,14 @@ public class SecurityHeadersMiddlewareTests
             set => inner.Headers = value;
         }
 
+        // The interface still declares Body, so a wrapper has to forward it.
+#pragma warning disable CS0618
         public Stream Body
         {
             get => inner.Body;
             set => inner.Body = value;
         }
+#pragma warning restore CS0618
 
         public bool HasStarted => inner.HasStarted;
     }

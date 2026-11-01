@@ -31,6 +31,10 @@ jobs:
       - name: Documentation links resolve
         run: node scripts/check-doc-links.mjs
 
+      # Size budgets (STANDARDS.md, Simplicity). Growth past a budget or baseline fails.
+      - name: Size budgets hold
+        run: node scripts/check-policies.mjs
+
       - name: Mobile shell script tests
         run: npm run test:mobile-shell
 

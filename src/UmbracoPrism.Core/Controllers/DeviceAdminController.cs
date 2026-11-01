@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -40,7 +41,7 @@ public class DeviceAdminController(
         }
 
         // 2. Look up credential scoped to current tenant (prevents cross-tenant deletion)
-        var tenantId = tenant.Id.ToString();
+        var tenantId = tenant.Id.ToString(CultureInfo.InvariantCulture);
         using var db = databaseFactory.CreateDatabase();
 
         var credential = db.FirstOrDefault<PrismDeviceCredentialSchema>(

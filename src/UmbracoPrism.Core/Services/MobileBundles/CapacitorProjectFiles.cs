@@ -163,7 +163,7 @@ export default config;
     return string.Join(' ', tokens);
   }
 
-  private static IReadOnlyList<string> BuildAllowNavigationHosts(PrismTenantSchema tenant, Uri startUri)
+  private static List<string> BuildAllowNavigationHosts(PrismTenantSchema tenant, Uri startUri)
   {
     var hosts = new List<string>();
 

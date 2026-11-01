@@ -123,7 +123,7 @@ public class AuthorizationContractTests
         Assemblies.SelectMany(a => a.GetTypes())
             .Where(t => t is { IsClass: true, IsAbstract: false }
                         && (typeof(ControllerBase).IsAssignableFrom(t) || typeof(Controller).IsAssignableFrom(t)))
-            .Where(t => t.Namespace?.StartsWith("UmbracoPrism") == true)
+            .Where(t => t.Namespace?.StartsWith("UmbracoPrism", StringComparison.Ordinal) == true)
             .Distinct();
 
     public static TheoryData<Type> Controllers()
@@ -225,7 +225,7 @@ public class AuthorizationContractTests
     private static bool IsAction(MethodInfo m) =>
         !m.IsSpecialName
         && m.GetCustomAttribute<NonActionAttribute>() is null
-        && m.DeclaringType?.Namespace?.StartsWith("UmbracoPrism") == true;
+        && m.DeclaringType?.Namespace?.StartsWith("UmbracoPrism", StringComparison.Ordinal) == true;
 
     private static bool IsStateChanging(MethodInfo m)
     {

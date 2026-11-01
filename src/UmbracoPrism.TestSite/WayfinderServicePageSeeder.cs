@@ -215,7 +215,7 @@ public class WayfinderServicePageSeeder(
         return Convert.ToHexString(bytes)[..16];
     }
 
-    private static IReadOnlyDictionary<string, string> MergeTag(IReadOnlyDictionary<string, string>? existingTags, string key, string value)
+    private static Dictionary<string, string> MergeTag(IReadOnlyDictionary<string, string>? existingTags, string key, string value)
     {
         var merged = existingTags is null
             ? new Dictionary<string, string>()

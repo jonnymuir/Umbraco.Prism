@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -47,7 +48,7 @@ public class PrismVinylNotificationController(
             return BadRequest(new { error = "Tenant context not available." });
         }
 
-        var tenantId = tenant.Id.ToString();
+        var tenantId = tenant.Id.ToString(CultureInfo.InvariantCulture);
         var title = $"🎵 Back in Stock: {request.VinylTitle}";
         var body = $"{request.VinylTitle} is back in stock at the Vinyl Vault!";
 

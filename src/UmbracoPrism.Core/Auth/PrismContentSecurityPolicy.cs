@@ -31,7 +31,7 @@ public static class PrismContentSecurityPolicy
 
     // Wildcard forms included, unlike PrismIdentityProviderHosts: Entra can redirect between
     // its own login hosts during a single sign-in, and a CSP source may name a wildcard.
-    private static IReadOnlyList<string> IdentityProviderHosts(PrismTenant tenant)
+    private static List<string> IdentityProviderHosts(PrismTenant tenant)
     {
         var hosts = new List<string>();
 

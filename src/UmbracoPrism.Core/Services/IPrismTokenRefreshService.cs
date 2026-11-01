@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 namespace UmbracoPrism.Core.Services;
 
 /// <summary>
@@ -19,6 +20,7 @@ public interface IPrismTokenRefreshService
     /// backchannel address so the upstream server can still derive the correct public issuer URL.
     /// </param>
     /// <returns>The parsed refresh result including success state and returned token values.</returns>
+    [SuppressMessage("Design", "CA1068", Justification = "Moving the cancellation token after requestHeaders would break this public interface's callers.")]
     Task<TokenRefreshResult> RefreshAsync(
         string tokenEndpoint,
         IReadOnlyDictionary<string, string> formParameters,

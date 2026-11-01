@@ -165,7 +165,7 @@ public class MobileBundleTemplatesTests
     {
         var files = await BuildAsync(new PrismMobileBundleRequest { BiometricAuthEnabled = true, PushNotificationsEnabled = true });
 
-        foreach (var (path, content) in files.Where(file => file.Key.StartsWith("scripts/")))
+        foreach (var (path, content) in files.Where(file => file.Key.StartsWith("scripts/", StringComparison.Ordinal)))
         {
             content.Should().NotContain("\r", $"{path} is run by bash");
         }

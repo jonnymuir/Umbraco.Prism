@@ -25,7 +25,7 @@ public class PrismContentPublishedHandler(
     public async Task HandleAsync(ContentPublishedNotification notification, CancellationToken cancellationToken)
     {
         var notifiableTypes = GetNotifiableContentTypes();
-        if (notifiableTypes.Count == 0)
+        if (notifiableTypes.Length == 0)
             return;
 
         foreach (var content in notification.PublishedEntities)
@@ -72,7 +72,7 @@ public class PrismContentPublishedHandler(
         }
     }
 
-    private IReadOnlyList<string> GetNotifiableContentTypes()
+    private string[] GetNotifiableContentTypes()
     {
         var raw = configuration[NotifiableContentTypesKey];
         if (string.IsNullOrWhiteSpace(raw))

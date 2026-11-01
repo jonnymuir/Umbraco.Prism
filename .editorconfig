@@ -1,0 +1,215 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{csproj,props,targets,slnx,json,yml,yaml,ts,js,mjs,css,html}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+csharp_style_namespace_declarations = file_scoped:suggestion
+dotnet_sort_system_directives_first = true
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+
+# Complexity budgets. Thresholds live in CodeMetricsConfig.txt. Existing offenders are listed in the
+# baseline block at the end of this file, which may only shrink.
+[*.cs]
+dotnet_diagnostic.CA1502.severity = warning
+dotnet_diagnostic.CA1506.severity = warning
+
+# Tests name behaviours with underscores and wire many types on purpose.
+[**/*Tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1506.severity = none
+
+# BEGIN complexity baseline (may only shrink: one section per file setting CA1502/CA1506 to none)
+[src/UmbracoPrism.AppHost/Program.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.Core/Controllers/BiometricController.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.Core/Controllers/TenantManagementController.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.Core/Extensions/PrismAuthExtensions.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.Core/Models/PrismContext.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.Core/Services/PrismSigningKeyCache.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.Core/TagHelpers/PrismDebugTagHelper.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.MockBusinessApp/Program.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.MockBusinessApp/Services/SupportSystem/ContributionsValidation.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.TestSite/Program.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.TestSite/Services/ServiceDesign/MockBusinessAppProfileClient.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.TestSite/TestSiteComposer.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+[src/UmbracoPrism.uSync/Serialization/PrismTenantSerializer.cs]
+dotnet_diagnostic.CA1502.severity = none
+dotnet_diagnostic.CA1506.severity = none
+# END complexity baseline
+
+# BEGIN logging baseline (may only shrink: files whose log calls predate [LoggerMessage]; new log calls use it)
+[src/UmbracoPrism.Automate/PrismSendPushNotificationAction.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core.Tests/BiometricControllerTests.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Configuration/PrismKeyVaultConfigureOptions.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Controllers/AccountController.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Controllers/BiometricController.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Controllers/DeviceAdminController.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Controllers/PrismMobileSignInController.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Controllers/PrismNotificationController.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Middleware/PrismTenantMiddleware.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Notifications/PrismContentPublishedHandler.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Notifications/PrismPageAccessRouteRefreshHandler.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/PrismConfiguredTenantSeeder.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Services/JourneyStatus/PrismJourneyStatusDelivery.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Services/JourneyStatus/PrismJourneyStatusQueue.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Services/JourneyStatus/PrismJourneyStatusSender.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Services/PrismFirebase.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Services/PrismNotificationService.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Services/PrismPageAccessResolver.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Services/PrismTokenRefreshService.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Services/SecretVaultService.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.Core/Services/TenantService.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.MockBusinessApp/Program.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/BackgroundServices/LimitedEditionDropNotifier.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/Controllers/PrismVinylNotificationController.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/DemoMobileNavSeeder.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/DemoTenantSeeder.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/EnvironmentalHumanitiesPage.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/FieldRecording/ButterflyIdentificationSeeder.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/FieldRecording/FieldRecordingAiSetup.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/FieldRecording/ResolveButterflyIdentificationAction.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/JugglingLicenceDecisionAutomationSeeder.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/MobileNavSchemaSetup.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/ResolveWayfinderInstanceOwnerAction.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/Services/ServiceDesign/MediaBackedSightingPhotoStorage.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/Services/ServiceDesign/PublicServiceRequestPostSignInHandler.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/StarterContentSeeder.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/StarterContentTypeSeeder.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/SupportSystemOutcomeResolver.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/VinylVaultContentTypes.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/VinylVaultSeeder.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/WayfinderServicePageContentType.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+[src/UmbracoPrism.TestSite/WayfinderServicePageSeeder.cs]
+dotnet_diagnostic.CA1848.severity = none
+dotnet_diagnostic.CA1873.severity = none
+# END logging baseline

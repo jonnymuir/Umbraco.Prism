@@ -125,7 +125,7 @@ public class UploadTokenServiceTests
 
         cacheMock.Verify(
             c => c.GetAsync(
-                "wayfinder:workflow:upload-token:abc123def456abc123def456abc12345",
+                "wayfinder:workflow:upload-token:abc123def456abc123def456abc12345", // gitleaks:allow test fixture
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

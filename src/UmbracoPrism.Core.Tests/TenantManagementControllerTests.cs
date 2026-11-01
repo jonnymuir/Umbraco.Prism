@@ -11,6 +11,8 @@ namespace UmbracoPrism.Core.Tests;
 
 public class TenantManagementControllerTests
 {
+    private static readonly string[] DuplicatedDomain = ["northwind.example", "northwind.example"];
+
     [Fact]
     public void GetTenants_DoesNotEchoOidcClientSecretReferences()
     {
@@ -171,7 +173,7 @@ public class TenantManagementControllerTests
         responseTenant.HasOidcClientSecret.Should().BeTrue();
         responseTenant.SecretKeyName.Should().BeNull();
         tenantService.Verify(service => service.InvalidateDomains(
-            It.Is<IEnumerable<string>>(domains => domains.SequenceEqual(new[] { "northwind.example", "northwind.example" })),
+            It.Is<IEnumerable<string>>(domains => domains.SequenceEqual(DuplicatedDomain)),
             "tenant-update"), Times.Once);
         db.Verify(database => database.Update(It.IsAny<object>()), Times.Once);
     }
@@ -215,7 +217,7 @@ public class TenantManagementControllerTests
         responseTenant.HasOidcClientSecret.Should().BeTrue();
         responseTenant.SecretKeyName.Should().BeNull();
         tenantService.Verify(service => service.InvalidateDomains(
-            It.Is<IEnumerable<string>>(domains => domains.SequenceEqual(new[] { "northwind.example", "northwind.example" })),
+            It.Is<IEnumerable<string>>(domains => domains.SequenceEqual(DuplicatedDomain)),
             "tenant-update"), Times.Once);
         db.Verify(database => database.Update(It.IsAny<object>()), Times.Once);
     }

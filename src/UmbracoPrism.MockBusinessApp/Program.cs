@@ -182,8 +182,11 @@ static bool IsDirectLoopbackRequest(HttpContext context) =>
         || name.Equals("Forwarded", StringComparison.OrdinalIgnoreCase)
         || name.StartsWith("CF-", StringComparison.OrdinalIgnoreCase));
 
-public record BackOfficeMember(string Email, string TenantCode, string BackOfficeId, string Role);
+namespace UmbracoPrism.MockBusinessApp
+{
+    public record BackOfficeMember(string Email, string TenantCode, string BackOfficeId, string Role);
 
-// The seam the host-level tests boot the real app through (WebApplicationFactory<MockBusinessAppEntryPoint>).
-// A uniquely named type, because other apps in this repo also have a Program.
-public sealed class MockBusinessAppEntryPoint;
+    // The seam the host-level tests boot the real app through (WebApplicationFactory<MockBusinessAppEntryPoint>).
+    // A uniquely named type, because other apps in this repo also have a Program.
+    public sealed class MockBusinessAppEntryPoint;
+}

@@ -70,9 +70,14 @@ internal static class PrismJourneyStatusMessages
             data["steps"] = steps.ToString(CultureInfo.InvariantCulture);
         }
 
+        // The apps register FCM registration tokens, which FirebaseAdmin now marks obsolete in favour of
+        // Firebase installation IDs. Moving to Fid changes what the apps send and is verified on devices.
+#pragma warning disable CS0618
         return new Message { Token = pushToken, Data = data, Android = new AndroidConfig { Priority = Priority.High } };
+#pragma warning restore CS0618
     }
 
+#pragma warning disable CS0618 // FCM registration tokens; see Android above.
     private static Message Ios(string pushToken, string liveActivityToken, Dictionary<string, object> aps) => new()
     {
         Token = pushToken,
@@ -83,6 +88,7 @@ internal static class PrismJourneyStatusMessages
             Aps = new Aps { CustomData = aps }
         }
     };
+#pragma warning restore CS0618
 
     private static Dictionary<string, object> ContentState(PrismJourneyStatusSchema status)
     {

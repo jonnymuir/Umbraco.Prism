@@ -143,7 +143,7 @@ test('Edit modal builds replace-only payload for generic OIDC Key Vault referenc
   const payload = await modal.evaluate((el) => {
     const keyVaultInput = el.shadowRoot?.querySelector('#secret-name') as HTMLInputElement | null;
     if (keyVaultInput) {
-      keyVaultInput.value = 'northwind-oidc-secret-v2';
+      keyVaultInput.value = 'northwind-oidc-secret-v2'; // gitleaks:allow a Key Vault secret name, not a secret
       keyVaultInput.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
     }
 

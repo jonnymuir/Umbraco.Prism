@@ -28,7 +28,7 @@ public class NotificationRateLimitService : INotificationRateLimitService
         return CheckLimit(_subscriptions, key, SubscriptionLimitPerHour);
     }
 
-    private (bool IsLimited, int RetryAfterSeconds) CheckLimit(
+    private static (bool IsLimited, int RetryAfterSeconds) CheckLimit(
         ConcurrentDictionary<string, List<DateTime>> store,
         string key,
         int limit)

@@ -21,6 +21,8 @@ namespace UmbracoPrism.Core.Tests.TagHelpers;
 
 public class FieldTagHelperContentTypesTests
 {
+    private static readonly string[] NotFoundLocations = ["not-found"];
+
     // ------------------------------------------------------------------ Helpers
 
     private static async Task<string> ProcessAsync(
@@ -34,7 +36,7 @@ public class FieldTagHelperContentTypesTests
         var viewEngineMock = new Mock<ICompositeViewEngine>();
         viewEngineMock
             .Setup(x => x.GetView(It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<bool>()))
-            .Returns(ViewEngineResult.NotFound("view", new[] { "not-found" }));
+            .Returns(ViewEngineResult.NotFound("view", NotFoundLocations));
 
         var viewContext = new ViewContext
         {

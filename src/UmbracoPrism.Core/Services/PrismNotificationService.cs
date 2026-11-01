@@ -200,7 +200,7 @@ public class PrismNotificationService : IPrismNotificationService
     private async Task<int> FanOutAsync(
         Umbraco.Cms.Infrastructure.Persistence.IUmbracoDatabase db,
         string tenantId,
-        IReadOnlyList<string> tokens,
+        List<string> tokens,
         string title,
         string body,
         string? deepLinkPath,
@@ -230,6 +230,9 @@ public class PrismNotificationService : IPrismNotificationService
             ct.ThrowIfCancellationRequested();
 
             var batch = tokens.Skip(offset).Take(FcmBatchSize).ToList();
+            // The apps register FCM registration tokens, which FirebaseAdmin now marks obsolete in favour of
+            // Firebase installation IDs. Moving to Fid changes what the apps send and is verified on devices.
+#pragma warning disable CS0618
             var message = new MulticastMessage
             {
                 Tokens = batch,
@@ -238,6 +241,7 @@ public class PrismNotificationService : IPrismNotificationService
                     ? null
                     : new Dictionary<string, string> { ["url"] = deepLinkPath },
             };
+#pragma warning restore CS0618
 
             try
             {

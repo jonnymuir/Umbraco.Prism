@@ -115,7 +115,7 @@ public class VinylVaultContentTypes : INotificationAsyncHandler<UmbracoApplicati
         };
 
         const string groupName = "Content";
-        contentType.AddPropertyGroup(groupName, groupName.ToLower().Replace(" ", ""));
+        contentType.AddPropertyGroup(groupName, groupName.ToLowerInvariant().Replace(" ", ""));
 
         contentType.AddPropertyType(new PropertyType(_shortStringHelper, textBox, "heroTitle")
         {
@@ -155,7 +155,7 @@ public class VinylVaultContentTypes : INotificationAsyncHandler<UmbracoApplicati
         };
 
         const string groupName = "Content";
-        contentType.AddPropertyGroup(groupName, groupName.ToLower().Replace(" ", ""));
+        contentType.AddPropertyGroup(groupName, groupName.ToLowerInvariant().Replace(" ", ""));
 
         contentType.AddPropertyType(new PropertyType(_shortStringHelper, textBox, "genre")
         {

@@ -27,7 +27,7 @@ public class TestSiteAppsettingsSecretGuardTests
             "Keep it in src/UmbracoPrism.TestSite/appsettings.Local.json or user-secrets instead.");
     }
 
-    private static IReadOnlyList<string> GetTrackedAppsettingsFiles()
+    private static string[] GetTrackedAppsettingsFiles()
     {
         var startInfo = new ProcessStartInfo("git")
         {

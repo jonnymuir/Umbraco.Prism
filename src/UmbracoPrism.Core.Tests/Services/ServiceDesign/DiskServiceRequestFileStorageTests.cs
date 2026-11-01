@@ -25,9 +25,10 @@ public class DiskServiceRequestFileStorageTests : IDisposable
         {
             Directory.Delete(_root, recursive: true);
         }
+        GC.SuppressFinalize(this);
     }
 
-    private static IFormFile CreateFile(string fileName, string content, string contentType = "application/pdf")
+    private static FormFile CreateFile(string fileName, string content, string contentType = "application/pdf")
     {
         var bytes = Encoding.UTF8.GetBytes(content);
         return new FormFile(new MemoryStream(bytes), 0, bytes.Length, "file", fileName)

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -68,7 +69,7 @@ public class PrismNotificationController(
         var (isLimited, retryAfter) = rateLimitService.CheckTokenRegistrationLimit(userId, tenantId);
         if (isLimited)
         {
-            Response.Headers.Append("Retry-After", retryAfter.ToString());
+            Response.Headers.Append("Retry-After", retryAfter.ToString(CultureInfo.InvariantCulture));
             return StatusCode(429, new { error = "rate_limited", retryAfterSeconds = retryAfter });
         }
 
@@ -118,7 +119,7 @@ public class PrismNotificationController(
         var (isLimited, retryAfter) = rateLimitService.CheckSubscriptionLimit(userId, tenantId);
         if (isLimited)
         {
-            Response.Headers.Append("Retry-After", retryAfter.ToString());
+            Response.Headers.Append("Retry-After", retryAfter.ToString(CultureInfo.InvariantCulture));
             return StatusCode(429, new { error = "rate_limited", retryAfterSeconds = retryAfter });
         }
 

@@ -72,7 +72,7 @@ public class BackchannelSecurityTests
         return token;
     }
 
-    private class TempEnvironmentVariable : IDisposable
+    private sealed class TempEnvironmentVariable : IDisposable
     {
         private readonly string _name;
         private readonly string? _originalValue;

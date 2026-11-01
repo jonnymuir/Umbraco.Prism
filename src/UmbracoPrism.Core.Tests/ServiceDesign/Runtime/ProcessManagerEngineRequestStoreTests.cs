@@ -171,7 +171,7 @@ public class ProcessManagerEngineRequestStoreTests
         engine.GetAllInstances().Should().ContainSingle(i => i.InstanceId == envelope.InstanceId);
     }
 
-    private static ProcessManagerEngine CreateEngine(IServiceRequestStore? instanceStore)
+    private static TestableWorkflowRuntimeEngine CreateEngine(IServiceRequestStore? instanceStore)
     {
         var sanitizer = new Mock<IServiceContentSanitizer>();
         sanitizer.Setup(s => s.Sanitize(It.IsAny<string>())).Returns<string>(x => x);

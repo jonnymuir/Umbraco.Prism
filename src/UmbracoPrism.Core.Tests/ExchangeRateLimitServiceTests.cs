@@ -194,7 +194,7 @@ public class ExchangeRateLimitServiceTests
 
     // ------------------------------------------------------------------ fake time provider
 
-    private class FakeTimeProvider(DateTimeOffset startTime) : TimeProvider
+    private sealed class FakeTimeProvider(DateTimeOffset startTime) : TimeProvider
     {
         private DateTimeOffset _utcNow = startTime;
 

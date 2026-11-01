@@ -93,7 +93,7 @@ public class EnvironmentalHumanitiesPage(
         return contentType;
     }
 
-    private void AllowUnderHome(IContentType contentType)
+    private void AllowUnderHome(ContentType contentType)
     {
         var home = contentTypeService.Get(TestSiteSeedContract.HomePageAlias);
         if (home is null) return;
@@ -178,5 +178,7 @@ public class EnvironmentalHumanitiesPage(
             settingsData = Array.Empty<object>(),
             expose = Array.Empty<object>()
         }
-    }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+    }, CamelCase);
+
+    private static readonly JsonSerializerOptions CamelCase = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 }
