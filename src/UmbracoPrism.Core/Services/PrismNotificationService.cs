@@ -196,6 +196,19 @@ public class PrismNotificationService : IPrismNotificationService
         return tokens;
     }
 
+    // The apps register FCM registration tokens, which FirebaseAdmin now marks obsolete in favour of
+    // Firebase installation IDs. Moving to Fid changes what the apps send and is verified on devices.
+#pragma warning disable CS0618
+    private static MulticastMessage BuildMessage(List<string> batch, string title, string body, string? deepLinkPath) => new()
+    {
+        Tokens = batch,
+        Notification = new Notification { Title = title, Body = body },
+        Data = string.IsNullOrWhiteSpace(deepLinkPath)
+            ? null
+            : new Dictionary<string, string> { ["url"] = deepLinkPath },
+    };
+#pragma warning restore CS0618
+
     /// <returns>The total number of devices actually sent to, across every batch — 0 for every "nothing to do" or failure case (no registered device, Firebase not configured, every send rejected), so a caller can tell a real send from a silent no-op instead of assuming success just because nothing threw.</returns>
     private async Task<int> FanOutAsync(
         Umbraco.Cms.Infrastructure.Persistence.IUmbracoDatabase db,
@@ -230,18 +243,7 @@ public class PrismNotificationService : IPrismNotificationService
             ct.ThrowIfCancellationRequested();
 
             var batch = tokens.Skip(offset).Take(FcmBatchSize).ToList();
-            // The apps register FCM registration tokens, which FirebaseAdmin now marks obsolete in favour of
-            // Firebase installation IDs. Moving to Fid changes what the apps send and is verified on devices.
-#pragma warning disable CS0618
-            var message = new MulticastMessage
-            {
-                Tokens = batch,
-                Notification = new Notification { Title = title, Body = body },
-                Data = string.IsNullOrWhiteSpace(deepLinkPath)
-                    ? null
-                    : new Dictionary<string, string> { ["url"] = deepLinkPath },
-            };
-#pragma warning restore CS0618
+            var message = BuildMessage(batch, title, body, deepLinkPath);
 
             try
             {
