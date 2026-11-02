@@ -2,6 +2,20 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v7.2.0] - 2026-11-02
+
+### New features
+
+- Tenants can have a dark palette. Each colour in the branding editor has a Dark mode row, the same as light until you customise it, and the dark colours are served at the end of `/umbraco/prism/branding.css` for devices in dark mode. uSync exports and imports them with the tenant.
+- Adds `--prism-background`, the page's own background colour. The GOV.UK page background follows it, and so does the page inside the mobile app. A site or tenant that still sets `--bg-offset` keeps that value.
+- Adds `--prism-button` and `--prism-button-text` for primary buttons, GOV.UK's green and white by default.
+- The GOV.UK token bridge now reaches the colours GOV.UK Frontend writes directly: primary, secondary and warning buttons, and the fill of text inputs, textareas and selects. A tenant's palette, light or dark, now restyles them with no CSS of your own.
+
+### Fixes and improvements
+
+- A GOV.UK panel's title keeps the panel's text colour. Prism's heading colour used to paint it in body text colour on the panel's fill.
+- GOV.UK's pale surface panels, such as notification banners, now follow the Alternate Surface colour instead of a fixed tint.
+
 ## [v7.1.0] - 2026-11-01
 
 ### New features
