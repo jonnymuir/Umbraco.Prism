@@ -2,6 +2,17 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v7.1.0] - 2026-11-01
+
+### New features
+
+- Adds the `UmbracoPrism.MobileBundle` dotnet tool (command `prism-mobile-bundle`), which generates the same mobile app bundle as the backoffice's Produce Mobile button from command-line settings, so a site in its own repo can build its app in CI. Install it as a local tool at the same version as `UmbracoPrism`.
+
+### Fixes and improvements
+
+- Firebase credentials now load only as a service account key, refusing any other credential type.
+- The package builds with warnings as errors and the latest recommended .NET analyzers; formatting is culture-invariant throughout.
+
 ## [v7.0.0] — 2026-10-31
 
 ### Check when upgrading
