@@ -75,8 +75,6 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
             return Task.FromResult(SyncAttempt<XElement>.Fail(string.Empty, null, ChangeType.Fail, "Item is null", null));
 
         var alias = ItemAlias(item);
-        var branding = ParseOverrides(item.BrandingOverrides);
-        var mobileBranding = ParseOverrides(item.MobileBrandingOverrides);
 
         var node = InitializeBaseNode(item, alias, 1);
         node.Add(
@@ -92,10 +90,8 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
                 NullableElement("OidcClientId", item.OidcClientId),
                 NullableElement("OidcClientSecretProvider", item.OidcClientSecretProvider),
                 NullableElement("OidcClientSecretReference", item.OidcClientSecretReference)),
-            new XElement("Branding",
-                branding.Select(kv => new XElement("Override", new XAttribute("Variable", kv.Key), kv.Value))),
-            new XElement("MobileBranding",
-                mobileBranding.Select(kv => new XElement("Override", new XAttribute("Variable", kv.Key), kv.Value))));
+            OverrideSets.Select(set => new XElement(set.Element,
+                ParseOverrides(set.Get(item)).Select(kv => new XElement("Override", new XAttribute("Variable", kv.Key), kv.Value)))));
 
         return Task.FromResult(SyncAttempt<XElement>.Succeed(alias, node, ChangeType.Export, new List<uSyncChange>()));
     }
@@ -125,26 +121,33 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
         schema.OidcClientSecretProvider = NullIfEmpty(identity?.Element("OidcClientSecretProvider")?.Value);
         schema.OidcClientSecretReference = NullIfEmpty(identity?.Element("OidcClientSecretReference")?.Value);
 
-        var branding = node.Element("Branding")?
-            .Elements("Override")
-            .Where(e => e.Attribute("Variable") is not null)
-            .ToDictionary(e => e.Attribute("Variable")!.Value, e => e.Value)
-            ?? new Dictionary<string, string>();
-
-        var mobileBranding = node.Element("MobileBranding")?
-            .Elements("Override")
-            .Where(e => e.Attribute("Variable") is not null)
-            .ToDictionary(e => e.Attribute("Variable")!.Value, e => e.Value)
-            ?? new Dictionary<string, string>();
-
-        schema.BrandingOverrides = branding.Count > 0 ? JsonSerializer.Serialize(branding) : null;
-        schema.MobileBrandingOverrides = mobileBranding.Count > 0 ? JsonSerializer.Serialize(mobileBranding) : null;
+        foreach (var set in OverrideSets)
+            set.Set(schema, ReadOverrides(node.Element(set.Element)));
 
         // Preserve legacy inline secret — never exported, must survive a round-trip.
         if (existing is not null)
             schema.OidcClientSecret = existing.OidcClientSecret;
 
         return SyncAttempt<PrismTenantSchema>.Succeed(ItemAlias(schema), schema, ChangeType.Import, new List<uSyncChange>());
+    }
+
+    /// <summary>The tenant's three sets of branding overrides, each stored as JSON and exported as its own element.</summary>
+    private static readonly (string Element, Func<PrismTenantSchema, string?> Get, Action<PrismTenantSchema, string?> Set)[] OverrideSets =
+    [
+        ("Branding", t => t.BrandingOverrides, (t, json) => t.BrandingOverrides = json),
+        ("MobileBranding", t => t.MobileBrandingOverrides, (t, json) => t.MobileBrandingOverrides = json),
+        ("DarkBranding", t => t.DarkBrandingOverrides, (t, json) => t.DarkBrandingOverrides = json),
+    ];
+
+    /// <summary>The overrides exported in <paramref name="element"/> as JSON, or null when there are none.</summary>
+    private static string? ReadOverrides(XElement? element)
+    {
+        var overrides = element?
+            .Elements("Override")
+            .Where(e => e.Attribute("Variable") is not null)
+            .ToDictionary(e => e.Attribute("Variable")!.Value, e => e.Value)
+            ?? new Dictionary<string, string>();
+        return overrides.Count > 0 ? JsonSerializer.Serialize(overrides) : null;
     }
 
     [SuppressMessage("Security", "CA5351", Justification = "Derives a stable uSync key from the slug; not a security use. Changing the algorithm would re-key every synced item.")]

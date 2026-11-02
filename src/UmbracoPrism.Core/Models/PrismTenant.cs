@@ -47,6 +47,12 @@ public class PrismTenant
     public Dictionary<string, string> MobileBrandingOverrides { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets the dark palette: overrides applied when the visitor's device prefers a dark
+    /// colour scheme, on top of the desktop and mobile ones.
+    /// </summary>
+    public Dictionary<string, string> DarkBrandingOverrides { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets normalized desktop branding CSS declarations precomputed for request-time injection.
     /// </summary>
     public string BrandingCssDeclarations { get; set; } = string.Empty;
@@ -55,6 +61,11 @@ public class PrismTenant
     /// Gets or sets normalized mobile branding CSS declarations precomputed for request-time injection.
     /// </summary>
     public string MobileBrandingCssDeclarations { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets normalized dark palette CSS declarations precomputed for request-time injection.
+    /// </summary>
+    public string DarkBrandingCssDeclarations { get; set; } = string.Empty;
 
     /// <summary>
     /// The tenant's own mobile apps, which alone can receive the sign-in callback.

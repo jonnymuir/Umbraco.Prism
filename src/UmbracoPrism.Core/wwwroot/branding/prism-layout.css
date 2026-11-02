@@ -78,7 +78,7 @@
 
 body {
     margin: 0;
-    background-color: var(--bg-offset);
+    background-color: var(--bg-offset, var(--prism-background));
     color: var(--prism-text);
 }
 

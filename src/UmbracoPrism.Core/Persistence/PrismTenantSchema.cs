@@ -68,6 +68,14 @@ public class PrismTenantSchema
     public string? MobileBrandingOverrides { get; set; }
 
     /// <summary>
+    /// Stores the tenant's dark palette as JSON: overrides that apply when the visitor's device
+    /// prefers a dark colour scheme.
+    /// </summary>
+    [Column("DarkBrandingOverrides")]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? DarkBrandingOverrides { get; set; }
+
+    /// <summary>
     /// Stores tenant-specific mobile app generator settings as JSON.
     /// </summary>
     [Column("MobileAppConfig")]

@@ -59,6 +59,26 @@ public class PrismBrandingCssBuilderTests
     }
 
     [Fact]
+    public void BuildsNoDarkBlock_WhenThereIsNoDarkPalette()
+    {
+        PrismBrandingCssBuilder.BuildDarkCssOverrides(null, null).Should().BeEmpty();
+        PrismBrandingCssBuilder.BuildDarkCssOverrides(new Dictionary<string, string>(), "").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void BuildsTheDarkPalette_AsAPrefersColorSchemeBlock_SkippingUnsafeValues()
+    {
+        var dark = new Dictionary<string, string>
+        {
+            ["--prism-background"] = "#0f1716",
+            ["--prism-text"] = "red;}body{display:none"
+        };
+
+        PrismBrandingCssBuilder.BuildDarkCssOverrides(dark, null)
+            .Should().Be("@media (prefers-color-scheme: dark){:root{--prism-background:#0f1716;}}");
+    }
+
+    [Fact]
     public void SkipsUnsafePropertyNamesAndValues()
     {
         var css = PrismBrandingCssBuilder.BuildCssOverrides(

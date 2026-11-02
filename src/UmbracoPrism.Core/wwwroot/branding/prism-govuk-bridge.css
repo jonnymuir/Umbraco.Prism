@@ -70,14 +70,14 @@
     --govuk-secondary-text-colour: var(--prism-muted, #505a5f);
     /* @prism section: GOV.UK Alignment | label: GOV.UK Link Colour | description: Colour for GOV.UK hyperlinks. Linked to Link Colour. */
     --govuk-link-colour: var(--prism-link, #1d70b8);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Page Canvas Colour | description: Background behind the whole GOV.UK page template. Linked to Page Background. */
+    --govuk-template-background-colour: var(--prism-background, #f4f8fb);
+    /* @prism section: GOV.UK Alignment | label: GOV.UK Surface Panel Background | description: Background colour for GOV.UK's pale surface panels, e.g. notification banners. Linked to Alternate Surface. */
+    --govuk-surface-background-colour: var(--prism-surface-alt, #f3f2f1);
 
     /* Overridable but NOT linked: no existing Prism token represents the same design concept
        (see docs/guides/govuk-token-bridge.md), so these are plain literal values a tenant can
        still tweak independently, they just won't track a Prism token if it changes. */
-    /* @prism section: GOV.UK Alignment | label: GOV.UK Page Canvas Colour | description: Background tint behind the whole GOV.UK page template, independent of Prism's Surface Background. */
-    --govuk-template-background-colour: #f4f8fb;
-    /* @prism section: GOV.UK Alignment | label: GOV.UK Surface Panel Background | description: Background colour for GOV.UK's pale surface panels, e.g. notification banners. */
-    --govuk-surface-background-colour: #f4f8fb;
     /* @prism section: GOV.UK Alignment | label: GOV.UK Print Text Colour | description: Text colour used only when a GOV.UK page is printed. */
     --govuk-print-text-colour: #000000;
     /* @prism section: GOV.UK Alignment | label: GOV.UK Link Hover Colour | description: Colour of a GOV.UK hyperlink on hover, independent of Link Colour. */
@@ -89,4 +89,60 @@
 
     /* --govuk-breakpoint-* and --govuk-frontend-version are structural constants, never
        tenant-editable, see docs/guides/govuk-token-bridge.md. */
+}
+
+/*
+ * GOV.UK Frontend writes a few component colours as literals rather than reading a --govuk-*
+ * property, so no alias above can reach them: buttons and the fill of form fields. The last rule
+ * stops Prism's own heading colour overriding a panel's title. These rules point them at Prism tokens, so a tenant's palette, light or dark, reaches
+ * them too. With Prism's default tokens they look the same as GOV.UK Frontend's own.
+ */
+.govuk-button:not(.govuk-button--secondary, .govuk-button--warning, .govuk-button--inverse) {
+    background-color: var(--prism-button, #0f7a52);
+    box-shadow: 0 2px 0 color-mix(in srgb, var(--prism-button, #0f7a52) 50%, #000);
+}
+
+.govuk-button:not(.govuk-button--secondary, .govuk-button--warning, .govuk-button--inverse):is(:link, :visited, :hover, :active),
+.govuk-button:not(.govuk-button--secondary, .govuk-button--warning, .govuk-button--inverse) {
+    color: var(--prism-button-text, #ffffff);
+}
+
+.govuk-button:not(.govuk-button--secondary, .govuk-button--warning, .govuk-button--inverse):hover {
+    background-color: color-mix(in srgb, var(--prism-button, #0f7a52) 75%, #000);
+}
+
+.govuk-button--secondary {
+    background-color: var(--prism-surface-alt, #f3f2f1);
+    box-shadow: 0 2px 0 var(--prism-border, #b1b4b6);
+}
+
+.govuk-button--secondary,
+.govuk-button--secondary:is(:link, :visited, :hover, :active) {
+    color: var(--prism-text, #0b0c0c);
+}
+
+.govuk-button--secondary:hover {
+    background-color: var(--prism-border, #b1b4b6);
+}
+
+.govuk-button--warning {
+    background-color: var(--prism-danger, #d4351c);
+    box-shadow: 0 2px 0 color-mix(in srgb, var(--prism-danger, #d4351c) 50%, #000);
+}
+
+.govuk-button--warning:hover {
+    background-color: color-mix(in srgb, var(--prism-danger, #d4351c) 75%, #000);
+}
+
+.govuk-input,
+.govuk-textarea,
+.govuk-select {
+    background-color: var(--prism-surface, #ffffff);
+    color: var(--prism-text, #0b0c0c);
+}
+
+/* GOV.UK gives a panel the inverse text colour, but Prism's own heading rule (h1 to h6 in
+   prism-typography.css) would paint the panel's title in body text colour over it. */
+.govuk-panel__title {
+    color: inherit;
 }

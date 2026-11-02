@@ -1,7 +1,7 @@
-@property --bg-offset {
+@property --prism-background {
   syntax: '<color>';
   inherits: true;
-  initial-value: #f3f2f1;
+  initial-value: #f4f8fb;
 }
 
 @property --prism-text {
@@ -82,10 +82,22 @@
   initial-value: #d4351c;
 }
 
+@property --prism-button {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0f7a52;
+}
+
+@property --prism-button-text {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+
 
 :root {
-    /* @prism section: Brand Colours | label: Background Offset | description: Subtle background tint used for page backgrounds */
-    --bg-offset: #f3f2f1;
+    /* @prism section: Brand Colours | label: Page Background | description: Background colour of the page itself, behind content and cards */
+    --prism-background: #f4f8fb;
 
     /* @prism section: Brand Colours | label: Body Text | description: Primary text colour for body content */
     --prism-text: #0b0c0c;
@@ -117,4 +129,8 @@
     /* @prism section: Brand Colours | label: Danger Colour | description: Colour indicating errors or destructive actions */
     --prism-danger: #d4351c;
 
+    /* @prism section: Brand Colours | label: Button Colour | description: Background colour of primary buttons (GOV.UK's green by default) */
+    --prism-button: #0f7a52;
+    /* @prism section: Brand Colours | label: Button Text | description: Text colour on primary buttons */
+    --prism-button-text: #ffffff;
 }

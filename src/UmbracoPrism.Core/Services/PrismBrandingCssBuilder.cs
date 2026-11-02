@@ -57,6 +57,26 @@ public static class PrismBrandingCssBuilder
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Builds the tenant's dark palette as a <c>prefers-color-scheme: dark</c> block, to follow
+    /// <see cref="BuildCssOverrides"/> so it wins whenever the visitor's device is in dark mode.
+    /// Returns an empty string when the tenant has no dark palette.
+    /// </summary>
+    public static string BuildDarkCssOverrides(IReadOnlyDictionary<string, string>? darkOverrides, string? darkOverrideDeclarations)
+    {
+        var builder = new StringBuilder();
+        if (!string.IsNullOrWhiteSpace(darkOverrideDeclarations))
+        {
+            builder.Append(darkOverrideDeclarations);
+        }
+        else
+        {
+            AppendOverrides(builder, darkOverrides);
+        }
+
+        return builder.Length == 0 ? string.Empty : $"@media (prefers-color-scheme: dark){{:root{{{builder}}}}}";
+    }
+
     private static void AppendOverrides(StringBuilder builder, IReadOnlyDictionary<string, string>? overrides)
     {
         if (overrides == null || overrides.Count == 0)

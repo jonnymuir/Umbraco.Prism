@@ -34,6 +34,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
         .To<AddOidcSecretProviderColumns>("add-oidc-secret-provider-columns")
         .To<CreatePrismPageAccessPoliciesTable>("add-page-access-policies")
         .To<AddJourneyStatusColumns>("add-journey-status-columns")
-        .To<CreatePrismJourneyStatusesTable>("add-journey-statuses");
+        .To<CreatePrismJourneyStatusesTable>("add-journey-statuses")
+        .To<AddDarkBrandingOverridesColumn>("add-dark-branding-overrides");
     }
 }
