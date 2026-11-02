@@ -90,9 +90,8 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
                 NullableElement("OidcClientId", item.OidcClientId),
                 NullableElement("OidcClientSecretProvider", item.OidcClientSecretProvider),
                 NullableElement("OidcClientSecretReference", item.OidcClientSecretReference)),
-            OverridesElement("Branding", item.BrandingOverrides),
-            OverridesElement("MobileBranding", item.MobileBrandingOverrides),
-            OverridesElement("DarkBranding", item.DarkBrandingOverrides));
+            OverrideSets.Select(set => new XElement(set.Element,
+                ParseOverrides(set.Get(item)).Select(kv => new XElement("Override", new XAttribute("Variable", kv.Key), kv.Value)))));
 
         return Task.FromResult(SyncAttempt<XElement>.Succeed(alias, node, ChangeType.Export, new List<uSyncChange>()));
     }
@@ -122,9 +121,8 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
         schema.OidcClientSecretProvider = NullIfEmpty(identity?.Element("OidcClientSecretProvider")?.Value);
         schema.OidcClientSecretReference = NullIfEmpty(identity?.Element("OidcClientSecretReference")?.Value);
 
-        schema.BrandingOverrides = ReadOverrides(node, "Branding");
-        schema.MobileBrandingOverrides = ReadOverrides(node, "MobileBranding");
-        schema.DarkBrandingOverrides = ReadOverrides(node, "DarkBranding");
+        foreach (var set in OverrideSets)
+            set.Set(schema, ReadOverrides(node.Element(set.Element)));
 
         // Preserve legacy inline secret — never exported, must survive a round-trip.
         if (existing is not null)
@@ -133,13 +131,18 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
         return SyncAttempt<PrismTenantSchema>.Succeed(ItemAlias(schema), schema, ChangeType.Import, new List<uSyncChange>());
     }
 
-    private static XElement OverridesElement(string name, string? json) =>
-        new(name, ParseOverrides(json).Select(kv => new XElement("Override", new XAttribute("Variable", kv.Key), kv.Value)));
+    /// <summary>The tenant's three sets of branding overrides, each stored as JSON and exported as its own element.</summary>
+    private static readonly (string Element, Func<PrismTenantSchema, string?> Get, Action<PrismTenantSchema, string?> Set)[] OverrideSets =
+    [
+        ("Branding", t => t.BrandingOverrides, (t, json) => t.BrandingOverrides = json),
+        ("MobileBranding", t => t.MobileBrandingOverrides, (t, json) => t.MobileBrandingOverrides = json),
+        ("DarkBranding", t => t.DarkBrandingOverrides, (t, json) => t.DarkBrandingOverrides = json),
+    ];
 
-    /// <summary>The overrides stored under <paramref name="name"/> as JSON, or null when there are none.</summary>
-    private static string? ReadOverrides(XElement node, string name)
+    /// <summary>The overrides exported in <paramref name="element"/> as JSON, or null when there are none.</summary>
+    private static string? ReadOverrides(XElement? element)
     {
-        var overrides = node.Element(name)?
+        var overrides = element?
             .Elements("Override")
             .Where(e => e.Attribute("Variable") is not null)
             .ToDictionary(e => e.Attribute("Variable")!.Value, e => e.Value)
