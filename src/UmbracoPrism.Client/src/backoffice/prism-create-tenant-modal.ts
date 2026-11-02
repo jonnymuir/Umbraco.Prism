@@ -64,6 +64,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
       ...this._identity.payload,
       brandingOverrides: this._branding.collectOverrides(),
       mobileBrandingOverrides: this._branding.collectMobileOverrides(),
+      darkBrandingOverrides: this._branding.collectDarkOverrides(),
       mobileAppConfig: this._mobile.appConfig,
       allowBiometricLogin: this._allowBiometricLogin
     };

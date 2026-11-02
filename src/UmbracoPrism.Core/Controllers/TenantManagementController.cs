@@ -86,12 +86,9 @@ public class TenantManagementController(
             OidcClientId = NormalizeOptionalString(tenant.OidcClientId),
             OidcClientSecret = genericSecret.LegacyInlineSecret,
             OidcClientSecretProvider = genericSecret.Provider,
-            OidcClientSecretReference = genericSecret.Reference,
-            BrandingOverrides = SerializeBrandingOverrides(tenant.BrandingOverrides),
-            MobileBrandingOverrides = SerializeBrandingOverrides(tenant.MobileBrandingOverrides),
-            MobileAppConfig = SerializeMobileAppConfig(tenant.MobileAppConfig),
-            AllowBiometricLogin = tenant.AllowBiometricLogin
+            OidcClientSecretReference = genericSecret.Reference
         };
+        TenantRequestSettings.ApplyTo(schema, tenant);
 
         db.Insert(schema);
         tenantService.InvalidateDomain(schema.Hostname, "tenant-create");
@@ -147,10 +144,7 @@ public class TenantManagementController(
         existing.OidcClientSecret = genericSecret.LegacyInlineSecret;
         existing.OidcClientSecretProvider = genericSecret.Provider;
         existing.OidcClientSecretReference = genericSecret.Reference;
-        existing.BrandingOverrides = SerializeBrandingOverrides(updatedTenant.BrandingOverrides);
-        existing.MobileBrandingOverrides = SerializeBrandingOverrides(updatedTenant.MobileBrandingOverrides);
-        existing.MobileAppConfig = SerializeMobileAppConfig(updatedTenant.MobileAppConfig);
-        existing.AllowBiometricLogin = updatedTenant.AllowBiometricLogin;
+        TenantRequestSettings.ApplyTo(existing, updatedTenant);
 
         db.Update(existing);
         tenantService.InvalidateDomains([oldHostname, updatedTenant.Hostname], "tenant-update");
@@ -266,12 +260,6 @@ public class TenantManagementController(
         return Ok(new { sections });
     }
 
-    private static string? SerializeBrandingOverrides(Dictionary<string, string>? overrides)
-    {
-        if (overrides == null || overrides.Count == 0) return null;
-        return JsonSerializer.Serialize(overrides);
-    }
-
     private static Dictionary<string, string> DeserializeBrandingOverrides(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return new Dictionary<string, string>();
@@ -283,19 +271,6 @@ public class TenantManagementController(
         {
             return new Dictionary<string, string>();
         }
-    }
-
-    private static string? SerializeMobileAppConfig(PrismMobileAppConfig? config)
-    {
-        var hasAnyValue = config is not null && typeof(PrismMobileAppConfig).GetProperties().Any(property => property.GetValue(config) switch
-        {
-            null => false,
-            string text => !string.IsNullOrWhiteSpace(text),
-            System.Collections.ICollection items => items.Count > 0,
-            _ => true
-        });
-
-        return hasAnyValue ? JsonSerializer.Serialize(config) : null;
     }
 
     private static PrismMobileAppConfig? DeserializeMobileAppConfig(string? json)
@@ -347,6 +322,7 @@ public class TenantManagementController(
             HasOidcClientSecret = !string.IsNullOrWhiteSpace(reference),
             BrandingOverrides = tenant.BrandingOverrides,
             MobileBrandingOverrides = tenant.MobileBrandingOverrides,
+            DarkBrandingOverrides = tenant.DarkBrandingOverrides,
             MobileAppConfig = tenant.MobileAppConfig,
             AllowBiometricLogin = tenant.AllowBiometricLogin
         };

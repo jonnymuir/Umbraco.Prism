@@ -17,6 +17,7 @@ public class PrismTenantResponse
     public bool HasOidcClientSecret { get; set; }
     public string? BrandingOverrides { get; set; }
     public string? MobileBrandingOverrides { get; set; }
+    public string? DarkBrandingOverrides { get; set; }
     public string? MobileAppConfig { get; set; }
     public bool AllowBiometricLogin { get; set; }
 }

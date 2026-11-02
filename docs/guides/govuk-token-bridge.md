@@ -108,6 +108,8 @@ the next time either side changes its default.
 | `--govuk-hover-colour` | `--prism-border` | `#cecece` vs `#b1b4b6` |
 | `--govuk-secondary-text-colour` | `--prism-muted` | `#484949` vs `#505a5f` |
 | `--govuk-link-colour` | `--prism-link` | `#1a65a6` vs `#1d70b8` |
+| `--govuk-template-background-colour` | `--prism-background` | `#f4f8fb` = `#f4f8fb` |
+| `--govuk-surface-background-colour` | `--prism-surface-alt` | `#f4f8fb` vs `#f3f2f1` |
 
 Linking these visibly shifts GOV.UK component colours (error summaries, success panels, borders,
 secondary text, links) to match Prism's existing tokens. That shift is the point, the two systems
@@ -121,7 +123,7 @@ a deliberate choice if GDS's nuance is ever wanted back.
 
 ### Overridable, but not linked (no equivalent Prism concept)
 
-These six have no matching Prism token, so there's nothing sensible to alias them to, but "no
+These four have no matching Prism token, so there's nothing sensible to alias them to, but "no
 natural link" isn't the same as "should never be tenant-editable". Each is a plain literal
 declaration in `prism-govuk-bridge.css` (its own `@property` initial-value and `@prism`
 annotation, same as any other colour field), so it shows up as a normal editable field in the
@@ -130,8 +132,6 @@ track any Prism token, so if a related Prism token changes later these won't fol
 
 | GOV.UK variable | Why there's no link | Default |
 |---|---|---|
-| `--govuk-template-background-colour` | GDS's own pale page-canvas tint. No Prism token represents "page canvas" as distinct from `--prism-surface` (card/content background) today. | `#f4f8fb` |
-| `--govuk-surface-background-colour` | Same concept, used on GOV.UK's pale surface panels (e.g. notification banners). | `#f4f8fb` |
 | `--govuk-print-text-colour` | Print-only concern, not a brand colour. | `#000000` |
 | `--govuk-link-hover-colour` | No hover-state token in Prism yet. A future addition could derive it from `--prism-link` with `color-mix()` rather than adding a fourth manually-picked blue, at which point this would move up to the corrective-links table. | `#0f385c` |
 | `--govuk-link-visited-colour` | Visited-link purple is a GDS accessibility/UX convention, arguably shouldn't move in lockstep with the brand palette even if a "visited" Prism token existed. | `#54319f` |
@@ -139,6 +139,22 @@ track any Prism token, so if a related Prism token changes later these won't fol
 
 If a genuine Prism-token equivalent for one of these shows up later, move it into the linked
 tables above instead of leaving it as a literal, same process as "Adding a new bridge link" below.
+
+### Component rules (GOV.UK writes the colour as a literal)
+
+Some GOV.UK components don't read a `--govuk-*` property for their colour at all, so no alias can
+reach them. The end of `prism-govuk-bridge.css` points them at Prism tokens with ordinary rules.
+With Prism's default tokens each looks the same as GOV.UK Frontend's own.
+
+| Component | Prism token |
+|---|---|
+| Primary button fill and text | `--prism-button`, `--prism-button-text` (hover and shadow are darker mixes of the fill) |
+| Secondary button | `--prism-surface-alt` fill, `--prism-text` text, `--prism-border` shadow and hover |
+| Warning button | `--prism-danger` |
+| Text input, textarea and select fill | `--prism-surface`, with `--prism-text` text |
+| Panel title | inherits the panel's inverse text colour, instead of Prism's heading colour |
+
+This is what lets a dark palette reach every common GOV.UK component.
 
 ### Structural (never a design token)
 

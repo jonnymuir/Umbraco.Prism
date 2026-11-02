@@ -2,7 +2,7 @@
   "files": {
     "src/UmbracoPrism.Client/src/backoffice/tenant-modal/mobile-section.ts": 512,
     "src/UmbracoPrism.Core/Controllers/BiometricController.cs": 657,
-    "src/UmbracoPrism.Core/Controllers/TenantManagementController.cs": 603,
+    "src/UmbracoPrism.Core/Controllers/TenantManagementController.cs": 579,
     "src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs": 711,
     "src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs": 860,
     "src/UmbracoPrism.TestSite/DemoMobileNavSeeder.cs": 476,
@@ -25,7 +25,7 @@
     "src/UmbracoPrism.Core/Services/PrismNotificationService.cs": 77,
     "src/UmbracoPrism.Core/Services/PrismSigningKeyCache.cs": 91,
     "src/UmbracoPrism.Core/Services/PrismTokenRefreshService.cs": 93,
-    "src/UmbracoPrism.Core/Services/TenantService.cs": 94,
+    "src/UmbracoPrism.Core/Services/TenantService.cs": 87,
     "src/UmbracoPrism.Core/TagHelpers/PrismDebugTagHelper.cs": 154,
     "src/UmbracoPrism.MobileBundleCli/Program.cs": 68,
     "src/UmbracoPrism.MockBusinessApp/Services/SupportSystem/ContributionsValidation.cs": 74,

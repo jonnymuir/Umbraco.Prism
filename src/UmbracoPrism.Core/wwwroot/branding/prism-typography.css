@@ -179,6 +179,6 @@ code {
 
 /* Keep the mobile shell legible, never forcing a dark theme */
 html.prism-mobile body {
-    background: var(--bg-offset);
+    background: var(--bg-offset, var(--prism-background));
     color: var(--prism-text);
 }

@@ -163,6 +163,13 @@ Primary palette: text colors, UI states, hero sections.
 }
 ```
 
+Besides the brand colours, `prism-colors.css` holds the page and button colours:
+
+- `--prism-background`: the page itself. The GOV.UK page canvas follows it through the bridge, and
+  inside the mobile app Prism paints the page with it. A site that still sets the older
+  `--bg-offset` keeps that value, since Prism no longer declares `--bg-offset` itself.
+- `--prism-button` and `--prism-button-text`: primary buttons, GOV.UK's green and white by default.
+
 ### **`prism-typography.css`** (Text Styling)
 
 Font families, weights, sizes. Mix of `font` and `length` types.
@@ -358,14 +365,24 @@ The backoffice editor uses the metadata to render a design-system-style form.
 
 No rebuild. No deploy.
 
+### Dark mode
+
+Every colour field has a **Dark mode** row under its desktop and mobile values. It reads "same as
+light" until you choose **Customise**, which seeds it with the light colour for you to change.
+**Reset** goes back to the light value. The colours you customise make up the tenant's dark
+palette, used on any device set to dark mode. Fields linked to another token (most of the GOV.UK
+Alignment section) follow that token's dark value, so a dark palette usually only needs the
+handful of Brand Colours: Page Background, Surface Background, Alternate Surface, Body Text,
+Muted Text, Border Colour, and the primary, link and button colours.
+
 ---
 
 ## How Overrides Reach the Live Site
 
 Saved overrides are served as a plain stylesheet at `GET /umbraco/prism/branding.css` — resolved
 for the current tenant (by hostname) exactly the same way every other Prism request is, with
-mobile-specific overrides layered on top when the request is a detected Prism mobile request.
-It always returns a valid CSS document, empty when a tenant has no overrides configured, so it's
+mobile-specific overrides layered on top when the request is a detected Prism mobile request,
+and the dark palette last, inside `@media (prefers-color-scheme: dark)`. It always returns a valid CSS document, empty when a tenant has no overrides configured, so it's
 safe to reference unconditionally.
 
 **Your host must reference it explicitly**, the same way you already reference any other Prism
@@ -518,31 +535,31 @@ This is safe for production, CSS file changes are rare and typically go through 
 
 ## Real-World Examples
 
-### Example 1: Dark Mode Brand Colors
+### Example 1: Dark Mode in a Site's Own Stylesheet
 
-Create a new section for dark variants:
+A site that keeps its palette in code rather than in the tenant editor sets the same tokens for
+dark mode in its own CSS, loaded after `prism-branding.css`:
 
-```css
-:root {
-    /* @prism section: Dark Mode | label: Dark Background | description: Main background colour for dark mode | type: color */
-    --prism-dark-bg: #0f172a;
-    
-    /* @prism section: Dark Mode | label: Dark Text | description: Text colour for dark mode backgrounds | type: color */
-    --prism-dark-text: #ffffff;
-}
-```
-
-In CSS:
 ```css
 @media (prefers-color-scheme: dark) {
   :root {
-    --prism-text: var(--prism-dark-text);
-    --prism-surface: var(--prism-dark-bg);
+    --prism-background: #0f1716;
+    --prism-surface: #172221;
+    --prism-surface-alt: #1d2b2a;
+    --prism-text: #e6efed;
+    --prism-muted: #9db3b0;
+    --prism-border: #3a5250;
+    --prism-primary: #4fc2b8;
+    --prism-primary-contrast: #0b1f1d;
+    --prism-link: #6fd3ca;
+    --prism-button: #4fc2b8;
+    --prism-button-text: #0b1f1d;
   }
 }
 ```
 
-Now tenants can independently theme dark mode colors.
+The bridge carries these to GOV.UK Frontend, including its buttons and form fields, so nothing
+else needs restyling. A tenant's dark palette from the editor still loads last and wins.
 
 ### Example 2: Mobile Navigation Styling
 

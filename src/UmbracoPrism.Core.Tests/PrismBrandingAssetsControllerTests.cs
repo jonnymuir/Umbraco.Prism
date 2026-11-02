@@ -34,6 +34,23 @@ public class PrismBrandingAssetsControllerTests
     }
 
     [Fact]
+    public void BrandingCss_EndsWithTheDarkPalette_ForDevicesInDarkMode()
+    {
+        var controller = BuildController(new TestPrismContext
+        {
+            CurrentTenant = new PrismTenant
+            {
+                BrandingOverrides = new Dictionary<string, string> { ["--prism-primary"] = "#0055ff" },
+                DarkBrandingOverrides = new Dictionary<string, string> { ["--prism-primary"] = "#8fb4ff" }
+            }
+        });
+
+        var result = controller.BrandingCss();
+
+        result.Content.Should().Be(":root{--prism-primary:#0055ff;}@media (prefers-color-scheme: dark){:root{--prism-primary:#8fb4ff;}}");
+    }
+
+    [Fact]
     public void BrandingCss_ReturnsEmptyCss_ForATenantWithNoOverrides()
     {
         var controller = BuildController(new TestPrismContext { CurrentTenant = new PrismTenant() });

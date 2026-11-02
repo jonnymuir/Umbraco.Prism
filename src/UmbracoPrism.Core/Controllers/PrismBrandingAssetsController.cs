@@ -22,7 +22,8 @@ namespace UmbracoPrism.Core.Controllers;
 public class PrismBrandingAssetsController(IPrismContext prismContext) : Controller
 {
     /// <summary>
-    /// Returns the current tenant's branding override CSS. Mobile overrides are layered on top
+    /// Returns the current tenant's branding override CSS, with its dark palette last, inside a
+    /// prefers-color-scheme: dark block. Mobile overrides are layered on top
     /// of the desktop ones when the request is detected as a Prism mobile request (same
     /// detection <see cref="PrismMobileRequestDetection"/> already uses elsewhere) — matching
     /// the precedence the old inline injection used. Always returns a valid CSS document
@@ -39,7 +40,8 @@ public class PrismBrandingAssetsController(IPrismContext prismContext) : Control
             tenant?.BrandingOverrides,
             includeMobileOverrides ? tenant?.MobileBrandingOverrides : null,
             tenant?.BrandingCssDeclarations,
-            includeMobileOverrides ? tenant?.MobileBrandingCssDeclarations : null);
+            includeMobileOverrides ? tenant?.MobileBrandingCssDeclarations : null)
+            + PrismBrandingCssBuilder.BuildDarkCssOverrides(tenant?.DarkBrandingOverrides, tenant?.DarkBrandingCssDeclarations);
 
         return Content(css, "text/css");
     }

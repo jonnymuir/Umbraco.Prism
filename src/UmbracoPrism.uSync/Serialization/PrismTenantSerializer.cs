@@ -75,8 +75,6 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
             return Task.FromResult(SyncAttempt<XElement>.Fail(string.Empty, null, ChangeType.Fail, "Item is null", null));
 
         var alias = ItemAlias(item);
-        var branding = ParseOverrides(item.BrandingOverrides);
-        var mobileBranding = ParseOverrides(item.MobileBrandingOverrides);
 
         var node = InitializeBaseNode(item, alias, 1);
         node.Add(
@@ -92,10 +90,9 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
                 NullableElement("OidcClientId", item.OidcClientId),
                 NullableElement("OidcClientSecretProvider", item.OidcClientSecretProvider),
                 NullableElement("OidcClientSecretReference", item.OidcClientSecretReference)),
-            new XElement("Branding",
-                branding.Select(kv => new XElement("Override", new XAttribute("Variable", kv.Key), kv.Value))),
-            new XElement("MobileBranding",
-                mobileBranding.Select(kv => new XElement("Override", new XAttribute("Variable", kv.Key), kv.Value))));
+            OverridesElement("Branding", item.BrandingOverrides),
+            OverridesElement("MobileBranding", item.MobileBrandingOverrides),
+            OverridesElement("DarkBranding", item.DarkBrandingOverrides));
 
         return Task.FromResult(SyncAttempt<XElement>.Succeed(alias, node, ChangeType.Export, new List<uSyncChange>()));
     }
@@ -125,26 +122,29 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
         schema.OidcClientSecretProvider = NullIfEmpty(identity?.Element("OidcClientSecretProvider")?.Value);
         schema.OidcClientSecretReference = NullIfEmpty(identity?.Element("OidcClientSecretReference")?.Value);
 
-        var branding = node.Element("Branding")?
-            .Elements("Override")
-            .Where(e => e.Attribute("Variable") is not null)
-            .ToDictionary(e => e.Attribute("Variable")!.Value, e => e.Value)
-            ?? new Dictionary<string, string>();
-
-        var mobileBranding = node.Element("MobileBranding")?
-            .Elements("Override")
-            .Where(e => e.Attribute("Variable") is not null)
-            .ToDictionary(e => e.Attribute("Variable")!.Value, e => e.Value)
-            ?? new Dictionary<string, string>();
-
-        schema.BrandingOverrides = branding.Count > 0 ? JsonSerializer.Serialize(branding) : null;
-        schema.MobileBrandingOverrides = mobileBranding.Count > 0 ? JsonSerializer.Serialize(mobileBranding) : null;
+        schema.BrandingOverrides = ReadOverrides(node, "Branding");
+        schema.MobileBrandingOverrides = ReadOverrides(node, "MobileBranding");
+        schema.DarkBrandingOverrides = ReadOverrides(node, "DarkBranding");
 
         // Preserve legacy inline secret — never exported, must survive a round-trip.
         if (existing is not null)
             schema.OidcClientSecret = existing.OidcClientSecret;
 
         return SyncAttempt<PrismTenantSchema>.Succeed(ItemAlias(schema), schema, ChangeType.Import, new List<uSyncChange>());
+    }
+
+    private static XElement OverridesElement(string name, string? json) =>
+        new(name, ParseOverrides(json).Select(kv => new XElement("Override", new XAttribute("Variable", kv.Key), kv.Value)));
+
+    /// <summary>The overrides stored under <paramref name="name"/> as JSON, or null when there are none.</summary>
+    private static string? ReadOverrides(XElement node, string name)
+    {
+        var overrides = node.Element(name)?
+            .Elements("Override")
+            .Where(e => e.Attribute("Variable") is not null)
+            .ToDictionary(e => e.Attribute("Variable")!.Value, e => e.Value)
+            ?? new Dictionary<string, string>();
+        return overrides.Count > 0 ? JsonSerializer.Serialize(overrides) : null;
     }
 
     [SuppressMessage("Security", "CA5351", Justification = "Derives a stable uSync key from the slug; not a security use. Changing the algorithm would re-key every synced item.")]

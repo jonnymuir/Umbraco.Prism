@@ -95,12 +95,9 @@ public class TenantService : ITenantService
 
                 if (tenantSchema == null) return null;
 
-                var brandingOverrides = ParseBrandingOverrides(tenantSchema.BrandingOverrides);
-                var mobileBrandingOverrides = ParseBrandingOverrides(tenantSchema.MobileBrandingOverrides);
-
                 // Resolve {{TOKEN_NAME}} placeholders in identity fields. Hostname is the lookup
                 // key and is never stored with tokens — see PrismTenantSyncHandler for details.
-                return new PrismTenant
+                return WithBranding(tenantSchema, new PrismTenant
                 {
                     Id = tenantSchema.Id,
                     Name = tenantSchema.Name,
@@ -108,10 +105,6 @@ public class TenantService : ITenantService
                     EntraTenantId = _tokenResolver.Resolve(tenantSchema.EntraTenantId),
                     EntraClientId = _tokenResolver.Resolve(tenantSchema.EntraClientId),
                     SecretKeyName = _tokenResolver.Resolve(tenantSchema.SecretKeyName),
-                    BrandingOverrides = brandingOverrides,
-                    MobileBrandingOverrides = mobileBrandingOverrides,
-                    BrandingCssDeclarations = BuildCssDeclarations(brandingOverrides),
-                    MobileBrandingCssDeclarations = BuildCssDeclarations(mobileBrandingOverrides),
                     AllowBiometricLogin = tenantSchema.AllowBiometricLogin,
                     MobileAppLinks = PrismMobileAppLinks.FromConfigJson(tenantSchema.MobileAppConfig),
                     OidcAuthority = _tokenResolver.Resolve(tenantSchema.OidcAuthority),
@@ -121,7 +114,7 @@ public class TenantService : ITenantService
                             ? PrismSecretProviderNames.Inline
                             : null),
                     OidcClientSecretReference = _tokenResolver.Resolve(tenantSchema.OidcClientSecretReference ?? tenantSchema.OidcClientSecret)
-                };
+                });
             }, TimeSpan.FromMinutes(30));
         }
         catch (Exception ex)
@@ -185,6 +178,18 @@ public class TenantService : ITenantService
 
     private static string BuildTenantCacheKey(string domain) =>
         $"{TenantCacheKeyPrefix}{domain}";
+
+    /// <summary>The tenant with its stored branding: light, mobile and dark overrides, and their CSS.</summary>
+    private static PrismTenant WithBranding(PrismTenantSchema schema, PrismTenant tenant)
+    {
+        tenant.BrandingOverrides = ParseBrandingOverrides(schema.BrandingOverrides);
+        tenant.MobileBrandingOverrides = ParseBrandingOverrides(schema.MobileBrandingOverrides);
+        tenant.DarkBrandingOverrides = ParseBrandingOverrides(schema.DarkBrandingOverrides);
+        tenant.BrandingCssDeclarations = BuildCssDeclarations(tenant.BrandingOverrides);
+        tenant.MobileBrandingCssDeclarations = BuildCssDeclarations(tenant.MobileBrandingOverrides);
+        tenant.DarkBrandingCssDeclarations = BuildCssDeclarations(tenant.DarkBrandingOverrides);
+        return tenant;
+    }
 
     private static Dictionary<string, string> ParseBrandingOverrides(string? json)
     {

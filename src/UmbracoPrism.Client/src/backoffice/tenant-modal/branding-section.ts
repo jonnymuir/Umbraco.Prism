@@ -1,7 +1,7 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { html } from 'lit';
 import { authHeaders, bearerTokenWithin500ms, type ContextHost } from './auth.js';
-import { BrandingField, type BrandingFieldContext } from './branding-field.js';
+import { BrandingField, type BrandingChannel, type BrandingFieldContext } from './branding-field.js';
 import {
   type BrandingMetadata,
   type BrandingTab,
@@ -21,7 +21,7 @@ export interface BrandingContext {
 
 /**
  * The branding tabs: each CSS custom property Prism finds can be overridden for desktop and, when
- * the author wants it to differ, for mobile. When the server can describe the variables (labels,
+ * the author wants it to differ, for mobile, and each colour for devices in dark mode. When the server can describe the variables (labels,
  * types, descriptions) the tabs render a friendly editor per variable; until then, or if that
  * request fails, a plain table of name / default / override is shown instead.
  */
@@ -33,7 +33,9 @@ export class BrandingSection implements ReactiveController, BrandingFieldContext
 
   desktopValues: Record<string, string> = {};
   mobileValues: Record<string, string> = {};
+  darkValues: Record<string, string> = {};
   mobileInherited: Record<string, boolean> = {};
+  darkCustomised: Record<string, boolean> = {};
   linkEditing: Record<string, boolean> = {};
 
   constructor(
@@ -72,14 +74,26 @@ export class BrandingSection implements ReactiveController, BrandingFieldContext
       : staticTableOverrides(this._tabs, 'mobileOverrideValue');
   }
 
+  /** The dark palette: only the colours the author customised for dark mode. */
+  collectDarkOverrides(): Record<string, string> {
+    return this._metadata ? nonEmptyOverrides(this.darkValues, name => this.darkCustomised[name] === true) : {};
+  }
+
   // ── BrandingFieldContext ──────────────────────────────────────────────────
 
-  setValue(name: string, isMobile: boolean, value: string) {
-    if (isMobile) {
+  setValue(name: string, channel: BrandingChannel, value: string) {
+    if (channel === 'mobile') {
       this.mobileValues = { ...this.mobileValues, [name]: value };
+    } else if (channel === 'dark') {
+      this.darkValues = { ...this.darkValues, [name]: value };
     } else {
       this.desktopValues = { ...this.desktopValues, [name]: value };
     }
+    this._host.requestUpdate();
+  }
+
+  setDarkCustomised(name: string, customised: boolean) {
+    this.darkCustomised = { ...this.darkCustomised, [name]: customised };
     this._host.requestUpdate();
   }
 
@@ -93,9 +107,9 @@ export class BrandingSection implements ReactiveController, BrandingFieldContext
     this._host.requestUpdate();
   }
 
-  async pickMedia(name: string, isMobile: boolean) {
+  async pickMedia(name: string, channel: BrandingChannel) {
     const rawUrl = await pickMediaUrl(this._host);
-    if (rawUrl) this.setValue(name, isMobile, `url('${rawUrl}')`);
+    if (rawUrl) this.setValue(name, channel, `url('${rawUrl}')`);
   }
 
   // ── loading the variable descriptions ─────────────────────────────────────
@@ -138,14 +152,19 @@ export class BrandingSection implements ReactiveController, BrandingFieldContext
     const tenant = this._context.tenant();
     const saved = toOverrideMap(tenant?.brandingOverrides);
     const savedMobile = toOverrideMap(tenant?.mobileBrandingOverrides);
+    const savedDark = toOverrideMap(tenant?.darkBrandingOverrides);
     const desktop: Record<string, string> = {};
     const mobile: Record<string, string> = {};
+    const dark: Record<string, string> = {};
     const inherited: Record<string, boolean> = {};
+    const customisedForDark: Record<string, boolean> = {};
 
     const seed = (name: string, fallback: string) => {
       desktop[name] = saved[name] ?? fallback;
       inherited[name] = !savedMobile[name];
       mobile[name] = savedMobile[name] ?? fallback;
+      customisedForDark[name] = !!savedDark[name];
+      if (savedDark[name]) dark[name] = savedDark[name];
     };
 
     const annotated = metadata.sections.flatMap(section => section.variables);
@@ -159,7 +178,9 @@ export class BrandingSection implements ReactiveController, BrandingFieldContext
 
     this.desktopValues = desktop;
     this.mobileValues = mobile;
+    this.darkValues = dark;
     this.mobileInherited = inherited;
+    this.darkCustomised = customisedForDark;
   }
 
   // ── static table (before/without metadata) ────────────────────────────────

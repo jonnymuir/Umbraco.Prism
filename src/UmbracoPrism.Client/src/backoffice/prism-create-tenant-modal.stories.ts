@@ -100,6 +100,9 @@ export const Edit: Story = {
         },
         mobileBrandingOverrides: {
           '--color-primary': '#003399'
+        },
+        darkBrandingOverrides: {
+          '--color-primary': '#8fb4ff'
         }
       },
       brandingTabs: [
