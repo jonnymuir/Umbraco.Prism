@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MailKit" Version="4.18.1" />
+    <PackageReference Include="MailKit" Version="4.18.2" />
     <PackageReference Include="Umbraco.Cms" Version="$(UmbracoPackageRange)" />
     <PackageReference Include="Umbraco.Cms.DevelopmentMode.Backoffice" Version="$(UmbracoPackageRange)" />
     <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.2" />
@@ -21,24 +21,24 @@
          dependency at all (see docs/guides/support-systems.md in the core Wayfinder repo).
          TestSite installs Wayfinder.Umbraco directly to demonstrate Prism + Wayfinder.Umbraco
          composed together. -->
-    <PackageReference Include="Wayfinder" Version="0.26.0" />
-    <PackageReference Include="Wayfinder.Engine" Version="0.26.0" />
+    <PackageReference Include="Wayfinder" Version="0.27.0" />
+    <PackageReference Include="Wayfinder.Engine" Version="0.27.0" />
     <PackageReference Include="Wayfinder.Engine.Http" Version="0.6.0" />
-    <PackageReference Include="Wayfinder.Engine.Mcp" Version="0.26.0" />
-    <PackageReference Include="Wayfinder.Umbraco" Version="6.3.0" />
+    <PackageReference Include="Wayfinder.Engine.Mcp" Version="0.27.0" />
+    <PackageReference Include="Wayfinder.Umbraco" Version="6.4.0" />
     <!-- Umbraco Automate (MIT) — the juggling-licence demo's "processing-application" stage
          calls out to a real Automate automation via Wayfinder's config-only webhook support
          system (see appsettings.json's Wayfinder:SupportSystems and
          JugglingLicenceDecisionAutomationSeeder). Registers itself through its own
          UmbracoAutomateComposer, picked up automatically by Umbraco's own composer discovery —
          a bare package reference is enough, no explicit AddUmbracoAutomate() call. -->
-    <PackageReference Include="Umbraco.Automate" Version="17.4.0" />
-    <PackageReference Include="Umbraco.Automate.Persistence.Sqlite" Version="17.4.0" />
+    <PackageReference Include="Umbraco.Automate" Version="17.5.1" />
+    <PackageReference Include="Umbraco.Automate.Persistence.Sqlite" Version="17.5.1" />
     <!-- Umbraco.AI and its Automate add-on (the Run AI Agent action), on the Umbraco 17 line, with the
          Google provider for the field-recording demo's free Gemini profile. Each registers itself
          through its own composer, so bare package references are enough. -->
-    <PackageReference Include="Umbraco.AI" Version="17.6.0" />
-    <PackageReference Include="Umbraco.AI.Agent" Version="17.4.0" />
+    <PackageReference Include="Umbraco.AI" Version="17.6.1" />
+    <PackageReference Include="Umbraco.AI.Agent" Version="17.4.1" />
     <PackageReference Include="Umbraco.AI.Automate" Version="17.1.0" />
     <PackageReference Include="Umbraco.AI.Google" Version="17.0.4" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" Condition="$(RuntimeIdentifier.StartsWith('linux')) or $(RuntimeIdentifier.StartsWith('win')) or ('$(RuntimeIdentifier)' == '' and !$([MSBuild]::IsOSPlatform('osx')))" />
