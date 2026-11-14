@@ -176,7 +176,7 @@ public class TestSiteComposer : IComposer
         // and this method's own MockBusinessAppContributions.Register() call above for the
         // equivalent bespoke-client pattern; this one is config-only (Wayfinder:SupportSystems),
         // so there's no ISupportSystemClient to register here at all.
-        builder.Services.AddHostedService<JugglingLicenceDecisionAutomationSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, JugglingLicenceDecisionAutomationSeeder>();
     }
 
     /// <summary>
@@ -235,7 +235,7 @@ public class TestSiteComposer : IComposer
             ActivatorUtilities.CreateInstance<MediaBackedSightingPhotoStorage>(sp, sp.GetRequiredService<DiskServiceRequestFileStorage>()));
 
         builder.Services.AddScoped<FieldRecordingAiSetup>();
-        builder.Services.AddHostedService<ButterflyIdentificationSeeder>();
+        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, ButterflyIdentificationSeeder>();
     }
 
     // Blueprints every visitor, signed in or not, runs as their own instance owner on the public
