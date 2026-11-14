@@ -19,11 +19,11 @@ const runLocalhostAuthSuite = process.argv.includes('--localhost-auth-suite');
 
 const dotnetVersionResult = tryCommand('dotnet --version');
 if (!dotnetVersionResult.ok) {
-  problems.push('The .NET SDK is not available on PATH. Install the .NET 10 SDK before launching the full stack.');
+  problems.push('No .NET SDK matching global.json was found. Install the .NET 11 SDK (and the .NET 10 runtime the apps run on) before launching the full stack.');
 } else {
   const [major] = dotnetVersionResult.output.trim().split('.');
-  if (!Number.isInteger(Number(major)) || Number(major) < 10) {
-    problems.push(`Detected .NET SDK ${dotnetVersionResult.output.trim()}. Install .NET 10 SDK before launching the full stack.`);
+  if (!Number.isInteger(Number(major)) || Number(major) < 11) {
+    problems.push(`Detected .NET SDK ${dotnetVersionResult.output.trim()}. Install the .NET 11 SDK before launching the full stack.`);
   }
 }
 

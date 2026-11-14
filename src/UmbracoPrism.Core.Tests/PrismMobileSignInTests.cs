@@ -264,7 +264,7 @@ public class PrismMobileSignInTests
     {
         var result = new PrismAppLinksController(new TestPrismContext { CurrentTenant = Tenant() }).AssetLinks();
 
-        var statement = JsonDocument.Parse(JsonSerializer.Serialize(result.Should().BeOfType<JsonResult>().Subject.Value)).RootElement[0];
+        var statement = JsonElement.Parse(JsonSerializer.Serialize(result.Should().BeOfType<JsonResult>().Subject.Value))[0];
         statement.GetProperty("relation")[0].GetString().Should().Be("delegate_permission/common.handle_all_urls");
         var target = statement.GetProperty("target");
         target.GetProperty("namespace").GetString().Should().Be("android_app");

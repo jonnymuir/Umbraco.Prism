@@ -4,7 +4,7 @@ Press-play local development with Keycloak OIDC authentication.
 
 ## Prerequisites (One-Time Setup)
 
-- **.NET 10 SDK**: install the current .NET 10 SDK ([Download](https://dotnet.microsoft.com/download/dotnet/10.0))
+- **.NET 11 SDK and .NET 10 runtime**: the repo builds with the .NET 11 SDK (pinned in `global.json`) and its apps run on .NET 10 ([.NET 11 SDK](https://dotnet.microsoft.com/download/dotnet/11.0), [.NET 10 runtime](https://dotnet.microsoft.com/download/dotnet/10.0))
 - **Trust the .NET dev certificate**: run `dotnet dev-certs https --trust` (one-time setup)
 - **Docker Desktop**: must be running ([Download](https://www.docker.com/products/docker-desktop/))
 - **Node.js 20+**: for frontend assets ([Download](https://nodejs.org/))
@@ -17,7 +17,7 @@ Press-play local development with Keycloak OIDC authentication.
 dotnet run --project src/UmbracoPrism.AppHost
 ```
 
-In VS Code, use **C#: Aspire (Full Stack)**. Its pre-launch task now checks for the .NET 10 SDK and Docker first. This repo uses the Aspire AppHost SDK and NuGet packages, so you do **not** need to run `dotnet workload install aspire`.
+In VS Code, use **C#: Aspire (Full Stack)**. Its pre-launch task now checks for the .NET 11 SDK and Docker first. This repo uses the Aspire AppHost SDK and NuGet packages, so you do **not** need to run `dotnet workload install aspire`.
 
 > **New to Umbraco.Prism?** After the stack starts, follow the [Home entry walkthrough](walkthroughs/home-entry.md) for a guided tour of the reference site, with behind-the-scenes explanations.
 
@@ -164,7 +164,7 @@ The OIDC migrations add the authority/client columns and the provider/reference 
 
 **`CliPath` / `DashboardPath` validation error on startup:**
 - Pull the latest repo changes so the AppHost project includes the Aspire AppHost SDK
-- Ensure the .NET 10 SDK is installed and Docker Desktop is running
+- Ensure the .NET 11 SDK and .NET 10 runtime are installed and Docker Desktop is running
 - Rerun **C#: Aspire (Full Stack)**; no separate Aspire workload install is required
 
 **Keycloak not starting:**
