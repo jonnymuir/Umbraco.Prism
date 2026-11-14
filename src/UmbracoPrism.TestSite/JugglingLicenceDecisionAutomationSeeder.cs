@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Umbraco.Automate.Core.Automations;
 using Umbraco.Automate.Core.Workspaces;
 using Umbraco.Cms.Core;
+using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services;
 
 namespace UmbracoPrism.TestSite;
@@ -29,6 +30,7 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
     IRuntimeState runtimeState,
+    IContentRoutingReadiness startupComplete,
     ILogger<JugglingLicenceDecisionAutomationSeeder> logger)
     : BackgroundService
 {
@@ -49,11 +51,14 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
     {
         try
         {
-            // Wait for Umbraco to reach Run (past unattended install) and for Automate's own
-            // schema migration to finish, then seed (creating a workspace first if none exists).
+            // Wait for Umbraco to finish starting, then seed (creating a workspace first if none
+            // exists). Run alone is not enough: during an unattended upgrade Umbraco reaches Run
+            // before its startup work (the database cache rebuild among it) is done, and writing
+            // in that window on SQLite stalls the rebuild, so the site never finishes booting.
+            // IContentRoutingReadiness turns true only once that work is complete.
             for (var attempt = 0; attempt < 60 && !stoppingToken.IsCancellationRequested; attempt++)
             {
-                if (runtimeState.Level == RuntimeLevel.Run && await TrySeedAsync(stoppingToken))
+                if (runtimeState.Level == RuntimeLevel.Run && startupComplete.IsReady && await TrySeedAsync(stoppingToken))
                 {
                     return;
                 }
@@ -87,7 +92,7 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             ? configuration[configuration[$"{authSection}:secretRef"] ?? "JUGGLING_LICENCE_SIGNING_KEY"]
             : null;
 
-        var workspace = await AutomateWorkspaceEnsurer.EnsureAsync(workspaceService, userService, configuration, ct);
+        var workspace = await AutomateWorkspaceEnsurer.EnsureAsync(workspaceService, userService, ct);
         if (workspace is null)
         {
             return false;
