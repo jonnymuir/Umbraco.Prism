@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Umbraco.Automate.Core.Automations;
 using Umbraco.Automate.Core.Workspaces;
 using Umbraco.Cms.Core;
+using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services;
 
 namespace UmbracoPrism.TestSite.FieldRecording;
@@ -19,6 +20,7 @@ public sealed class ButterflyIdentificationSeeder(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
     IRuntimeState runtimeState,
+    IContentRoutingReadiness startupComplete,
     ILogger<ButterflyIdentificationSeeder> logger)
     : BackgroundService
 {
@@ -26,9 +28,11 @@ public sealed class ButterflyIdentificationSeeder(
     {
         try
         {
+            // Run alone is not enough: Umbraco reaches it before its startup work is done, and
+            // writing in that window on SQLite stalls the first boot (see JugglingLicenceDecisionAutomationSeeder).
             for (var attempt = 0; attempt < 60 && !stoppingToken.IsCancellationRequested; attempt++)
             {
-                if (runtimeState.Level == RuntimeLevel.Run && await TrySeedAsync(stoppingToken))
+                if (runtimeState.Level == RuntimeLevel.Run && startupComplete.IsReady && await TrySeedAsync(stoppingToken))
                 {
                     return;
                 }
@@ -56,7 +60,6 @@ public sealed class ButterflyIdentificationSeeder(
         var workspace = await AutomateWorkspaceEnsurer.EnsureAsync(
             services.GetRequiredService<IWorkspaceService>(),
             services.GetRequiredService<IUserService>(),
-            configuration,
             ct);
         if (workspace is null)
         {

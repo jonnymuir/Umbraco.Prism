@@ -1,5 +1,7 @@
-using Microsoft.Extensions.Configuration;
 using Umbraco.Automate.Core.Workspaces;
+using Umbraco.Cms.Core;
+using Umbraco.Cms.Core.Models;
+using Umbraco.Cms.Core.Models.Membership;
 using Umbraco.Cms.Core.Services;
 
 namespace UmbracoPrism.TestSite;
@@ -7,9 +9,10 @@ namespace UmbracoPrism.TestSite;
 /// <summary>
 /// Automate has no default workspace on a fresh install, an automation must belong to one, and
 /// publishing needs the workspace to have a service-account user with the sections its trigger and
-/// actions need. Reuses the first workspace if one exists, otherwise stands up a plain one whose
-/// service account is TestSite's own unattended admin (an Administrator, so it has every section:
-/// a deliberate shortcut for a single-tenant demo, not a pattern for a real multi-user host).
+/// actions need. Reuses the first workspace if one exists, otherwise stands up a plain one.
+/// Automate requires the service account to be an API user, so this seeds its own, in the
+/// Administrators group so it has every section: a deliberate shortcut for a single-tenant demo,
+/// not a pattern for a real multi-user host.
 /// </summary>
 internal static class AutomateWorkspaceEnsurer
 {
@@ -17,11 +20,12 @@ internal static class AutomateWorkspaceEnsurer
     // so the loser would fail on the alias's unique constraint: take turns instead.
     private static readonly SemaphoreSlim Gate = new(1, 1);
 
-    /// <summary>The workspace, or null when Automate or the admin user is not ready yet.</summary>
+    private const string ServiceAccountEmail = "automate-service@prism.local";
+
+    /// <summary>The workspace, or null when Automate is not ready yet.</summary>
     internal static async Task<Workspace?> EnsureAsync(
         IWorkspaceService workspaceService,
         IUserService userService,
-        IConfiguration configuration,
         CancellationToken ct)
     {
         await Gate.WaitAsync(ct);
@@ -32,16 +36,15 @@ internal static class AutomateWorkspaceEnsurer
                 ?? await workspaceService.CreateWorkspaceAsync(
                     new Workspace { Alias = "default", Name = "Default" }, cancellationToken: ct);
 
-            if (workspace.ServiceAccountKey == Guid.Empty)
+            var serviceAccountKey = await EnsureServiceAccountAsync(userService);
+            if (serviceAccountKey is null)
             {
-                var adminEmail = configuration["Umbraco:CMS:Unattended:UnattendedUserEmail"] ?? "admin@prism.local";
-                var admin = userService.GetByEmail(adminEmail);
-                if (admin is null)
-                {
-                    return null;
-                }
+                return null;
+            }
 
-                workspace.ServiceAccountKey = admin.Key;
+            if (workspace.ServiceAccountKey != serviceAccountKey)
+            {
+                workspace.ServiceAccountKey = serviceAccountKey.Value;
                 await workspaceService.UpdateWorkspaceAsync(workspace, cancellationToken: ct);
             }
 
@@ -56,5 +59,27 @@ internal static class AutomateWorkspaceEnsurer
         {
             Gate.Release();
         }
+    }
+
+    private static async Task<Guid?> EnsureServiceAccountAsync(IUserService userService)
+    {
+        if (userService.GetByEmail(ServiceAccountEmail) is { } existing)
+        {
+            return existing.Key;
+        }
+
+        var result = await userService.CreateAsync(
+            Constants.Security.SuperUserKey,
+            new UserCreateModel
+            {
+                Email = ServiceAccountEmail,
+                UserName = ServiceAccountEmail,
+                Name = "Automate service account",
+                Kind = UserKind.Api,
+                UserGroupKeys = new HashSet<Guid> { Constants.Security.AdminGroupKey },
+            },
+            approveUser: true);
+
+        return result.Success ? result.Result.CreatedUser?.Key : null;
     }
 }
