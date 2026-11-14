@@ -70,7 +70,7 @@ cd src/UmbracoPrism.Client && npm install && cd ../..
 dotnet run --project src/UmbracoPrism.AppHost
 ```
 
-Needs .NET 10 SDK, Docker Desktop running, and Node 20+. Open the Aspire dashboard
+Needs the .NET 11 SDK and the .NET 10 runtime, Docker Desktop running, and Node 20+. Open the Aspire dashboard
 (`https://localhost:17214`), click through to TestSite, and sign in with either demo persona
 above. See [docs/development.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/development.md) for the full prerequisites list and
 troubleshooting, and [docs/ASPIRE_DEV.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/ASPIRE_DEV.md) for what the Aspire stack wires up.

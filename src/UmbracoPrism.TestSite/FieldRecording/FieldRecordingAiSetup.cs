@@ -54,7 +54,7 @@ public sealed class FieldRecordingAiSetup(
         When identified, give the scientific name (genus and species) in speciesGuess, the common name in commonName, the life stage in lifeStage (adult, caterpillar, chrysalis, egg, or unknown), and your confidence as low, medium or high. Describe only what is visible in the photo for habitatNotes (the plants it is on, the surroundings), in one or two plain sentences. Make no claims about where it was taken beyond what the photo shows. Leave a field as an empty string when it does not apply.
         """;
 
-    public static readonly JsonElement OutputSchema = JsonDocument.Parse(
+    public static readonly JsonElement OutputSchema = JsonElement.Parse(
         """
         {
           "type": "object",
@@ -68,7 +68,7 @@ public sealed class FieldRecordingAiSetup(
           },
           "required": ["outcome"]
         }
-        """).RootElement.Clone();
+        """);
 
     /// <summary>Ensures all three exist and returns the agent's id.</summary>
     public async Task<Guid> EnsureAsync(CancellationToken cancellationToken)
