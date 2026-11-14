@@ -1,9 +1,10 @@
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Umbraco.Automate.Core.Automations;
 using Umbraco.Automate.Core.Workspaces;
 using Umbraco.Cms.Core;
+using Umbraco.Cms.Core.Events;
+using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
 
 namespace UmbracoPrism.TestSite.FieldRecording;
@@ -11,38 +12,33 @@ namespace UmbracoPrism.TestSite.FieldRecording;
 /// <summary>
 /// Seeds the AI setup (<see cref="FieldRecordingAiSetup"/>) and then the "Butterfly identification"
 /// automation, on every boot, so the support system declared in <c>appsettings.json</c> has a real
-/// automation waiting. Runs as a background service because Automate and Umbraco.AI stand up their
-/// own schema after the runtime reaches Run, so it polls until both are ready. Never throws: a demo
-/// setup failing must not stop the site.
+/// automation waiting. A startup notification handler like the other seeders, so it runs after
+/// them, one at a time: SQLite has a single writer, and a background service writing alongside them
+/// can stall the first boot. Automate and Umbraco.AI have migrated their schema by the time Umbraco
+/// publishes this notification. Never throws: a demo setup failing must not stop the site.
 /// </summary>
 public sealed class ButterflyIdentificationSeeder(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
     IRuntimeState runtimeState,
     ILogger<ButterflyIdentificationSeeder> logger)
-    : BackgroundService
+    : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
+        if (runtimeState.Level < RuntimeLevel.Run)
+        {
+            return;
+        }
+
         try
         {
-            for (var attempt = 0; attempt < 60 && !stoppingToken.IsCancellationRequested; attempt++)
+            if (!await TrySeedAsync(cancellationToken))
             {
-                if (runtimeState.Level == RuntimeLevel.Run && await TrySeedAsync(stoppingToken))
-                {
-                    return;
-                }
-
-                await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+                logger.LogWarning("BUTTERFLY IDENTIFICATION SEEDER: gave up seeding the automation.");
             }
-
-            logger.LogWarning("BUTTERFLY IDENTIFICATION SEEDER: gave up seeding.");
         }
-        catch (OperationCanceledException)
-        {
-            // Host shutting down.
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "BUTTERFLY IDENTIFICATION SEEDER: could not seed the automation.");
         }
@@ -56,7 +52,6 @@ public sealed class ButterflyIdentificationSeeder(
         var workspace = await AutomateWorkspaceEnsurer.EnsureAsync(
             services.GetRequiredService<IWorkspaceService>(),
             services.GetRequiredService<IUserService>(),
-            configuration,
             ct);
         if (workspace is null)
         {
