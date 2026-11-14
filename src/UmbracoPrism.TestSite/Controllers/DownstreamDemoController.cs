@@ -811,7 +811,7 @@ public class DownstreamDemoController(
         var ready =
             settings != null &&
             mobileNavLinks != null &&
-            mobileNavLinks.Any() &&
+            mobileNavLinks.Count > 0 &&
             hasHome &&
             hasDashboard &&
             hasMoneyModeller;

@@ -28,6 +28,9 @@ jobs:
       actions: read
       pull-requests: write
     with:
+      dotnet-version: |
+        10.0.x
+        11.0.x
       solution: UmbracoPrism.slnx
       # The backoffice client bundles pack as static web assets; build them before the
       # C# build CodeQL analyses (matches the localhost-auth lane in ci-tests.yml).
