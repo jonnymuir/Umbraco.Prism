@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text;
 using CsvHelper;
-using CsvHelper.Configuration;
 using AwesomeAssertions;
 using UmbracoPrism.MockBusinessApp.Services.SupportSystem;
 
@@ -32,11 +31,8 @@ public class ContributionsValidationCurrencyTests
 
     private static string ReadWarningText(byte[] csvBytes)
     {
-        using var reader = new StreamReader(new MemoryStream(csvBytes));
-        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture));
+        using var csv = CsvReader.Create(csvBytes, new CsvReaderOptions { Separator = ',' });
         csv.Read();
-        csv.ReadHeader();
-        csv.Read();
-        return csv.GetField("warningText") ?? "";
+        return csv.GetString("warningText");
     }
 }

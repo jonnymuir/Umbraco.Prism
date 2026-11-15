@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using CsvHelper;
-using CsvHelper.Configuration;
 
 namespace UmbracoPrism.MockBusinessApp.Services.SupportSystem;
 
@@ -18,6 +17,15 @@ namespace UmbracoPrism.MockBusinessApp.Services.SupportSystem;
 /// </summary>
 public static class ContributionsValidation
 {
+    private static readonly string[] InputColumns =
+        ["memberRef", "memberName", "tier", "fireEndorsement", "under18", "dob", "monthlyContribution"];
+
+    // RFC 4180 with a comma, always: CsvHelper would otherwise guess the separator from the file.
+    private static readonly CsvReaderOptions ReadOptions = new() { Separator = ',' };
+
+    // Values with a space or tab at either end are quoted, as CsvHelper 33 did.
+    private static readonly CsvWriterOptions WriteOptions = new() { Quoting = CsvQuoting.WhenNeededOrWhitespace };
+
     // "C" alone formats using CultureInfo.CurrentCulture — under invariant globalization
     // (the default on a Linux container/CI runner with no ICU data), that's the invariant
     // culture, whose currency symbol is "¤", not "£". This demo is GBP-only, so the culture
@@ -43,25 +51,27 @@ public static class ContributionsValidation
     /// </summary>
     public static byte[] Validate(byte[] csvBytes)
     {
-        using var reader = new StreamReader(new MemoryStream(csvBytes));
-        var config = new CsvConfiguration(CultureInfo.InvariantCulture) { MissingFieldFound = null, BadDataFound = null };
-        using var csv = new CsvReader(reader, config);
+        using var csv = CsvReader.Create(new StreamReader(new MemoryStream(csvBytes)), ReadOptions);
+
+        // A header name matches exactly, and the first of any repeated name wins.
+        var columnIndexes = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < csv.Headers.Count; i++)
+        {
+            columnIndexes.TryAdd(csv.Headers[i], i);
+        }
 
         var rows = new List<Dictionary<string, string>>();
-        if (csv.Read())
+        while (csv.Read())
         {
-            csv.ReadHeader();
-            while (csv.Read())
+            var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var column in InputColumns)
             {
-                var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var column in new[] { "memberRef", "memberName", "tier", "fireEndorsement", "under18", "dob", "monthlyContribution" })
-                {
-                    csv.TryGetField<string>(column, out var value);
-                    row[column] = value ?? "";
-                }
-
-                rows.Add(row);
+                row[column] = columnIndexes.TryGetValue(column, out var index) && index < csv.FieldCount
+                    ? csv.GetString(index)
+                    : "";
             }
+
+            rows.Add(row);
         }
 
         var seenRefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -161,15 +171,14 @@ public static class ContributionsValidation
     private static byte[] WriteCsv(List<Dictionary<string, string>> rows)
     {
         using var buffer = new MemoryStream();
-        using (var writer = new StreamWriter(buffer, leaveOpen: true))
-        using (var csv = new CsvWriter(writer, CultureInfo.InvariantCulture))
+        using (var csv = CsvWriter.Create(buffer, WriteOptions, leaveOpen: true))
         {
             foreach (var column in Columns)
             {
                 csv.WriteField(column);
             }
 
-            csv.NextRecord();
+            csv.EndRecord();
 
             foreach (var row in rows)
             {
@@ -178,7 +187,7 @@ public static class ContributionsValidation
                     csv.WriteField(row.GetValueOrDefault(column, ""));
                 }
 
-                csv.NextRecord();
+                csv.EndRecord();
             }
         }
 
