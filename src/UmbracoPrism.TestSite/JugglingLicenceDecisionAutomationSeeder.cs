@@ -1,9 +1,10 @@
 using System.Text.Json;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Umbraco.Automate.Core.Automations;
 using Umbraco.Automate.Core.Workspaces;
 using Umbraco.Cms.Core;
+using Umbraco.Cms.Core.Events;
+using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
 
 namespace UmbracoPrism.TestSite;
@@ -19,18 +20,20 @@ namespace UmbracoPrism.TestSite;
 /// two licence types that don't fast-track. The reviewer's comment on that approval becomes the
 /// decision note the applicant sees on their confirmation page.
 /// <para/>
-/// Runs as a background service, not a startup notification handler: Automate has no default
-/// workspace on a fresh install and stands one up lazily, so this polls (and creates one itself
-/// if needed) before seeding. Create-or-update then publish on every boot, so a stale automation
-/// signed with a previous run's key is refreshed. Never throws: a demo automation failing to seed
-/// must not stop the site.
+/// A startup notification handler like the other seeders, so it runs after them, one at a time.
+/// SQLite has a single writer, and a background service writing while Umbraco or another seeder
+/// is mid-write can stall the first boot. By the time Umbraco publishes this notification its own
+/// startup work and Automate's schema migration are done. Creates the workspace itself if none
+/// exists, then create-or-update and publish on every boot, so a stale automation signed with a
+/// previous run's key is refreshed. Never throws: a demo automation failing to seed must not stop
+/// the site.
 /// </summary>
 public sealed class JugglingLicenceDecisionAutomationSeeder(
     IServiceScopeFactory scopeFactory,
     IConfiguration configuration,
     IRuntimeState runtimeState,
     ILogger<JugglingLicenceDecisionAutomationSeeder> logger)
-    : BackgroundService
+    : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     // Must match the automation guid in appsettings.json's Wayfinder:SupportSystems[0].endpoint.url.
     private static readonly Guid AutomationId = new("6a99b1ce-0000-0000-0000-00000000c0de");
@@ -45,29 +48,21 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
     // The applicant lookup's alias, so each notification binds to ${steps.applicant.userId}.
     private const string ApplicantStepAlias = "applicant";
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
+        if (runtimeState.Level < RuntimeLevel.Run)
+        {
+            return;
+        }
+
         try
         {
-            // Wait for Umbraco to reach Run (past unattended install) and for Automate's own
-            // schema migration to finish, then seed (creating a workspace first if none exists).
-            for (var attempt = 0; attempt < 60 && !stoppingToken.IsCancellationRequested; attempt++)
+            if (!await TrySeedAsync(cancellationToken))
             {
-                if (runtimeState.Level == RuntimeLevel.Run && await TrySeedAsync(stoppingToken))
-                {
-                    return;
-                }
-
-                await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+                logger.LogWarning("JUGGLING LICENCE DECISION SEEDER: gave up seeding the automation.");
             }
-
-            logger.LogWarning("JUGGLING LICENCE DECISION SEEDER: gave up seeding the automation.");
         }
-        catch (OperationCanceledException)
-        {
-            // Host shutting down.
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "JUGGLING LICENCE DECISION SEEDER: could not seed the automation.");
         }
@@ -87,7 +82,7 @@ public sealed class JugglingLicenceDecisionAutomationSeeder(
             ? configuration[configuration[$"{authSection}:secretRef"] ?? "JUGGLING_LICENCE_SIGNING_KEY"]
             : null;
 
-        var workspace = await AutomateWorkspaceEnsurer.EnsureAsync(workspaceService, userService, configuration, ct);
+        var workspace = await AutomateWorkspaceEnsurer.EnsureAsync(workspaceService, userService, ct);
         if (workspace is null)
         {
             return false;
