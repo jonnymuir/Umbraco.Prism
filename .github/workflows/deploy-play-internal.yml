@@ -68,7 +68,7 @@ jobs:
       # because a local machine may already have a much newer JDK, e.g. 25) — CI picks a known,
       # broadly AGP-compatible version explicitly rather than inheriting runner ambient state.
       - name: Setup Java
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6
         with:
           distribution: temurin
           java-version: '21'
