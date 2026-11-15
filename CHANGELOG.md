@@ -2,7 +2,7 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
-## [v7.2.0] - 2026-11-02
+## [v7.2.0] - 2026-11-15
 
 ### New features
 
@@ -15,6 +15,7 @@ All notable changes to Umbraco Prism are documented here. This project follows [
 
 - A GOV.UK panel's title keeps the panel's text colour. Prism's heading colour used to paint it in body text colour on the panel's fill.
 - GOV.UK's pale surface panels, such as notification banners, now follow the Alternate Surface colour instead of a fixed tint.
+- `UmbracoPrism.uSync` requires uSync 17.5.2 or later (was 17.4.3).
 
 ## [v7.1.0] - 2026-11-01
 
