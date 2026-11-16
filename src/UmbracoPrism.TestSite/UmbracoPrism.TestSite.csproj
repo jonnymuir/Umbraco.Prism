@@ -38,8 +38,8 @@
          Google provider for the field-recording demo's free Gemini profile. Each registers itself
          through its own composer, so bare package references are enough. -->
     <PackageReference Include="Umbraco.AI" Version="17.6.1" />
-    <PackageReference Include="Umbraco.AI.Agent" Version="17.4.1" />
-    <PackageReference Include="Umbraco.AI.Automate" Version="17.1.0" />
+    <PackageReference Include="Umbraco.AI.Agent" Version="18.4.2" />
+    <PackageReference Include="Umbraco.AI.Automate" Version="18.2.0" />
     <PackageReference Include="Umbraco.AI.Google" Version="17.0.4" />
     <RuntimeHostConfigurationOption Include="System.Globalization.AppLocalIcu" Value="72.1.0.3" Condition="$(RuntimeIdentifier.StartsWith('linux')) or $(RuntimeIdentifier.StartsWith('win')) or ('$(RuntimeIdentifier)' == '' and !$([MSBuild]::IsOSPlatform('osx')))" />
   </ItemGroup>
