@@ -158,41 +158,7 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
                 return;
 
             _lastAttempt[normalizedKey] = _timeProvider.GetUtcNow();
-            var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
-            var http = _httpClientFactory.CreateClient("prism-oidc-metadata");
-
-            // In Codespaces, Keycloak's discovery doc emits jwks_uri pointing at the public
-            // Codespace URL (KC_HOSTNAME). OpenIdConnectConfigurationRetriever follows that URL
-            // transitively, hitting the GitHub port-forwarding proxy which blocks unauthenticated
-            // server-side requests. When KEYCLOAK_BACKCHANNEL_URL is set AND the environment is
-            // Development, wrap the IDocumentRetriever so ALL Keycloak-origin URLs — both the
-            // discovery-doc fetch and the transitive jwks_uri fetch — are rewritten to the
-            // internal backchannel base before the HTTP call is made.
-            // Transport rewrite ONLY: issuer trust on JWT tokens remains against the public
-            // OidcAuthority (normalizedKey). Outside Development or when the env var is absent,
-            // the factory path is used unchanged — zero behaviour change for production.
-            var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
-
-            IConfigurationManager<OpenIdConnectConfiguration> manager;
-            if (!string.IsNullOrEmpty(backchannelBase) &&
-                Uri.TryCreate(normalizedKey, UriKind.Absolute, out var publicUri) &&
-                Uri.TryCreate(backchannelBase, UriKind.Absolute, out var backchannelUri) &&
-                publicUri.Scheme == Uri.UriSchemeHttps)
-            {
-                var innerRetriever = new HttpDocumentRetriever(http) { RequireHttps = requireHttps };
-                var rewritingRetriever = new BackchannelRewritingDocumentRetriever(
-                    publicUri,
-                    backchannelUri,
-                    innerRetriever);
-                manager = new ConfigurationManager<OpenIdConnectConfiguration>(
-                    metadataAddress,
-                    new OpenIdConnectConfigurationRetriever(),
-                    rewritingRetriever);
-            }
-            else
-            {
-                manager = _configurationManagerFactory(http, metadataAddress, requireHttps);
-            }
+            var manager = CreateGenericManager(normalizedKey, metadataAddress);
 
             var config = await manager.GetConfigurationAsync(cancellationToken);
             var signingKeys = config.SigningKeys.ToList().AsReadOnly();
@@ -247,6 +213,37 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
     public IEnumerable<SecurityKey> GetSigningKeys(string entraTenantId)
     {
         return GetSnapshot(entraTenantId).Keys;
+    }
+
+    /// <summary>
+    /// In Codespaces, Keycloak's discovery doc emits jwks_uri pointing at the public Codespace URL
+    /// (KC_HOSTNAME), which the port-forwarding proxy blocks for unauthenticated server-side requests.
+    /// When the Development-only backchannel override is active, the document retriever rewrites every
+    /// URL on the public authority's host (the discovery fetch and the transitive jwks_uri fetch) to the
+    /// internal backchannel before the HTTP call. Transport rewrite only: issuer trust on JWT tokens
+    /// stays with the public authority. Otherwise the configured factory is used unchanged.
+    /// </summary>
+    private IConfigurationManager<OpenIdConnectConfiguration> CreateGenericManager(string authority, string metadataAddress)
+    {
+        var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+        var http = _httpClientFactory.CreateClient("prism-oidc-metadata");
+        var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
+
+        if (!string.IsNullOrEmpty(backchannelBase) &&
+            Uri.TryCreate(authority, UriKind.Absolute, out var publicUri) &&
+            Uri.TryCreate(backchannelBase, UriKind.Absolute, out var backchannelUri) &&
+            publicUri.Scheme == Uri.UriSchemeHttps)
+        {
+            return new ConfigurationManager<OpenIdConnectConfiguration>(
+                metadataAddress,
+                new OpenIdConnectConfigurationRetriever(),
+                new BackchannelRewritingDocumentRetriever(
+                    publicUri,
+                    backchannelUri,
+                    new HttpDocumentRetriever(http) { RequireHttps = requireHttps }));
+        }
+
+        return _configurationManagerFactory(http, metadataAddress, requireHttps);
     }
 
     private bool IsWithinCooldown(string key, TimeSpan cooldown) =>
