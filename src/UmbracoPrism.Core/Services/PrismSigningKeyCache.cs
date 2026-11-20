@@ -10,11 +10,22 @@ namespace UmbracoPrism.Core.Services;
 /// </summary>
 public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
 {
+    /// <summary>Timeout for the discovery and JWKS requests, so a slow provider cannot hold a request thread for the 100 second default.</summary>
+    public static readonly TimeSpan MetadataTimeout = TimeSpan.FromSeconds(10);
+
     internal static readonly TimeSpan RefreshAfter = TimeSpan.FromMinutes(45);
     internal static readonly TimeSpan HardExpiry = TimeSpan.FromHours(1);
     internal static readonly TimeSpan ForcedRefreshCooldown = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Minimum gap between fetch attempts for one authority when a token names a key that is not
+    /// cached. Short enough to recover from a provider key rotation, long enough that a caller
+    /// sending random key ids cannot turn each request into an outbound fetch.
+    /// </summary>
+    internal static readonly TimeSpan UnknownKeyRefreshCooldown = TimeSpan.FromSeconds(10);
+
     private readonly ConcurrentDictionary<string, (IReadOnlyCollection<SecurityKey> Keys, DateTimeOffset FetchedAt)> _store = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _lastAttempt = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _warmLocks = new(StringComparer.OrdinalIgnoreCase);
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly TimeProvider _timeProvider;
@@ -64,9 +75,7 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
             if (!forceRefresh && !snapshot.ShouldRefresh)
                 return;
 
-            if (forceRefresh
-                && _store.TryGetValue(normalizedTenantId, out var forcedRefreshExisting)
-                && requestStartedAt - forcedRefreshExisting.FetchedAt < ForcedRefreshCooldown)
+            if (IsWithinCooldown(normalizedTenantId, forceRefresh ? ForcedRefreshCooldown : UnknownKeyRefreshCooldown))
             {
                 return;
             }
@@ -78,6 +87,7 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
                 && existing.FetchedAt >= requestStartedAt)
                 return;
 
+            _lastAttempt[normalizedTenantId] = _timeProvider.GetUtcNow();
             var metadataAddress = $"https://{normalizedTenantId}.ciamlogin.com/{normalizedTenantId}/v2.0/.well-known/openid-configuration";
             var http = _httpClientFactory.CreateClient("prism-oidc-metadata");
             var manager = _configurationManagerFactory(http, metadataAddress, true);
@@ -132,10 +142,12 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
                 && _store.TryGetValue(normalizedKey, out var existingForKeyCheck)
                 && !existingForKeyCheck.Keys.Any(k => string.Equals(k.KeyId, requiredKeyId, StringComparison.OrdinalIgnoreCase));
 
-            if (forceRefresh
-                && !bypassCooldownForMissingKey
-                && _store.TryGetValue(normalizedKey, out var forcedRefreshExisting)
-                && requestStartedAt - forcedRefreshExisting.FetchedAt < ForcedRefreshCooldown)
+            // The cooldown counts attempts, not successes, so a provider that is down or a caller
+            // sending unknown key ids cannot drive more than one outbound fetch per window.
+            var cooldown = forceRefresh && !bypassCooldownForMissingKey
+                ? ForcedRefreshCooldown
+                : UnknownKeyRefreshCooldown;
+            if (IsWithinCooldown(normalizedKey, cooldown))
             {
                 return;
             }
@@ -145,6 +157,7 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
                 && existing.FetchedAt >= requestStartedAt)
                 return;
 
+            _lastAttempt[normalizedKey] = _timeProvider.GetUtcNow();
             var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
             var http = _httpClientFactory.CreateClient("prism-oidc-metadata");
 
@@ -236,6 +249,9 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
         return GetSnapshot(entraTenantId).Keys;
     }
 
+    private bool IsWithinCooldown(string key, TimeSpan cooldown) =>
+        _lastAttempt.TryGetValue(key, out var last) && _timeProvider.GetUtcNow() - last < cooldown;
+
     private static IConfigurationManager<OpenIdConnectConfiguration> CreateConfigurationManager(HttpClient httpClient, string metadataAddress, bool requireHttps)
     {
         return new ConfigurationManager<OpenIdConnectConfiguration>(
@@ -259,8 +275,7 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
         {
             if (TryRewriteAddress(address, out var rewritten))
             {
-                Console.WriteLine($"[PRISM] BackchannelRewritingDocumentRetriever: rewriting {address} → {rewritten}");
-                address = rewritten;
+                                address = rewritten;
             }
 
             return inner.GetDocumentAsync(address, cancel);
