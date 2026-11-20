@@ -220,7 +220,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
                 capturedFormData = form)
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = LocalhostKeycloakTenant
         };
@@ -277,7 +277,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
                 capturedEndpoint = endpoint)
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = LocalhostKeycloakTenant
         };
@@ -324,7 +324,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
 
         var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = LocalhostKeycloakTenant
         };
@@ -478,6 +478,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
         var prismContext = new TestPrismContext { CurrentTenant = tenant };
         var services = new ServiceCollection()
             .AddSingleton<IPrismContext>(prismContext)
+            .AddSingleton<IPrismOidcDiscovery>(TestOidcDiscovery.Keycloak)
             .AddSingleton(authenticationService ?? new TestAuthenticationService(AuthenticateResult.NoResult()))
             .BuildServiceProvider();
 
@@ -504,6 +505,7 @@ public class LocalhostGenericOidcRegressionTests : IDisposable
     {
         var services = new ServiceCollection()
             .AddSingleton<IPrismContext>(new TestPrismContext { CurrentTenant = tenant })
+            .AddSingleton<IPrismOidcDiscovery>(TestOidcDiscovery.Keycloak)
             .AddSingleton(authenticationService ?? new TestAuthenticationService(AuthenticateResult.NoResult()))
             .BuildServiceProvider();
         var httpContext = new DefaultHttpContext

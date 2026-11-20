@@ -248,6 +248,7 @@ public sealed class PrismSignInScopeTests
 
                     services.AddSingleton(tenants.Object);
                     services.AddSingleton(Mock.Of<IPrismSigningKeyCache>());
+                    services.AddSingleton<IPrismOidcDiscovery>(TestOidcDiscovery.Keycloak);
                     services.AddSingleton<IPrismTenantBindingValidator, PrismTenantBindingValidator>();
                     services.AddScoped<IPrismContext, RequestPrismContext>();
                     services.AddHttpContextAccessor();

@@ -15,11 +15,13 @@ namespace UmbracoPrism.Core.Models;
 /// <param name="vault">Resolves tenant client secrets from secure storage.</param>
 /// <param name="tokenRefreshService">Performs resilient token refresh calls when session tokens expire.</param>
 /// <param name="tenantBindingValidator">Determines whether a principal's own claims match the current tenant.</param>
+/// <param name="oidcDiscovery">Supplies a generic OIDC provider's endpoints from its discovery document.</param>
 public class PrismContext(
     IHttpContextAccessor httpContextAccessor,
     ISecretVaultService vault,
     IPrismTokenRefreshService tokenRefreshService,
-    IPrismTenantBindingValidator tenantBindingValidator) : IPrismContext
+    IPrismTenantBindingValidator tenantBindingValidator,
+    IPrismOidcDiscovery oidcDiscovery) : IPrismContext
 {
     private static readonly DateTimeOffset ProcessStartedUtc = DateTimeOffset.UtcNow;
 
@@ -94,6 +96,20 @@ public class PrismContext(
         return refreshToken == null ? null : await RefreshTokenAsync(context, authResult, refreshToken);
     }
 
+    private async Task<string?> DiscoverTokenEndpointAsync(HttpContext context)
+    {
+        try
+        {
+            return (await oidcDiscovery.GetAsync(CurrentTenant!.OidcAuthority!, context.RequestAborted)).TokenEndpoint;
+        }
+        catch (Exception ex) when (ex is Microsoft.IdentityModel.Tokens.SecurityTokenException or HttpRequestException or InvalidOperationException)
+        {
+            Log.Error(ex, "Cannot refresh token: OIDC discovery failed for the tenant's authority");
+            LastAuthorizationFailureReason = "oidc-discovery-failed";
+            return null;
+        }
+    }
+
     private async Task<AuthenticationHeaderValue?> RefreshTokenAsync(HttpContext context, AuthenticateResult authResult, string refreshToken)
     {
         if (CurrentTenant == null)
@@ -125,29 +141,21 @@ public class PrismContext(
                 return null;
             }
 
-            tokenEndpoint = $"{CurrentTenant.OidcAuthority.TrimEnd('/')}/protocol/openid-connect/token";
+            var discoveredEndpoint = await DiscoverTokenEndpointAsync(context);
+            if (discoveredEndpoint is null)
+            {
+                return null;
+            }
 
-            // In Codespaces, the GitHub forwarded-port proxy blocks server-side HTTP calls to
-            // the public Keycloak URL (*.app.github.dev). When KEYCLOAK_BACKCHANNEL_URL is set
-            // AND the environment is Development, rewrite the token endpoint host to the internal
-            // backchannel URL before POSTing the refresh-token grant.
-            //
-            // We also include X-Forwarded-Proto / X-Forwarded-Host headers so that Keycloak
-            // (running with --proxy-headers xforwarded) computes its issuer URL as the public
-            // HTTPS authority rather than the raw HTTP localhost URL. Without these headers
-            // Keycloak derives the issuer as http://... which mismatches the https://... iss
-            // claim embedded in the refresh token (originally issued through the YARP proxy),
-            // causing Keycloak to return invalid_grant.
-            //
-            // Transport rewrite ONLY: issuer/audience validation on the returned tokens remains
-            // strict against the public OidcAuthority. Outside Development or when the env var
-            // is absent, this block is never entered — zero behaviour change for production.
+            tokenEndpoint = discoveredEndpoint;
+
+            // Development backchannel (Codespaces): rewrite the token endpoint to the internal host, and send
+            // X-Forwarded-* so Keycloak derives the public issuer the refresh token was issued under (without
+            // them it answers invalid_grant). Transport rewrite only: validation stays on the public authority.
             var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
             if (!string.IsNullOrEmpty(backchannelBase))
             {
-                var oidcPath = new Uri(CurrentTenant.OidcAuthority!.TrimEnd('/')).AbsolutePath.TrimEnd('/');
-                tokenEndpoint = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/token";
-                Console.WriteLine($"[PRISM] RefreshTokenAsync: rewriting token endpoint to backchannel → {tokenEndpoint}");
+                tokenEndpoint = UmbracoPrism.Core.Auth.PrismBackchannel.Rewrite(tokenEndpoint);
 
                 // Derive X-Forwarded-* values from the public OidcAuthority so Keycloak
                 // computes its canonical issuer as https://<public-host>/realms/prism-dev.
