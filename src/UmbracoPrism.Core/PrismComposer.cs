@@ -29,6 +29,7 @@ public class PrismComposer : IComposer
     {
         // 1. Core Services
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddHostedService<UmbracoPrism.Core.Auth.PrismBackchannelGuard>();
         builder.Services.AddSingleton<ISecretVaultService, SecretVaultService>();
         builder.Services.AddSingleton<ITenantTokenResolver, TenantTokenResolver>();
         builder.Services.AddSingleton<ITenantService, TenantService>();

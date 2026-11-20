@@ -142,12 +142,8 @@ public class PrismContext(
             // Transport rewrite ONLY: issuer/audience validation on the returned tokens remains
             // strict against the public OidcAuthority. Outside Development or when the env var
             // is absent, this block is never entered — zero behaviour change for production.
-            var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
-            var isDevelopment = string.Equals(
-                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-                "Development",
-                StringComparison.OrdinalIgnoreCase);
-            if (isDevelopment && !string.IsNullOrEmpty(backchannelBase))
+            var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
+            if (!string.IsNullOrEmpty(backchannelBase))
             {
                 var oidcPath = new Uri(CurrentTenant.OidcAuthority!.TrimEnd('/')).AbsolutePath.TrimEnd('/');
                 tokenEndpoint = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/token";
