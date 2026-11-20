@@ -2,7 +2,7 @@
   "files": {
     "src/UmbracoPrism.Client/src/backoffice/tenant-modal/mobile-section.ts": 512,
     "src/UmbracoPrism.Core/Controllers/BiometricController.cs": 657,
-    "src/UmbracoPrism.Core/Controllers/TenantManagementController.cs": 579,
+    "src/UmbracoPrism.Core/Controllers/TenantManagementController.cs": 489,
     "src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs": 694,
     "src/UmbracoPrism.TestSite/Controllers/DownstreamDemoController.cs": 860,
     "src/UmbracoPrism.TestSite/DemoMobileNavSeeder.cs": 476,
@@ -11,7 +11,6 @@
   "methods": {
     "src/UmbracoPrism.Core/Configuration/PrismKeyVaultConfigureOptions.cs": 61,
     "src/UmbracoPrism.Core/Controllers/BiometricController.cs": 192,
-    "src/UmbracoPrism.Core/Controllers/TenantManagementController.cs": 76,
     "src/UmbracoPrism.Core/Extensions/PrismAuthExtensions.cs": 191,
     "src/UmbracoPrism.Core/Extensions/PrismMemberSignInExtensions.cs": 68,
     "src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs": 486,
@@ -23,7 +22,7 @@
     "src/UmbracoPrism.Core/Services/PrismFirebase.cs": 97,
     "src/UmbracoPrism.Core/Services/PrismNotificationService.cs": 77,
     "src/UmbracoPrism.Core/Services/PrismTokenRefreshService.cs": 93,
-    "src/UmbracoPrism.Core/Services/TenantService.cs": 87,
+    "src/UmbracoPrism.Core/Services/TenantService.cs": 69,
     "src/UmbracoPrism.Core/TagHelpers/PrismDebugTagHelper.cs": 154,
     "src/UmbracoPrism.MobileBundleCli/Program.cs": 68,
     "src/UmbracoPrism.MockBusinessApp/Services/SupportSystem/ContributionsValidation.cs": 74,

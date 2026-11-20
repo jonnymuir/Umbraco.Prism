@@ -55,6 +55,28 @@ These variables must **NEVER** be set in production:
 - Unset in production ✅
 - Set to internal Aspire URL in Codespaces ✅
 
+### ⚠️ **Prism__AllowDemoTenants** and **Prism__AllowInternalAuthorities**
+
+**What they do:**
+- Prism's demo behaviours are on only in Development: the `localhost` and Codespaces demo tenants,
+  inline client secrets for them, and an identity provider on a loopback address or plain `http`.
+- `Prism__AllowDemoTenants=true` switches those on in another environment. Leave it unset in
+  production.
+- `Prism__AllowInternalAuthorities=true` lets a tenant's OIDC authority be a private, loopback or
+  link-local address, for an identity provider that really is on an internal network. Without it,
+  an authority must be an `https` URL on a public host, with no credentials, query or fragment.
+  Set it only if you need it.
+
+**Tenant checks.** Every tenant identity is validated when it is saved (the management API, uSync
+and `Prism:SeedTenant`) and again when it is resolved at runtime. A tenant that fails loses its
+sign-in configuration and the failure is logged, so a bad row cannot make the server request an
+unintended address.
+
+**Tenant tokens.** A `{{TOKEN}}` in a tenant field resolves from configuration, except names that
+look like credentials or framework settings (`SECRET`, `PASSWORD`, `KEY`, `TOKEN`,
+`CONNECTIONSTRING`, `ASPNETCORE_`, `UMBRACO_` and similar), which never resolve. To allow only your
+own tokens, set `Prism:TenantTokens:AllowedPrefixes` to a list such as `["TENANT_"]`.
+
 ### ⚠️ **CODESPACE_NAME**
 
 **What it is:**

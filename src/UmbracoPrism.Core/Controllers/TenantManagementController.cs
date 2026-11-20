@@ -245,7 +245,8 @@ public class TenantManagementController(
             rawValue = t.RawValue,
             tokenName = t.TokenName,
             resolvedValue = t.ResolvedValue,
-            isResolved = t.IsResolved
+            isResolved = t.IsResolved,
+            isBlocked = t.IsBlocked
         }));
     }
 
@@ -350,7 +351,7 @@ public class TenantManagementController(
         if (!string.IsNullOrWhiteSpace(normalizedProvider) && !string.IsNullOrWhiteSpace(normalizedReference))
         {
             if (string.Equals(normalizedProvider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase)
-                && IsRepoOwnedLocalDemoTenant(hostname, oidcAuthority, oidcClientId))
+                && TenantRequestRules.IsRepoOwnedLocalDemoTenant(hostname, oidcAuthority, oidcClientId))
             {
                 return (PrismSecretProviderNames.Inline, normalizedReference, normalizedReference);
             }
@@ -379,7 +380,7 @@ public class TenantManagementController(
     /// <summary>Validates the parts of a tenant request that are checked before it is saved.</summary>
     private static bool TryValidateTenantRequest(PrismTenantRequest tenant, string? resolvedReference, out string? error)
     {
-        if (!TryValidateGenericOidcSecretRequest(
+        if (!TenantRequestRules.TryValidateGenericOidcSecretRequest(
                 tenant.Hostname,
                 tenant.OidcAuthority,
                 tenant.OidcClientId,
@@ -393,85 +394,14 @@ public class TenantManagementController(
             return false;
         }
 
+        error = TenantRequestRules.ValidateIdentity(tenant);
+        if (error is not null)
+        {
+            return false;
+        }
+
         error = PrismMobileAppLinks.Validate(tenant.MobileAppConfig);
         return error is null;
-    }
-
-    private static bool TryValidateGenericOidcSecretRequest(
-        string? hostname,
-        string? oidcAuthority,
-        string? oidcClientId,
-        string? requestedKeyVaultReference,
-        string? requestedProvider,
-        string? requestedReference,
-        bool resetOidcClientSecret,
-        string? resolvedReference,
-        out string? error)
-    {
-        error = null;
-
-        if (string.IsNullOrWhiteSpace(oidcAuthority))
-        {
-            return true;
-        }
-
-        var keyVaultReference = NormalizeOptionalString(requestedKeyVaultReference);
-        var provider = NormalizeOptionalString(requestedProvider);
-        var reference = NormalizeOptionalString(requestedReference);
-        var hasRequestedSecretChange = provider != null || reference != null;
-        var hasRequestedKeyVaultReference = keyVaultReference != null;
-
-        if (resetOidcClientSecret && (hasRequestedSecretChange || hasRequestedKeyVaultReference))
-        {
-            error = "OIDC client secret reset cannot be combined with a replacement secret reference.";
-            return false;
-        }
-
-        if (hasRequestedSecretChange && (provider == null || reference == null))
-        {
-            error = "OIDC client secret updates require both provider and reference.";
-            return false;
-        }
-
-        if (hasRequestedKeyVaultReference && string.Equals(provider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase))
-        {
-            error = "Inline OIDC client secrets cannot be combined with an Azure Key Vault secret reference.";
-            return false;
-        }
-
-        if (hasRequestedKeyVaultReference
-            && string.Equals(provider, PrismSecretProviderNames.AzureKeyVault, StringComparison.OrdinalIgnoreCase)
-            && reference != null
-            && !string.Equals(reference, keyVaultReference, StringComparison.Ordinal))
-        {
-            error = "OIDC client secret reference payload is inconsistent.";
-            return false;
-        }
-
-        if (provider != null)
-        {
-            if (string.Equals(provider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase)
-                && !IsRepoOwnedLocalDemoTenant(hostname, oidcAuthority, oidcClientId))
-            {
-                error = "Inline OIDC client secrets are reserved for the repo-owned localhost demo seed.";
-                return false;
-            }
-
-            if (!string.Equals(provider, PrismSecretProviderNames.AzureKeyVault, StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(provider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase))
-            {
-                error = "Unsupported OIDC client secret provider.";
-                return false;
-            }
-        }
-
-        if (!resetOidcClientSecret && string.IsNullOrWhiteSpace(resolvedReference))
-        {
-            error = "Generic OIDC confidential clients require an OIDC client secret provider and reference.";
-            return false;
-        }
-
-        return true;
     }
 
     /// <summary>
@@ -550,26 +480,6 @@ public class TenantManagementController(
     {
         return NormalizeOptionalString(tenant.OidcClientSecretReference)
             ?? NormalizeOptionalString(tenant.OidcClientSecret);
-    }
-
-    private static bool IsRepoOwnedLocalDemoTenant(string? hostname, string? oidcAuthority, string? oidcClientId)
-    {
-        if (!string.Equals(hostname?.Trim(), "localhost", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!string.Equals(oidcClientId?.Trim(), "prism-client", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        if (!Uri.TryCreate(oidcAuthority, UriKind.Absolute, out var authority))
-        {
-            return false;
-        }
-
-        return string.Equals(authority.Host, "localhost", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? NormalizeOptionalString(string? value)

@@ -4,6 +4,7 @@ using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Services;
+using UmbracoPrism.Core.Services;
 using Umbraco.Cms.Infrastructure.Persistence;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Persistence;
@@ -45,6 +46,15 @@ public class PrismConfiguredTenantSeeder(
     {
         var hostname = options.Hostname!.Trim().ToLowerInvariant();
         var name = string.IsNullOrWhiteSpace(options.Name) ? hostname : options.Name!.Trim();
+
+        var identityError = PrismTenantValidator.Validate(options.OidcAuthority, options.EntraTenantId);
+        if (identityError is not null)
+        {
+            logger.LogError(
+                "PRISM ConfiguredTenantSeeder: Prism:SeedTenant was not applied because its identity configuration is unacceptable: {Error}",
+                identityError);
+            return;
+        }
 
         using var db = databaseFactory.CreateDatabase();
 

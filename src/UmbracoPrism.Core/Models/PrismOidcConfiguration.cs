@@ -79,9 +79,9 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
         // The incoming-request hostname is the tenant routing key.
         // Accept localhost (local Aspire dev) or *.app.github.dev (GitHub Codespaces).
         var hostname = tenant.Hostname;
-        var isRepoDemoHost =
+        var isRepoDemoHost = PrismDemoTenants.IsAllowed && (
             string.Equals(hostname, LocalDemoHostname, StringComparison.OrdinalIgnoreCase)
-            || (hostname?.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase) == true);
+            || (hostname?.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase) == true));
 
         if (!isRepoDemoHost)
         {

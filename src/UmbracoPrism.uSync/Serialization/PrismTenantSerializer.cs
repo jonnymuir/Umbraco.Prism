@@ -121,6 +121,12 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
         schema.OidcClientSecretProvider = NullIfEmpty(identity?.Element("OidcClientSecretProvider")?.Value);
         schema.OidcClientSecretReference = NullIfEmpty(identity?.Element("OidcClientSecretReference")?.Value);
 
+        var identityError = PrismTenantValidator.Validate(
+            _tokenResolver.Resolve(schema.OidcAuthority),
+            _tokenResolver.Resolve(schema.EntraTenantId));
+        if (identityError is not null)
+            return SyncAttempt<PrismTenantSchema>.Fail(node.GetAlias(), default, ChangeType.Fail, identityError, null);
+
         foreach (var set in OverrideSets)
             set.Set(schema, ReadOverrides(node.Element(set.Element)));
 
