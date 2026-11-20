@@ -43,16 +43,7 @@ public class PrismComposer : IComposer
         builder.Services.Configure<PrismTokenRefreshOptions>(
             builder.Config.GetSection(PrismTokenRefreshOptions.SectionName));
         builder.Services.AddSingleton<IPrismTokenRefreshService, PrismTokenRefreshService>();
-        builder.Services.Configure<PrismBiometricOptions>(
-            builder.Config.GetSection(PrismBiometricOptions.SectionName));
-        builder.Services.ConfigureOptions<PrismKeyVaultConfigureOptions>();
-        builder.Services.AddSingleton<IBiometricTokenService, BiometricTokenService>();
-        builder.Services.AddSingleton<IRefreshTokenEncryptionService, RefreshTokenEncryptionService>();
-        builder.Services.AddSingleton<IExchangeRateLimitService, ExchangeRateLimitService>();
-        builder.Services.AddSingleton<INotificationRateLimitService, NotificationRateLimitService>();
-        builder.Services.AddSingleton<IPrismTenantBindingValidator, PrismTenantBindingValidator>();
-        builder.Services.AddScoped<IPrismContext, PrismContext>();
-        builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
+        ComposeBiometricAndContext(builder);
         ComposeNotifications(builder.Services);
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
@@ -144,6 +135,20 @@ public class PrismComposer : IComposer
     }
 
     /// <summary>Generated mobile apps: bundle generation, the app's tabs, and app sign-in.</summary>
+    private static void ComposeBiometricAndContext(IUmbracoBuilder builder)
+    {
+        builder.Services.Configure<PrismBiometricOptions>(
+            builder.Config.GetSection(PrismBiometricOptions.SectionName));
+        builder.Services.ConfigureOptions<PrismKeyVaultConfigureOptions>();
+        builder.Services.AddSingleton<IBiometricTokenService, BiometricTokenService>();
+        builder.Services.AddSingleton<IRefreshTokenEncryptionService, RefreshTokenEncryptionService>();
+        builder.Services.AddSingleton<IExchangeRateLimitService, ExchangeRateLimitService>();
+        builder.Services.AddSingleton<INotificationRateLimitService, NotificationRateLimitService>();
+        builder.Services.AddSingleton<IPrismTenantBindingValidator, PrismTenantBindingValidator>();
+        builder.Services.AddScoped<IPrismContext, PrismContext>();
+        builder.Services.AddScoped<IPrismUserContext, PrismUserContext>();
+    }
+
     private static void ComposeMobile(IUmbracoBuilder builder)
     {
         var services = builder.Services;
