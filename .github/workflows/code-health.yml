@@ -1,7 +1,8 @@
 name: Code Health
 
-# CodeScene delta analysis: fails a pull request only when a file it touches ends up with a
-# lower Code Health score than it had on the base branch. New findings that leave the score
+# CodeScene delta analysis: fails a pull request only when a file it touches ends up below the
+# 9.5 floor and with a lower Code Health score than it had on the base branch (a new file counts
+# as having started at 10). New findings that leave the score
 # no lower, new files and untouched debt never block. Nothing is uploaded: the CLI analyses
 # the checkout locally and only uses the token to confirm the licence.
 
@@ -46,13 +47,20 @@ jobs:
           cat > "$RUNNER_TEMP/gate.mjs" <<'JS'
           import { readFileSync } from 'node:fs';
           const { results = [] } = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+          // A file may score anywhere at or above the floor. Below it, a file may not get worse by any
+          // amount, so existing debt never creeps down and new files must start at or above the floor.
+          const FLOOR = 9.5;
           const dropped = results.filter(
-            (file) => typeof file['old-score'] === 'number' && typeof file['new-score'] === 'number' && file['new-score'] < file['old-score']
+            (file) =>
+              typeof file['old-score'] === 'number' &&
+              typeof file['new-score'] === 'number' &&
+              file['new-score'] < FLOOR &&
+              file['new-score'] < file['old-score']
           );
           for (const file of dropped) {
-            console.log(`::error file=${file.name}::Code Health dropped from ${file['old-score']} to ${file['new-score']}`);
+            console.log(`::error file=${file.name}::Code Health ${file['new-score']} is below ${FLOOR} and lower than before (${file['old-score']})`);
           }
-          console.log(dropped.length === 0 ? 'No file lost Code Health.' : `${dropped.length} file(s) lost Code Health.`);
+          console.log(dropped.length === 0 ? 'No file is below the floor and worse than before.' : `${dropped.length} file(s) are below ${FLOOR} and lost Code Health.`);
           process.exit(dropped.length === 0 ? 0 : 1);
           JS
           node "$RUNNER_TEMP/gate.mjs" "$RUNNER_TEMP/delta.json"
