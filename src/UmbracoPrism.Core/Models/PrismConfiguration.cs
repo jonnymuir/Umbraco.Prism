@@ -18,6 +18,14 @@ public class PrismConfiguration
     /// <c>docs/umbraco-setup.md</c> for the promotion-through-environments story.
     /// </summary>
     public PrismSeedTenantOptions SeedTenant { get; set; } = new();
+
+    /// <summary>
+    /// When <see langword="true"/>, a request whose hostname matches no tenant is answered with
+    /// 421 Misdirected Request before anything else runs. For a host that serves tenants only. Leave
+    /// it <see langword="false"/> (the default) when the same host also serves its own site on other
+    /// hostnames. Bind as <c>Prism:RejectUnknownHosts</c>.
+    /// </summary>
+    public bool RejectUnknownHosts { get; set; }
 }
 
 /// <summary>
