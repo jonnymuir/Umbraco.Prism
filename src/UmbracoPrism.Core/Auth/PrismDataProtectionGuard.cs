@@ -9,8 +9,8 @@ namespace UmbracoPrism.Core.Auth;
 /// <summary>
 /// The member cookie, the mobile handover ticket and antiforgery tokens are only as strong as the
 /// Data Protection key ring. Outside Development this checks that the host has chosen where keys
-/// are stored and how they are protected, and says so when it has not. Set
-/// <c>Prism:DataProtection:RequireConfiguredKeys</c> to <c>true</c> to refuse to start instead.
+/// are stored and how they are protected, and refuses to start when it has not. Set
+/// <c>Prism:DataProtection:RequireConfiguredKeys</c> to <c>false</c> to log a warning and start anyway.
 /// </summary>
 internal sealed partial class PrismDataProtectionGuard(
     IOptions<KeyManagementOptions> keyManagement,
@@ -34,7 +34,7 @@ internal sealed partial class PrismDataProtectionGuard(
         }
 
         var message = "Data Protection is not fully configured: " + string.Join(" ", problems);
-        if (configuration.GetValue<bool>(RequireConfigurationKey))
+        if (configuration.GetValue(RequireConfigurationKey, true))
         {
             throw new InvalidOperationException(message);
         }

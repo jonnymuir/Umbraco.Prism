@@ -85,8 +85,8 @@ Each of these is a decision you would otherwise have to rediscover. Where a test
    `AllowAnonymous()` with a reason, as in `Diagnostics.cs`. *Tested: `MockBusinessAppHostSecurityTests`
    boots the real app and checks every route, so a route added later is covered automatically.*
 2. **Validate the token properly.** `AddPrismAuthentication` pins the issuer to a configured tenant,
-   resolves signing keys from that tenant's own authority, and checks lifetime and audience. Set
-   **`Audience`** on each OIDC tenant (see below).
+   resolves signing keys from that tenant's own authority, and checks lifetime and audience. Each
+   OIDC tenant must set **`Audience`** (see below).
 3. **Acting for the caller, read from the token only.** `CallerIdentity.From(user, config)` gives the
    tenant and email from validated claims. No handler takes a tenant or user from the body, query or
    headers. *Tested: a write that names another member is ignored; the same person under two tenants has
@@ -127,18 +127,17 @@ Each of these is a decision you would otherwise have to rediscover. Where a test
 
 ### `Audience`: tokens minted for this API
 
-By default (`Audience` unset) the generic-OIDC rule accepts a token if its `aud` or its `azp` is the
-tenant's `ClientId`. That keeps Keycloak working with no extra setup, but it means any token issued to the
-web client is accepted here, including its ID token. For any API reachable beyond a development machine,
-set `Audience` on the tenant and have the identity provider add it to access tokens:
+A generic-OIDC tenant (one with an `OidcAuthority`) must set `Audience`, and the identity provider must add
+it to access tokens. Without it the app refuses to start, because it would accept none of that tenant's
+tokens. Only a token whose `aud` contains the audience is accepted: `azp` is ignored, so a token issued to the
+web client for something else, including its ID token, is rejected.
 
 ```json
 { "OidcAuthority": "https://idp.example/realms/prod", "ClientId": "prism-client", "Audience": "prism-business-app" }
 ```
 
-With `Audience` set, only a token whose `aud` contains it is accepted: `azp` is ignored and an ID token
-(audience: the client) is rejected. In Keycloak, add an **Audience** mapper to the client with the custom
-audience set and "Add to access token" on, "Add to ID token" off; `keycloak/realm-export.json` shows it.
+In Keycloak, add an **Audience** mapper to the client with the custom audience set and "Add to access token"
+on, "Add to ID token" off; `keycloak/realm-export.json` shows it.
 This repo's Keycloak tenant is configured this way. Entra tenants already issue a per-API audience, so
 the setting is not used for them.
 

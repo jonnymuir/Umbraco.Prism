@@ -40,7 +40,17 @@ public class PrismDataProtectionGuardTests
     }
 
     [Fact]
-    public async Task OutsideDevelopment_WithoutRequire_StartupContinues()
+    public async Task OutsideDevelopment_ByDefault_StartupFailsOnDefaults()
+    {
+        var guard = Create("Production", requireConfigured: null);
+
+        var act = () => guard.StartAsync(CancellationToken.None);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Data Protection*");
+    }
+
+    [Fact]
+    public async Task OutsideDevelopment_WithRequireTurnedOff_StartupContinues()
     {
         var guard = Create("Production", requireConfigured: false);
 
@@ -55,12 +65,14 @@ public class PrismDataProtectionGuardTests
         await guard.StartAsync(CancellationToken.None);
     }
 
-    private static PrismDataProtectionGuard Create(string environmentName, bool requireConfigured)
+    private static PrismDataProtectionGuard Create(string environmentName, bool? requireConfigured)
     {
         var environment = new Mock<IHostEnvironment>();
         environment.SetupGet(x => x.EnvironmentName).Returns(environmentName);
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { [PrismDataProtectionGuard.RequireConfigurationKey] = requireConfigured.ToString() })
+            .AddInMemoryCollection(requireConfigured is null
+                ? new Dictionary<string, string?>()
+                : new Dictionary<string, string?> { [PrismDataProtectionGuard.RequireConfigurationKey] = requireConfigured.ToString() })
             .Build();
         return new PrismDataProtectionGuard(
             Options.Create(new KeyManagementOptions()),

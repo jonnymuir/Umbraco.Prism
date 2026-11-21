@@ -135,8 +135,9 @@ afresh. Idle entries are discarded and tracking is capped, so unique garbage can
 **Data Protection.** The member cookie, the mobile handover ticket and antiforgery tokens are only
 as strong as the Data Protection key ring. Outside Development Prism logs a warning at startup when
 the host has not chosen where keys are stored (`PersistKeysTo...`) and how they are protected
-(`ProtectKeysWith...`). Set `Prism:DataProtection:RequireConfiguredKeys` to `true` to refuse to
-start instead. With several instances, keys must be shared and protected, or sessions will fail
+(`ProtectKeysWith...`), and refuses to start. Set `Prism:DataProtection:RequireConfiguredKeys` to
+`false` to log a warning and start anyway; do that only for a host whose keys you accept are
+unprotected. With several instances, keys must be shared and protected, or sessions will fail
 intermittently.
 
 ## Hostnames, secrets and identity

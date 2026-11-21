@@ -226,43 +226,47 @@ public class PrismAuthExtensionsSecurityTests
     }
 
     [Fact]
-    public void AudienceValidator_AcceptsOidcAudience_WhenMatchesConfiguredClientId()
+    public void AudienceValidator_AcceptsOidcAudience_WhenItIsTheConfiguredAudience()
     {
         var options = BuildJwtOptions(new Dictionary<string, string?>
         {
             ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
             ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
             ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
+            ["PrismBusinessApp:Tenants:0:Audience"] = "prism-business-app",
             ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
             ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
         });
 
-        var token = CreateOidcToken(LocalOidcAuthority);
+        var token = CreateOidcToken(LocalOidcAuthority, audience: "prism-business-app");
 
         var accepted = options.TokenValidationParameters.AudienceValidator!(
-            ["prism-client"],
+            ["prism-business-app"],
             token,
             options.TokenValidationParameters);
 
         accepted.Should().BeTrue();
     }
 
-    [Fact]
-    public void AudienceValidator_RejectsOidcAudience_WhenClientIdMismatch()
+    [Theory]
+    [InlineData("wrong-client")]
+    [InlineData("prism-client")] // the web client's own id: a token issued to it is not minted for this API
+    public void AudienceValidator_RejectsOidcAudience_WhenItIsNotTheConfiguredAudience(string audience)
     {
         var options = BuildJwtOptions(new Dictionary<string, string?>
         {
             ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
             ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
             ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
+            ["PrismBusinessApp:Tenants:0:Audience"] = "prism-business-app",
             ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
             ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
         });
 
-        var token = CreateOidcToken(LocalOidcAuthority);
+        var token = CreateOidcToken(LocalOidcAuthority, audience: audience);
 
         var accepted = options.TokenValidationParameters.AudienceValidator!(
-            ["wrong-client"],
+            [audience],
             token,
             options.TokenValidationParameters);
 
@@ -270,13 +274,14 @@ public class PrismAuthExtensionsSecurityTests
     }
 
     [Fact]
-    public void AudienceValidator_AcceptsOidcAuthorizedParty_WhenAudienceClaimDoesNotContainClientId()
+    public void AudienceValidator_RejectsATokenIssuedToTheClient_EvenWhenItsAuthorizedPartyIsTheClient()
     {
         var options = BuildJwtOptions(new Dictionary<string, string?>
         {
             ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
             ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
             ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
+            ["PrismBusinessApp:Tenants:0:Audience"] = "prism-business-app",
             ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
             ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
         });
@@ -288,7 +293,7 @@ public class PrismAuthExtensionsSecurityTests
             token,
             options.TokenValidationParameters);
 
-        accepted.Should().BeTrue();
+        accepted.Should().BeFalse("azp names who the token was issued to, not who it is for");
     }
 
     [Fact]
@@ -314,21 +319,22 @@ public class PrismAuthExtensionsSecurityTests
     }
 
     [Fact]
-    public void AudienceValidator_AcceptsOidcAuthorizedParty_ForJsonWebTokenWithoutTidClaim()
+    public void AudienceValidator_AcceptsOidcAudience_ForJsonWebTokenWithoutTidClaim()
     {
         var options = BuildJwtOptions(new Dictionary<string, string?>
         {
             ["PrismBusinessApp:Tenants:0:EntraTenantId"] = "",
             ["PrismBusinessApp:Tenants:0:ClientId"] = "prism-client",
             ["PrismBusinessApp:Tenants:0:OidcAuthority"] = LocalOidcAuthority,
+            ["PrismBusinessApp:Tenants:0:Audience"] = "prism-business-app",
             ["PrismBusinessApp:Tenants:0:Code"] = "PRISM-DEMO",
             ["PrismBusinessApp:Tenants:0:DisplayName"] = "Prism Demo (Keycloak)"
         });
 
-        var token = CreateOidcJsonWebToken(LocalOidcAuthority, audience: "account", authorizedParty: "prism-client");
+        var token = CreateOidcJsonWebToken(LocalOidcAuthority, audience: "prism-business-app");
 
         var accepted = options.TokenValidationParameters.AudienceValidator!(
-            ["account"],
+            ["prism-business-app"],
             token,
             options.TokenValidationParameters);
 
