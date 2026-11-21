@@ -142,7 +142,7 @@ public class AuthorizationContractTests
     {
         AllControllers().Should().Contain(new[]
         {
-            typeof(AccountController), typeof(global::UmbracoPrism.TestSite.Controllers.MemberDashboardController), typeof(DeviceAdminController),
+            typeof(AccountController), typeof(global::UmbracoPrism.TestSite.Controllers.MemberDashboardController), typeof(DeviceManagementController),
             typeof(TenantManagementController), typeof(BiometricController), typeof(PrismNotificationController),
         }, "reflection discovery is how a new controller is forced through this contract");
     }

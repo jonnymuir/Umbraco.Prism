@@ -210,6 +210,14 @@ export const tenantModalStyles = css`
     border-bottom: 1px solid var(--uui-color-border-standalone);
     vertical-align: middle;
   }
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
   .token-badge {
     display: inline-flex;
     align-items: center;
