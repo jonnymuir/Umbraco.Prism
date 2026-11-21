@@ -37,13 +37,12 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IBrandingService, BrandingService>();
         ComposeMobile(builder);
         builder.Services.AddSingleton<IPrismBrandingMetadataService, PrismBrandingMetadataService>();
-        builder.Services.AddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
-        builder.Services.AddHttpClient("prism-oidc-metadata", client => client.Timeout = UmbracoPrism.Core.Services.PrismSigningKeyCache.MetadataTimeout);
         builder.Services.AddHttpClient("PrismTokenRefresh");
         builder.Services.Configure<PrismTokenRefreshOptions>(
             builder.Config.GetSection(PrismTokenRefreshOptions.SectionName));
         builder.Services.AddSingleton<IPrismTokenRefreshService, PrismTokenRefreshService>();
         ComposeBiometricAndContext(builder);
+        ComposeIdentityProviderAccess(builder.Services);
         ComposeNotifications(builder.Services);
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
@@ -135,6 +134,13 @@ public class PrismComposer : IComposer
     }
 
     /// <summary>Generated mobile apps: bundle generation, the app's tabs, and app sign-in.</summary>
+    private static void ComposeIdentityProviderAccess(IServiceCollection services)
+    {
+        services.AddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
+        services.AddSingleton<IPrismOidcDiscovery, PrismOidcDiscovery>();
+        services.AddHttpClient("prism-oidc-metadata", client => client.Timeout = PrismSigningKeyCache.MetadataTimeout);
+    }
+
     private static void ComposeBiometricAndContext(IUmbracoBuilder builder)
     {
         builder.Services.Configure<PrismBiometricOptions>(

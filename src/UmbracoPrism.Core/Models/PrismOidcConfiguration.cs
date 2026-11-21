@@ -242,8 +242,16 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             // Support both generic OIDC (Keycloak, Okta, etc.) and Entra-specific paths
             if (!string.IsNullOrEmpty(tenant.OidcAuthority))
             {
-                // Generic OIDC provider path (e.g., Keycloak)
-                context.ProtocolMessage.IssuerAddress = $"{tenant.OidcAuthority}/protocol/openid-connect/auth";
+                // The authorization endpoint comes from the validated discovery document.
+                var endpoints = await PrismOidcFlowHelpers.TryGetEndpointsAsync(context.HttpContext, tenant.OidcAuthority, logger, "sign-in");
+                if (endpoints is null)
+                {
+                    context.HandleResponse();
+                    context.Response.Redirect("/error?reason=idp_discovery_failed");
+                    return;
+                }
+
+                context.ProtocolMessage.IssuerAddress = endpoints.AuthorizationEndpoint;
                 context.ProtocolMessage.ClientId = tenant.OidcClientId;
                 context.Options.Authority = tenant.OidcAuthority;
             }
@@ -318,16 +326,11 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 // (e.g. http://localhost:8080) while OidcAuthority remains the external URL used for
                 // browser redirects and token validation. This is needed in GitHub Codespaces where
                 // the forwarded port proxy blocks unauthenticated server-side backchannel calls.
-                var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
-                if (!string.IsNullOrEmpty(backchannelBase))
-                {
-                    var oidcPath = new Uri(tenant.OidcAuthority!).AbsolutePath.TrimEnd('/');
-                    authority = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/token";
-                }
-                else
-                {
-                    authority = $"{tenant.OidcAuthority}/protocol/openid-connect/token";
-                }
+                PrismOidcFlowHelpers.EnsureResponseIssuerMatches(context.ProtocolMessage, tenant.OidcAuthority!);
+                var discoveredEndpoints = await context.HttpContext.RequestServices
+                    .GetRequiredService<IPrismOidcDiscovery>()
+                    .GetAsync(tenant.OidcAuthority!, context.HttpContext.RequestAborted);
+                authority = UmbracoPrism.Core.Auth.PrismBackchannel.Rewrite(discoveredEndpoints.TokenEndpoint);
                 clientId = tenant.OidcClientId ?? string.Empty;
                 secret = await ResolveClientSecretAsync(tenant, vault);
                 scope = GetRequestedScope(tenant);
@@ -415,36 +418,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 // Generic OIDC provider - use standard OIDC discovery
                 try
                 {
-                    // When KEYCLOAK_BACKCHANNEL_URL is set, fetch JWKS signing keys directly from
-                    // the internal Keycloak HTTP address rather than using ConfigurationManager.
-                    // ConfigurationManager fetches the discovery doc then follows the jwks_uri
-                    // embedded within it — but Keycloak sets jwks_uri using its frontend URL,
-                    // which in Codespaces is the external proxy address and is unreachable from
-                    // inside the container server-side. Fetching the JWKS directly from the known
-                    // Keycloak JWKS path bypasses that entirely.
-                    var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
-                    IEnumerable<SecurityKey> signingKeys;
-                    if (!string.IsNullOrEmpty(backchannelBase))
-                    {
-                        var oidcPath = new Uri(tenant.OidcAuthority!).AbsolutePath.TrimEnd('/');
-                        var jwksUrl = $"{backchannelBase.TrimEnd('/')}{oidcPath}/protocol/openid-connect/certs";
-                        logger.LogDebug("Prism: fetching JWKS from backchannel URL {JwksUrl}", jwksUrl);
-                        using var jwksClient = new HttpClient();
-                        var jwksJson = await jwksClient.GetStringAsync(jwksUrl);
-                        var jwks = new Microsoft.IdentityModel.Tokens.JsonWebKeySet(jwksJson);
-                        signingKeys = jwks.GetSigningKeys();
-                    }
-                    else
-                    {
-                        var metadataAddress = $"{tenant.OidcAuthority}/.well-known/openid-configuration";
-                        var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
-                        var configurationManager = new Microsoft.IdentityModel.Protocols.ConfigurationManager<OpenIdConnectConfiguration>(
-                            metadataAddress,
-                            new OpenIdConnectConfigurationRetriever(),
-                            new HttpDocumentRetriever(new HttpClient()) { RequireHttps = requireHttps });
-                        var oidcConfig = await configurationManager.GetConfigurationAsync(CancellationToken.None);
-                        signingKeys = oidcConfig.SigningKeys;
-                    }
+                    var signingKeys = await PrismOidcFlowHelpers.GetIdTokenSigningKeysAsync(signingKeyCache, tenant.OidcAuthority!, kid);
 
                     var validationParameters = new TokenValidationParameters
                     {
@@ -583,8 +557,17 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
 
             if (!string.IsNullOrEmpty(tenant.OidcAuthority))
             {
-                // Generic OIDC provider logout
-                context.ProtocolMessage.IssuerAddress = $"{tenant.OidcAuthority}/protocol/openid-connect/logout";
+                // The end-session endpoint comes from discovery. A provider without one has no
+                // session to end, so the local sign-out is the whole job.
+                var endSessionEndpoint = (await PrismOidcFlowHelpers.TryGetEndpointsAsync(context.HttpContext, tenant.OidcAuthority, logger, "sign-out"))?.EndSessionEndpoint;
+                if (endSessionEndpoint is null)
+                {
+                    context.HandleResponse();
+                    context.Response.Redirect(context.Options.SignedOutRedirectUri);
+                    return;
+                }
+
+                context.ProtocolMessage.IssuerAddress = endSessionEndpoint;
                 if (string.IsNullOrWhiteSpace(context.ProtocolMessage.ClientId))
                 {
                     context.ProtocolMessage.ClientId = tenant.OidcClientId;

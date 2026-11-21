@@ -442,7 +442,7 @@ public class BackchannelRewriteTests
                 (endpoint, _, _, _) => onRefreshCall(endpoint))
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -677,7 +677,7 @@ public class BackchannelRewriteTests
                 (_, _, _, headers) => onHeaders(headers))
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {

@@ -43,7 +43,7 @@ public class PrismContextTests : IDisposable
         var accessor = new HttpContextAccessor { HttpContext = null };
         var vault = new Mock<ISecretVaultService>();
         var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
-        var context = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator());
+        var context = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak);
 
         var header = await context.GetAuthorizationHeaderAsync();
 
@@ -74,7 +74,7 @@ public class PrismContextTests : IDisposable
         var accessor = new HttpContextAccessor { HttpContext = httpContext };
         var vault = new Mock<ISecretVaultService>();
         var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -126,7 +126,7 @@ public class PrismContextTests : IDisposable
                 It.IsAny<IReadOnlyDictionary<string, string>?>()))
             .ReturnsAsync(new TokenRefreshResult(true, "refreshed-access-token", "refreshed-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -188,7 +188,7 @@ public class PrismContextTests : IDisposable
                 It.IsAny<IReadOnlyDictionary<string, string>?>()))
             .ReturnsAsync(new TokenRefreshResult(true, "fresh-post-restart-access-token", "fresh-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -246,7 +246,7 @@ public class PrismContextTests : IDisposable
                 It.IsAny<IReadOnlyDictionary<string, string>?>()))
             .ReturnsAsync(new TokenRefreshResult(true, "recovered-access-token", "fresh-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -294,7 +294,7 @@ public class PrismContextTests : IDisposable
         var accessor = new HttpContextAccessor { HttpContext = httpContext };
         var vault = new Mock<ISecretVaultService>();
         var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -333,7 +333,7 @@ public class PrismContextTests : IDisposable
         var accessor = new HttpContextAccessor { HttpContext = httpContext };
         var vault = new Mock<ISecretVaultService>();
         var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -391,7 +391,7 @@ public class PrismContextTests : IDisposable
                 It.IsAny<IReadOnlyDictionary<string, string>?>()))
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -437,7 +437,7 @@ public class PrismContextTests : IDisposable
         var accessor = new HttpContextAccessor { HttpContext = httpContext };
         var vault = new Mock<ISecretVaultService>();
         var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -476,7 +476,7 @@ public class PrismContextTests : IDisposable
         var accessor = new HttpContextAccessor { HttpContext = httpContext };
         var vault = new Mock<ISecretVaultService>();
         var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -527,7 +527,7 @@ public class PrismContextTests : IDisposable
             .Callback<string, IReadOnlyDictionary<string, string>, CancellationToken, IReadOnlyDictionary<string, string>?>((_, form, _, _) => postedForm = form)
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -571,7 +571,7 @@ public class PrismContextTests : IDisposable
         var vault = new Mock<ISecretVaultService>();
         var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
