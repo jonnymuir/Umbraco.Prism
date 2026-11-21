@@ -14,7 +14,6 @@
     "src/UmbracoPrism.Core/Controllers/TenantManagementController.cs": 76,
     "src/UmbracoPrism.Core/Extensions/PrismAuthExtensions.cs": 191,
     "src/UmbracoPrism.Core/Extensions/PrismMemberSignInExtensions.cs": 68,
-    "src/UmbracoPrism.Core/Models/PrismContext.cs": 145,
     "src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs": 486,
     "src/UmbracoPrism.Core/PrismComposer.cs": 107,
     "src/UmbracoPrism.Core/Services/MobileBundles/AndroidProjectFiles.cs": 82,
