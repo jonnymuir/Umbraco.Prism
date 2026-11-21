@@ -118,7 +118,7 @@ public class BiometricController(
         var tokenHash = biometricTokenService.HashToken(jwt);
 
         // 6. Encrypt the refresh token (AES-256-GCM)
-        var refreshTokenEnc = encryptionService.Encrypt(refreshToken);
+        var refreshTokenEnc = encryptionService.Encrypt(refreshToken, BiometricCredentialContext.For(tenantId, userOid, request.DeviceId));
 
         // 7. Persist (upsert by TenantId + UserId + DeviceId)
         var expiresAt = DateTime.UtcNow.Add(lifetime);
@@ -342,7 +342,7 @@ public class BiometricController(
         string refreshToken;
         try
         {
-            refreshToken = encryptionService.Decrypt(credential.RefreshTokenEnc);
+            refreshToken = encryptionService.Decrypt(credential.RefreshTokenEnc, BiometricCredentialContext.For(credential.TenantId, credential.UserId, credential.DeviceId));
         }
         catch (Exception ex)
         {
@@ -391,7 +391,7 @@ public class BiometricController(
 
         // 10. Rolling rotation — re-encrypt and store the new refresh token
         var newRefreshToken = tokenResult.RefreshToken ?? refreshToken;
-        credential.RefreshTokenEnc = encryptionService.Encrypt(newRefreshToken);
+        credential.RefreshTokenEnc = encryptionService.Encrypt(newRefreshToken, BiometricCredentialContext.For(credential.TenantId, credential.UserId, credential.DeviceId));
         credential.LastUsedAt = DateTime.UtcNow;
         db.Update(credential);
 

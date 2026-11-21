@@ -9,7 +9,6 @@
     "src/UmbracoPrism.TestSite/MobileNavSchemaSetup.cs": 422
   },
   "methods": {
-    "src/UmbracoPrism.Core/Configuration/PrismKeyVaultConfigureOptions.cs": 61,
     "src/UmbracoPrism.Core/Controllers/BiometricController.cs": 192,
     "src/UmbracoPrism.Core/Extensions/PrismAuthExtensions.cs": 191,
     "src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs": 486,

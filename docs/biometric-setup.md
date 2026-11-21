@@ -278,7 +278,7 @@ Key Vault errors surface with actionable messages:
 
 - **401 Unauthorized:** Your app's managed identity or service principal is not authenticated with Azure. Check that the identity can access Azure Key Vault.
 - **403 Forbidden:** Your app's managed identity has access to the vault but lacks **Get** or **List** permissions on Secrets. Check Access Policies or IAM roles.
-- **404 Not Found:** One of the expected secrets (`Prism--Biometric--SigningKey` or `Prism--Biometric--EncryptionKey`) is missing from the vault.
+- **404 Not Found:** One of the expected secrets (`Prism--Biometric--SigningKey` or `Prism--Biometric--EncryptionKey`) is missing from the vault. Outside Development the app refuses to start rather than fall back to keys from configuration. In Development it logs a warning and uses the configuration values.
 - **Transient errors (timeouts, connection drops):** Prism retries automatically. If errors persist, check network connectivity and vault availability.
 
 Monitor your App Service startup logs to debug Key Vault issues during early testing.
@@ -290,7 +290,12 @@ Monitor your App Service startup logs to debug Key Vault issues during early tes
 Signing and encryption keys should be rotated periodically (e.g., annually or when team membership changes).
 
 - **Signing key rotation:** Issue tokens with the new key. Old tokens remain valid until they expire. No action required on the server.
-- **Encryption key rotation:** Encrypted refresh tokens stored on devices cannot be decrypted with a new key. Users must re-enroll biometric after key rotation (automatic fallback to OIDC happens transparently).
+- **Encryption key rotation:** Each stored refresh token names the key that encrypted it. To rotate, move the current `Prism:Biometric:EncryptionKey` into `Prism:Biometric:PreviousEncryptionKeys` (a list) and set a new `EncryptionKey`. Existing credentials keep working and are re-encrypted under the new key the next time they are used. Remove the old key from the list once no credential still uses it. A token whose key is no longer configured cannot be opened, and that member signs in again and re-enrols biometric.
+
+### What is bound to what
+
+A stored refresh token is encrypted with the tenant, user and device of its credential as
+authenticated data. A ciphertext copied onto another credential row does not decrypt.
 
 ### Never Commit Keys to Source Control
 
