@@ -96,26 +96,7 @@ public class PrismContext(
         return refreshToken == null ? null : await RefreshTokenAsync(context, authResult, refreshToken);
     }
 
-    private async Task<string?> DiscoverTokenEndpointAsync(HttpContext context)
-    {
-        try
-        {
-            return (await oidcDiscovery.GetAsync(CurrentTenant!.OidcAuthority!, context.RequestAborted)).TokenEndpoint;
-        }
-        catch (Exception ex) when (ex is Microsoft.IdentityModel.Tokens.SecurityTokenException or HttpRequestException or InvalidOperationException)
-        {
-            Log.Error(ex, "Cannot refresh token: OIDC discovery failed for the tenant's authority");
-            LastAuthorizationFailureReason = "oidc-discovery-failed";
-            return null;
-        }
-    }
-
-    private sealed record RefreshRequest(
-        string TokenEndpoint,
-        string ClientId,
-        string ClientSecret,
-        string Scope,
-        IReadOnlyDictionary<string, string>? ForwardingHeaders);
+    private readonly PrismRefreshRequestResolver _refreshRequests = new(vault, oidcDiscovery);
 
     private async Task<AuthenticationHeaderValue?> RefreshTokenAsync(HttpContext context, AuthenticateResult authResult, string refreshToken)
     {
@@ -133,14 +114,15 @@ public class PrismContext(
             return null;
         }
 
-        var request = await ResolveRefreshRequestAsync(context);
-        if (request is null)
+        var resolved = await _refreshRequests.ResolveAsync(CurrentTenant, context.RequestAborted);
+        if (resolved.Request is not { } request)
         {
+            LastAuthorizationFailureReason = resolved.FailureReason;
             return null;
         }
 
         var result = await tokenRefreshService.RefreshAsync(
-            request.TokenEndpoint, BuildRefreshForm(request, refreshToken), context.RequestAborted, request.ForwardingHeaders);
+            request.TokenEndpoint, request.ToForm(refreshToken), context.RequestAborted, request.ForwardingHeaders);
 
         if (!result.Success || result.AccessToken == null)
         {
@@ -149,112 +131,6 @@ public class PrismContext(
         }
 
         return await ApplyRefreshedTokensAsync(context, authResult, result);
-    }
-
-    /// <summary>
-    /// Works out where and as whom the refresh-token grant is posted for the current tenant. Returns null,
-    /// with the reason recorded, when the tenant's client configuration or secret is missing.
-    /// </summary>
-    private async Task<RefreshRequest?> ResolveRefreshRequestAsync(HttpContext context)
-    {
-        var request = string.IsNullOrWhiteSpace(CurrentTenant!.OidcAuthority)
-            ? await ResolveEntraRefreshRequestAsync()
-            : await ResolveGenericRefreshRequestAsync(context);
-
-        if (request is not null && string.IsNullOrWhiteSpace(request.ClientSecret))
-        {
-            Log.Error("Cannot refresh token: client secret could not be resolved from configured provider");
-            LastAuthorizationFailureReason = "missing-client-secret";
-            return null;
-        }
-
-        return request;
-    }
-
-    private async Task<RefreshRequest?> ResolveGenericRefreshRequestAsync(HttpContext context)
-    {
-        var tenant = CurrentTenant!;
-        if (string.IsNullOrWhiteSpace(tenant.OidcClientId))
-        {
-            Log.Error("Cannot refresh token: CurrentTenant is missing generic OIDC client configuration");
-            LastAuthorizationFailureReason = "missing-oidc-client-config";
-            return null;
-        }
-
-        var tokenEndpoint = await DiscoverTokenEndpointAsync(context);
-        if (tokenEndpoint is null)
-        {
-            return null;
-        }
-
-        // Development backchannel (Codespaces): rewrite the token endpoint to the internal host, and send
-        // X-Forwarded-* so Keycloak derives the public issuer the refresh token was issued under (without
-        // them it answers invalid_grant). Transport rewrite only: validation stays on the public authority.
-        IReadOnlyDictionary<string, string>? forwardingHeaders = null;
-        if (!string.IsNullOrEmpty(UmbracoPrism.Core.Auth.PrismBackchannel.GetBase()))
-        {
-            tokenEndpoint = UmbracoPrism.Core.Auth.PrismBackchannel.Rewrite(tokenEndpoint);
-            forwardingHeaders = PublicIssuerHeaders(tenant.OidcAuthority!);
-        }
-
-        var secret = await vault.ResolveSecretAsync(tenant.OidcClientSecretProvider, tenant.OidcClientSecretReference);
-        return new RefreshRequest(
-            tokenEndpoint, tenant.OidcClientId, secret, PrismOidcConfiguration.GetRefreshScope(tenant) ?? string.Empty, forwardingHeaders);
-    }
-
-    private async Task<RefreshRequest?> ResolveEntraRefreshRequestAsync()
-    {
-        var tenant = CurrentTenant!;
-        if (string.IsNullOrWhiteSpace(tenant.EntraTenantId) || string.IsNullOrWhiteSpace(tenant.EntraClientId))
-        {
-            Log.Error("Cannot refresh token: CurrentTenant is missing Entra tenant/client configuration");
-            LastAuthorizationFailureReason = "missing-entra-client-config";
-            return null;
-        }
-
-        if (string.IsNullOrWhiteSpace(tenant.SecretKeyName))
-        {
-            Log.Error("Cannot refresh token: CurrentTenant secret reference is missing");
-            LastAuthorizationFailureReason = "missing-secret-reference";
-            return null;
-        }
-
-        return new RefreshRequest(
-            $"https://{tenant.EntraTenantId}.ciamlogin.com/{tenant.EntraTenantId}/oauth2/v2.0/token",
-            tenant.EntraClientId,
-            await vault.GetSecretAsync(tenant.SecretKeyName),
-            $"openid profile offline_access {tenant.EntraClientId}/.default",
-            null);
-    }
-
-    // X-Forwarded-* values from the public authority, so Keycloak computes its canonical issuer as
-    // https://<public-host>/realms/prism-dev.
-    private static Dictionary<string, string> PublicIssuerHeaders(string authority)
-    {
-        var authorityUri = new Uri(authority.TrimEnd('/'));
-        return new Dictionary<string, string>
-        {
-            ["X-Forwarded-Proto"] = authorityUri.Scheme,
-            ["X-Forwarded-Host"] = authorityUri.Host
-        };
-    }
-
-    private static Dictionary<string, string> BuildRefreshForm(RefreshRequest request, string refreshToken)
-    {
-        var form = new Dictionary<string, string>
-        {
-            { "client_id", request.ClientId },
-            { "client_secret", request.ClientSecret },
-            { "grant_type", "refresh_token" },
-            { "refresh_token", refreshToken }
-        };
-
-        if (!string.IsNullOrWhiteSpace(request.Scope))
-        {
-            form["scope"] = request.Scope;
-        }
-
-        return form;
     }
 
     private async Task<AuthenticationHeaderValue?> ApplyRefreshedTokensAsync(
