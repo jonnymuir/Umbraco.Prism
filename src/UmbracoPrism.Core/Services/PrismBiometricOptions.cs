@@ -28,6 +28,13 @@ public class PrismBiometricOptions
     /// </summary>
     public string EncryptionKey { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Earlier base64-encoded 32-byte AES-256 keys that can still decrypt stored refresh tokens. To
+    /// rotate, move the current <see cref="EncryptionKey"/> here and set a new one: stored tokens
+    /// keep working and are re-encrypted under the new key at their next use.
+    /// </summary>
+    public string[] PreviousEncryptionKeys { get; set; } = [];
+
     /// <summary>Maximum consecutive failed exchange attempts per token hash before lockout (default: 3).</summary>
     public int MaxFailedAttempts { get; set; } = 3;
 
