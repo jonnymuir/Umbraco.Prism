@@ -76,14 +76,17 @@ No High finding is open.
 ### Medium
 
 **AUTH-10. Biometric credential: a home-made authentication scheme.** A02/A07. The stored refresh
-token is bound to its credential and carries a key id, keys rotate through
-`Prism:Biometric:PreviousEncryptionKeys`, and a configured vault that lacks the keys stops a
-non-Development host. What remains is the design: the credential is a bearer token (see
-[proof-of-possession analysis](../proof-of-possession-analysis.md)) with a 30 day default lifetime;
-one HMAC key and one AES key serve every tenant; the exchange mints the cookie without re-validating
-any token, so the account is only as fresh as the credential row; it works for Entra tenants only.
-Fix, in order of value: per-tenant derived keys (HKDF); a shorter default lifetime; a hardware-bound
-key with a signed challenge (the proof-of-possession design) when the assurance level justifies it.
+token is bound to its credential, carries a key id and is encrypted under a key derived per
+credential; each tenant's tokens are signed with a key derived from the signing key; keys rotate
+through `Prism:Biometric:PreviousEncryptionKeys`; a configured vault that lacks the keys stops a
+non-Development host; the default lifetime is 14 days. What remains is the design: the credential is a
+bearer token (see [proof-of-possession analysis](../proof-of-possession-analysis.md)); one master
+signing key and one master encryption key serve every tenant (derived keys separate tenants, they do
+not protect against the master leaking); the exchange mints the cookie without re-validating any
+token, so the account is only as fresh as the credential row; it works for Entra tenants only. Tokens
+signed before derivation validate until they expire unless `AcceptLegacyTokens` is turned off.
+Fix: a hardware-bound key with a signed challenge (the proof-of-possession design) when the assurance
+level justifies it.
 
 **AUTH-12. Data Protection is the host's job.** A02/A05. The member cookie, the mobile handover
 ticket and antiforgery tokens are only as strong as the key ring. Outside Development Prism warns
@@ -242,8 +245,7 @@ Worth stating so it is not undone.
 2. AUTH-12: require configured Data Protection keys in production and protect the reference site's.
 3. AUTH-02 (residual) with AUTH-19: the long-lived `ConfigurationManager` and a server-side ticket
    store, which both delete bespoke code.
-4. AUTH-10: per-tenant derived keys, and a decision on the credential's lifetime and proof of
-   possession.
+4. AUTH-10: proof of possession, when the assurance level justifies it.
 5. Pipeline P-02: an authenticated DAST run.
 
 Each change reaches `main` through a pull request; a breaking behaviour change (for example

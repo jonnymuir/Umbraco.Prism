@@ -23,7 +23,7 @@ public class RefreshTokenEnvelopeTests
     {
         var encrypted = Create(KeyA).Encrypt("refresh-token", "ctx");
 
-        encrypted.Should().StartWith("v2.");
+        encrypted.Should().StartWith("v3.");
         encrypted.Split('.').Should().HaveCount(3);
         encrypted.Split('.')[1].Should().HaveLength(8);
     }
@@ -103,6 +103,54 @@ public class RefreshTokenEnvelopeTests
         var act = () => service.Decrypt(tampered, "ctx");
 
         act.Should().Throw<CryptographicException>();
+    }
+
+    [Fact]
+    public void AV2Ciphertext_EncryptedDirectlyUnderTheConfiguredKey_StillDecrypts()
+    {
+        var direct = DirectKeyEncrypt(KeyA, "older-refresh-token", "tenant|user|device");
+
+        Create(KeyA).Decrypt(direct, "tenant|user|device").Should().Be("older-refresh-token");
+    }
+
+    [Fact]
+    public void EveryCredential_IsEncryptedUnderItsOwnDerivedKey_NotTheConfiguredKey()
+    {
+        var one = RefreshTokenEnvelope.DeriveKey(KeyA, "prism-biometric|tenant-1|user|device");
+        var other = RefreshTokenEnvelope.DeriveKey(KeyA, "prism-biometric|tenant-2|user|device");
+
+        one.Should().NotEqual(KeyA);
+        one.Should().NotEqual(other, "another tenant's credential must not share a key with this one");
+        RefreshTokenEnvelope.DeriveKey(KeyA, "prism-biometric|tenant-1|user|device")
+            .Should().Equal(one, "the same context always derives the same key");
+    }
+
+    [Fact]
+    public void ANewCiphertext_DoesNotOpenWithTheConfiguredKeyUsedDirectly()
+    {
+        var parts = Create(KeyA).Encrypt("refresh-token", "ctx").Split('.');
+        var data = Convert.FromBase64String(parts[2]);
+
+        var act = () =>
+        {
+            using var aes = new AesGcm(KeyA, 16);
+            var plaintext = new byte[data.Length - 28];
+            aes.Decrypt(data.AsSpan(0, 12), data.AsSpan(12, plaintext.Length), data.AsSpan(data.Length - 16), plaintext, Encoding.UTF8.GetBytes("ctx"));
+        };
+
+        act.Should().Throw<CryptographicException>("the stored value is protected by a key derived from the configured one");
+    }
+
+    private static string DirectKeyEncrypt(byte[] key, string plaintext, string associatedData)
+    {
+        var plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
+        var nonce = RandomNumberGenerator.GetBytes(12);
+        var ciphertext = new byte[plaintextBytes.Length];
+        var tag = new byte[16];
+        using var aes = new AesGcm(key, 16);
+        aes.Encrypt(nonce, plaintextBytes, ciphertext, tag, Encoding.UTF8.GetBytes(associatedData));
+        var keyId = Convert.ToHexStringLower(SHA256.HashData(key).AsSpan(0, 4));
+        return $"v2.{keyId}.{Convert.ToBase64String(nonce.Concat(ciphertext).Concat(tag).ToArray())}";
     }
 
     private static string LegacyEncrypt(byte[] key, string plaintext)

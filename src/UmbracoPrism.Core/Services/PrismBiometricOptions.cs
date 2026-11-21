@@ -18,8 +18,20 @@ public class PrismBiometricOptions
     /// </summary>
     public string SigningKey { get; set; } = string.Empty;
 
-    /// <summary>Number of days before an issued BiometricToken expires (default: 30).</summary>
-    public int TokenLifetimeDays { get; set; } = 30;
+    /// <summary>
+    /// Number of days before an issued BiometricToken expires (default: 14). A shorter life shortens how
+    /// long a lost or stolen device's credential is useful and means members set up biometric sign-in
+    /// again sooner. Applies to credentials issued after it is set.
+    /// </summary>
+    public int TokenLifetimeDays { get; set; } = 14;
+
+    /// <summary>
+    /// Whether a BiometricToken signed directly with <see cref="SigningKey"/>, as tokens were before each
+    /// tenant had its own derived key, still validates (default: true). Tokens issued now are signed with
+    /// the tenant's derived key. Set this to false once <see cref="TokenLifetimeDays"/> days have passed
+    /// since upgrading, when no such token can still be valid.
+    /// </summary>
+    public bool AcceptLegacyTokens { get; set; } = true;
 
     /// <summary>
     /// Base64-encoded 32-byte AES-256 key used to encrypt Entra refresh tokens at rest.

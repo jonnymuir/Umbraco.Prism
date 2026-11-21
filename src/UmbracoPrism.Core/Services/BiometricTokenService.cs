@@ -9,8 +9,13 @@ namespace UmbracoPrism.Core.Services;
 
 /// <summary>
 /// Issues, validates, and hashes BiometricToken JWTs using HMAC-SHA256 signing.
-/// The signing key is read from <see cref="PrismBiometricOptions.SigningKey"/>
-/// (bind from "Prism:Biometric" in appsettings.json or via environment/Key Vault injection).
+/// The configured <see cref="PrismBiometricOptions.SigningKey"/>
+/// (bind from "Prism:Biometric" in appsettings.json or via environment/Key Vault injection) is not
+/// used to sign directly: each tenant's tokens are signed with a key derived from it with
+/// HKDF-SHA256, so a token cannot be replayed as another tenant's even by someone who can forge
+/// signatures for one tenant. A token signed directly with the configured key, issued before
+/// derivation existed, validates until it expires unless
+/// <see cref="PrismBiometricOptions.AcceptLegacyTokens"/> is off.
 /// </summary>
 public class BiometricTokenService : IBiometricTokenService
 {
@@ -20,8 +25,10 @@ public class BiometricTokenService : IBiometricTokenService
     internal const string Issuer = "UmbracoPrism";
     internal const string Audience = "PrismBiometric";
 
-    private readonly SymmetricSecurityKey _signingKey;
-    private readonly SigningCredentials _signingCredentials;
+    private const string DerivationContext = "prism-biometric-signing|";
+
+    private readonly byte[] _configuredKey;
+    private readonly bool _acceptLegacyTokens;
     private readonly JwtSecurityTokenHandler _tokenHandler;
 
     /// <summary>
@@ -38,8 +45,8 @@ public class BiometricTokenService : IBiometricTokenService
                 "Prism: BiometricToken signing key must be at least 32 characters. " +
                 "Set 'Prism:Biometric:SigningKey' in configuration.");
 
-        _signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-        _signingCredentials = new SigningCredentials(_signingKey, SecurityAlgorithms.HmacSha256);
+        _configuredKey = Encoding.UTF8.GetBytes(key);
+        _acceptLegacyTokens = options.Value.AcceptLegacyTokens;
         _tokenHandler = new JwtSecurityTokenHandler();
     }
 
@@ -58,7 +65,7 @@ public class BiometricTokenService : IBiometricTokenService
             IssuedAt = now,
             NotBefore = now,
             Expires = now.Add(lifetime),
-            SigningCredentials = _signingCredentials,
+            SigningCredentials = new SigningCredentials(DeriveKey(tenantId), SecurityAlgorithms.HmacSha256),
             Subject = new ClaimsIdentity(
             [
                 new Claim(DeviceIdClaim, deviceId),
@@ -84,7 +91,7 @@ public class BiometricTokenService : IBiometricTokenService
             ValidAudience = Audience,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = _signingKey,
+            IssuerSigningKeyResolver = (_, securityToken, _, _) => SigningKeysFor(securityToken),
             ClockSkew = TimeSpan.Zero,
         };
 
@@ -105,6 +112,29 @@ public class BiometricTokenService : IBiometricTokenService
             ExpiresAt = jwt.ValidTo,
         };
     }
+
+    /// <summary>
+    /// The keys a token may have been signed with: its tenant's derived key and, while legacy tokens are
+    /// accepted, the configured key. The tenant is read from the token before its signature is checked,
+    /// which only chooses a key to check against; a token signed under another tenant's key fails.
+    /// </summary>
+    private IEnumerable<SecurityKey> SigningKeysFor(SecurityToken securityToken)
+    {
+        var tenantId = (securityToken as JwtSecurityToken)?.Claims.FirstOrDefault(c => c.Type == TenantIdClaim)?.Value;
+        if (!string.IsNullOrWhiteSpace(tenantId))
+        {
+            yield return DeriveKey(tenantId);
+        }
+
+        if (_acceptLegacyTokens)
+        {
+            yield return new SymmetricSecurityKey(_configuredKey);
+        }
+    }
+
+    internal SymmetricSecurityKey DeriveKey(string tenantId) =>
+        new(HKDF.DeriveKey(HashAlgorithmName.SHA256, _configuredKey, 32, salt: [],
+            info: Encoding.UTF8.GetBytes(DerivationContext + tenantId)));
 
     /// <inheritdoc/>
     public string HashToken(string token)
