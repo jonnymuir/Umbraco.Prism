@@ -35,3 +35,29 @@ jobs:
       # The backoffice client bundles pack as static web assets; build them before the
       # C# build CodeQL analyses (matches the localhost-auth lane in ci-tests.yml).
       node-build: '["src/UmbracoPrism.Client"]'
+
+  # npm advisories for what ships (production dependencies only). The reusable workflow above
+  # gates NuGet; this re-checks the npm side weekly as well as on every pull request, so an
+  # advisory published after a dependency was merged still fails a run.
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        project: [ ".", "src/UmbracoPrism.Client" ]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.17.1
+
+      - name: Audit production dependencies
+        working-directory: ${{ matrix.project }}
+        run: npm audit --omit=dev --audit-level=high
