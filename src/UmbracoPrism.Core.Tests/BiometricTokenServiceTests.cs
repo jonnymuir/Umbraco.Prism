@@ -162,4 +162,78 @@ public class BiometricTokenServiceTests
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*Prism*BiometricToken*");
     }
+
+    // ------------------------------------------------------------------ per-tenant signing keys
+
+    private static string SignedWith(SecurityKey key, string tenantId)
+    {
+        var handler = new JwtSecurityTokenHandler { MapInboundClaims = false };
+        var now = DateTime.UtcNow;
+        return handler.WriteToken(handler.CreateToken(new SecurityTokenDescriptor
+        {
+            Issuer = BiometricTokenService.Issuer,
+            Audience = BiometricTokenService.Audience,
+            NotBefore = now,
+            IssuedAt = now,
+            Expires = now.AddDays(1),
+            SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256),
+            Subject = new ClaimsIdentity(new[]
+            {
+                new Claim(BiometricTokenService.DeviceIdClaim, "dev-1"),
+                new Claim(BiometricTokenService.TenantIdClaim, tenantId),
+                new Claim(BiometricTokenService.UserOidClaim, "oid-1"),
+            })
+        }));
+    }
+
+    [Fact]
+    public void ATokenIsSignedWithItsTenantsDerivedKey_NotTheConfiguredKey()
+    {
+        var svc = BuildService();
+        var token = svc.IssueToken("dev-1", "tenant-1", "oid-1", DefaultLifetime);
+
+        var validation = new TokenValidationParameters
+        {
+            ValidIssuer = BiometricTokenService.Issuer,
+            ValidAudience = BiometricTokenService.Audience,
+            IssuerSigningKey = svc.DeriveKey("tenant-1"),
+        };
+        var handler = new JwtSecurityTokenHandler();
+
+        handler.ValidateToken(token, validation, out _);
+        validation.IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ValidKey));
+        var withConfiguredKey = () => handler.ValidateToken(token, validation, out _);
+        withConfiguredKey.Should().Throw<SecurityTokenException>("new tokens are not signed with the configured key itself");
+    }
+
+    [Fact]
+    public void ATokenForOneTenant_CannotBeReplayedAsAnother()
+    {
+        var svc = BuildService();
+        // Signed under tenant-1's key but claiming tenant-2: the key is chosen from the claim.
+        var forged = SignedWith(svc.DeriveKey("tenant-1"), "tenant-2");
+
+        var act = () => svc.ValidateToken(forged);
+
+        act.Should().Throw<SecurityTokenException>();
+        svc.ValidateToken(SignedWith(svc.DeriveKey("tenant-2"), "tenant-2")).TenantId.Should().Be("tenant-2");
+    }
+
+    [Fact]
+    public void ALegacyTokenSignedWithTheConfiguredKey_ValidatesOnlyWhileLegacyTokensAreAccepted()
+    {
+        var legacy = SignedWith(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ValidKey)), "tenant-1");
+
+        BuildService().ValidateToken(legacy).TenantId.Should().Be("tenant-1");
+
+        var strict = new BiometricTokenService(Options.Create(new PrismBiometricOptions { SigningKey = ValidKey, AcceptLegacyTokens = false }));
+        var act = () => strict.ValidateToken(legacy);
+        act.Should().Throw<SecurityTokenException>();
+    }
+
+    [Fact]
+    public void TheDefaultLifetime_IsFourteenDays()
+    {
+        new PrismBiometricOptions().TokenLifetimeDays.Should().Be(14);
+    }
 }

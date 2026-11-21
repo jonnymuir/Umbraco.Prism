@@ -305,13 +305,31 @@ reported as not found. Members can also remove their own devices from the app.
 
 Signing and encryption keys should be rotated periodically (e.g., annually or when team membership changes).
 
-- **Signing key rotation:** Issue tokens with the new key. Old tokens remain valid until they expire. No action required on the server.
+- **Signing key rotation:** Changing `Prism:Biometric:SigningKey` makes every outstanding biometric token invalid. Members sign in again and re-enrol biometric sign-in. Rotate it together with a planned notice, or when the key may have been exposed.
 - **Encryption key rotation:** Each stored refresh token names the key that encrypted it. To rotate, move the current `Prism:Biometric:EncryptionKey` into `Prism:Biometric:PreviousEncryptionKeys` (a list) and set a new `EncryptionKey`. Existing credentials keep working and are re-encrypted under the new key the next time they are used. Remove the old key from the list once no credential still uses it. A token whose key is no longer configured cannot be opened, and that member signs in again and re-enrols biometric.
 
 ### What is bound to what
 
 A stored refresh token is encrypted with the tenant, user and device of its credential as
 authenticated data. A ciphertext copied onto another credential row does not decrypt.
+
+The configured keys are not used directly. Each credential's refresh token is encrypted under an AES
+key derived from `EncryptionKey` with HKDF-SHA256, using that tenant, user and device as context, and
+each tenant's biometric tokens are signed with a key derived from `SigningKey` and the tenant. A
+token cannot be replayed on another tenant, and one credential's key does not open another's.
+
+### Credential lifetime
+
+A biometric credential lasts 14 days by default (`Prism:Biometric:TokenLifetimeDays`, applied to
+credentials issued after it is set). A shorter life shortens how long a lost or stolen device is
+useful and means members set up biometric sign-in again sooner.
+
+### Upgrading from before derived keys
+
+Tokens signed directly with `SigningKey` still validate until they expire, and `v2.` encrypted refresh
+tokens still decrypt and are re-encrypted in the new form the next time they are used. Once the longest
+lifetime you have used has passed since upgrading, set `Prism:Biometric:AcceptLegacyTokens` to `false`
+so a token signed directly with the configured key is no longer accepted.
 
 ### Never Commit Keys to Source Control
 
