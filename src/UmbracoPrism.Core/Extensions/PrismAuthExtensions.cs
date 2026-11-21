@@ -15,7 +15,7 @@ public static class PrismAuthExtensions
     public static IServiceCollection AddPrismAuthentication(this IServiceCollection services, IConfiguration config)
     {
         services.AddHostedService<UmbracoPrism.Core.Auth.PrismBackchannelGuard>();
-        services.AddHttpClient("prism-oidc-metadata");
+        services.AddHttpClient("prism-oidc-metadata", client => client.Timeout = UmbracoPrism.Core.Services.PrismSigningKeyCache.MetadataTimeout);
         services.TryAddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

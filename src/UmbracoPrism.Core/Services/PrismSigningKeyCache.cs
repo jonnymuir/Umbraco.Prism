@@ -10,11 +10,22 @@ namespace UmbracoPrism.Core.Services;
 /// </summary>
 public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
 {
+    /// <summary>Timeout for the discovery and JWKS requests, so a slow provider cannot hold a request thread for the 100 second default.</summary>
+    public static readonly TimeSpan MetadataTimeout = TimeSpan.FromSeconds(10);
+
     internal static readonly TimeSpan RefreshAfter = TimeSpan.FromMinutes(45);
     internal static readonly TimeSpan HardExpiry = TimeSpan.FromHours(1);
     internal static readonly TimeSpan ForcedRefreshCooldown = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Minimum gap between fetch attempts for one authority when a token names a key that is not
+    /// cached. Short enough to recover from a provider key rotation, long enough that a caller
+    /// sending random key ids cannot turn each request into an outbound fetch.
+    /// </summary>
+    internal static readonly TimeSpan UnknownKeyRefreshCooldown = TimeSpan.FromSeconds(10);
+
     private readonly ConcurrentDictionary<string, (IReadOnlyCollection<SecurityKey> Keys, DateTimeOffset FetchedAt)> _store = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _lastAttempt = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _warmLocks = new(StringComparer.OrdinalIgnoreCase);
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly TimeProvider _timeProvider;
@@ -64,9 +75,7 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
             if (!forceRefresh && !snapshot.ShouldRefresh)
                 return;
 
-            if (forceRefresh
-                && _store.TryGetValue(normalizedTenantId, out var forcedRefreshExisting)
-                && requestStartedAt - forcedRefreshExisting.FetchedAt < ForcedRefreshCooldown)
+            if (IsWithinCooldown(normalizedTenantId, forceRefresh ? ForcedRefreshCooldown : UnknownKeyRefreshCooldown))
             {
                 return;
             }
@@ -78,6 +87,7 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
                 && existing.FetchedAt >= requestStartedAt)
                 return;
 
+            _lastAttempt[normalizedTenantId] = _timeProvider.GetUtcNow();
             var metadataAddress = $"https://{normalizedTenantId}.ciamlogin.com/{normalizedTenantId}/v2.0/.well-known/openid-configuration";
             var http = _httpClientFactory.CreateClient("prism-oidc-metadata");
             var manager = _configurationManagerFactory(http, metadataAddress, true);
@@ -132,10 +142,12 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
                 && _store.TryGetValue(normalizedKey, out var existingForKeyCheck)
                 && !existingForKeyCheck.Keys.Any(k => string.Equals(k.KeyId, requiredKeyId, StringComparison.OrdinalIgnoreCase));
 
-            if (forceRefresh
-                && !bypassCooldownForMissingKey
-                && _store.TryGetValue(normalizedKey, out var forcedRefreshExisting)
-                && requestStartedAt - forcedRefreshExisting.FetchedAt < ForcedRefreshCooldown)
+            // The cooldown counts attempts, not successes, so a provider that is down or a caller
+            // sending unknown key ids cannot drive more than one outbound fetch per window.
+            var cooldown = forceRefresh && !bypassCooldownForMissingKey
+                ? ForcedRefreshCooldown
+                : UnknownKeyRefreshCooldown;
+            if (IsWithinCooldown(normalizedKey, cooldown))
             {
                 return;
             }
@@ -145,41 +157,8 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
                 && existing.FetchedAt >= requestStartedAt)
                 return;
 
-            var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
-            var http = _httpClientFactory.CreateClient("prism-oidc-metadata");
-
-            // In Codespaces, Keycloak's discovery doc emits jwks_uri pointing at the public
-            // Codespace URL (KC_HOSTNAME). OpenIdConnectConfigurationRetriever follows that URL
-            // transitively, hitting the GitHub port-forwarding proxy which blocks unauthenticated
-            // server-side requests. When KEYCLOAK_BACKCHANNEL_URL is set AND the environment is
-            // Development, wrap the IDocumentRetriever so ALL Keycloak-origin URLs — both the
-            // discovery-doc fetch and the transitive jwks_uri fetch — are rewritten to the
-            // internal backchannel base before the HTTP call is made.
-            // Transport rewrite ONLY: issuer trust on JWT tokens remains against the public
-            // OidcAuthority (normalizedKey). Outside Development or when the env var is absent,
-            // the factory path is used unchanged — zero behaviour change for production.
-            var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
-
-            IConfigurationManager<OpenIdConnectConfiguration> manager;
-            if (!string.IsNullOrEmpty(backchannelBase) &&
-                Uri.TryCreate(normalizedKey, UriKind.Absolute, out var publicUri) &&
-                Uri.TryCreate(backchannelBase, UriKind.Absolute, out var backchannelUri) &&
-                publicUri.Scheme == Uri.UriSchemeHttps)
-            {
-                var innerRetriever = new HttpDocumentRetriever(http) { RequireHttps = requireHttps };
-                var rewritingRetriever = new BackchannelRewritingDocumentRetriever(
-                    publicUri,
-                    backchannelUri,
-                    innerRetriever);
-                manager = new ConfigurationManager<OpenIdConnectConfiguration>(
-                    metadataAddress,
-                    new OpenIdConnectConfigurationRetriever(),
-                    rewritingRetriever);
-            }
-            else
-            {
-                manager = _configurationManagerFactory(http, metadataAddress, requireHttps);
-            }
+            _lastAttempt[normalizedKey] = _timeProvider.GetUtcNow();
+            var manager = CreateGenericManager(normalizedKey, metadataAddress);
 
             var config = await manager.GetConfigurationAsync(cancellationToken);
             var signingKeys = config.SigningKeys.ToList().AsReadOnly();
@@ -236,6 +215,40 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
         return GetSnapshot(entraTenantId).Keys;
     }
 
+    /// <summary>
+    /// In Codespaces, Keycloak's discovery doc emits jwks_uri pointing at the public Codespace URL
+    /// (KC_HOSTNAME), which the port-forwarding proxy blocks for unauthenticated server-side requests.
+    /// When the Development-only backchannel override is active, the document retriever rewrites every
+    /// URL on the public authority's host (the discovery fetch and the transitive jwks_uri fetch) to the
+    /// internal backchannel before the HTTP call. Transport rewrite only: issuer trust on JWT tokens
+    /// stays with the public authority. Otherwise the configured factory is used unchanged.
+    /// </summary>
+    private IConfigurationManager<OpenIdConnectConfiguration> CreateGenericManager(string authority, string metadataAddress)
+    {
+        var requireHttps = !metadataAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+        var http = _httpClientFactory.CreateClient("prism-oidc-metadata");
+        var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
+
+        if (!string.IsNullOrEmpty(backchannelBase) &&
+            Uri.TryCreate(authority, UriKind.Absolute, out var publicUri) &&
+            Uri.TryCreate(backchannelBase, UriKind.Absolute, out var backchannelUri) &&
+            publicUri.Scheme == Uri.UriSchemeHttps)
+        {
+            return new ConfigurationManager<OpenIdConnectConfiguration>(
+                metadataAddress,
+                new OpenIdConnectConfigurationRetriever(),
+                new BackchannelRewritingDocumentRetriever(
+                    publicUri,
+                    backchannelUri,
+                    new HttpDocumentRetriever(http) { RequireHttps = requireHttps }));
+        }
+
+        return _configurationManagerFactory(http, metadataAddress, requireHttps);
+    }
+
+    private bool IsWithinCooldown(string key, TimeSpan cooldown) =>
+        _lastAttempt.TryGetValue(key, out var last) && _timeProvider.GetUtcNow() - last < cooldown;
+
     private static IConfigurationManager<OpenIdConnectConfiguration> CreateConfigurationManager(HttpClient httpClient, string metadataAddress, bool requireHttps)
     {
         return new ConfigurationManager<OpenIdConnectConfiguration>(
@@ -259,8 +272,7 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
         {
             if (TryRewriteAddress(address, out var rewritten))
             {
-                Console.WriteLine($"[PRISM] BackchannelRewritingDocumentRetriever: rewriting {address} → {rewritten}");
-                address = rewritten;
+                                address = rewritten;
             }
 
             return inner.GetDocumentAsync(address, cancel);

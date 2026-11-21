@@ -154,6 +154,70 @@ public class PrismSigningKeyCacheTests
     }
 
     [Fact]
+    public async Task WarmAsync_WithUnknownKeyIds_FetchesAtMostOncePerWindow()
+    {
+        // A caller who sets the issuer to a configured authority and a random key id must not turn
+        // every request into an outbound fetch.
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 3, 28, 12, 0, 0, TimeSpan.Zero));
+        var calls = 0;
+        var cache = new PrismSigningKeyCache(
+            new Mock<IHttpClientFactory>().Object,
+            clock,
+            (_, _, _) => new DelegateConfigurationManager(_ =>
+            {
+                Interlocked.Increment(ref calls);
+                return Task.FromResult(CreateConfiguration("real-key"));
+            }));
+        const string authority = "https://idp.example/realms/prism";
+        const string metadata = authority + "/.well-known/openid-configuration";
+
+        await cache.WarmAsync(authority, metadata, forceRefresh: true, requiredKeyId: "real-key");
+        clock.Advance(PrismSigningKeyCache.ForcedRefreshCooldown + TimeSpan.FromSeconds(1));
+        calls = 0;
+
+        for (var i = 0; i < 50; i++)
+        {
+            await cache.WarmAsync(authority, metadata, forceRefresh: true, requiredKeyId: $"random-{i}");
+        }
+
+        calls.Should().Be(1, because: "unknown key ids share one refresh per cooldown window");
+
+        clock.Advance(PrismSigningKeyCache.UnknownKeyRefreshCooldown + TimeSpan.FromSeconds(1));
+        await cache.WarmAsync(authority, metadata, forceRefresh: true, requiredKeyId: "random-after");
+
+        calls.Should().Be(2, because: "a rotated provider key can still be picked up after the window");
+    }
+
+    [Fact]
+    public async Task WarmAsync_AfterAFailedFetch_DoesNotRetryUntilTheWindowPasses()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 3, 28, 12, 0, 0, TimeSpan.Zero));
+        var calls = 0;
+        var cache = new PrismSigningKeyCache(
+            new Mock<IHttpClientFactory>().Object,
+            clock,
+            (_, _, _) => new DelegateConfigurationManager(_ =>
+            {
+                Interlocked.Increment(ref calls);
+                throw new HttpRequestException("provider down");
+            }));
+        const string authority = "https://idp.example/realms/prism";
+        const string metadata = authority + "/.well-known/openid-configuration";
+
+        for (var i = 0; i < 10; i++)
+        {
+            try { await cache.WarmAsync(authority, metadata); } catch (HttpRequestException) { }
+        }
+
+        calls.Should().Be(1, because: "a provider outage must not be hit once per request");
+
+        clock.Advance(PrismSigningKeyCache.UnknownKeyRefreshCooldown + TimeSpan.FromSeconds(1));
+        try { await cache.WarmAsync(authority, metadata); } catch (HttpRequestException) { }
+
+        calls.Should().Be(2);
+    }
+
+    [Fact]
     public async Task WarmAsync_WithMetadataAddress_UsesThatAddressDirectly()
     {
         var httpClientFactory = new Mock<IHttpClientFactory>();

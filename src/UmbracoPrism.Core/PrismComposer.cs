@@ -38,7 +38,7 @@ public class PrismComposer : IComposer
         ComposeMobile(builder);
         builder.Services.AddSingleton<IPrismBrandingMetadataService, PrismBrandingMetadataService>();
         builder.Services.AddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
-        builder.Services.AddHttpClient("prism-oidc-metadata");
+        builder.Services.AddHttpClient("prism-oidc-metadata", client => client.Timeout = UmbracoPrism.Core.Services.PrismSigningKeyCache.MetadataTimeout);
         builder.Services.AddHttpClient("PrismTokenRefresh");
         builder.Services.Configure<PrismTokenRefreshOptions>(
             builder.Config.GetSection(PrismTokenRefreshOptions.SectionName));
