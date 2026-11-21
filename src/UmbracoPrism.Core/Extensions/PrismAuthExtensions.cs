@@ -14,6 +14,7 @@ public static class PrismAuthExtensions
 {
     public static IServiceCollection AddPrismAuthentication(this IServiceCollection services, IConfiguration config)
     {
+        services.AddHostedService<UmbracoPrism.Core.Auth.PrismBackchannelGuard>();
         services.AddHttpClient("prism-oidc-metadata");
         services.TryAddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
 
@@ -67,9 +68,8 @@ public static class PrismAuthExtensions
                         var configuredAuthorities = tenants?
                             .Where(t => !string.IsNullOrWhiteSpace(t.OidcAuthority))
                             .Select(t => t.OidcAuthority!) ?? [];
-                        var backchannelUrl = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+                        var backchannelUrl = Environment.GetEnvironmentVariable(UmbracoPrism.Core.Auth.PrismBackchannel.VariableName);
                         var aspNetCoreEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-                        var isDevelopment = string.Equals(aspNetCoreEnv, "Development", StringComparison.OrdinalIgnoreCase);
 
                         Console.WriteLine($"[PRISM AUTH FAILED] {context.Exception.GetType().Name}: {context.Exception.Message}");
                         Console.WriteLine($"  token.iss : {tokenIssuer ?? "(none/unparseable)"}");
@@ -78,7 +78,7 @@ public static class PrismAuthExtensions
                         Console.WriteLine($"  configured OidcAuthorities : {(configuredAuthorities.Any() ? string.Join(", ", configuredAuthorities) : "(none)")}");
                         Console.WriteLine($"  ASPNETCORE_ENVIRONMENT : {aspNetCoreEnv ?? "(not set)"}");
                         Console.WriteLine($"  KEYCLOAK_BACKCHANNEL_URL : {backchannelUrl ?? "(not set)"}");
-                        Console.WriteLine($"  backchannel JWKS enabled : {(isDevelopment && !string.IsNullOrEmpty(backchannelUrl) ? "YES" : "NO")}");
+                        Console.WriteLine($"  backchannel JWKS enabled : {(UmbracoPrism.Core.Auth.PrismBackchannel.GetBase() is not null ? "YES" : "NO")}");
                         
                         // For generic OIDC failures with no signing keys, log the metadata address that would be used
                         if (context.Exception is SecurityTokenSignatureKeyNotFoundException && !string.IsNullOrWhiteSpace(tokenIssuer))
@@ -90,7 +90,7 @@ public static class PrismAuthExtensions
                             if (oidcTenant != null)
                             {
                                 var cacheKey = oidcTenant.OidcAuthority!.TrimEnd('/');
-                                var metadataAddress = isDevelopment && !string.IsNullOrEmpty(backchannelUrl)
+                                var metadataAddress = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase() is not null && !string.IsNullOrEmpty(backchannelUrl)
                                     ? $"{backchannelUrl.TrimEnd('/')}{new Uri(cacheKey).AbsolutePath}/.well-known/openid-configuration"
                                     : $"{cacheKey}/.well-known/openid-configuration";
                                 Console.WriteLine($"  JWKS metadata address : {metadataAddress}");
@@ -257,12 +257,8 @@ public static class PrismAuthExtensions
         // trusted issuer for token validation (same pattern as PrismOidcConfiguration).
         // Dual-gated: env var AND Development environment required — zero behaviour change
         // outside Development, matching Copper's refresh-token rewrite pattern.
-        var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
-        var isDevelopmentForJwks = string.Equals(
-            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-            "Development",
-            StringComparison.OrdinalIgnoreCase);
-        var metadataAddress = isDevelopmentForJwks && !string.IsNullOrEmpty(backchannelBase)
+        var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
+        var metadataAddress = !string.IsNullOrEmpty(backchannelBase)
             ? $"{backchannelBase.TrimEnd('/')}{new Uri(cacheKey).AbsolutePath}/.well-known/openid-configuration"
             : $"{cacheKey}/.well-known/openid-configuration";
 

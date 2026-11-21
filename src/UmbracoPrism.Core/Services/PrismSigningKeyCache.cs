@@ -158,14 +158,10 @@ public sealed class PrismSigningKeyCache : IPrismSigningKeyCache
             // Transport rewrite ONLY: issuer trust on JWT tokens remains against the public
             // OidcAuthority (normalizedKey). Outside Development or when the env var is absent,
             // the factory path is used unchanged — zero behaviour change for production.
-            var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
-            var isDevelopment = string.Equals(
-                Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
-                "Development",
-                StringComparison.OrdinalIgnoreCase);
+            var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
 
             IConfigurationManager<OpenIdConnectConfiguration> manager;
-            if (isDevelopment && !string.IsNullOrEmpty(backchannelBase) &&
+            if (!string.IsNullOrEmpty(backchannelBase) &&
                 Uri.TryCreate(normalizedKey, UriKind.Absolute, out var publicUri) &&
                 Uri.TryCreate(backchannelBase, UriKind.Absolute, out var backchannelUri) &&
                 publicUri.Scheme == Uri.UriSchemeHttps)

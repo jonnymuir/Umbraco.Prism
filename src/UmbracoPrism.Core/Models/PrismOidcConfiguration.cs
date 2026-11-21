@@ -318,7 +318,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 // (e.g. http://localhost:8080) while OidcAuthority remains the external URL used for
                 // browser redirects and token validation. This is needed in GitHub Codespaces where
                 // the forwarded port proxy blocks unauthenticated server-side backchannel calls.
-                var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+                var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
                 if (!string.IsNullOrEmpty(backchannelBase))
                 {
                     var oidcPath = new Uri(tenant.OidcAuthority!).AbsolutePath.TrimEnd('/');
@@ -422,7 +422,7 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                     // which in Codespaces is the external proxy address and is unreachable from
                     // inside the container server-side. Fetching the JWKS directly from the known
                     // Keycloak JWKS path bypasses that entirely.
-                    var backchannelBase = Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL");
+                    var backchannelBase = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase();
                     IEnumerable<SecurityKey> signingKeys;
                     if (!string.IsNullOrEmpty(backchannelBase))
                     {

@@ -145,11 +145,11 @@ public class PrismPageAccessResolverTests
     }
 
     [Fact]
-    public void Resolve_TreatsADatabaseFailureAsNoPoliciesConfigured_AndDoesNotCacheTheFailure()
+    public void Resolve_FailsClosedOnADatabaseFailure_AndDoesNotCacheTheFailure()
     {
-        // Same reasoning as TenantService.GetByDomainAsync's own equivalent test: a cold-boot
-        // race against this table's own migration must not crash every content page, and must
-        // not stick once the table exists.
+        // When the policy table cannot be read we cannot know which pages are protected, so the
+        // page is denied rather than served. The failure is not cached, so a cold-boot race
+        // against the table's migration clears itself on the next request.
         var db = new Mock<IUmbracoDatabase>();
         db.SetupSequence(x => x.Fetch<PrismPageAccessPolicySchema>())
             .Throws(new InvalidOperationException("no such table: prismPageAccessPolicies"))
@@ -163,7 +163,7 @@ public class PrismPageAccessResolverTests
         var duringOutage = resolver.Resolve(Guid.NewGuid(), null, false);
         var afterRecovery = resolver.Resolve(Guid.NewGuid(), null, false);
 
-        duringOutage.Should().Be(PrismPageAccessResult.Public, "the table didn't exist yet");
+        duringOutage.Should().Be(PrismPageAccessResult.Unavailable, "a protected page must never be served when the policy lookup fails");
         afterRecovery.Should().Be(PrismPageAccessResult.Public);
         dbFactory.Verify(x => x.CreateDatabase(), Times.Exactly(2),
             "the failed load must not have been cached, so the next resolve retries");
