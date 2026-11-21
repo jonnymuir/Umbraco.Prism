@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using UmbracoPrism.Core.Logging;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
 
@@ -19,8 +21,9 @@ public class PrismTenantMiddleware(RequestDelegate next, ILogger<PrismTenantMidd
     /// <param name="tenantService">Service used to map request host names to Prism tenants.</param>
     /// <param name="prismContext">Scoped Prism context where the resolved tenant is stored.</param>
     /// <param name="signingKeyCache">Signing key cache pre-warmed for the resolved tenant.</param>
+    /// <param name="options">Prism options; <see cref="PrismConfiguration.RejectUnknownHosts"/> answers an unknown hostname with 421.</param>
     /// <returns>A task that completes after tenant resolution and downstream middleware execution.</returns>
-    public async Task InvokeAsync(HttpContext context, ITenantService tenantService, IPrismContext prismContext, IPrismSigningKeyCache signingKeyCache)
+    public async Task InvokeAsync(HttpContext context, ITenantService tenantService, IPrismContext prismContext, IPrismSigningKeyCache signingKeyCache, IOptions<PrismConfiguration> options)
     {
         var host = context.Request.Host.Host;
         
@@ -49,8 +52,13 @@ public class PrismTenantMiddleware(RequestDelegate next, ILogger<PrismTenantMidd
         }
         else
         {
-            // Optional: Handle unknown tenant (redirect or default)
-            logger.LogWarning("Unknown tenant domain: {Host}", host);
+            logger.LogWarning("Unknown tenant domain: {Host}", LogScrub.Line(host));
+
+            if (options.Value.RejectUnknownHosts)
+            {
+                context.Response.StatusCode = StatusCodes.Status421MisdirectedRequest;
+                return;
+            }
         }
 
         await next(context);

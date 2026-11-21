@@ -139,6 +139,25 @@ the host has not chosen where keys are stored (`PersistKeysTo...`) and how they 
 start instead. With several instances, keys must be shared and protected, or sessions will fail
 intermittently.
 
+## Hostnames, secrets and identity
+
+**Unknown hostnames.** By default a request whose hostname matches no tenant falls through to the
+host's own site. On a host that serves tenants only, set `Prism:RejectUnknownHosts` to `true` and
+such requests are answered `421 Misdirected Request` before anything else runs.
+
+**Secret cache.** A client secret read from Key Vault is cached for 60 minutes
+(`Prism:Secrets:CacheMinutes`), so a rotated secret reaches Prism within that time. A failed lookup
+is never cached as a value: it is not retried for 15 seconds, then tried again.
+
+**Stable member identifier.** `ClaimsPrincipal.GetSubject()` returns `{tid}:{oid}` for an Entra
+member and `{issuer}|{sub}` for another provider. It does not change when the member's email or
+sign-in name does, so key ownership, rosters and notification routing on it, and keep email as a
+contact detail.
+
+**Mobile sign-in codes** are redeemed once. A host with more than one instance must register a
+shared `IDistributedCache` (the default is per instance) or a code issued by one instance cannot be
+redeemed on another.
+
 ## Admin Endpoint Risk: MockBusinessApp
 
 The MockBusinessApp service desk admin panel is completely unauthenticated in its current form. These endpoints are now safe from accidental exposure because they return `404` in non-Development environments:

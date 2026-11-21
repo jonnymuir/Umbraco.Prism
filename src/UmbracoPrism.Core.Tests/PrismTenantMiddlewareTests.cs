@@ -32,7 +32,7 @@ public class PrismTenantMiddlewareTests
         };
 
         var middleware = new PrismTenantMiddleware(next, logger.Object);
-        await middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object);
+        await middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object, Microsoft.Extensions.Options.Options.Create(new UmbracoPrism.Core.Models.PrismConfiguration()));
 
         prismContext.VerifySet(p => p.CurrentTenant = tenant, Times.Once);
         nextCalled.Should().BeTrue();
@@ -54,7 +54,7 @@ public class PrismTenantMiddlewareTests
         RequestDelegate next = _ => Task.CompletedTask;
 
         var middleware = new PrismTenantMiddleware(next, logger.Object);
-        await middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object);
+        await middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object, Microsoft.Extensions.Options.Options.Create(new UmbracoPrism.Core.Models.PrismConfiguration()));
 
         prismContext.VerifySet(p => p.CurrentTenant = It.IsAny<PrismTenant>(), Times.Never);
         logger.Verify(
@@ -99,7 +99,7 @@ public class PrismTenantMiddlewareTests
         };
 
         var middleware = new PrismTenantMiddleware(next, logger.Object);
-        await middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object);
+        await middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object, Microsoft.Extensions.Options.Options.Create(new UmbracoPrism.Core.Models.PrismConfiguration()));
 
         nextCalled.Should().BeTrue();
         prismContext.VerifySet(p => p.CurrentTenant = tenant, Times.Once);
@@ -150,7 +150,7 @@ public class PrismTenantMiddlewareTests
         };
 
         var middleware = new PrismTenantMiddleware(next, logger.Object);
-        var act = () => middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object);
+        var act = () => middleware.InvokeAsync(httpContext, tenantService.Object, prismContext.Object, signingKeyCache.Object, Microsoft.Extensions.Options.Options.Create(new UmbracoPrism.Core.Models.PrismConfiguration()));
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         nextCalled.Should().BeFalse();

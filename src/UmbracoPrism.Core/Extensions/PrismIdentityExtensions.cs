@@ -11,6 +11,30 @@ public static class PrismIdentityExtensions
         user.FindFirst("http://schemas.microsoft.com/identity/claims/tenantid")?.Value;
 
     /// <summary>
+    /// A stable identifier for the person that does not change when their email, sign-in name or
+    /// display name does: <c>{tid}:{oid}</c> for an Entra directory, otherwise <c>{iss}|{sub}</c>
+    /// for a provider that issues no object id. Use it as the key for anything that must stay with
+    /// the person (ownership, a roster, notification routing) and treat email as a contact detail.
+    /// Returns <see langword="null"/> when the principal carries neither.
+    /// </summary>
+    public static string? GetSubject(this ClaimsPrincipal user)
+    {
+        var tenantId = user.GetTenantId();
+        var objectId = user.FindFirst("oid")?.Value
+            ?? user.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
+        if (!string.IsNullOrWhiteSpace(tenantId) && !string.IsNullOrWhiteSpace(objectId))
+        {
+            return $"{tenantId}:{objectId}";
+        }
+
+        var issuer = user.FindFirst("iss")?.Value;
+        var subject = user.FindFirst("sub")?.Value ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return !string.IsNullOrWhiteSpace(issuer) && !string.IsNullOrWhiteSpace(subject)
+            ? $"{issuer.TrimEnd('/')}|{subject}"
+            : null;
+    }
+
+    /// <summary>
     /// The person's email as the identity provider vouches for it, for anything that decides who
     /// they are or what they may see: case ownership, a team roster, a membership match.
     /// <para/>

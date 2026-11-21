@@ -21,6 +21,8 @@ public class PrismMobileSignInCodes(IDistributedCache cache, IDataProtectionProv
 
     private const string KeyPrefix = "prism:mobile-sign-in:";
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> Claimed = new();
+
     private readonly TicketDataFormat _tickets = new(dataProtection.CreateProtector("UmbracoPrism.MobileSignIn"));
 
     /// <summary>A sign-in waiting for the app to redeem it.</summary>
@@ -46,6 +48,17 @@ public class PrismMobileSignInCodes(IDistributedCache cache, IDataProtectionProv
     public async Task<PendingSignIn?> TakeAsync(string code, CancellationToken cancellationToken)
     {
         var key = Key(code);
+
+        // A code is redeemed once. The distributed cache has no atomic get-and-delete, so within this
+        // process the first caller claims the key and any concurrent caller is refused. Across
+        // instances the S256 verifier the redeemer must also present still has to match.
+        if (!Claimed.TryAdd(key, DateTimeOffset.UtcNow))
+        {
+            return null;
+        }
+
+        ForgetExpiredClaims();
+
         var bytes = await cache.GetAsync(key, cancellationToken);
         if (bytes is null)
         {
@@ -59,6 +72,23 @@ public class PrismMobileSignInCodes(IDistributedCache cache, IDataProtectionProv
         return stored is null || ticket is null
             ? null
             : new PendingSignIn(stored.TenantId, stored.Challenge, ticket);
+    }
+
+    private static void ForgetExpiredClaims()
+    {
+        if (Claimed.Count < 256)
+        {
+            return;
+        }
+
+        var cutoff = DateTimeOffset.UtcNow - Lifetime - Lifetime;
+        foreach (var (key, claimedAt) in Claimed)
+        {
+            if (claimedAt < cutoff)
+            {
+                Claimed.TryRemove(key, out _);
+            }
+        }
     }
 
     /// <summary>The S256 challenge for <paramref name="verifier"/>, as RFC 7636 defines it.</summary>
