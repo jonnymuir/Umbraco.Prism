@@ -119,6 +119,26 @@ time limits. Tune them in `Prism:Session`:
 Set `RevalidationIntervalMinutes` to `0` to turn the provider check off. Ending a session at an
 interactive sign-out also ends it at the provider through the provider's end-session endpoint.
 
+## Rate limiting and the key ring
+
+**Sign-in endpoints.** Prism limits `/auth/login`, `/auth/register`, `/signin-oidc`,
+`/signout-callback-oidc` and the mobile handover (`/umbraco/prism/mobile/auth/*`) to 60 requests a
+minute per address and answers `429` beyond that. Change it with
+`Prism:RateLimiting:SignInRequestsPerMinute` (`0` turns it off). The limit is per address and per
+process. Behind a reverse proxy the address is the proxy's unless you configure forwarded headers
+for it, and with several instances each keeps its own count. A host that sets its own
+`RateLimiterOptions.GlobalLimiter` replaces this one.
+
+**Biometric exchange.** A token that fails too often is locked for the failure window, then starts
+afresh. Idle entries are discarded and tracking is capped, so unique garbage cannot grow memory.
+
+**Data Protection.** The member cookie, the mobile handover ticket and antiforgery tokens are only
+as strong as the Data Protection key ring. Outside Development Prism logs a warning at startup when
+the host has not chosen where keys are stored (`PersistKeysTo...`) and how they are protected
+(`ProtectKeysWith...`). Set `Prism:DataProtection:RequireConfiguredKeys` to `true` to refuse to
+start instead. With several instances, keys must be shared and protected, or sessions will fail
+intermittently.
+
 ## Admin Endpoint Risk: MockBusinessApp
 
 The MockBusinessApp service desk admin panel is completely unauthenticated in its current form. These endpoints are now safe from accidental exposure because they return `404` in non-Development environments:

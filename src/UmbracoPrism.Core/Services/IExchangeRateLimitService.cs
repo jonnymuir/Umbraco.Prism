@@ -23,8 +23,7 @@ public interface IExchangeRateLimitService
 
     /// <summary>
     /// Records a failed exchange attempt for the given token hash. When the failure
-    /// count reaches the configured threshold, the token hash is permanently locked
-    /// until re-registration (which produces a new hash).
+    /// count reaches the configured threshold, the token hash is locked for the failure window.
     /// </summary>
     void RecordTokenFailure(string tokenHash);
 

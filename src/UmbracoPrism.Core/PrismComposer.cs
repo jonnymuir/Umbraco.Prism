@@ -29,7 +29,7 @@ public class PrismComposer : IComposer
     {
         // 1. Core Services
         builder.Services.AddHttpContextAccessor();
-        builder.Services.AddHostedService<UmbracoPrism.Core.Auth.PrismBackchannelGuard>();
+        builder.Services.AddPrismStartupGuards();
         builder.Services.AddSingleton<ISecretVaultService, SecretVaultService>();
         builder.Services.AddSingleton<ITenantTokenResolver, TenantTokenResolver>();
         builder.Services.AddSingleton<ITenantService, TenantService>();
@@ -46,6 +46,7 @@ public class PrismComposer : IComposer
         ComposeNotifications(builder.Services);
         builder.Services.Configure<PrismConfiguration>(
             builder.Config.GetSection(PrismConfiguration.SectionName));
+        builder.Services.AddPrismAuthRateLimiting(builder.Config);
         // 3. Middleware Registration
         builder.Services.Configure<UmbracoPipelineOptions>(options =>
         {
@@ -53,6 +54,7 @@ public class PrismComposer : IComposer
                 "PrismTenantResolution",
                 app =>
                 {
+                    app.UseRateLimiter();
                     app.UseMiddleware<PrismTenantMiddleware>();
                     app.UseMiddleware<PrismMobileCookieMiddleware>();
                     app.UseMiddleware<PrismSavedPagesMiddleware>();
@@ -77,28 +79,7 @@ public class PrismComposer : IComposer
         // 6. Member sign-in, confined to tenants that have it configured
         builder.Services.AddPrismMemberSignIn();
 
-        // 7. Authorization Policy
-        builder.Services.Configure<AuthorizationOptions>(options =>
-        {
-            options.AddPolicy("PrismStrictIsolation", policy =>
-            {
-                policy.RequireAuthenticatedUser();
-                policy.AddRequirements(new PrismTenantRequirement());
-            });
-
-            options.AddPolicy("PrismAdmins", policy =>
-            {
-                policy.RequireAuthenticatedUser();
-                policy.AddRequirements(new PrismAdminRequirement());
-            });
-
-            // Wayfinder.Umbraco's own ServiceRequestPolling policy is no longer registered
-            // here — Prism.Core carries no Wayfinder dependency at all now (see
-            // UmbracoPrism.MockBusinessApp's own narrowing to a genuine support system). A host
-            // that installs Wayfinder.Umbraco directly (e.g. UmbracoPrism.TestSite) registers
-            // that policy itself, supplying whatever authentication scheme its own member/user
-            // model uses.
-        });
+        ComposeAuthorizationPolicies(builder.Services);
 
         builder.Services.Configure<PrismAdminOptions>(builder.Config.GetSection("Prism:AdminGroups"));
 
@@ -134,6 +115,31 @@ public class PrismComposer : IComposer
     }
 
     /// <summary>Generated mobile apps: bundle generation, the app's tabs, and app sign-in.</summary>
+    private static void ComposeAuthorizationPolicies(IServiceCollection services)
+    {
+        services.Configure<AuthorizationOptions>(options =>
+        {
+            options.AddPolicy("PrismStrictIsolation", policy =>
+            {
+                policy.RequireAuthenticatedUser();
+                policy.AddRequirements(new PrismTenantRequirement());
+            });
+
+            options.AddPolicy("PrismAdmins", policy =>
+            {
+                policy.RequireAuthenticatedUser();
+                policy.AddRequirements(new PrismAdminRequirement());
+            });
+
+            // Wayfinder.Umbraco's own ServiceRequestPolling policy is no longer registered
+            // here — Prism.Core carries no Wayfinder dependency at all now (see
+            // UmbracoPrism.MockBusinessApp's own narrowing to a genuine support system). A host
+            // that installs Wayfinder.Umbraco directly (e.g. UmbracoPrism.TestSite) registers
+            // that policy itself, supplying whatever authentication scheme its own member/user
+            // model uses.
+        });
+    }
+
     private static void ComposeIdentityProviderAccess(IServiceCollection services)
     {
         services.AddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
