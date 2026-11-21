@@ -188,14 +188,10 @@ What protects the repository now, and what it does not.
 | Actions hardening | Actions pinned to SHA, default workflow token read-only, zizmor required, Dependabot with a 7 day cooldown |
 | DAST | ZAP baseline against the booted Aspire stack, blocking, unauthenticated |
 | Release | NuGet Trusted Publishing (no long-lived key), version/tag check |
-| Tests | Unit security regression suites in `Core.Tests` (including cross-tenant cookie isolation and the auth invariants); a booted-host suite in `Core.IntegrationTests`; Playwright live-auth lane |
+| Tests | Unit security regression suites in `Core.Tests` (including cross-tenant cookie isolation and the auth invariants); a booted-host suite in `Core.IntegrationTests` (including two tenants on two realms, where one tenant's member cookie and biometric token are refused on the other); Playwright live-auth lane |
 
 Gaps, in order of importance:
 
-- **P-01. No booted-host test with two tenants on two realms.** The cookie, bearer and biometric
-  negative cases are unit tests. A test that boots the host with two tenants and proves tenant A's
-  cookie, token and biometric credential are refused on tenant B would catch wiring mistakes the
-  unit tests cannot. Add it to `Core.IntegrationTests`.
 - **P-02. DAST is unauthenticated.** The OIDC flow, member pages, biometric endpoints and the
   mobile handover are never scanned. Add an authenticated ZAP context (Keycloak demo user) or a
   scripted run of the live-auth lane through the ZAP proxy.
@@ -249,7 +245,7 @@ Worth stating so it is not undone.
 4. AUTH-02 (residual) with AUTH-19: the long-lived `ConfigurationManager` and a server-side ticket
    store, which both delete bespoke code.
 5. AUTH-10: proof of possession, when the assurance level justifies it.
-6. Pipeline P-01 and P-02: a booted-host two-tenant test and an authenticated DAST run.
+6. Pipeline P-02: an authenticated DAST run.
 
 Each change reaches `main` through a pull request; a breaking behaviour change (for example
 mandatory `Audience`) needs a `BREAKING CHANGE:` line in the commit.
