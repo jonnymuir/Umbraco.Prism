@@ -145,6 +145,7 @@ public class PrismComposer : IComposer
         services.AddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
         services.AddSingleton<IPrismOidcDiscovery, PrismOidcDiscovery>();
         services.AddHttpClient("prism-oidc-metadata", client => client.Timeout = PrismSigningKeyCache.MetadataTimeout);
+        services.AddHttpClient(PrismOidcFlowHelpers.TokenHttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15));
     }
 
     private static void ComposeBiometricAndContext(IUmbracoBuilder builder)

@@ -360,7 +360,9 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 LogScrub.Line(authority), LogScrub.Line(redirectUri), LogScrub.Line(clientId), LogScrub.Line(scope));
 
             // 1. Manually exchange the code for tokens via simple HTTP
-            using var client = new HttpClient();
+            using var client = context.HttpContext.RequestServices
+                .GetRequiredService<IHttpClientFactory>()
+                .CreateClient(PrismOidcFlowHelpers.TokenHttpClientName);
             var response = await client.PostAsync(authority, new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 { "client_id", clientId },
@@ -376,17 +378,15 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
             {
                 var body = await response.Content.ReadAsStringAsync();
                 var statusCode = (int)response.StatusCode;
-                var detail = string.IsNullOrWhiteSpace(body) ? "(empty body)" : body;
 
-                // Capture response headers to distinguish proxy rejections from Keycloak errors.
-                // Keycloak always sets WWW-Authenticate on 401; a missing header fingerprints a proxy block.
-                var headers = string.Join("; ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"));
+                // Only the OAuth error code and description go to the log, never the whole body,
+                // and never into the exception that reaches the browser.
+                var detail = PrismOidcFlowHelpers.DescribeTokenError(body);
                 logger.LogError(
-                    "Prism: token exchange failed. Status={Status} Authority={Authority} Body={Body} ResponseHeaders=[{Headers}] RedirectUri={RedirectUri}",
-                    statusCode, LogScrub.Line(authority), LogScrub.Line(detail), LogScrub.Line(headers), LogScrub.Line(redirectUri));
+                    "Prism: token exchange failed. Status={Status} Authority={Authority} Error={Error} RedirectUri={RedirectUri}",
+                    statusCode, LogScrub.Line(authority), LogScrub.Line(detail), LogScrub.Line(redirectUri));
 
-                throw new AuthenticationException(
-                    $"Token exchange failed. Status: {statusCode}, Authority: {authority}, Body: {detail}");
+                throw new AuthenticationException($"Token exchange failed with status {statusCode}.");
             }
 
             var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -541,19 +541,10 @@ public class PrismOidcConfiguration(IHttpContextAccessor httpContextAccessor, IP
                 return;
             }
 
-            // TEMPORARY diagnostic — see AccountController.Logout()'s own remarks for the full
-            // context. This handler is what's actually supposed to build the redirect to Entra's
-            // (or a generic provider's) end-session endpoint; client-side navigation logs have
-            // never once shown that host being reached, on any live test so far, so this logs
-            // server-side ground truth: was a tenant resolved at all here, and — after both
-            // branches below have had their chance to run — what IssuerAddress/
-            // PostLogoutRedirectUri did this request actually end up with.
-            logger.LogInformation(
-                "Prism OIDC sign-out: authenticated={IsAuthenticated}, tenant={Tenant}, oidcAuthority={OidcAuthority}, entraTenantId={EntraTenantId}",
-                context.HttpContext.User.Identity?.IsAuthenticated == true,
-                tenant.Name,
-                tenant.OidcAuthority ?? "(none)",
-                tenant.EntraTenantId ?? "(none)");
+            logger.LogDebug(
+                "Prism OIDC sign-out: tenant={Tenant}, generic={IsGeneric}",
+                LogScrub.Line(tenant.Name),
+                !string.IsNullOrEmpty(tenant.OidcAuthority));
 
             if (!string.IsNullOrEmpty(tenant.OidcAuthority))
             {

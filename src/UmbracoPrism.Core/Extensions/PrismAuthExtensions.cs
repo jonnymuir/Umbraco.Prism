@@ -15,6 +15,7 @@ public static class PrismAuthExtensions
     public static IServiceCollection AddPrismAuthentication(this IServiceCollection services, IConfiguration config)
     {
         services.AddHostedService<UmbracoPrism.Core.Auth.PrismBackchannelGuard>();
+        services.AddHostedService<PrismBearerConfigurationCheck>();
         services.AddHttpClient("prism-oidc-metadata", client => client.Timeout = UmbracoPrism.Core.Services.PrismSigningKeyCache.MetadataTimeout);
         services.TryAddSingleton<IPrismSigningKeyCache, PrismSigningKeyCache>();
 
@@ -28,75 +29,13 @@ public static class PrismAuthExtensions
                 {
                     OnAuthenticationFailed = context =>
                     {
-                        // Decode token header only (no signature validation) for diagnostic output.
-                        string? tokenIssuer = null;
-                        string? tokenAzp = null;
-                        string? tokenKid = null;
-                        var authorizationHeader = context.Request.Headers.Authorization.FirstOrDefault();
-                        var rawToken = authorizationHeader?.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) == true
-                            ? authorizationHeader["Bearer ".Length..]
-                            : null;
-                        if (!string.IsNullOrEmpty(rawToken))
-                        {
-                            try
-                            {
-                                var parts = rawToken.Split('.');
-                                if (parts.Length >= 2)
-                                {
-                                    // Extract kid from header
-                                    var headerPad = (4 - parts[0].Length % 4) % 4;
-                                    var headerJson = System.Text.Encoding.UTF8.GetString(
-                                        Convert.FromBase64String(parts[0].Replace('-', '+').Replace('_', '/') + new string('=', headerPad)));
-                                    using var headerDoc = System.Text.Json.JsonDocument.Parse(headerJson);
-                                    if (headerDoc.RootElement.TryGetProperty("kid", out var kidProp))
-                                        tokenKid = kidProp.GetString();
-                                    
-                                    var pad = (4 - parts[1].Length % 4) % 4;
-                                    var payloadJson = System.Text.Encoding.UTF8.GetString(
-                                        Convert.FromBase64String(parts[1].Replace('-', '+').Replace('_', '/') + new string('=', pad)));
-                                    using var doc = System.Text.Json.JsonDocument.Parse(payloadJson);
-                                    doc.RootElement.TryGetProperty("iss", out var issProp);
-                                    doc.RootElement.TryGetProperty("azp", out var azpProp);
-                                    tokenIssuer = issProp.ValueKind == System.Text.Json.JsonValueKind.String ? issProp.GetString() : null;
-                                    tokenAzp = azpProp.ValueKind == System.Text.Json.JsonValueKind.String ? azpProp.GetString() : null;
-                                }
-                            }
-                            catch { /* best-effort only */ }
-                        }
-
-                        var tenants = config.GetSection("PrismBusinessApp:Tenants").Get<List<BackOfficeTenant>>();
-                        var configuredAuthorities = tenants?
-                            .Where(t => !string.IsNullOrWhiteSpace(t.OidcAuthority))
-                            .Select(t => t.OidcAuthority!) ?? [];
-                        var backchannelUrl = Environment.GetEnvironmentVariable(UmbracoPrism.Core.Auth.PrismBackchannel.VariableName);
-                        var aspNetCoreEnv = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-
-                        Console.WriteLine($"[PRISM AUTH FAILED] {context.Exception.GetType().Name}: {context.Exception.Message}");
-                        Console.WriteLine($"  token.iss : {tokenIssuer ?? "(none/unparseable)"}");
-                        Console.WriteLine($"  token.azp : {tokenAzp ?? "(none)"}");
-                        Console.WriteLine($"  token.kid : {tokenKid ?? "(none)"}");
-                        Console.WriteLine($"  configured OidcAuthorities : {(configuredAuthorities.Any() ? string.Join(", ", configuredAuthorities) : "(none)")}");
-                        Console.WriteLine($"  ASPNETCORE_ENVIRONMENT : {aspNetCoreEnv ?? "(not set)"}");
-                        Console.WriteLine($"  KEYCLOAK_BACKCHANNEL_URL : {backchannelUrl ?? "(not set)"}");
-                        Console.WriteLine($"  backchannel JWKS enabled : {(UmbracoPrism.Core.Auth.PrismBackchannel.GetBase() is not null ? "YES" : "NO")}");
-                        
-                        // For generic OIDC failures with no signing keys, log the metadata address that would be used
-                        if (context.Exception is SecurityTokenSignatureKeyNotFoundException && !string.IsNullOrWhiteSpace(tokenIssuer))
-                        {
-                            var oidcTenant = tenants?.FirstOrDefault(t =>
-                                !string.IsNullOrWhiteSpace(t.OidcAuthority) &&
-                                string.Equals(t.OidcAuthority.TrimEnd('/'), tokenIssuer.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
-                            
-                            if (oidcTenant != null)
-                            {
-                                var cacheKey = oidcTenant.OidcAuthority!.TrimEnd('/');
-                                var metadataAddress = UmbracoPrism.Core.Auth.PrismBackchannel.GetBase() is not null && !string.IsNullOrEmpty(backchannelUrl)
-                                    ? $"{backchannelUrl.TrimEnd('/')}{new Uri(cacheKey).AbsolutePath}/.well-known/openid-configuration"
-                                    : $"{cacheKey}/.well-known/openid-configuration";
-                                Console.WriteLine($"  JWKS metadata address : {metadataAddress}");
-                            }
-                        }
-                        
+                        var logger = context.HttpContext.RequestServices
+                            .GetRequiredService<ILoggerFactory>()
+                            .CreateLogger(PrismBearerDiagnostics.CategoryName);
+                        PrismBearerDiagnostics.LogFailure(
+                            logger,
+                            context.Exception,
+                            PrismBearerDiagnostics.ReadBearerToken(context.Request.Headers.Authorization.FirstOrDefault()));
                         return Task.CompletedTask;
                     }
                 };
@@ -107,6 +46,10 @@ public static class PrismAuthExtensions
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
+
+                    // Asymmetric algorithms only. A symmetric (HS*) or unsigned token can never be
+                    // valid here, whatever the key resolver returns.
+                    ValidAlgorithms = BearerAlgorithms,
                     
                     // Allow some clock drift (default is 5 mins, but let's be explicit)
                     ClockSkew = TimeSpan.FromMinutes(5),
@@ -137,8 +80,8 @@ public static class PrismAuthExtensions
                             if (!string.Equals(issuerUri.Host, expectedHost, StringComparison.OrdinalIgnoreCase))
                                 throw new SecurityTokenInvalidIssuerException("Issuer host does not match token tenant");
 
-                            var expectedPathPrefix = $"/{tokenTenantId}/v2.0";
-                            if (!issuerUri.AbsolutePath.StartsWith(expectedPathPrefix, StringComparison.OrdinalIgnoreCase))
+                            var expectedPath = $"/{tokenTenantId}/v2.0";
+                            if (!string.Equals(issuerUri.AbsolutePath.TrimEnd('/'), expectedPath, StringComparison.OrdinalIgnoreCase))
                                 throw new SecurityTokenInvalidIssuerException("Issuer path does not match token tenant");
 
                             return issuer;
@@ -203,6 +146,13 @@ public static class PrismAuthExtensions
 
         return services;
     }
+
+    private static readonly string[] BearerAlgorithms =
+    [
+        SecurityAlgorithms.RsaSha256, SecurityAlgorithms.RsaSha384, SecurityAlgorithms.RsaSha512,
+        SecurityAlgorithms.RsaSsaPssSha256, SecurityAlgorithms.RsaSsaPssSha384, SecurityAlgorithms.RsaSsaPssSha512,
+        SecurityAlgorithms.EcdsaSha256, SecurityAlgorithms.EcdsaSha384, SecurityAlgorithms.EcdsaSha512
+    ];
 
     internal static IEnumerable<SecurityKey> ResolveSigningKeys(
         string? tokenTenantId,

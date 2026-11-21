@@ -652,6 +652,7 @@ public class Phase1SecurityRegressionTests : IDisposable
 
         var authService = new RecordingAuthenticationService();
         var services = new ServiceCollection()
+            .AddHttpClient()
             .AddSingleton<IPrismContext>(new TestPrismContext { CurrentTenant = tenant })
             .AddSingleton<IPrismOidcDiscovery>(TestOidcDiscovery.Keycloak)
             .AddSingleton<ISecretVaultService>(new StubSecretVaultService("vault-backed-secret"))
