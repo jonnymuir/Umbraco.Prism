@@ -91,6 +91,72 @@ public class PrismContextTests : IDisposable
         header.Parameter.Should().Be("access-token");
     }
 
+    [Theory]
+    [InlineData(null, "invalid_grant", PrismSessionCheck.Revoked)]
+    [InlineData(null, "HttpRequestException", PrismSessionCheck.Unreachable)]
+    [InlineData(null, "circuit-open", PrismSessionCheck.Unreachable)]
+    [InlineData("new-access", null, PrismSessionCheck.Active)]
+    public async Task RevalidateSessionAsync_ReportsWhatTheProviderSaid(string? newAccessToken, string? failureReason, PrismSessionCheck expected)
+    {
+        var props = new AuthenticationProperties();
+        props.StoreTokens(new[]
+        {
+            new AuthenticationToken { Name = "access_token", Value = "old-access" },
+            new AuthenticationToken { Name = "refresh_token", Value = "refresh-token" },
+            new AuthenticationToken { Name = "expires_at", Value = DateTimeOffset.UtcNow.AddMinutes(10).ToString("o") }
+        });
+        var principal = CreatePrincipalForGenericOidc("https://localhost:8443/realms/prism-dev", "prism-client");
+
+        var vault = new Mock<ISecretVaultService>();
+        vault.Setup(v => v.ResolveSecretAsync(PrismSecretProviderNames.Inline, "prism-dev-secret")).ReturnsAsync("prism-dev-secret");
+        var tokenRefreshService = new Mock<IPrismTokenRefreshService>();
+        tokenRefreshService
+            .Setup(t => t.RefreshAsync(It.IsAny<string>(), It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<CancellationToken>(), It.IsAny<IReadOnlyDictionary<string, string>?>()))
+            .ReturnsAsync(newAccessToken is null
+                ? new TokenRefreshResult(false, null, null, null, failureReason)
+                : new TokenRefreshResult(true, newAccessToken, "new-refresh", 3600));
+        var prismContext = new PrismContext(new HttpContextAccessor(), vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
+        {
+            CurrentTenant = new PrismTenant
+            {
+                OidcAuthority = "https://localhost:8443/realms/prism-dev",
+                OidcClientId = "prism-client",
+                OidcClientSecretProvider = PrismSecretProviderNames.Inline,
+                OidcClientSecretReference = "prism-dev-secret"
+            }
+        };
+
+        var outcome = await prismContext.RevalidateSessionAsync(new DefaultHttpContext(), props, principal);
+
+        outcome.Should().Be(expected);
+        if (expected == PrismSessionCheck.Active)
+        {
+            props.GetTokenValue("access_token").Should().Be("new-access");
+            props.GetTokenValue("refresh_token").Should().Be("new-refresh");
+        }
+        else
+        {
+            props.GetTokenValue("access_token").Should().Be("old-access", "a failed check must not touch the stored tokens");
+        }
+    }
+
+    [Fact]
+    public async Task RevalidateSessionAsync_IsSkipped_WhenThereIsNoRefreshToken()
+    {
+        var props = new AuthenticationProperties();
+        var prismContext = new PrismContext(
+            new HttpContextAccessor(),
+            new Mock<ISecretVaultService>().Object,
+            new Mock<IPrismTokenRefreshService>().Object,
+            new PrismTenantBindingValidator(),
+            TestOidcDiscovery.Keycloak);
+
+        var outcome = await prismContext.RevalidateSessionAsync(
+            new DefaultHttpContext(), props, CreatePrincipalForGenericOidc("https://localhost:8443/realms/prism-dev", "prism-client"));
+
+        outcome.Should().Be(PrismSessionCheck.Skipped);
+    }
+
     [Fact]
     public async Task GetAuthorizationHeaderAsync_ForceRefreshes_WhenAccessTokenIsStillMarkedValid()
     {
