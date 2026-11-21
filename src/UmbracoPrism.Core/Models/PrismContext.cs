@@ -71,9 +71,7 @@ public class PrismContext(
 
         if (string.IsNullOrEmpty(accessToken))
         {
-            LastAuthorizationFailureReason = refreshToken == null
-                ? "missing-access-token"
-                : "refresh-required";
+            LastAuthorizationFailureReason = PrismRefreshOutcome.MissingAccessTokenReason(refreshToken);
             return refreshToken == null ? null : await RefreshTokenAsync(context, authResult, refreshToken);
         }
 
@@ -88,17 +86,17 @@ public class PrismContext(
         }
 
         // EXPIRED: Manual Refresh
-        LastAuthorizationFailureReason = forceRefresh
-            ? "forced-refresh-required"
-            : shouldRefreshForRuntimeRestart
-                ? "runtime-restart-refresh-required"
-                : "token-expired";
+        LastAuthorizationFailureReason = PrismRefreshOutcome.ExpiredReason(forceRefresh, shouldRefreshForRuntimeRestart);
         return refreshToken == null ? null : await RefreshTokenAsync(context, authResult, refreshToken);
     }
 
     private readonly PrismRefreshRequestResolver _refreshRequests = new(vault, oidcDiscovery);
 
-    private async Task<AuthenticationHeaderValue?> RefreshTokenAsync(HttpContext context, AuthenticateResult authResult, string refreshToken)
+    /// <summary>
+    /// Posts the refresh-token grant for the current tenant. Returns null, with the reason recorded, when
+    /// the request could not be built (no tenant, wrong tenant, missing client configuration).
+    /// </summary>
+    private async Task<TokenRefreshResult?> RequestRefreshAsync(HttpContext context, ClaimsPrincipal? principal, string refreshToken)
     {
         if (CurrentTenant == null)
         {
@@ -107,7 +105,7 @@ public class PrismContext(
             return null;
         }
 
-        if (authResult.Principal == null || !tenantBindingValidator.IsBound(authResult.Principal, CurrentTenant))
+        if (principal == null || !tenantBindingValidator.IsBound(principal, CurrentTenant))
         {
             Log.Warning("Rejecting token refresh because principal tenant claim does not match resolved tenant context");
             LastAuthorizationFailureReason = "tenant-mismatch";
@@ -121,8 +119,17 @@ public class PrismContext(
             return null;
         }
 
-        var result = await tokenRefreshService.RefreshAsync(
+        return await tokenRefreshService.RefreshAsync(
             request.TokenEndpoint, request.ToForm(refreshToken), context.RequestAborted, request.ForwardingHeaders);
+    }
+
+    private async Task<AuthenticationHeaderValue?> RefreshTokenAsync(HttpContext context, AuthenticateResult authResult, string refreshToken)
+    {
+        var result = await RequestRefreshAsync(context, authResult.Principal, refreshToken);
+        if (result is null)
+        {
+            return null;
+        }
 
         if (!result.Success || result.AccessToken == null)
         {
@@ -152,10 +159,7 @@ public class PrismContext(
         }
 
         props.IssuedUtc = DateTimeOffset.UtcNow;
-        props.UpdateTokenValue("access_token", result.AccessToken!);
-        if (result.RefreshToken != null)
-            props.UpdateTokenValue("refresh_token", result.RefreshToken);
-        props.UpdateTokenValue("expires_at", DateTimeOffset.UtcNow.AddSeconds(result.ExpiresIn ?? 3600).ToString("o"));
+        PrismRefreshOutcome.Store(props, result);
 
         // Clear any one-off redirect URI to prevent stale navigation state from
         // persisting across token refresh cycles (matches login flow hygiene)
@@ -165,6 +169,19 @@ public class PrismContext(
 
         LastAuthorizationFailureReason = null;
         return new AuthenticationHeaderValue("Bearer", result.AccessToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<PrismSessionCheck> RevalidateSessionAsync(HttpContext context, AuthenticationProperties properties, ClaimsPrincipal principal)
+    {
+        var refreshToken = properties.GetTokenValue("refresh_token");
+        if (string.IsNullOrEmpty(refreshToken))
+        {
+            return PrismSessionCheck.Skipped;
+        }
+
+        var result = await RequestRefreshAsync(context, principal, refreshToken);
+        return result is null ? PrismSessionCheck.Unreachable : PrismRefreshOutcome.ToSessionCheck(properties, result);
     }
 
     private static bool ShouldRefreshForRuntimeRestart(AuthenticationProperties? properties)

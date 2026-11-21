@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using UmbracoPrism.Core.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -41,32 +43,10 @@ public static class PrismMemberSignInExtensions
             cookieOptions.Cookie.SameSite = SameSiteMode.Lax;
             cookieOptions.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 
-            // Tenant-binding enforcement, applied automatically to every PrismMemberCookie
-            // request, not opt-in per controller. Runs on every request that carries the
-            // cookie; PrismTenantMiddleware (registered as a PrePipeline filter, above any
-            // Umbraco middleware including this one) has already resolved IPrismContext.CurrentTenant
-            // by the time this fires. A principal is rejected, and the request continues as
-            // anonymous rather than as the wrong tenant's member, unless the hostname resolves to
-            // a tenant that has sign-in configured and the principal's own tenant claims match
-            // it. Endpoints that want a hard 403 instead of an anonymous fallback declare the
-            // "PrismStrictIsolation" policy explicitly on top of this (see PrismTenantHandler),
-            // sharing the same IPrismTenantBindingValidator check rather than reimplementing it.
-            cookieOptions.Events.OnValidatePrincipal = context =>
-            {
-                var validator = context.HttpContext.RequestServices.GetRequiredService<IPrismTenantBindingValidator>();
-                var prismContext = context.HttpContext.RequestServices.GetRequiredService<IPrismContext>();
-                var tenant = prismContext.CurrentTenant;
-
-                if (tenant is null ||
-                    !tenant.HasSignInConfigured() ||
-                    context.Principal is null ||
-                    !validator.IsBound(context.Principal, tenant))
-                {
-                    context.RejectPrincipal();
-                }
-
-                return Task.CompletedTask;
-            };
+            // Tenant binding, the session's absolute lifetime and its periodic re-check with the
+            // identity provider, applied to every PrismMemberCookie request (see
+            // PrismSessionValidator and PrismTenantHandler for the strict-isolation counterpart).
+            cookieOptions.Events.OnValidatePrincipal = PrismSessionValidator.OnValidatePrincipalAsync;
         }, openIdConnectScheme: PrismAuthenticationSchemes.Oidc, cookieScheme: PrismAuthenticationSchemes.MemberCookie)
         .EnableTokenAcquisitionToCallDownstreamApi()
         .AddInMemoryTokenCaches();
@@ -78,6 +58,10 @@ public static class PrismMemberSignInExtensions
         authBuilder.AddScheme<AuthenticationSchemeOptions, PrismNoHostDefaultHandler>(
             PrismAuthenticationSchemes.NoHostDefault, displayName: null, _ => { });
 
+        services.AddOptions<PrismSessionOptions>().BindConfiguration(PrismSessionOptions.SectionName);
+        services.AddSingleton<IConfigureOptions<CookieAuthenticationOptions>, PrismSessionCookieSetup>();
+
+        services.AddOptions<PrismSessionOptions>().BindConfiguration(PrismSessionOptions.SectionName);
         services.AddSingleton<PrismHostAuthenticationDefaults>();
         services.AddSingleton<IPostConfigureOptions<AuthenticationOptions>, PrismAuthenticationDefaultsSetup>();
 

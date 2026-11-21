@@ -103,6 +103,22 @@ own tokens, set `Prism:TenantTokens:AllowedPrefixes` to a list such as `["TENANT
 
 ---
 
+## Member session lifetime
+
+A member's session cookie slides for 8 hours of inactivity, ends after 7 days whatever the
+activity, and is re-confirmed with the identity provider every 15 minutes using the member's
+stored refresh token. A member removed or disabled at the provider (the provider answers
+`invalid_grant`) is signed out at the next check. A provider that cannot be reached does not sign
+anyone out; the check is retried within minutes. A session with no refresh token has only the two
+time limits. Tune them in `Prism:Session`:
+
+```json
+{ "Prism": { "Session": { "SlidingExpirationMinutes": 480, "AbsoluteMaxLifetimeMinutes": 10080, "RevalidationIntervalMinutes": 15 } } }
+```
+
+Set `RevalidationIntervalMinutes` to `0` to turn the provider check off. Ending a session at an
+interactive sign-out also ends it at the provider through the provider's end-session endpoint.
+
 ## Admin Endpoint Risk: MockBusinessApp
 
 The MockBusinessApp service desk admin panel is completely unauthenticated in its current form. These endpoints are now safe from accidental exposure because they return `404` in non-Development environments:
