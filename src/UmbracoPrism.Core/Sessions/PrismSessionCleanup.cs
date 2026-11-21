@@ -13,14 +13,28 @@ internal sealed partial class PrismSessionCleanup(
 {
     internal static readonly TimeSpan Interval = TimeSpan.FromHours(1);
 
+    /// <summary>
+    /// The first run waits, so it never competes with the package migration that creates the table
+    /// for the database (SQLite allows one writer at a time).
+    /// </summary>
+    internal static readonly TimeSpan FirstRunDelay = TimeSpan.FromMinutes(5);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(Interval);
-        do
+        try
         {
-            await RunOnceAsync(stoppingToken);
+            await Task.Delay(FirstRunDelay, stoppingToken);
+            using var timer = new PeriodicTimer(Interval);
+            do
+            {
+                await RunOnceAsync(stoppingToken);
+            }
+            while (await timer.WaitForNextTickAsync(stoppingToken));
         }
-        while (await WaitAsync(timer, stoppingToken));
+        catch (OperationCanceledException)
+        {
+            // The host is stopping.
+        }
     }
 
     internal async Task RunOnceAsync(CancellationToken cancellationToken)
@@ -41,18 +55,6 @@ internal sealed partial class PrismSessionCleanup(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             LogFailed(ex);
-        }
-    }
-
-    private static async Task<bool> WaitAsync(PeriodicTimer timer, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await timer.WaitForNextTickAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
         }
     }
 
