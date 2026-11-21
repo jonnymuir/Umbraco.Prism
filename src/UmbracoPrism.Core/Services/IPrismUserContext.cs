@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using UmbracoPrism.Core.Extensions;
 using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Services;
@@ -19,6 +20,14 @@ public interface IPrismUserContext
     /// </summary>
     string? Email { get; }
     
+    /// <summary>
+    /// A stable identifier for the person that survives a change of email, sign-in name or display
+    /// name (see <see cref="PrismIdentityExtensions.GetSubject"/>), or <see langword="null"/> when the
+    /// user is not signed in. Key anything that must stay with the person on this, not on
+    /// <see cref="Email"/>.
+    /// </summary>
+    string? Subject => null;
+
     /// <summary>
     /// The user's name.
     /// </summary>

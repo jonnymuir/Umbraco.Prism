@@ -381,7 +381,7 @@ journeyStatus.Publish(memberEmail, tenantHostname, new PrismJourneyStatus(
   The outcome belongs in a push notification that opens the page behind sign-in.
 - **A Live Activity is for a wait of hours,** since iOS ends one within 12. A change days later is a
   push notification.
-- The member is identified as push notifications identify them, by email address and the tenant's
+- The member is identified as push notifications identify them, by their stable subject (not their email address) and the tenant's
   host name, and only their own devices receive the status.
 
 The **Update journey status** Umbraco Automate action publishes a status without code. The

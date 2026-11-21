@@ -64,6 +64,9 @@ public class PrismUserContext(
         }
     }
 
+    /// <inheritdoc />
+    public string? Subject => User?.GetSubject();
+
     /// <summary>
     /// The user's name.
     /// </summary>

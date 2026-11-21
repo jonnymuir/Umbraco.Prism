@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using UmbracoPrism.Core.Services;
 using Wayfinder.Engine.Models;
 using Wayfinder.Models.ServiceDesign;
 using Wayfinder.Umbraco.Services;
@@ -21,7 +23,7 @@ public sealed class MemberServiceInputsResolver(
     {
         if (string.Equals(blueprint.DefinitionKey, TestSiteSeedContract.JugglingLicenceBlueprintSlug, StringComparison.OrdinalIgnoreCase))
         {
-            return Member(JugglingMember(request));
+            return Member(JugglingMember());
         }
 
         if (string.Equals(blueprint.DefinitionKey, TestSiteSeedContract.MoneyModellerBlueprintSlug, StringComparison.OrdinalIgnoreCase))
@@ -34,27 +36,33 @@ public sealed class MemberServiceInputsResolver(
 
     private static Dictionary<string, object?> Member(Dictionary<string, object?> member) => new() { ["member"] = member };
 
-    private Dictionary<string, object?> JugglingMember(ServiceRequest request)
+    /// <summary>
+    /// The signed-in member's identity-provider-verified email, read from the live request rather than
+    /// the scoped <see cref="IPrismUserContext"/>, which a singleton can't hold. The demo's systems of
+    /// record are keyed by email, while <c>request.UserId</c> is the member's stable subject (or, for an
+    /// anonymous visitor, an opaque correlation-cookie GUID that must never be suggested back as their
+    /// email). Null with no live HttpContext (an automation callback resuming the request), which
+    /// <c>defaultFrom</c> treats as "no suggestion".
+    /// </summary>
+    private string? VerifiedEmail() =>
+        httpContextAccessor.HttpContext?.RequestServices.GetService<IPrismUserContext>()?.Email;
+
+    private Dictionary<string, object?> JugglingMember()
     {
-        // Read from the live request rather than the scoped PrismUserContext, which a singleton
-        // can't hold. Gated on IsAuthenticated because request.UserId is the applicant's real email
-        // only for a signed-in member; for an anonymous visitor it's an opaque correlation-cookie
-        // GUID, which must never be suggested back to them as their email. Both are null with no
-        // live HttpContext (an automation callback resuming the request), which defaultFrom treats
-        // as "no suggestion".
+        var email = VerifiedEmail();
         var user = httpContextAccessor.HttpContext?.User;
         var isAuthenticated = user?.Identity?.IsAuthenticated ?? false;
         return new()
         {
-            ["tier"] = membershipClient.GetForUser(request.UserId).Tier,
+            ["tier"] = membershipClient.GetForUser(email ?? string.Empty).Tier,
             ["name"] = isAuthenticated ? user!.FindFirstValue("name") : null,
-            ["email"] = isAuthenticated ? request.UserId : null,
+            ["email"] = email,
         };
     }
 
     private Dictionary<string, object?> SavingsMember(ServiceRequest request)
     {
-        var record = memberRecordService.GetForUser(request.UserId);
+        var record = memberRecordService.GetForUser(VerifiedEmail() ?? request.UserId);
         return new()
         {
             ["name"] = record.Name,
