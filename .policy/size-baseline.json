@@ -13,7 +13,7 @@
     "src/UmbracoPrism.Core/Controllers/BiometricController.cs": 192,
     "src/UmbracoPrism.Core/Extensions/PrismAuthExtensions.cs": 191,
     "src/UmbracoPrism.Core/Models/PrismOidcConfiguration.cs": 486,
-    "src/UmbracoPrism.Core/PrismComposer.cs": 107,
+    "src/UmbracoPrism.Core/PrismComposer.cs": 88,
     "src/UmbracoPrism.Core/Services/MobileBundles/AndroidProjectFiles.cs": 82,
     "src/UmbracoPrism.Core/Services/MobileBundles/BundleDocumentation.cs": 144,
     "src/UmbracoPrism.Core/Services/MobileBundles/CapacitorProjectFiles.cs": 75,
