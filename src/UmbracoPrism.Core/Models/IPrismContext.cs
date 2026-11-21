@@ -1,4 +1,7 @@
 using System.Net.Http.Headers;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http;
 
 namespace UmbracoPrism.Core.Models;
 
@@ -30,4 +33,28 @@ public interface IPrismContext
     /// A bearer authorization header when a valid token is available; otherwise <see langword="null"/>.
     /// </returns>
     Task<AuthenticationHeaderValue?> GetAuthorizationHeaderAsync(bool forceRefresh = false);
+
+    /// <summary>
+    /// Asks the identity provider whether the member's session is still valid, using the stored
+    /// refresh token, and updates the tokens in <paramref name="properties"/> when it is. Does not
+    /// write the cookie; the caller renews it. The default does nothing.
+    /// </summary>
+    Task<PrismSessionCheck> RevalidateSessionAsync(HttpContext context, AuthenticationProperties properties, ClaimsPrincipal principal) =>
+        Task.FromResult(PrismSessionCheck.Skipped);
+}
+
+/// <summary>The outcome of asking the identity provider whether a member's session is still valid.</summary>
+public enum PrismSessionCheck
+{
+    /// <summary>There was nothing to check with, such as no refresh token.</summary>
+    Skipped,
+
+    /// <summary>The provider accepted the session.</summary>
+    Active,
+
+    /// <summary>The provider says the session is no longer valid.</summary>
+    Revoked,
+
+    /// <summary>The provider could not be reached or answered something other than a revocation.</summary>
+    Unreachable
 }

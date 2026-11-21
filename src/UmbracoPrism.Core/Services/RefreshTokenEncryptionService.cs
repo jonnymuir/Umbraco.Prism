@@ -6,15 +6,20 @@ namespace UmbracoPrism.Core.Services;
 
 /// <summary>
 /// AES-256-GCM authenticated encryption for Entra refresh tokens.
-/// Wire format: Base64([12-byte nonce][ciphertext][16-byte tag]).
+/// Wire format: <c>v2.{keyId}.{Base64([12-byte nonce][ciphertext][16-byte tag])}</c>, where the key id
+/// names the key that encrypted it so keys can be rotated, and the caller's associated data is
+/// authenticated but not stored. An older unversioned <c>Base64([nonce][ciphertext][tag])</c> value
+/// decrypts with no associated data.
 /// </summary>
 public class RefreshTokenEncryptionService : IRefreshTokenEncryptionService
 {
+    private const string VersionPrefix = "v2.";
     private const int NonceSize = 12;
     private const int TagSize = 16;
     private const int KeySize = 32; // 256 bits
 
-    private readonly byte[] _key;
+    private readonly KeyValuePair<string, byte[]> _current;
+    private readonly Dictionary<string, byte[]> _keysById;
 
     /// <summary>
     /// Initialises the service from bound <see cref="PrismBiometricOptions"/>.
@@ -23,32 +28,20 @@ public class RefreshTokenEncryptionService : IRefreshTokenEncryptionService
     /// </summary>
     public RefreshTokenEncryptionService(IOptions<PrismBiometricOptions> options)
     {
-        var keyString = options.Value.EncryptionKey;
+        var configured = options.Value;
+        var key = ParseKey(configured.EncryptionKey, "Prism:Biometric:EncryptionKey");
+        _current = KeyValuePair.Create(KeyId(key), key);
+        _keysById = new Dictionary<string, byte[]> { [_current.Key] = key };
 
-        if (string.IsNullOrWhiteSpace(keyString))
-            throw new InvalidOperationException(
-                "Prism: RefreshToken encryption key must be configured. " +
-                "Set 'Prism:Biometric:EncryptionKey' (base64-encoded 32-byte key) in configuration.");
-
-        try
+        for (var i = 0; i < configured.PreviousEncryptionKeys.Length; i++)
         {
-            _key = Convert.FromBase64String(keyString);
+            var previous = ParseKey(configured.PreviousEncryptionKeys[i], $"Prism:Biometric:PreviousEncryptionKeys:{i}");
+            _keysById.TryAdd(KeyId(previous), previous);
         }
-        catch (FormatException)
-        {
-            throw new InvalidOperationException(
-                "Prism: RefreshToken encryption key must be a valid base64 string. " +
-                "Set 'Prism:Biometric:EncryptionKey' to a base64-encoded 32-byte key.");
-        }
-
-        if (_key.Length != KeySize)
-            throw new InvalidOperationException(
-                $"Prism: RefreshToken encryption key must be exactly {KeySize} bytes (256 bits). " +
-                $"Got {_key.Length} bytes. Generate with: Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))");
     }
 
     /// <inheritdoc/>
-    public string Encrypt(string plaintext)
+    public string Encrypt(string plaintext, string? associatedData = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(plaintext);
 
@@ -59,8 +52,8 @@ public class RefreshTokenEncryptionService : IRefreshTokenEncryptionService
         var ciphertext = new byte[plaintextBytes.Length];
         var tag = new byte[TagSize];
 
-        using var aes = new AesGcm(_key, TagSize);
-        aes.Encrypt(nonce, plaintextBytes, ciphertext, tag);
+        using var aes = new AesGcm(_current.Value, TagSize);
+        aes.Encrypt(nonce, plaintextBytes, ciphertext, tag, Encoding.UTF8.GetBytes(associatedData ?? string.Empty));
 
         // Pack: [nonce][ciphertext][tag]
         var result = new byte[NonceSize + ciphertext.Length + TagSize];
@@ -68,28 +61,84 @@ public class RefreshTokenEncryptionService : IRefreshTokenEncryptionService
         Buffer.BlockCopy(ciphertext, 0, result, NonceSize, ciphertext.Length);
         Buffer.BlockCopy(tag, 0, result, NonceSize + ciphertext.Length, TagSize);
 
-        return Convert.ToBase64String(result);
+        return $"{VersionPrefix}{_current.Key}.{Convert.ToBase64String(result)}";
     }
 
     /// <inheritdoc/>
-    public string Decrypt(string ciphertext)
+    public string Decrypt(string ciphertext, string? associatedData = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ciphertext);
 
-        var data = Convert.FromBase64String(ciphertext);
+        if (!ciphertext.StartsWith(VersionPrefix, StringComparison.Ordinal))
+        {
+            // Unversioned: encrypted under the key then configured, with no associated data.
+            return Open(Convert.FromBase64String(ciphertext), _keysById.Values, []);
+        }
 
+        var parts = ciphertext[VersionPrefix.Length..].Split('.', 2);
+        if (parts.Length != 2 || !_keysById.TryGetValue(parts[0], out var key))
+        {
+            throw new CryptographicException("Prism: Encrypted refresh token names a key that is not configured.");
+        }
+
+        return Open(Convert.FromBase64String(parts[1]), [key], Encoding.UTF8.GetBytes(associatedData ?? string.Empty));
+    }
+
+    private static string Open(byte[] data, IEnumerable<byte[]> candidateKeys, byte[] associatedData)
+    {
         if (data.Length < NonceSize + TagSize)
             throw new CryptographicException("Prism: Encrypted refresh token data is too short.");
 
         var nonce = data.AsSpan(0, NonceSize);
         var tag = data.AsSpan(data.Length - TagSize);
         var encrypted = data.AsSpan(NonceSize, data.Length - NonceSize - TagSize);
-
         var plaintext = new byte[encrypted.Length];
 
-        using var aes = new AesGcm(_key, TagSize);
-        aes.Decrypt(nonce, encrypted, tag, plaintext);
+        CryptographicException? last = null;
+        foreach (var key in candidateKeys)
+        {
+            try
+            {
+                using var aes = new AesGcm(key, TagSize);
+                aes.Decrypt(nonce, encrypted, tag, plaintext, associatedData);
+                return Encoding.UTF8.GetString(plaintext);
+            }
+            catch (CryptographicException ex)
+            {
+                last = ex;
+            }
+        }
 
-        return Encoding.UTF8.GetString(plaintext);
+        throw last ?? new CryptographicException("Prism: Encrypted refresh token could not be decrypted.");
+    }
+
+    /// <summary>An 8 character identifier for a key. It reveals nothing useful about the key.</summary>
+    private static string KeyId(byte[] key) => Convert.ToHexStringLower(SHA256.HashData(key).AsSpan(0, 4));
+
+    private static byte[] ParseKey(string? keyString, string settingName)
+    {
+        if (string.IsNullOrWhiteSpace(keyString))
+            throw new InvalidOperationException(
+                "Prism: RefreshToken encryption key must be configured. " +
+                $"Set '{settingName}' (base64-encoded 32-byte key) in configuration.");
+
+        byte[] key;
+        try
+        {
+            key = Convert.FromBase64String(keyString);
+        }
+        catch (FormatException)
+        {
+            throw new InvalidOperationException(
+                "Prism: RefreshToken encryption key must be a valid base64 string. " +
+                $"Set '{settingName}' to a base64-encoded 32-byte key.");
+        }
+
+        if (key.Length != KeySize)
+            throw new InvalidOperationException(
+                $"Prism: RefreshToken encryption key must be exactly {KeySize} bytes (256 bits). " +
+                $"Got {key.Length} bytes. Generate with: Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))");
+
+        return key;
     }
 }

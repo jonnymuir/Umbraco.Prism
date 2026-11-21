@@ -70,13 +70,6 @@ umbraco.Build();
 
 WebApplication app = builder.Build();
 
-// SECURITY: KEYCLOAK_BACKCHANNEL_URL must never be set in production — it bypasses
-// TLS certificate validation for OIDC metadata fetches, which is only acceptable
-// in controlled development environments. Fail loudly if misconfigured.
-if (!app.Environment.IsDevelopment() && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL")))
-{
-    throw new InvalidOperationException("KEYCLOAK_BACKCHANNEL_URL must not be set in non-Development environments.");
-}
 
 // In GitHub Codespaces, the browser accesses the app via a public URL like
 // https://{token}-44345.{region}.app.github.dev, but Codespaces does not forward that

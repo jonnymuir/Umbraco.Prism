@@ -30,9 +30,11 @@ public interface ITenantTokenResolver
 /// <param name="TokenName">The bare token name, without the {{ }} delimiters.</param>
 /// <param name="ResolvedValue">The value from IConfiguration, or <see langword="null"/> when unresolved.</param>
 /// <param name="IsResolved">True when a configuration value was found for this token.</param>
+/// <param name="IsBlocked">True when the token's name is refused, so it never resolves whatever the configuration holds.</param>
 public record TenantTokenResult(
     string FieldName,
     string RawValue,
     string TokenName,
     string? ResolvedValue,
-    bool IsResolved);
+    bool IsResolved,
+    bool IsBlocked = false);

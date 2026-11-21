@@ -340,6 +340,7 @@ public class PrismMobileSignInTests
         var tenant = Tenant();
         var services = new ServiceCollection()
             .AddSingleton<IPrismContext>(new TestPrismContext { CurrentTenant = tenant })
+            .AddSingleton<IPrismOidcDiscovery>(TestOidcDiscovery.Keycloak)
             .BuildServiceProvider();
         var options = new OpenIdConnectOptions();
         options.Events.OnRedirectToIdentityProvider = _ => Task.CompletedTask;

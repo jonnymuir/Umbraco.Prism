@@ -62,13 +62,6 @@ builder.Services.AddSingleton<MemberRegistrar>();
 
 var app = builder.Build();
 
-// SECURITY: KEYCLOAK_BACKCHANNEL_URL must never be set in production — it bypasses
-// TLS certificate validation for OIDC metadata fetches, which is only acceptable
-// in controlled development environments. Fail loudly if misconfigured.
-if (!app.Environment.IsDevelopment() && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("KEYCLOAK_BACKCHANNEL_URL")))
-{
-    throw new InvalidOperationException("KEYCLOAK_BACKCHANNEL_URL must not be set in non-Development environments.");
-}
 
 app.Use(async (ctx, next) =>
 {

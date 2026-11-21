@@ -55,6 +55,28 @@ These variables must **NEVER** be set in production:
 - Unset in production ✅
 - Set to internal Aspire URL in Codespaces ✅
 
+### ⚠️ **Prism__AllowDemoTenants** and **Prism__AllowInternalAuthorities**
+
+**What they do:**
+- Prism's demo behaviours are on only in Development: the `localhost` and Codespaces demo tenants,
+  inline client secrets for them, and an identity provider on a loopback address or plain `http`.
+- `Prism__AllowDemoTenants=true` switches those on in another environment. Leave it unset in
+  production.
+- `Prism__AllowInternalAuthorities=true` lets a tenant's OIDC authority be a private, loopback or
+  link-local address, for an identity provider that really is on an internal network. Without it,
+  an authority must be an `https` URL on a public host, with no credentials, query or fragment.
+  Set it only if you need it.
+
+**Tenant checks.** Every tenant identity is validated when it is saved (the management API, uSync
+and `Prism:SeedTenant`) and again when it is resolved at runtime. A tenant that fails loses its
+sign-in configuration and the failure is logged, so a bad row cannot make the server request an
+unintended address.
+
+**Tenant tokens.** A `{{TOKEN}}` in a tenant field resolves from configuration, except names that
+look like credentials or framework settings (`SECRET`, `PASSWORD`, `KEY`, `TOKEN`,
+`CONNECTIONSTRING`, `ASPNETCORE_`, `UMBRACO_` and similar), which never resolve. To allow only your
+own tokens, set `Prism:TenantTokens:AllowedPrefixes` to a list such as `["TENANT_"]`.
+
 ### ⚠️ **CODESPACE_NAME**
 
 **What it is:**
@@ -80,6 +102,61 @@ These variables must **NEVER** be set in production:
 - Never set in production ❌
 
 ---
+
+## Member session lifetime
+
+A member's session cookie slides for 8 hours of inactivity, ends after 7 days whatever the
+activity, and is re-confirmed with the identity provider every 15 minutes using the member's
+stored refresh token. A member removed or disabled at the provider (the provider answers
+`invalid_grant`) is signed out at the next check. A provider that cannot be reached does not sign
+anyone out; the check is retried within minutes. A session with no refresh token has only the two
+time limits. Tune them in `Prism:Session`:
+
+```json
+{ "Prism": { "Session": { "SlidingExpirationMinutes": 480, "AbsoluteMaxLifetimeMinutes": 10080, "RevalidationIntervalMinutes": 15 } } }
+```
+
+Set `RevalidationIntervalMinutes` to `0` to turn the provider check off. Ending a session at an
+interactive sign-out also ends it at the provider through the provider's end-session endpoint.
+
+## Rate limiting and the key ring
+
+**Sign-in endpoints.** Prism limits `/auth/login`, `/auth/register`, `/signin-oidc`,
+`/signout-callback-oidc` and the mobile handover (`/umbraco/prism/mobile/auth/*`) to 60 requests a
+minute per address and answers `429` beyond that. Change it with
+`Prism:RateLimiting:SignInRequestsPerMinute` (`0` turns it off). The limit is per address and per
+process. Behind a reverse proxy the address is the proxy's unless you configure forwarded headers
+for it, and with several instances each keeps its own count. A host that sets its own
+`RateLimiterOptions.GlobalLimiter` replaces this one.
+
+**Biometric exchange.** A token that fails too often is locked for the failure window, then starts
+afresh. Idle entries are discarded and tracking is capped, so unique garbage cannot grow memory.
+
+**Data Protection.** The member cookie, the mobile handover ticket and antiforgery tokens are only
+as strong as the Data Protection key ring. Outside Development Prism logs a warning at startup when
+the host has not chosen where keys are stored (`PersistKeysTo...`) and how they are protected
+(`ProtectKeysWith...`). Set `Prism:DataProtection:RequireConfiguredKeys` to `true` to refuse to
+start instead. With several instances, keys must be shared and protected, or sessions will fail
+intermittently.
+
+## Hostnames, secrets and identity
+
+**Unknown hostnames.** By default a request whose hostname matches no tenant falls through to the
+host's own site. On a host that serves tenants only, set `Prism:RejectUnknownHosts` to `true` and
+such requests are answered `421 Misdirected Request` before anything else runs.
+
+**Secret cache.** A client secret read from Key Vault is cached for 60 minutes
+(`Prism:Secrets:CacheMinutes`), so a rotated secret reaches Prism within that time. A failed lookup
+is never cached as a value: it is not retried for 15 seconds, then tried again.
+
+**Stable member identifier.** `ClaimsPrincipal.GetSubject()` returns `{tid}:{oid}` for an Entra
+member and `{issuer}|{sub}` for another provider. It does not change when the member's email or
+sign-in name does, so key ownership, rosters and notification routing on it, and keep email as a
+contact detail.
+
+**Mobile sign-in codes** are redeemed once. A host with more than one instance must register a
+shared `IDistributedCache` (the default is per instance) or a code issued by one instance cannot be
+redeemed on another.
 
 ## Admin Endpoint Risk: MockBusinessApp
 

@@ -504,6 +504,7 @@ public class PrismOidcConfigurationTests
         var prismContext = new TestPrismContext { CurrentTenant = tenant };
         var services = new ServiceCollection()
             .AddSingleton<IPrismContext>(prismContext)
+            .AddSingleton<IPrismOidcDiscovery>(TestOidcDiscovery.Keycloak)
             .AddSingleton(authenticationService ?? new StubAuthenticationService(AuthenticateResult.NoResult()))
             .BuildServiceProvider();
 
@@ -526,6 +527,7 @@ public class PrismOidcConfigurationTests
     {
         var services = new ServiceCollection()
             .AddSingleton<IPrismContext>(new TestPrismContext { CurrentTenant = tenant })
+            .AddSingleton<IPrismOidcDiscovery>(TestOidcDiscovery.Keycloak)
             .AddSingleton(authenticationService ?? new StubAuthenticationService(AuthenticateResult.NoResult()))
             .BuildServiceProvider();
         var httpContext = new DefaultHttpContext

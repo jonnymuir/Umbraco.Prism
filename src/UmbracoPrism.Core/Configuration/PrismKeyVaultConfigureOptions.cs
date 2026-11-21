@@ -3,6 +3,7 @@ using Azure.Core;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using UmbracoPrism.Core.Services;
@@ -22,11 +23,13 @@ public class PrismKeyVaultConfigureOptions : IConfigureOptions<PrismBiometricOpt
     private const string EncryptionKeySecretName = "Prism--Biometric--EncryptionKey";
 
     private readonly IConfiguration _configuration;
+    private readonly IHostEnvironment _environment;
     private readonly ILogger<PrismKeyVaultConfigureOptions> _logger;
 
-    public PrismKeyVaultConfigureOptions(IConfiguration configuration, ILogger<PrismKeyVaultConfigureOptions> logger)
+    public PrismKeyVaultConfigureOptions(IConfiguration configuration, IHostEnvironment environment, ILogger<PrismKeyVaultConfigureOptions> logger)
     {
         _configuration = configuration;
+        _environment = environment;
         _logger = logger;
     }
 
@@ -78,11 +81,7 @@ public class PrismKeyVaultConfigureOptions : IConfigureOptions<PrismBiometricOpt
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
-            _logger.LogWarning(
-                "Prism: Biometric secrets not found in Key Vault ({VaultUri}). " +
-                "Falling back to configuration-bound values (user secrets / environment variables). " +
-                "Add '{SigningKey}' and '{EncryptionKey}' to the vault for production use.",
-                vaultUri, SigningKeySecretName, EncryptionKeySecretName);
+            FallBackToConfiguration(uri, ex);
         }
         catch (Exception ex)
         {
@@ -90,5 +89,26 @@ public class PrismKeyVaultConfigureOptions : IConfigureOptions<PrismBiometricOpt
                 "Prism: Key Vault temporarily unavailable after retries. Check network connectivity and vault availability.",
                 ex);
         }
+    }
+
+    /// <summary>
+    /// A configured vault that lacks the keys is a mistake. Outside Development, quietly using whatever
+    /// the configuration holds could mean a weak or shared key, so the host does not start.
+    /// </summary>
+    private void FallBackToConfiguration(Uri vaultUri, RequestFailedException cause)
+    {
+        if (!_environment.IsDevelopment())
+        {
+            throw new InvalidOperationException(
+                $"Prism: the biometric keys '{SigningKeySecretName}' and '{EncryptionKeySecretName}' were not found in the Key Vault ({vaultUri}). " +
+                "Add them to the vault. Falling back to configuration-bound keys is only allowed in Development.",
+                cause);
+        }
+
+        _logger.LogWarning(
+            "Prism: Biometric secrets not found in Key Vault ({VaultUri}). " +
+            "Falling back to configuration-bound values (user secrets / environment variables). " +
+            "Add '{SigningKey}' and '{EncryptionKey}' to the vault for production use.",
+            vaultUri, SigningKeySecretName, EncryptionKeySecretName);
     }
 }

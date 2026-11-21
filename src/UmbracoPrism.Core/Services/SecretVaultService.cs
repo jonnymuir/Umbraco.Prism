@@ -12,8 +12,14 @@ namespace UmbracoPrism.Core.Services;
 /// </summary>
 public class SecretVaultService : ISecretVaultService
 {
+    /// <summary>How long a failed lookup is remembered, so a vault outage is not hit on every request.</summary>
+    internal static readonly TimeSpan FailureBackoff = TimeSpan.FromSeconds(15);
+
     private readonly SecretClient? _secretClient;
     private readonly IAppPolicyCache _runtimeCache;
+    private readonly TimeSpan _cacheLifetime;
+    private readonly TimeProvider _timeProvider;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> _failedAt = new(StringComparer.Ordinal);
 
     private readonly ILogger<SecretVaultService> _logger;
 
@@ -24,18 +30,35 @@ public class SecretVaultService : ISecretVaultService
     /// <param name="appCaches">Application cache container used for secret value caching.</param>
     /// <param name="logger">Logger for vault lookup diagnostics without secret contents.</param>
     public SecretVaultService(IConfiguration configuration, AppCaches appCaches, ILogger<SecretVaultService> logger)
+        : this(CreateClient(configuration), configuration, appCaches, logger, TimeProvider.System)
+    {
+    }
+
+    internal SecretVaultService(
+        SecretClient? secretClient,
+        IConfiguration configuration,
+        AppCaches appCaches,
+        ILogger<SecretVaultService> logger,
+        TimeProvider timeProvider)
+    {
+        _secretClient = secretClient;
+        _timeProvider = timeProvider;
+
+        // A rotated secret reaches Prism within this many minutes (default 60).
+        _cacheLifetime = TimeSpan.FromMinutes(Math.Max(1, configuration.GetValue("Prism:Secrets:CacheMinutes", 60)));
+        _runtimeCache = appCaches.RuntimeCache;
+        _logger = logger;
+    }
+
+    private static SecretClient? CreateClient(IConfiguration configuration)
     {
         // You'll add "Prism:VaultUri" to your appsettings.json
         var vaultUri = configuration["Prism:VaultUri"];
 
-        _runtimeCache = appCaches.RuntimeCache;
-        _logger = logger;
-
         // If no URI is provided, we just don't initialize the client
-        if (!string.IsNullOrEmpty(vaultUri))
-        {
-            _secretClient = new SecretClient(new Uri(vaultUri), new DefaultAzureCredential());
-        }
+        return string.IsNullOrEmpty(vaultUri)
+            ? null
+            : new SecretClient(new Uri(vaultUri), new DefaultAzureCredential());
     }
 
     /// <summary>
@@ -54,7 +77,13 @@ public class SecretVaultService : ISecretVaultService
 
         if (_runtimeCache == null) return string.Empty;
 
-        // We cache the secret for 1 hour to avoid hitting Azure on every single request
+        // A recent failure is not retried for a few seconds, and is never cached as a value.
+        if (_failedAt.TryGetValue(secretName, out var failedAt) && _timeProvider.GetUtcNow() - failedAt < FailureBackoff)
+        {
+            return string.Empty;
+        }
+
+        // A successful lookup is cached to avoid hitting Azure on every request
         var secretTask = _runtimeCache.GetCacheItem(cacheKey, async () =>
         {
             try
@@ -77,13 +106,23 @@ public class SecretVaultService : ISecretVaultService
                 _logger.LogError(ex, "Prism: An unexpected error occurred while retrieving secret '{SecretName}'.", secretName);
                 return null;
             }
-        }, TimeSpan.FromHours(1));
+        }, _cacheLifetime);
 
         if (secretTask == null) return string.Empty;
 
         string? secretValue = await secretTask;
 
-        return secretValue ?? string.Empty;
+        if (secretValue is null)
+        {
+            // The cache holds the task, so a failed lookup would otherwise be served for the whole
+            // lifetime. Drop it and back off briefly instead.
+            _runtimeCache.ClearByKey(cacheKey);
+            _failedAt[secretName] = _timeProvider.GetUtcNow();
+            return string.Empty;
+        }
+
+        _failedAt.TryRemove(secretName, out _);
+        return secretValue;
     }
 
     /// <inheritdoc />

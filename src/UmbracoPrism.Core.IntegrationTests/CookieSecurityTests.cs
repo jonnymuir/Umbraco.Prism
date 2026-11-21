@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,5 +22,17 @@ public sealed class CookieSecurityTests(TestSiteFactory factory)
         var options = factory.Services.GetRequiredService<IOptions<CookieTempDataProviderOptions>>().Value;
 
         options.Cookie.SecurePolicy.Should().Be(CookieSecurePolicy.Always);
+    }
+
+    [Fact]
+    public void The_member_cookie_has_an_explicit_bounded_sliding_window()
+    {
+        var cookie = factory.Services
+            .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get("PrismMemberCookie");
+
+        cookie.SlidingExpiration.Should().BeTrue();
+        cookie.ExpireTimeSpan.Should().BeLessThan(TimeSpan.FromDays(1),
+            "the framework default of 14 days must not apply to a member session");
     }
 }

@@ -18,7 +18,7 @@ namespace UmbracoPrism.Core.Controllers;
 // yet), Logout is a [ValidateAntiForgeryToken]-guarded POST. None has anything to authorize.
 [AllowAnonymous]
 [Route("auth")]
-public class AccountController(ILogger<AccountController> logger, IPrismContext prismContext) : Controller
+public partial class AccountController(ILogger<AccountController> logger, IPrismContext prismContext) : Controller
 {
     /// <summary>
     /// Initiates the login process. Not found on a hostname whose tenant has no sign-in
@@ -97,19 +97,7 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
     {
         var member = await GetMemberAsync();
 
-        // TEMPORARY diagnostic: reported live on mobile — sign-out no longer bounces to system
-        // Safari (a native WKWebView popup-handling fix), but the app still isn't actually
-        // signed out afterward, and Entra's own host has never once appeared in client-side
-        // navigation logs across several live tests. This logs server-side ground truth instead:
-        // is this action even reached more than once per tap (a client-side fix that reloads a
-        // popup's request could plausibly replay the exact same POST), and what does the request
-        // look like when it is.
-        logger.LogInformation(
-            "Prism logout requested: user={User}, authenticated={IsAuthenticated}, host={Host}, userAgent={UserAgent}",
-            member?.Identity?.Name ?? "(none)",
-            member is not null,
-            Request.Host.Value,
-            Request.Headers.UserAgent.ToString());
+        LogLogout(logger, member is not null);
 
         // A session established via BiometricController's own backchannel refresh_token grant
         // (see its own remarks on the "prism_auth_method" claim) never went through "PrismEntraID"'s
@@ -179,4 +167,7 @@ public class AccountController(ILogger<AccountController> logger, IPrismContext 
         var result = await HttpContext.AuthenticateAsync(PrismAuthenticationSchemes.MemberCookie);
         return result.Succeeded ? result.Principal : null;
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Prism logout requested (authenticated={IsAuthenticated})")]
+    private static partial void LogLogout(ILogger logger, bool isAuthenticated);
 }

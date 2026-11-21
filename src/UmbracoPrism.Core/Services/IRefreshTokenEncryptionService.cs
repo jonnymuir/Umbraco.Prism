@@ -10,13 +10,22 @@ public interface IRefreshTokenEncryptionService
     /// Encrypts a plaintext refresh token using AES-256-GCM.
     /// </summary>
     /// <param name="plaintext">The raw Entra refresh token.</param>
-    /// <returns>Base64-encoded ciphertext containing nonce, encrypted data, and authentication tag.</returns>
-    string Encrypt(string plaintext);
+    /// <param name="associatedData">
+    /// Context the ciphertext is bound to (for example tenant, user and device). It is not stored,
+    /// but decryption fails unless the same value is supplied, so a ciphertext copied to another
+    /// credential row is useless.
+    /// </param>
+    /// <returns>
+    /// A versioned string carrying the id of the key used, the nonce, the encrypted data and the
+    /// authentication tag.
+    /// </returns>
+    string Encrypt(string plaintext, string? associatedData = null);
 
     /// <summary>
     /// Decrypts a previously encrypted refresh token.
     /// </summary>
-    /// <param name="ciphertext">Base64-encoded ciphertext from <see cref="Encrypt"/>.</param>
+    /// <param name="ciphertext">Ciphertext from <see cref="Encrypt"/>, or an older unversioned one.</param>
+    /// <param name="associatedData">The value given to <see cref="Encrypt"/>. Ignored for an older unversioned ciphertext, which had none.</param>
     /// <returns>The original plaintext refresh token.</returns>
-    string Decrypt(string ciphertext);
+    string Decrypt(string ciphertext, string? associatedData = null);
 }

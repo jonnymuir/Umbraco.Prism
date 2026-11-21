@@ -311,34 +311,29 @@ public class BackchannelRewriteTests
     }
 
     /// <summary>
-    /// MockBusinessApp/Program.cs lines 38-41 must contain a fail-loud guard that throws
-    /// when KEYCLOAK_BACKCHANNEL_URL is set in any non-Development environment. This is
-    /// the last-resort defence ensuring a misconfigured deployment is immediately visible.
-    ///
-    /// This is a read-only assertion against the wiring — the guard text is verified to
-    /// exist in source so that it cannot be silently removed without breaking this test.
+    /// A host that calls AddPrismAuthentication (the MockBusinessApp, or any consumer's API) must
+    /// refuse to start with the backchannel override set outside Development, without the host
+    /// having to carry its own guard.
     /// </summary>
     [Fact]
-    public void MockBusinessApp_FailLoudGuard_ExistsAndWouldThrow_WhenBackchannelSetInProduction()
+    public async Task AddPrismAuthentication_RefusesToStart_WhenBackchannelSetInProduction()
     {
-        // Navigate from the test output directory to the MockBusinessApp source.
-        var programPath = Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory,
-                "../../../../../src/UmbracoPrism.MockBusinessApp/Program.cs"));
+        using var envVar = new TempEnvVar("KEYCLOAK_BACKCHANNEL_URL", "http://localhost:8080");
+        var services = new ServiceCollection();
+        var environment = new Mock<Microsoft.Extensions.Hosting.IHostEnvironment>();
+        environment.SetupGet(x => x.EnvironmentName).Returns("Production");
+        services.AddSingleton(environment.Object);
+        var configuration = new ConfigurationBuilder().Build();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddLogging();
+        services.AddPrismAuthentication(configuration);
+        using var provider = services.BuildServiceProvider();
 
-        File.Exists(programPath).Should().BeTrue(
-            $"MockBusinessApp/Program.cs must exist at {programPath}");
+        var guard = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().Single(h => h.GetType().Name == "PrismBackchannelGuard");
+        var act = () => guard.StartAsync(CancellationToken.None);
 
-        var source = File.ReadAllText(programPath);
-
-        source.Should().Contain("KEYCLOAK_BACKCHANNEL_URL must not be set in non-Development environments",
-            "the fail-loud error message must be present in Program.cs");
-        source.Should().Contain("!app.Environment.IsDevelopment()",
-            "the guard must check the hosting environment before throwing");
-        source.Should().Contain("throw new InvalidOperationException(",
-            "the guard must throw rather than log-and-continue so misconfiguration is immediately visible");
-        source.Should().Contain("KEYCLOAK_BACKCHANNEL_URL",
-            "the guard must explicitly reference the env var it is protecting against");
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*KEYCLOAK_BACKCHANNEL_URL must not be set in non-Development environments*");
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
@@ -450,7 +445,7 @@ public class BackchannelRewriteTests
                 (endpoint, _, _, _) => onRefreshCall(endpoint))
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {
@@ -685,7 +680,7 @@ public class BackchannelRewriteTests
                 (_, _, _, headers) => onHeaders(headers))
             .ReturnsAsync(new TokenRefreshResult(true, "new-access-token", "new-refresh-token", 3600));
 
-        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator())
+        var prismContext = new PrismContext(accessor, vault.Object, tokenRefreshService.Object, new PrismTenantBindingValidator(), TestOidcDiscovery.Keycloak)
         {
             CurrentTenant = new PrismTenant
             {

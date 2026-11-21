@@ -210,7 +210,7 @@ public class BiometricControllerTests
 
         capturedRecord.Should().NotBeNull();
         var encService = BuildEncryptionService();
-        var decrypted = encService.Decrypt(capturedRecord!.RefreshTokenEnc);
+        var decrypted = encService.Decrypt(capturedRecord!.RefreshTokenEnc, BiometricCredentialContext.For(capturedRecord.TenantId, capturedRecord.UserId, capturedRecord.DeviceId));
         decrypted.Should().Be("secret-refresh-token");
     }
 
@@ -474,22 +474,25 @@ public class BiometricControllerTests
         var tenantId = tenant.Id.ToString(CultureInfo.InvariantCulture);
 
         var tokenService = BuildTokenService();
-        var encryptionService = BuildEncryptionService();
 
         // Issue a valid biometric token JWT
         var biometricToken = tokenService.IssueToken(deviceId, tenantId, userOid, TimeSpan.FromDays(30));
         var tokenHash = tokenService.HashToken(biometricToken);
 
-        // Encrypt a test refresh token for the DB record
-        var storedRefreshToken = "stored-entra-refresh-token";
-        var refreshTokenEnc = encryptionService.Encrypt(storedRefreshToken);
+        var dbDeviceId = overrideDbDeviceId ?? deviceId;
+        var dbUserId = overrideDbUserId ?? userOid;
+
+        // Encrypt a test refresh token for the DB record, bound to the row's own tenant, user and device
+        var refreshTokenEnc = BuildEncryptionService().Encrypt(
+            "stored-entra-refresh-token",
+            BiometricCredentialContext.For(tenantId, dbUserId, dbDeviceId));
 
         var credential = new PrismDeviceCredentialSchema
         {
             Id = 1,
-            DeviceId = overrideDbDeviceId ?? deviceId,
+            DeviceId = dbDeviceId,
             TenantId = tenantId,
-            UserId = overrideDbUserId ?? userOid,
+            UserId = dbUserId,
             TokenHash = tokenHash,
             RefreshTokenEnc = refreshTokenEnc,
             RegisteredAt = DateTime.UtcNow.AddDays(-1),
@@ -633,7 +636,7 @@ public class BiometricControllerTests
 
         capturedRecord.Should().NotBeNull();
         var encService = BuildEncryptionService();
-        var decrypted = encService.Decrypt(capturedRecord!.RefreshTokenEnc);
+        var decrypted = encService.Decrypt(capturedRecord!.RefreshTokenEnc, BiometricCredentialContext.For(capturedRecord.TenantId, capturedRecord.UserId, capturedRecord.DeviceId));
         decrypted.Should().Be("new-refresh-token");
     }
 
@@ -672,7 +675,7 @@ public class BiometricControllerTests
 
         capturedRecord.Should().NotBeNull();
         var encService = BuildEncryptionService();
-        var decrypted = encService.Decrypt(capturedRecord!.RefreshTokenEnc);
+        var decrypted = encService.Decrypt(capturedRecord!.RefreshTokenEnc, BiometricCredentialContext.For(capturedRecord.TenantId, capturedRecord.UserId, capturedRecord.DeviceId));
         decrypted.Should().Be("stored-entra-refresh-token", because: "should fall back to existing refresh token when Entra doesn't return a new one");
     }
 

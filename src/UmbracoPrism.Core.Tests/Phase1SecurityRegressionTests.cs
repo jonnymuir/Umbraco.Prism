@@ -580,6 +580,7 @@ public class Phase1SecurityRegressionTests : IDisposable
         var authService = new RecordingAuthenticationService();
         var services = new ServiceCollection()
             .AddSingleton<IPrismContext>(new TestPrismContext { CurrentTenant = tenant })
+            .AddSingleton<IPrismOidcDiscovery>(TestOidcDiscovery.Keycloak)
             .AddSingleton<ISecretVaultService>(new StubSecretVaultService("vault-backed-secret"))
             .AddSingleton<IAuthenticationService>(authService)
             .BuildServiceProvider();
@@ -603,6 +604,39 @@ public class Phase1SecurityRegressionTests : IDisposable
         authService.LastSignInScheme.Should().BeNull("nobody may be signed in by a callback Prism could not have started");
     }
 
+    [Fact]
+    public async Task PrismOidcConfiguration_RefusesACallback_WhoseIssParameterNamesAnotherProvider()
+    {
+        // RFC 9207: a response that says it came from a different issuer than the tenant's
+        // authority is a mix-up attempt and is refused before any code is redeemed.
+        var tenant = new PrismTenant
+        {
+            Hostname = "northwind.example",
+            OidcAuthority = "https://idp.northwind.example/realms/members",
+            OidcClientId = "northwind-web",
+            OidcClientSecretProvider = PrismSecretProviderNames.AzureKeyVault,
+            OidcClientSecretReference = "northwind-oidc-secret"
+        };
+        var services = new ServiceCollection()
+            .AddSingleton<IPrismContext>(new TestPrismContext { CurrentTenant = tenant })
+            .AddSingleton<IPrismOidcDiscovery>(TestOidcDiscovery.Keycloak)
+            .AddSingleton<ISecretVaultService>(new StubSecretVaultService("vault-backed-secret"))
+            .AddSingleton<IAuthenticationService>(new RecordingAuthenticationService())
+            .BuildServiceProvider();
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        var options = ConfigureOidcOptions(httpContext);
+        var callback = new AuthorizationCodeReceivedContext(
+            httpContext, CreatePrismEntraIdScheme(), options, new AuthenticationProperties { RedirectUri = "/" })
+        {
+            ProtocolMessage = new OpenIdConnectMessage { Code = "code", Iss = "https://other-idp.example/realms/members" }
+        };
+
+        var act = () => options.Events.OnAuthorizationCodeReceived(callback);
+
+        await act.Should().ThrowAsync<System.Security.Authentication.AuthenticationException>()
+            .WithMessage("*different provider*");
+    }
+
     private static async Task<string> ExecutePostLoginRedirectAsync(string? returnUrl, LoopbackOidcProvider oidcProvider)
     {
         // These redirect-contract tests intentionally execute the real callback path so PrismOidcConfiguration
@@ -618,7 +652,9 @@ public class Phase1SecurityRegressionTests : IDisposable
 
         var authService = new RecordingAuthenticationService();
         var services = new ServiceCollection()
+            .AddHttpClient()
             .AddSingleton<IPrismContext>(new TestPrismContext { CurrentTenant = tenant })
+            .AddSingleton<IPrismOidcDiscovery>(TestOidcDiscovery.Keycloak)
             .AddSingleton<ISecretVaultService>(new StubSecretVaultService("vault-backed-secret"))
             .AddSingleton<IAuthenticationService>(authService)
             .BuildServiceProvider();
@@ -669,9 +705,11 @@ public class Phase1SecurityRegressionTests : IDisposable
 
     private static OpenIdConnectOptions ConfigureOidcOptions(HttpContext httpContext)
     {
+        var httpClientFactory = new Mock<IHttpClientFactory>();
+        httpClientFactory.Setup(x => x.CreateClient(It.IsAny<string>())).Returns(() => new HttpClient());
         var configuration = new PrismOidcConfiguration(
             new HttpContextAccessor { HttpContext = httpContext },
-            Mock.Of<IPrismSigningKeyCache>(),
+            new PrismSigningKeyCache(httpClientFactory.Object),
             NullLogger<PrismOidcConfiguration>.Instance);
 
         var options = new OpenIdConnectOptions();

@@ -37,6 +37,11 @@ public class PrismPageAccessResolver : IPrismPageAccessResolver
     public PrismPageAccessResult Resolve(Guid contentKey, PrismTenant? tenant, bool isAuthenticated)
     {
         var policies = GetAllPolicies();
+        if (policies is null)
+        {
+            return PrismPageAccessResult.Unavailable;
+        }
+
         if (!policies.TryGetValue(contentKey, out var policy))
         {
             return PrismPageAccessResult.Public;
@@ -64,7 +69,7 @@ public class PrismPageAccessResolver : IPrismPageAccessResolver
             LogScrub.Line(reason));
     }
 
-    private Dictionary<Guid, PrismPageAccessPolicy> GetAllPolicies()
+    private Dictionary<Guid, PrismPageAccessPolicy>? GetAllPolicies()
     {
         try
         {
@@ -77,14 +82,12 @@ public class PrismPageAccessResolver : IPrismPageAccessResolver
         }
         catch (Exception ex)
         {
-            // A cold-boot race against this table's own migration (see PrismMigrationPlan)
-            // surfaces here as a raw database exception — same handling as
-            // TenantService.GetByDomainAsync's own catch: treat as "no policies configured" for
-            // this request rather than crashing every content page; not cached, so the very next
-            // request retries once the table exists.
-            _logger.LogWarning(ex,
-                "Page-access policy lookup failed due to an unexpected database error; treating as unconfigured for this request.");
-            return [];
+            // Fail closed: when the policy table cannot be read we cannot know which pages are
+            // protected, so every page is unavailable for this request. Not cached, so the next
+            // request retries (a cold-boot race against the table's migration clears itself).
+            _logger.LogError(ex,
+                "Page-access policy lookup failed due to an unexpected database error; denying the page for this request.");
+            return null;
         }
     }
 
