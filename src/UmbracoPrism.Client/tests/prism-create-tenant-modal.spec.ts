@@ -408,3 +408,50 @@ test('Push notifications toggle can be enabled', async ({ page }) => {
 
   expect(finalChecked).toBe(true);
 });
+
+test('Devices tab lists a tenant\'s biometric devices and revokes one after confirmation', async ({ page }) => {
+  const device = (overrides: Record<string, unknown> = {}) => ({
+    deviceId: 'device-1',
+    deviceName: 'Pixel 9',
+    platform: 'android',
+    userId: 'member-oid',
+    registeredAt: '2026-11-01T10:00:00Z',
+    lastUsedAt: null,
+    expiresAt: '2026-12-01T10:00:00Z',
+    revokedAt: null,
+    ...overrides
+  });
+  let devices = [device()];
+  const deleted: string[] = [];
+
+  await page.route('**/umbraco/management/api/v1/prism/tenants/*/devices**', async (route) => {
+    const request = route.request();
+    if (request.method() === 'DELETE') {
+      deleted.push(new URL(request.url()).pathname);
+      devices = [device({ revokedAt: '2026-11-21T09:00:00Z' })];
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(devices) });
+  });
+
+  await page.goto(editStoryUrl);
+  const frame = page.frameLocator('#storybook-preview-iframe');
+  const modal = frame.locator('prism-create-tenant-modal');
+  await expect(modal).toBeVisible();
+
+  await modal.evaluate((el) => {
+    (el.shadowRoot?.querySelector('uui-tab[label="Devices"]') as HTMLElement | null)?.click();
+  });
+
+  await expect(modal.getByRole('table', { name: 'Biometric devices' })).toBeVisible();
+  await expect(modal.getByText('Pixel 9')).toBeVisible();
+
+  await modal.getByRole('button', { name: 'Revoke Pixel 9' }).click();
+  expect(deleted).toHaveLength(0);
+  await modal.getByRole('button', { name: 'Confirm revoke' }).click();
+
+  await expect(modal.getByText('Revoked', { exact: true })).toBeVisible();
+  expect(deleted).toHaveLength(1);
+  expect(deleted[0]).toMatch(/\/tenants\/\d+\/devices\/device-1$/);
+});

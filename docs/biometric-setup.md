@@ -283,6 +283,22 @@ Key Vault errors surface with actionable messages:
 
 Monitor your App Service startup logs to debug Key Vault issues during early testing.
 
+## Revoking a device
+
+A backoffice administrator can see and revoke the devices registered on a tenant. Open **Settings,
+Advanced, Tenants**, edit the tenant and choose the **Devices** tab. It lists each device's name,
+platform, member, and registration, last use and expiry dates. **Revoke**, then **Confirm revoke**,
+marks the credential revoked. The device's next biometric sign-in is refused and the member signs in
+again with their identity provider. A revoked row stays in the list so the record is kept.
+
+The same actions are available from the Management API, for tenant `{id}`:
+
+- `GET /umbraco/management/api/v1/prism/tenants/{id}/devices`
+- `DELETE /umbraco/management/api/v1/prism/tenants/{id}/devices/{deviceId}`
+
+Both need a backoffice user in the `PrismAdmins` policy. A device that belongs to another tenant is
+reported as not found. Members can also remove their own devices from the app.
+
 ## Security Notes
 
 ### Key Rotation

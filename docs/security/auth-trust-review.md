@@ -126,13 +126,6 @@ filtering at the network edge.
 biometric exchange limiter do not span instances, and the address is the proxy's unless the host
 configures forwarded headers. Fix: document it (done) and use a shared limiter if the host scales out.
 
-**AUTH-13. Authorization uses two identity systems.** `DeviceAdminController` requires the member
-cookie scheme and the `PrismAdmins` policy, which checks an Umbraco backoffice user. A pure member
-can never satisfy it, and an admin signed in to both can. It is fail-closed, so it is a design smell
-rather than a hole, but an admin API that cannot be used is how someone later "fixes" it
-dangerously. Fix: decide the actor (backoffice user) and move it to the Management API like the
-other admin controllers.
-
 **AUTH-15 (residual). Mobile handover codes depend on a shared cache.** A code is claimed in process
 before the cache is read, so concurrent redemptions in one process cannot both succeed. The default
 `AddDistributedMemoryCache` is per instance; a multi-instance host must register a shared cache or
@@ -248,7 +241,7 @@ Worth stating so it is not undone.
 
 1. P-04 and P-05: release approval and key-based deploys. They need repository settings and
    secrets rather than code.
-2. AUTH-09 and AUTH-13: decide the member identifier and the device-admin actor, then migrate.
+2. AUTH-09: migrate the reference site's ownership and routing from email to the member subject.
 3. AUTH-12: require configured Data Protection keys in production and protect the reference site's.
 4. AUTH-02 (residual) with AUTH-19: the long-lived `ConfigurationManager` and a server-side ticket
    store, which both delete bespoke code.

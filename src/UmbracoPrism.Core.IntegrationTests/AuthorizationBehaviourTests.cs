@@ -34,7 +34,6 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
     // ---- Endpoints behind [Authorize(AuthenticationSchemes = "PrismMemberCookie")] ----
 
     [Theory]
-    [InlineData("DELETE", "/api/prism/device/some-device")]           // DeviceAdminController (+ PrismAdmins)
     [InlineData("POST", "/umbraco/prism/mobile/biometric/register")]  // BiometricController.Register
     [InlineData("DELETE", "/umbraco/prism/mobile/biometric/revoke")]  // BiometricController.Revoke
     [InlineData("POST", "/umbraco/prism/push/register")]              // PrismNotificationController
@@ -55,11 +54,15 @@ public sealed class AuthorizationBehaviourTests(TestSiteFactory factory)
 
     // ---- Management API: [Authorize(Policy = BackOfficeAccess)] + [Authorize(Policy = "PrismAdmins")] ----
 
-    [Fact]
-    public async Task Tenant_management_api_rejects_an_anonymous_caller()
+    [Theory]
+    [InlineData("GET", "/umbraco/management/api/v1/prism/tenants")]
+    [InlineData("GET", "/umbraco/management/api/v1/prism/tenants/1/devices")]            // DeviceManagementController
+    [InlineData("DELETE", "/umbraco/management/api/v1/prism/tenants/1/devices/some-device")]
+    public async Task Management_api_rejects_an_anonymous_caller(string method, string path)
     {
         using var client = Anonymous();
-        var res = await client.GetAsync("/umbraco/management/api/v1/prism/tenants");
+        using var req = new HttpRequestMessage(new HttpMethod(method), path);
+        var res = await client.SendAsync(req);
         res.StatusCode.Should().BeOneOf(
             new[] { HttpStatusCode.Unauthorized, HttpStatusCode.Redirect });
     }

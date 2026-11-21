@@ -8,6 +8,7 @@ import { BrandingSection } from './tenant-modal/branding-section.js';
 import type { BrandingTab } from './tenant-modal/branding-rules.js';
 import { IdentitySection } from './tenant-modal/identity-section.js';
 import { MobileSection } from './tenant-modal/mobile-section.js';
+import { DevicesSection } from './tenant-modal/devices-section.js';
 import { TokenStatusSection } from './tenant-modal/token-status-section.js';
 import { tenantModalStyles } from './tenant-modal/tenant-modal.styles.js';
 
@@ -53,6 +54,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
   });
   private readonly _branding = new BrandingSection(this, { tenant: () => this.data?.tenant });
   private readonly _tokens = new TokenStatusSection(this);
+  private readonly _devices = new DevicesSection(this);
 
   modalContext?: any;
 
@@ -128,7 +130,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
 
   private _ensureActiveTab() {
     const brandingKeys = this._branding.tabs.map((_, index) => brandingTabKey(index));
-    const allowedTabs = new Set(['general', 'identity', 'mobile', 'tokens', ...brandingKeys]);
+    const allowedTabs = new Set(['general', 'identity', 'mobile', 'tokens', 'devices', ...brandingKeys]);
 
     if (!allowedTabs.has(this._activeTab)) {
       this._activeTab = 'general';
@@ -159,6 +161,9 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
     }
     if (nextTab === 'tokens') {
       this._tokens.refresh(this._id);
+    }
+    if (nextTab === 'devices') {
+      this._devices.refresh(this._id);
     }
   }
 
@@ -293,6 +298,7 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         ${tab('identity-tab', 'identity', 'Identity')}
         ${tab('mobile-tab', 'mobile', 'Produce Mobile')}
         ${tab('tokens-tab', 'tokens', 'Environment Tokens')}
+        ${tab('devices-tab', 'devices', 'Devices')}
         ${this._branding.tabs.map((brandingTab, index) => tab(`branding-tab-${index}`, brandingTabKey(index), brandingTab.label))}
       </uui-tab-group>
     `;
@@ -308,6 +314,8 @@ export class PrismCreateTenantModalElement extends UmbElementMixin(LitElement) {
         return this._mobile.render();
       case 'tokens':
         return this._tokens.render(this._id);
+      case 'devices':
+        return this._devices.render(this._id);
       default:
         return this._branding.tabs.map((_, index) => (this._activeTab === brandingTabKey(index) ? this._branding.render(index) : ''));
     }
