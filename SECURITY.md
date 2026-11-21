@@ -22,6 +22,15 @@ mobile apps Prism generates. Of particular interest: one tenant reaching another
 members, sessions, branding or secrets; bypassing sign-in or a page access policy; anything in the OIDC, token refresh or biometric sign-in flows that deviates from
 the specifications; and secrets reaching a response, a log or the browser.
 
+## Where Prism implements a standard itself
+
+Most of Prism's authentication uses ASP.NET Core and Microsoft libraries. These parts are Prism's
+own code, so they are the best places to look: the authorization code redemption, multi-issuer
+bearer validation and the signing-key cache, tenant resolution from the request hostname, the
+biometric credential protocol, the mobile sign-in handover, and the member session's lifetime and
+re-check. The [authentication and trust review](docs/security/auth-trust-review.md) maps each layer
+to a library or to Prism's own code, and lists the open findings.
+
 Out of scope: `UmbracoPrism.TestSite`, `UmbracoPrism.MockBusinessApp`, `UmbracoPrism.AppHost` and
 the Keycloak demo realm. They are demo hosts with published demo credentials. A vulnerability
 that they *demonstrate* in the package is in scope, so report it if in doubt.
