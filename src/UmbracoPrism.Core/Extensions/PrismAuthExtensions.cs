@@ -128,7 +128,7 @@ public static class PrismAuthExtensions
                             string.Equals(t.OidcAuthority.TrimEnd('/'), tokenIssuer.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
 
                         return oidcTenant != null
-                            && PrismOidcAudience.IsAccepted(oidcTenant, audiences, GetTokenAuthorizedParty(securityToken));
+                            && PrismOidcAudience.IsAccepted(oidcTenant, audiences);
                     },
 
                     IssuerSigningKeyResolver = (token, securityToken, kid, validationParameters) =>
@@ -253,17 +253,6 @@ public static class PrismAuthExtensions
         if (securityToken is JwtSecurityToken jwtSecurityToken)
             return jwtSecurityToken.Claims.FirstOrDefault(c => c.Type == "iss")?.Value
                 ?? (string.IsNullOrEmpty(jwtSecurityToken.Issuer) ? null : jwtSecurityToken.Issuer);
-
-        return null;
-    }
-
-    private static string? GetTokenAuthorizedParty(SecurityToken securityToken)
-    {
-        if (securityToken is Microsoft.IdentityModel.JsonWebTokens.JsonWebToken jsonWebToken)
-            return GetClaimValue(jsonWebToken, "azp");
-
-        if (securityToken is JwtSecurityToken jwtSecurityToken)
-            return jwtSecurityToken.Claims.FirstOrDefault(c => c.Type == "azp")?.Value;
 
         return null;
     }

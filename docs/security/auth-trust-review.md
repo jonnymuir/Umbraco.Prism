@@ -88,15 +88,16 @@ signed before derivation validate until they expire unless `AcceptLegacyTokens` 
 Fix: a hardware-bound key with a signed challenge (the proof-of-possession design) when the assurance
 level justifies it.
 
-**AUTH-12. Data Protection is the host's job.** A02/A05. The member cookie, the mobile handover
-ticket and antiforgery tokens are only as strong as the key ring. Outside Development Prism warns
-when keys are neither persisted nor protected by a choice the host made, and
-`Prism:DataProtection:RequireConfiguredKeys` refuses to start, but it is off by default and the
-reference site persists keys to disk unencrypted.
-Fix: turn the requirement on for production hosts and protect the reference site's keys (for
-example with Key Vault or a certificate).
-
 ### Low
+
+**AUTH-12 (residual). The reference site's Data Protection keys are unprotected.** A02/A05. The member
+cookie, the mobile handover ticket and antiforgery tokens are only as strong as the key ring. Prism
+refuses to start outside Development unless the host has chosen where keys are stored and how they
+are protected, with one exception: the reference site sets
+`Prism:DataProtection:RequireConfiguredKeys` to `false`, so it logs a warning and runs with the
+framework's default key store, unencrypted.
+Fix: persist the reference site's keys to a chosen directory and protect them with a certificate or
+Key Vault, then remove the opt-out. Revisit when the reference site holds anything beyond demo data.
 
 **AUTH-09 (residual). Rosters and demo records are matched by verified email.** A07. A signed-in
 member owns their service requests, and their registered devices and journey statuses, under
@@ -136,11 +137,6 @@ before the cache is read, so concurrent redemptions in one process cannot both s
 `AddDistributedMemoryCache` is per instance; a multi-instance host must register a shared cache or
 sign-in fails intermittently, and across instances the S256 verifier is the only second check.
 Fix: an atomic get-and-delete (Redis `GETDEL`) behind a small interface.
-
-**AUTH-17 (residual). Audience is optional for generic tenants.** A07. With no `Audience`
-configured, tokens issued to the web client (including its ID token) are accepted by the API through
-the `azp` rule. Prism logs a startup warning for each such tenant. Making `Audience` mandatory is a
-breaking change. Fix: require it in the next major version.
 
 **AUTH-19. Cookie hardening.** The member cookie is `Lax`, `Secure`, `HttpOnly`, host-only. It has
 no `__Host-` prefix and carries the access, ID and refresh tokens inside the ticket, which is why
@@ -242,7 +238,7 @@ Worth stating so it is not undone.
 
 1. P-04 and P-05: release approval and key-based deploys. They need repository settings and
    secrets rather than code.
-2. AUTH-12: require configured Data Protection keys in production and protect the reference site's.
+2. AUTH-12 (residual): protect the reference site's Data Protection keys and remove its opt-out.
 3. AUTH-02 (residual) with AUTH-19: the long-lived `ConfigurationManager` and a server-side ticket
    store, which both delete bespoke code.
 4. AUTH-10: proof of possession, when the assurance level justifies it.

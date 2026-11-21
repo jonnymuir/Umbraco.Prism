@@ -10,9 +10,8 @@ using UmbracoPrism.Core.Extensions;
 namespace UmbracoPrism.Core.Tests;
 
 /// <summary>
-/// The opt-in strict audience rule for a generic OIDC tenant: with <c>Audience</c> configured, a business API
-/// accepts only a token minted for that API. The default rule (no <c>Audience</c>) is covered in
-/// <see cref="PrismAuthExtensionsSecurityTests"/> and is deliberately unchanged.
+/// The audience rule for a generic OIDC tenant: a business API accepts only a token minted for the
+/// tenant's configured <c>Audience</c>, and a tenant with none accepts no token.
 /// </summary>
 [Collection(EnvVarSensitiveTestCollection.Name)]
 public class PrismAuthStrictAudienceTests
@@ -35,13 +34,13 @@ public class PrismAuthStrictAudienceTests
     }
 
     [Fact]
-    public void WithNoAudienceConfigured_TheDefaultRuleStillAcceptsATokenIssuedToTheClient()
+    public void WithNoAudienceConfigured_NoTokenIsAccepted_EvenOneIssuedToTheClient()
     {
         var options = JwtOptionsFor(audienceSetting: null);
         var token = new JwtSecurityToken(issuer: Authority, claims: [new Claim("aud", "account"), new Claim("azp", "prism-client")]);
 
-        options.TokenValidationParameters.AudienceValidator!(["account"], token, options.TokenValidationParameters)
-            .Should().BeTrue("strict mode is opt-in, so existing hosts are unaffected");
+        options.TokenValidationParameters.AudienceValidator!(["account", "prism-client"], token, options.TokenValidationParameters)
+            .Should().BeFalse("a token must have been minted for this API, and without an Audience nothing identifies it");
     }
 
     private static JwtBearerOptions JwtOptionsFor(string? audienceSetting)

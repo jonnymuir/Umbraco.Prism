@@ -1,7 +1,5 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using UmbracoPrism.Core.Logging;
 using UmbracoPrism.Core.Models;
 
 namespace UmbracoPrism.Core.Extensions;
@@ -11,22 +9,25 @@ namespace UmbracoPrism.Core.Extensions;
 /// Without an explicit <c>Audience</c>, a generic OIDC tenant accepts any token issued to its web
 /// client (including that client's ID token) through the <c>azp</c> rule.
 /// </summary>
-internal sealed partial class PrismBearerConfigurationCheck(IConfiguration configuration, ILogger<PrismBearerConfigurationCheck> logger) : IHostedService
+internal sealed class PrismBearerConfigurationCheck(IConfiguration configuration) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
     {
         var tenants = configuration.GetSection("PrismBusinessApp:Tenants").Get<List<BackOfficeTenant>>() ?? [];
-        foreach (var tenant in tenants.Where(t => !string.IsNullOrWhiteSpace(t.OidcAuthority) && string.IsNullOrWhiteSpace(t.Audience)))
+        var missing = tenants
+            .Where(t => !string.IsNullOrWhiteSpace(t.OidcAuthority) && string.IsNullOrWhiteSpace(t.Audience))
+            .Select(t => t.Code)
+            .ToList();
+        if (missing.Count > 0)
         {
-            LogMissingAudience(logger, LogScrub.Line(tenant.OidcAuthority) ?? string.Empty);
+            throw new InvalidOperationException(
+                "Prism: these PrismBusinessApp tenants use an OIDC authority but have no Audience, so the API would " +
+                $"accept none of their tokens: {string.Join(", ", missing)}. Set PrismBusinessApp:Tenants:n:Audience to " +
+                "the API's own audience (the identity provider must add it to access tokens).");
         }
 
         return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-    [LoggerMessage(Level = LogLevel.Warning,
-        Message = "Bearer tenant {Authority} has no Audience configured, so the API accepts tokens issued to its web client (azp). Set PrismBusinessApp:Tenants:n:Audience to the API's own audience.")]
-    private static partial void LogMissingAudience(ILogger logger, string authority);
 }
