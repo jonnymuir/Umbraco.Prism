@@ -116,12 +116,12 @@ public class RefreshTokenEnvelopeTests
     [Fact]
     public void EveryCredential_IsEncryptedUnderItsOwnDerivedKey_NotTheConfiguredKey()
     {
-        var one = RefreshTokenEncryptionService.DeriveKey(KeyA, "prism-biometric|tenant-1|user|device");
-        var other = RefreshTokenEncryptionService.DeriveKey(KeyA, "prism-biometric|tenant-2|user|device");
+        var one = RefreshTokenEnvelope.DeriveKey(KeyA, "prism-biometric|tenant-1|user|device");
+        var other = RefreshTokenEnvelope.DeriveKey(KeyA, "prism-biometric|tenant-2|user|device");
 
         one.Should().NotEqual(KeyA);
         one.Should().NotEqual(other, "another tenant's credential must not share a key with this one");
-        RefreshTokenEncryptionService.DeriveKey(KeyA, "prism-biometric|tenant-1|user|device")
+        RefreshTokenEnvelope.DeriveKey(KeyA, "prism-biometric|tenant-1|user|device")
             .Should().Equal(one, "the same context always derives the same key");
     }
 

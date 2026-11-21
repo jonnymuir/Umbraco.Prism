@@ -18,7 +18,6 @@ public class RefreshTokenEncryptionService : IRefreshTokenEncryptionService
 {
     private const string VersionPrefix = "v3.";
     private const string DirectKeyPrefix = "v2.";
-    private const string DerivationContext = "prism-biometric-encryption|";
     private const int NonceSize = 12;
     private const int TagSize = 16;
     private const int KeySize = 32; // 256 bits
@@ -57,7 +56,7 @@ public class RefreshTokenEncryptionService : IRefreshTokenEncryptionService
         var ciphertext = new byte[plaintextBytes.Length];
         var tag = new byte[TagSize];
 
-        using var aes = new AesGcm(DeriveKey(_current.Value, associatedData), TagSize);
+        using var aes = new AesGcm(RefreshTokenEnvelope.DeriveKey(_current.Value, associatedData), TagSize);
         aes.Encrypt(nonce, plaintextBytes, ciphertext, tag, Encoding.UTF8.GetBytes(associatedData ?? string.Empty));
 
         // Pack: [nonce][ciphertext][tag]
@@ -77,35 +76,19 @@ public class RefreshTokenEncryptionService : IRefreshTokenEncryptionService
         var aad = Encoding.UTF8.GetBytes(associatedData ?? string.Empty);
         if (ciphertext.StartsWith(VersionPrefix, StringComparison.Ordinal))
         {
-            var (key, data) = SplitVersioned(ciphertext, VersionPrefix);
-            return Open(data, [DeriveKey(key, associatedData)], aad);
+            var (key, data) = RefreshTokenEnvelope.Split(ciphertext, VersionPrefix, _keysById);
+            return Open(data, [RefreshTokenEnvelope.DeriveKey(key, associatedData)], aad);
         }
 
         if (ciphertext.StartsWith(DirectKeyPrefix, StringComparison.Ordinal))
         {
-            var (key, data) = SplitVersioned(ciphertext, DirectKeyPrefix);
+            var (key, data) = RefreshTokenEnvelope.Split(ciphertext, DirectKeyPrefix, _keysById);
             return Open(data, [key], aad);
         }
 
         // Unversioned: encrypted under the key then configured, with no associated data.
         return Open(Convert.FromBase64String(ciphertext), _keysById.Values, []);
     }
-
-    private (byte[] Key, byte[] Data) SplitVersioned(string ciphertext, string prefix)
-    {
-        var parts = ciphertext[prefix.Length..].Split('.', 2);
-        if (parts.Length != 2 || !_keysById.TryGetValue(parts[0], out var key))
-        {
-            throw new CryptographicException("Prism: Encrypted refresh token names a key that is not configured.");
-        }
-
-        return (key, Convert.FromBase64String(parts[1]));
-    }
-
-    /// <summary>The AES key for one credential: HKDF-SHA256 of the configured key, with its context as info.</summary>
-    internal static byte[] DeriveKey(byte[] configuredKey, string? associatedData) =>
-        HKDF.DeriveKey(HashAlgorithmName.SHA256, configuredKey, KeySize, salt: [],
-            info: Encoding.UTF8.GetBytes(DerivationContext + associatedData));
 
     private static string Open(byte[] data, IEnumerable<byte[]> candidateKeys, byte[] associatedData)
     {
