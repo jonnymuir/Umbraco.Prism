@@ -45,7 +45,7 @@ public sealed class TwoTenantIsolationTests(TestSiteFactory factory)
     private Dictionary<string, int> Seed()
     {
         var databaseFactory = factory.Services.GetRequiredService<IUmbracoDatabaseFactory>();
-        MemberSessionCookie.WaitForPrismTables(databaseFactory);
+        MemberSessionCookie.WaitForPrismTables(factory.Services);
 
         using var db = databaseFactory.CreateDatabase();
         var ids = new Dictionary<string, int>();

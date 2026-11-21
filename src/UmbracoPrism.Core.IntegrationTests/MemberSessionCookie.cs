@@ -1,9 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Umbraco.Cms.Infrastructure.Persistence;
 
 namespace UmbracoPrism.Core.IntegrationTests;
 
@@ -19,7 +20,7 @@ internal static class MemberSessionCookie
 
     internal static async Task<Issued> IssueAsync(IServiceProvider services, ClaimsPrincipal principal, DateTimeOffset expires, string? refreshToken = null)
     {
-        WaitForPrismTables(services.GetRequiredService<IUmbracoDatabaseFactory>());
+        WaitForPrismTables(services);
 
         var options = services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get("PrismMemberCookie");
         var properties = new AuthenticationProperties { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = expires, IsPersistent = true };
@@ -37,24 +38,40 @@ internal static class MemberSessionCookie
         return new Issued($"{options.Cookie.Name}={options.TicketDataFormat.Protect(reference)}", key);
     }
 
-    // The host answers requests before Prism's package migration has created its tables.
-    internal static void WaitForPrismTables(IUmbracoDatabaseFactory databaseFactory)
+    // The host answers requests before Prism's package migration has created its tables. This
+    // looks from a separate read-only connection with a private cache: a reader on Umbraco's own
+    // shared-cache connection makes the migration's writes fail at once with "database is locked"
+    // instead of waiting, and a failed migration fails the boot.
+    internal static void WaitForPrismTables(IServiceProvider services)
     {
+        var dsn = services.GetRequiredService<IConfiguration>()["ConnectionStrings:umbracoDbDSN"]!;
+        var builder = new SqliteConnectionStringBuilder(dsn) { Cache = SqliteCacheMode.Private, Mode = SqliteOpenMode.ReadOnly, Pooling = false };
+
         var deadline = DateTime.UtcNow.AddMinutes(2);
         while (true)
         {
             try
             {
-                using var db = databaseFactory.CreateDatabase();
-                db.ExecuteScalar<int>("SELECT COUNT(*) FROM prismTenants");
-                db.ExecuteScalar<int>("SELECT COUNT(*) FROM prismDeviceCredentials");
-                db.ExecuteScalar<int>("SELECT COUNT(*) FROM prismSessions");
-                return;
+                using var connection = new SqliteConnection(builder.ConnectionString);
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND lower(name) IN ('prismtenants', 'prismdevicecredentials', 'prismsessions')";
+                if (Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) == 3)
+                {
+                    return;
+                }
             }
-            catch (Exception) when (DateTime.UtcNow < deadline)
+            catch (SqliteException) when (DateTime.UtcNow < deadline)
             {
-                Thread.Sleep(500);
+                // The database file is not there yet, or is briefly busy.
             }
+
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new TimeoutException("Prism's tables were not created within two minutes of the host starting.");
+            }
+
+            Thread.Sleep(500);
         }
     }
 }
