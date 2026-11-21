@@ -40,7 +40,7 @@ public class PrismMobileManifestController(IPrismMobileTabsProvider tabsProvider
         {
             version = ManifestVersion,
             tabs,
-            sessionCookie = PrismAuthenticationSchemes.MemberCookie
+            sessionCookie = PrismAuthenticationSchemes.MemberCookieName
         }, JsonOptions);
 
         var etag = "\"" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json)))[..16] + "\"";

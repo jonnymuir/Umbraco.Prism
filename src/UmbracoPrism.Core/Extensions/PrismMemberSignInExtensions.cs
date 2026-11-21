@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Models;
+using UmbracoPrism.Core.Sessions;
 
 namespace UmbracoPrism.Core.Extensions;
 
@@ -38,7 +39,6 @@ public static class PrismMemberSignInExtensions
             // because the presence of an IClientAssertionProvider tells MSAL to use that instead.
         }, cookieOptions =>
         {
-            cookieOptions.Cookie.Name = PrismAuthenticationSchemes.MemberCookie;
             cookieOptions.LoginPath = "/auth/login";
             cookieOptions.Cookie.SameSite = SameSiteMode.Lax;
             cookieOptions.Cookie.SecurePolicy = CookieSecurePolicy.Always;
@@ -60,8 +60,8 @@ public static class PrismMemberSignInExtensions
 
         services.AddOptions<PrismSessionOptions>().BindConfiguration(PrismSessionOptions.SectionName);
         services.AddSingleton<IConfigureOptions<CookieAuthenticationOptions>, PrismSessionCookieSetup>();
+        services.AddPrismSessionStore();
 
-        services.AddOptions<PrismSessionOptions>().BindConfiguration(PrismSessionOptions.SectionName);
         services.AddSingleton<PrismHostAuthenticationDefaults>();
         services.AddSingleton<IPostConfigureOptions<AuthenticationOptions>, PrismAuthenticationDefaultsSetup>();
 

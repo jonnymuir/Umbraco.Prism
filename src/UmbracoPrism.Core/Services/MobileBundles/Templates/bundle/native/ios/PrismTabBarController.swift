@@ -105,7 +105,7 @@ final class PrismTabBarController: UITabBarController, UITabBarControllerDelegat
     /// A sign-in or sign-out in one tab leaves the others showing the old state, so they reload
     /// when next shown, and the tabs themselves are fetched again for the new member.
     func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
-        let sessionCookie = manifest.sessionCookie ?? "PrismMemberCookie"
+        let sessionCookie = manifest.sessionCookie ?? "__Host-prism.sid"
         cookieStore.getAllCookies { [weak self] cookies in
             let signedIn = cookies.contains { $0.name.hasPrefix(sessionCookie) && PrismShell.isOwnHost($0.domain) }
             DispatchQueue.main.async {

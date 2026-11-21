@@ -72,11 +72,11 @@ Someone who can sign in to the tenant but is not a member is told so instead of 
 
 ## How the identity travels
 
-1. The member signs in; Prism keeps their tokens in the encrypted `PrismMemberCookie`.
+1. The member signs in; Prism keeps their tokens in the member session it holds on the server; the browser's `__Host-prism.sid` cookie carries only a reference to it.
 2. The member submits the first page. That request enters the `load-profile` stage, whose `onEnter`
    `support-system-call` action invokes `MockBusinessAppProfileClient`.
 3. The client resolves `IPrismContext` from the **current request** and calls
-   `GetAuthorizationHeaderAsync()`. That reads the cookie, checks the tenant binding, refreshes the
+   `GetAuthorizationHeaderAsync()`. That reads the session, checks the tenant binding, refreshes the
    token if it has expired, and returns the bearer header, or `null`.
 4. If there is no header, the client throws and **sends nothing**. A call without the member's token
    would be answered for nobody.

@@ -1,3 +1,5 @@
+using UmbracoPrism.Core.Sessions;
+
 namespace UmbracoPrism.Core.Services;
 
 /// <summary>
@@ -20,4 +22,11 @@ public class PrismSessionOptions
     /// 0 turns revalidation off. Default 15 minutes.
     /// </summary>
     public int RevalidationIntervalMinutes { get; set; } = 15;
+
+    /// <summary>
+    /// Where sessions are kept on the server. <see cref="PrismSessionStorageKind.Database"/> (the
+    /// default) needs no setup; <see cref="PrismSessionStorageKind.DistributedCache"/> uses the
+    /// host's registered <c>IDistributedCache</c>, such as Redis.
+    /// </summary>
+    public PrismSessionStorageKind Storage { get; set; } = PrismSessionStorageKind.Database;
 }

@@ -45,7 +45,7 @@ public sealed class TwoTenantIsolationTests(TestSiteFactory factory)
     private Dictionary<string, int> Seed()
     {
         var databaseFactory = factory.Services.GetRequiredService<IUmbracoDatabaseFactory>();
-        WaitForPrismTables(databaseFactory);
+        MemberSessionCookie.WaitForPrismTables(databaseFactory);
 
         using var db = databaseFactory.CreateDatabase();
         var ids = new Dictionary<string, int>();
@@ -66,26 +66,6 @@ public sealed class TwoTenantIsolationTests(TestSiteFactory factory)
         return ids;
     }
 
-    // The host answers requests before Prism's package migration has created its tables.
-    private static void WaitForPrismTables(IUmbracoDatabaseFactory databaseFactory)
-    {
-        var deadline = DateTime.UtcNow.AddMinutes(2);
-        while (true)
-        {
-            try
-            {
-                using var db = databaseFactory.CreateDatabase();
-                db.ExecuteScalar<int>("SELECT COUNT(*) FROM prismTenants");
-                db.ExecuteScalar<int>("SELECT COUNT(*) FROM prismDeviceCredentials");
-                return;
-            }
-            catch (Exception) when (DateTime.UtcNow < deadline)
-            {
-                Thread.Sleep(500);
-            }
-        }
-    }
-
     private HttpClient ClientFor(Realm realm) => factory.CreateClient(new()
     {
         AllowAutoRedirect = false,
@@ -94,9 +74,10 @@ public sealed class TwoTenantIsolationTests(TestSiteFactory factory)
     });
 
     // A member session cookie as the host itself would issue it for someone signed in to this realm.
-    private string MemberCookieFor(Realm realm)
+    private async Task<string> MemberCookieFor(Realm realm) => (await IssueSessionFor(realm)).Cookie;
+
+    private Task<MemberSessionCookie.Issued> IssueSessionFor(Realm realm, DateTimeOffset? expires = null, string? refreshToken = null)
     {
-        var options = factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get("PrismMemberCookie");
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
         [
             new Claim("iss", realm.Authority),
@@ -105,13 +86,8 @@ public sealed class TwoTenantIsolationTests(TestSiteFactory factory)
             new Claim("oid", "member-1"),
             new Claim("name", "Alex Ju"),
         ], "PrismMemberCookie"));
-        var now = DateTimeOffset.UtcNow;
-        var ticket = new AuthenticationTicket(
-            principal,
-            new AuthenticationProperties { IssuedUtc = now, ExpiresUtc = now.AddHours(1), IsPersistent = true },
-            "PrismMemberCookie");
 
-        return $"{options.Cookie.Name}={options.TicketDataFormat.Protect(ticket)}";
+        return MemberSessionCookie.IssueAsync(factory.Services, principal, expires ?? DateTimeOffset.UtcNow.AddHours(1), refreshToken);
     }
 
     private async Task<HttpStatusCode> RevokeAsync(Realm onHost, string cookie)
@@ -129,13 +105,53 @@ public sealed class TwoTenantIsolationTests(TestSiteFactory factory)
     public async Task A_member_session_is_accepted_on_its_own_tenant_and_refused_on_the_other(string own, string other)
     {
         var (ownRealm, otherRealm) = (own == "A" ? A : B, other == "A" ? A : B);
-        var cookie = MemberCookieFor(ownRealm);
+        var cookie = await MemberCookieFor(ownRealm);
 
         (await RevokeAsync(ownRealm, cookie)).Should().Be(HttpStatusCode.NoContent,
             "the session is valid on the tenant it was issued for, so the endpoint's own answer is reachable");
         (await RevokeAsync(otherRealm, cookie)).Should().BeOneOf(
             [HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.Redirect],
             "the same cookie presented on another tenant's hostname is not that tenant's member");
+    }
+
+    [Fact]
+    public async Task The_cookie_carries_a_reference_not_the_tokens()
+    {
+        var hugeRefreshToken = new string('r', 8000);
+
+        var session = await IssueSessionFor(A, refreshToken: hugeRefreshToken);
+
+        session.Cookie.Length.Should().BeLessThan(1000, "an 8 KB refresh token stays on the server and only a reference travels");
+        session.Cookie.Should().StartWith("__Host-prism.sid=");
+        (await RevokeAsync(A, session.Cookie)).Should().Be(HttpStatusCode.NoContent, "the reference resolves to the stored ticket");
+    }
+
+    [Fact]
+    public async Task Deleting_the_stored_session_signs_the_member_out_at_once()
+    {
+        var session = await IssueSessionFor(A);
+        (await RevokeAsync(A, session.Cookie)).Should().Be(HttpStatusCode.NoContent);
+
+        await factory.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get("PrismMemberCookie").SessionStore!.RemoveAsync(session.SessionKey);
+
+        (await RevokeAsync(A, session.Cookie)).Should().BeOneOf(
+            [HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.Redirect],
+            "the cookie is still well formed, but the server no longer has the session it points at");
+    }
+
+    [Fact]
+    public async Task An_expired_stored_session_is_refused_although_the_cookie_is_well_formed()
+    {
+        var session = await IssueSessionFor(A, expires: DateTimeOffset.UtcNow.AddHours(1));
+        var databaseFactory = factory.Services.GetRequiredService<IUmbracoDatabaseFactory>();
+        using (var db = databaseFactory.CreateDatabase())
+        {
+            db.Execute("UPDATE prismSessions SET ExpiresAt = @0 WHERE SessionKey = @1", DateTime.UtcNow.AddMinutes(-1), session.SessionKey);
+        }
+
+        (await RevokeAsync(A, session.Cookie)).Should().BeOneOf(
+            [HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden, HttpStatusCode.Redirect]);
     }
 
     [Fact]
