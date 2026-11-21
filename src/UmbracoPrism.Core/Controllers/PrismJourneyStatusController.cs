@@ -50,7 +50,7 @@ public sealed class PrismJourneyStatusController(PrismJourneyStatusDelivery deli
     }
 
     private PrismJourneyStatusMember? Member() =>
-        userContext.IsAuthenticated && userContext.Email is { } email && userContext.CurrentTenant?.Hostname is { } host
-            ? new PrismJourneyStatusMember(email, host)
+        userContext.IsAuthenticated && userContext.Subject is { } subject && userContext.CurrentTenant?.Hostname is { } host
+            ? new PrismJourneyStatusMember(subject, host)
             : null;
 }
