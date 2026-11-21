@@ -85,8 +85,7 @@ public class TenantService : ITenantService
                 // the opaque forwarding token changed since the tenant row was seeded.
                 // Security: IsRepoOwnedLocalDemoTenant still gates OIDC configuration downstream —
                 // this fallback is for tenant *lookup* only, not for security validation.
-                if (tenantSchema is null &&
-                    normalizedDomain.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase))
+                if (tenantSchema is null && IsCodespacesDemoHost(normalizedDomain))
                 {
                     tenantSchema = db.FirstOrDefault<PrismTenantSchema>(
                         "SELECT * FROM PrismTenants WHERE Hostname LIKE @0",
@@ -95,26 +94,7 @@ public class TenantService : ITenantService
 
                 if (tenantSchema == null) return null;
 
-                // Resolve {{TOKEN_NAME}} placeholders in identity fields. Hostname is the lookup
-                // key and is never stored with tokens — see PrismTenantSyncHandler for details.
-                return WithBranding(tenantSchema, new PrismTenant
-                {
-                    Id = tenantSchema.Id,
-                    Name = tenantSchema.Name,
-                    Hostname = tenantSchema.Hostname,
-                    EntraTenantId = _tokenResolver.Resolve(tenantSchema.EntraTenantId),
-                    EntraClientId = _tokenResolver.Resolve(tenantSchema.EntraClientId),
-                    SecretKeyName = _tokenResolver.Resolve(tenantSchema.SecretKeyName),
-                    AllowBiometricLogin = tenantSchema.AllowBiometricLogin,
-                    MobileAppLinks = PrismMobileAppLinks.FromConfigJson(tenantSchema.MobileAppConfig),
-                    OidcAuthority = _tokenResolver.Resolve(tenantSchema.OidcAuthority),
-                    OidcClientId = _tokenResolver.Resolve(tenantSchema.OidcClientId),
-                    OidcClientSecretProvider = _tokenResolver.Resolve(tenantSchema.OidcClientSecretProvider)
-                        ?? (!string.IsNullOrWhiteSpace(tenantSchema.OidcClientSecret)
-                            ? PrismSecretProviderNames.Inline
-                            : null),
-                    OidcClientSecretReference = _tokenResolver.Resolve(tenantSchema.OidcClientSecretReference ?? tenantSchema.OidcClientSecret)
-                });
+                return WithBranding(tenantSchema, ResolveTenant(tenantSchema));
             }, TimeSpan.FromMinutes(30));
         }
         catch (Exception ex)
@@ -178,6 +158,54 @@ public class TenantService : ITenantService
 
     private static string BuildTenantCacheKey(string domain) =>
         $"{TenantCacheKeyPrefix}{domain}";
+
+    /// <summary>
+    /// Resolves {{TOKEN_NAME}} placeholders in the identity fields (hostname is the lookup key and is
+    /// never stored with tokens) and applies <see cref="PrismTenantValidator"/>: whatever wrote the
+    /// row, an identity the validator refuses never reaches a server-side request, and the tenant
+    /// loses its sign-in configuration, which fails closed.
+    /// </summary>
+    private PrismTenant ResolveTenant(PrismTenantSchema tenantSchema)
+    {
+        var resolvedTenant = new PrismTenant
+        {
+            Id = tenantSchema.Id,
+            Name = tenantSchema.Name,
+            Hostname = tenantSchema.Hostname,
+            EntraTenantId = _tokenResolver.Resolve(tenantSchema.EntraTenantId),
+            EntraClientId = _tokenResolver.Resolve(tenantSchema.EntraClientId),
+            SecretKeyName = _tokenResolver.Resolve(tenantSchema.SecretKeyName),
+            AllowBiometricLogin = tenantSchema.AllowBiometricLogin,
+            MobileAppLinks = PrismMobileAppLinks.FromConfigJson(tenantSchema.MobileAppConfig),
+            OidcAuthority = _tokenResolver.Resolve(tenantSchema.OidcAuthority),
+            OidcClientId = _tokenResolver.Resolve(tenantSchema.OidcClientId),
+            OidcClientSecretProvider = ResolveSecretProvider(tenantSchema),
+            OidcClientSecretReference = _tokenResolver.Resolve(tenantSchema.OidcClientSecretReference ?? tenantSchema.OidcClientSecret)
+        };
+
+        var identityError = PrismTenantValidator.Validate(resolvedTenant.OidcAuthority, resolvedTenant.EntraTenantId);
+        if (identityError is not null)
+        {
+            _logger.LogError(
+                "Tenant '{Tenant}' has an unacceptable identity configuration and sign-in is disabled for it: {Error}",
+                LogScrub.Line(tenantSchema.Name), identityError);
+            resolvedTenant.OidcAuthority = null;
+            resolvedTenant.EntraTenantId = null;
+        }
+
+        return resolvedTenant;
+    }
+
+    private string? ResolveSecretProvider(PrismTenantSchema schema)
+    {
+        var provider = _tokenResolver.Resolve(schema.OidcClientSecretProvider);
+        if (provider is not null) return provider;
+
+        return string.IsNullOrWhiteSpace(schema.OidcClientSecret) ? null : PrismSecretProviderNames.Inline;
+    }
+
+    private static bool IsCodespacesDemoHost(string host) =>
+        PrismDemoTenants.IsAllowed && host.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The tenant with its stored branding: light, mobile and dark overrides, and their CSS.</summary>
     private static PrismTenant WithBranding(PrismTenantSchema schema, PrismTenant tenant)
