@@ -25,7 +25,7 @@ Trust flows down this chain. Every link is something an attacker would like to c
 | 2 | Which identity provider that tenant trusts | `OidcAuthority` / `EntraTenantId` + client id on the tenant row, with `{{TOKEN}}` placeholders resolved from configuration | Prism admins (backoffice), uSync files, config |
 | 3 | The provider's signing keys | JWKS fetched over HTTPS from the authority's discovery document, cached in memory (45 min refresh, 1 h hard expiry, refresh attempts limited to one per 10 seconds per authority) | The provider, and anything that can redirect the fetch |
 | 4 | That a person signed in | ID token validated in `OnAuthorizationCodeReceived`: signature, issuer, audience, lifetime, nonce. PKCE and the state/correlation cookie from the OIDC handler | The provider |
-| 5 | That a session is still theirs | The `PrismMemberCookie` ticket, protected by ASP.NET Data Protection | Whoever holds the Data Protection key ring |
+| 5 | That a session is still theirs | A `__Host-prism.sid` cookie holding a random reference, protected by ASP.NET Data Protection; the ticket itself (claims and tokens) sits in a server-side store, also protected by Data Protection | Whoever holds the Data Protection key ring, and the session store's operator |
 | 6 | That the session belongs to this tenant | `PrismTenantBindingValidator` on every request (`tid`, or `iss` plus `aud`/`azp`) | Nobody, provided the check runs |
 | 7 | What the member may see | `PrismPageAccessFilter` + `IPrismPageAccessResolver` (sign-in, tenant allow-list), `PrismStrictIsolation` on JSON APIs | Prism admins |
 | 8 | Who may administer | Umbraco backoffice login plus group alias (`PrismAdmins`, default `admin`) | Umbraco administrators |
@@ -50,7 +50,7 @@ code. "Wrapper" means Prism configures a library; "own code" means Prism impleme
 | ID token validation | `JwtSecurityTokenHandler.ValidateToken` with `TokenValidationParameters` | Choice of parameters, nonce comparison, key fetch, `azp` handling (none) | Medium: parameters are right, the surrounding checks are bespoke |
 | JWKS retrieval and caching | `ConfigurationManager<OpenIdConnectConfiguration>` | `PrismSigningKeyCache`: its own TTL, attempt-based cooldown, semaphore, backchannel rewriting retriever; a new manager per fetch | Medium: reimplements what the library already does, but now bounded (see AUTH-02) |
 | Multi-tenant bearer validation | `AddJwtBearer`, `TokenValidationParameters` | `IssuerValidator`, `AudienceValidator`, `IssuerSigningKeyResolver` delegates (multi-issuer trust) | **High**: no library covers "many issuers chosen at runtime", so this is bespoke |
-| Member session | ASP.NET Core cookie authentication, Data Protection | `PrismSessionValidator`: tenant binding, absolute lifetime, periodic provider re-check; ticket carries tokens | Medium |
+| Member session | ASP.NET Core cookie authentication, Data Protection | `PrismTicketStore` (the standard `ITicketStore`) over a database or `IDistributedCache` storage; `PrismSessionValidator`: tenant binding, absolute lifetime, periodic provider re-check | Low: the store is a small adapter, the cookie handling is the framework's |
 | Tenant resolution | None exists for this model | `TenantService`, `PrismTenantMiddleware`, scheme selectors | **High** (the trust root) |
 | Authorization policies | ASP.NET Core authorization | `PrismTenantHandler`, `PrismAdminHandler`, page access resolver and filter | Medium |
 | Antiforgery | ASP.NET Core Antiforgery | Per-controller decisions on where to skip it | Low |
@@ -138,21 +138,15 @@ before the cache is read, so concurrent redemptions in one process cannot both s
 sign-in fails intermittently, and across instances the S256 verifier is the only second check.
 Fix: an atomic get-and-delete (Redis `GETDEL`) behind a small interface.
 
-**AUTH-19. Cookie hardening.** The member cookie is `Lax`, `Secure`, `HttpOnly`, host-only. It has
-no `__Host-` prefix and carries the access, ID and refresh tokens inside the ticket, which is why
-the code has a workaround for oversized requests. Fix: keep tokens in a server-side `ITicketStore`
-(which needs a shared cache for multiple instances) and put only a reference in the cookie; use the
-`__Host-` prefix.
-
 ## 4. Mitigating "roll your own"
 
 In order of return:
 
 1. **Replace, do not tune.** Two items still have a standard answer: one long-lived
-   `ConfigurationManager` per authority instead of `PrismSigningKeyCache`'s fetch logic (AUTH-02),
-   and a server-side `ITicketStore` (AUTH-19). Each deletes security-relevant code rather than
-   adding to it. Endpoint discovery, the framework rate limiter and the shared signing-key cache for
-   the ID token have been moved onto the libraries already.
+   `ConfigurationManager` per authority instead of `PrismSigningKeyCache`'s fetch logic (AUTH-02).
+   It deletes security-relevant code rather than adding to it. Endpoint discovery, the framework
+   rate limiter, the shared signing-key cache for the ID token and the server-side `ITicketStore`
+   have been moved onto the libraries already.
 2. **Keep the inevitable parts small and boxed.** Multi-issuer bearer validation, tenant resolution
    and the tenant binding check have no library equivalent. Keep each in one class, with one
    shared implementation (the binding validator and `PrismTenantValidator` already are), and no
@@ -239,8 +233,7 @@ Worth stating so it is not undone.
 1. P-04 and P-05: release approval and key-based deploys. They need repository settings and
    secrets rather than code.
 2. AUTH-12 (residual): protect the reference site's Data Protection keys and remove its opt-out.
-3. AUTH-02 (residual) with AUTH-19: the long-lived `ConfigurationManager` and a server-side ticket
-   store, which both delete bespoke code.
+3. AUTH-02 (residual): the long-lived `ConfigurationManager`, which deletes bespoke code.
 4. AUTH-10: proof of possession, when the assurance level justifies it.
 5. Pipeline P-02: an authenticated DAST run.
 

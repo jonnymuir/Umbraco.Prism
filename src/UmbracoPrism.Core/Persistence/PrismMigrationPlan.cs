@@ -35,6 +35,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
         .To<CreatePrismPageAccessPoliciesTable>("add-page-access-policies")
         .To<AddJourneyStatusColumns>("add-journey-status-columns")
         .To<CreatePrismJourneyStatusesTable>("add-journey-statuses")
-        .To<AddDarkBrandingOverridesColumn>("add-dark-branding-overrides");
+        .To<AddDarkBrandingOverridesColumn>("add-dark-branding-overrides")
+        .To<CreatePrismSessionsTable>("add-sessions");
     }
 }

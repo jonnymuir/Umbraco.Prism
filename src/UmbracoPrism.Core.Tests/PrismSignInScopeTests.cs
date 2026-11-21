@@ -254,6 +254,7 @@ public sealed class PrismSignInScopeTests
                     services.AddHttpContextAccessor();
                     services.AddSingleton<IPostConfigureOptions<OpenIdConnectOptions>, PrismOidcConfiguration>();
                     services.AddPrismMemberSignIn();
+                    services.AddSingleton<UmbracoPrism.Core.Sessions.IPrismSessionStorage, InMemoryPrismSessionStorage>();
 
                     // A fixed provider configuration, so a challenge never fetches discovery.
                     services.PostConfigure<OpenIdConnectOptions>(PrismAuthenticationSchemes.Oidc, options =>

@@ -105,6 +105,12 @@ public sealed class TestSiteFactory : WebApplicationFactory<Program>, IAsyncLife
 
     public async Task InitializeAsync()
     {
+        // No request goes in until Prism's package migration has finished: on SQLite's shared cache
+        // a request that reads the tenants table while the migration alters it makes the migration's
+        // write fail or stall, and a failed migration fails the boot. Looking from a separate
+        // read-only connection takes no part in that.
+        await Task.Run(() => MemberSessionCookie.WaitForPrismTables(Services));
+
         // https:// — see the same note on AuthorizationBehaviourTests.Anonymous(): TestSite is
         // HTTPS-only in every real deployment, and AntiforgeryOptions.Cookie.SecurePolicy =
         // Always hard-throws on a non-HTTPS request.

@@ -120,7 +120,7 @@ final class PrismManifest {
     }
 
     String sessionCookieName() {
-        return sessionCookie == null || sessionCookie.isEmpty() ? "PrismMemberCookie" : sessionCookie;
+        return sessionCookie == null || sessionCookie.isEmpty() ? "__Host-prism.sid" : sessionCookie;
     }
 
     @Override

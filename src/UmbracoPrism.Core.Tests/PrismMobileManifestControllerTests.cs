@@ -57,7 +57,7 @@ public class PrismMobileManifestControllerTests
 
         var json = JsonElement.Parse(result.Should().BeOfType<ContentResult>().Subject.Content!);
         json.GetProperty("version").GetInt32().Should().Be(1);
-        json.GetProperty("sessionCookie").GetString().Should().Be(PrismAuthenticationSchemes.MemberCookie);
+        json.GetProperty("sessionCookie").GetString().Should().Be(PrismAuthenticationSchemes.MemberCookieName);
         var tabs = json.GetProperty("tabs").EnumerateArray().ToList();
         tabs.Select(tab => tab.GetProperty("label").GetString()).Should().Equal("Home", "Dashboard");
         tabs[1].GetProperty("path").GetString().Should().Be("/dashboard");

@@ -34,7 +34,7 @@ on the device; the server keeps the refresh token, encrypted, and exchanges one 
      │                         │◀── https://<site>/umbraco/prism/mobile/auth/callback?code=k
      │◀── callback URL ────────│   (handed only to the verified app)
      │── fetch POST .../auth/redeem {k, v} + antiforgery token ─────────────────▶│ checks S256(v)=c
-     │◀── 204, Set-Cookie PrismMemberCookie ─────────────────────────────────────│
+     │◀── 204, Set-Cookie __Host-prism.sid ─────────────────────────────────────│
      │ reload /auth/login?returnUrl=/x ──────────────────────────────────────────▶│ signed in: redirect /x
      │ the other tabs pick up the session
 ```
@@ -60,7 +60,7 @@ on the device; the server keeps the refresh token, encrypted, and exchanges one 
 5. **Redeem.** The sign-in page posts the code and verifier to `/umbraco/prism/mobile/auth/redeem`
    with `fetch`, with the antiforgery token the page carries. Prism removes the code (single use),
    checks the tenant and that `S256(verifier)` equals the stored challenge, signs in
-   `PrismMemberCookie` with the stored ticket plus a `prism_auth_method=system` claim, and answers
+   the member session with the stored ticket plus a `prism_auth_method=system` claim, and answers
    204, or 400 when it refuses the code. The page then reloads: `/auth/login` sends a signed-in
    member on to the return URL, and that redirect replaces the sign-in page in the history, so Back
    never returns to it. The cookie lands in the app's shared webview cookie store, and the shell's

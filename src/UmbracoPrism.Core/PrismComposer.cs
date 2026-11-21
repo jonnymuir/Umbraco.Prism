@@ -4,6 +4,7 @@ using Umbraco.Cms.Core.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
+using UmbracoPrism.Core.Sessions;
 using UmbracoPrism.Core.Services.JourneyStatus;
 using Umbraco.Cms.Web.Common.ApplicationBuilder;
 using UmbracoPrism.Core.Middleware;
@@ -77,7 +78,7 @@ public class PrismComposer : IComposer
         builder.Services.AddSingleton<IPostConfigureOptions<OpenIdConnectOptions>, PrismOidcConfiguration>();
         
         // 6. Member sign-in, confined to tenants that have it configured
-        builder.Services.AddPrismMemberSignIn();
+        builder.Services.AddPrismMemberSignIn().AddPrismSessionCleanup();
 
         ComposeAuthorizationPolicies(builder.Services);
 

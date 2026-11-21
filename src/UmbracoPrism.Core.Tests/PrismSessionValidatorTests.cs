@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Moq;
 using UmbracoPrism.Core.Auth;
 using UmbracoPrism.Core.Models;
 using UmbracoPrism.Core.Services;
@@ -112,13 +113,20 @@ public class PrismSessionValidatorTests
     [Fact]
     public void TheMemberCookie_GetsAnExplicitSlidingWindow()
     {
-        var setup = new PrismSessionCookieSetup(Options.Create(new PrismSessionOptions { SlidingExpirationMinutes = 90 }));
+        var options = Options.Create(new PrismSessionOptions { SlidingExpirationMinutes = 90 });
+        var store = new UmbracoPrism.Core.Sessions.PrismTicketStore(
+            Mock.Of<UmbracoPrism.Core.Sessions.IPrismSessionStorage>(), new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(), options, TimeProvider.System);
+        var setup = new PrismSessionCookieSetup(options, store);
         var cookie = new CookieAuthenticationOptions();
 
         setup.Configure(PrismAuthenticationSchemes.MemberCookie, cookie);
 
         cookie.ExpireTimeSpan.Should().Be(TimeSpan.FromMinutes(90));
         cookie.SlidingExpiration.Should().BeTrue();
+        cookie.SessionStore.Should().BeSameAs(store, "the ticket stays on the server and the cookie carries a reference");
+        cookie.Cookie.Name.Should().Be("__Host-prism.sid");
+        cookie.Cookie.Path.Should().Be("/");
+        cookie.Cookie.Domain.Should().BeNull("a __Host- cookie is host-only");
     }
 
     [Fact]

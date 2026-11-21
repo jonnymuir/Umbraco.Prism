@@ -119,6 +119,33 @@ time limits. Tune them in `Prism:Session`:
 Set `RevalidationIntervalMinutes` to `0` to turn the provider check off. Ending a session at an
 interactive sign-out also ends it at the provider through the provider's end-session endpoint.
 
+## Where member sessions are kept
+
+A signed-in member's tokens never reach the browser. The `__Host-prism.sid` cookie carries a random
+reference, and the session itself (claims, access, ID and refresh tokens) sits on the server,
+protected with Data Protection. The cookie is `Secure`, `HttpOnly`, `Lax`, host-only and has path
+`/`, which browsers enforce for the `__Host-` prefix. A session that expires or is deleted from the
+store ends at once, even though the cookie is still well formed.
+
+By default sessions live in the Umbraco database, in the `prismSessions` table that Prism creates
+on first run. Nothing needs setting up, every instance sharing the database shares the sessions,
+and an hourly job deletes expired rows. To keep them in Redis (or any other `IDistributedCache`)
+instead, register that cache in the host and switch the storage:
+
+```csharp
+builder.Services.AddStackExchangeRedisCache(options => options.Configuration = "redis:6379");
+```
+
+```json
+{ "Prism": { "Session": { "Storage": "DistributedCache" } } }
+```
+
+Redis expires entries itself, so there is nothing to clean up. Without a shared cache registered,
+`DistributedCache` keeps sessions in memory, which signs everyone out at a restart and does not
+work across instances, so use it only with Redis or another shared cache. A host with a different
+store implements `IPrismSessionStorage` (save, load, remove, remove expired) and registers it after
+Prism.
+
 ## Rate limiting and the key ring
 
 **Sign-in endpoints.** Prism limits `/auth/login`, `/auth/register`, `/signin-oidc`,

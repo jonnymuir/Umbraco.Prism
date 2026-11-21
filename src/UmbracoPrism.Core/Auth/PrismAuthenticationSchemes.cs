@@ -8,6 +8,13 @@ public static class PrismAuthenticationSchemes
     /// <summary>The member session cookie, bound to the tenant that signed the member in.</summary>
     public const string MemberCookie = "PrismMemberCookie";
 
+    /// <summary>
+    /// The name of the browser cookie that carries the reference to the member's server-side
+    /// session. The <c>__Host-</c> prefix makes browsers accept it only as Secure, host-only and
+    /// path <c>/</c>, so a sibling subdomain cannot set or shadow it.
+    /// </summary>
+    public const string MemberCookieName = "__Host-prism.sid";
+
     /// <summary>Per-tenant OIDC sign-in, against Entra ID or any generic OIDC provider.</summary>
     public const string Oidc = "PrismEntraID";
 
