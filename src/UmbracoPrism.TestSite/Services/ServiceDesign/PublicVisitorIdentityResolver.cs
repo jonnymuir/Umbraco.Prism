@@ -35,9 +35,12 @@ public sealed class PublicVisitorIdentityResolver(
     {
         var tenantId = userContext.CurrentTenant?.Hostname ?? "default";
 
-        if (userContext.IsAuthenticated && !string.IsNullOrWhiteSpace(userContext.Email))
+        // The signed-in member owns their requests under their stable subject, not their email:
+        // an address can change or be reissued to someone else, and a request must stay with the
+        // person who made it.
+        if (userContext.IsAuthenticated && !string.IsNullOrWhiteSpace(userContext.Subject))
         {
-            return (tenantId, userContext.Email, true);
+            return (tenantId, userContext.Subject, true);
         }
 
         return (tenantId, ResolveAnonymousVisitorId(), false);

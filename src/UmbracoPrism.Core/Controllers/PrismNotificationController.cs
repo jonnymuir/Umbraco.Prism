@@ -18,14 +18,12 @@ namespace UmbracoPrism.Core.Controllers;
 /// </summary>
 /// <remarks>
 /// Identity here MUST match <c>PublicVisitorIdentityResolver.Resolve()</c> — the same
-/// (email, hostname) pair Wayfinder's own <c>ServiceRequest.UserId</c>/<c>TenantId</c> already use
-/// for a signed-in member. Previously resolved via the "oid" Entra claim and the tenant's numeric
-/// database id instead (matching <c>BiometricController</c>'s own scheme, copied here for
-/// consistency at the time) — found live: an Automate automation resolving a Wayfinder instance's
-/// owner to notify them (<c>ResolveWayfinderInstanceOwnerAction</c>) could never match a
-/// <c>prismDeviceCredentials</c> row registered under the different scheme, so
-/// <c>PrismSendPushNotificationAction</c> silently found zero devices every time — worse, its own
-/// success log fired regardless, since it never checked whether a device was actually found.
+/// (subject, hostname) pair Wayfinder's own <c>ServiceRequest.UserId</c>/<c>TenantId</c> use for a
+/// signed-in member. The subject is the member's stable identifier (see
+/// <c>PrismIdentityExtensions.GetSubject</c>), not their email, so a registered device keeps
+/// belonging to the same person when an address changes or is reissued. An automation that resolves
+/// a Wayfinder instance's owner to notify them (<c>ResolveWayfinderInstanceOwnerAction</c>) can only
+/// find the member's devices when both sides use this one key.
 /// <c>BiometricController</c> is unaffected — it's a separate feature with its own separate rows
 /// in the same table, unrelated to Wayfinder.
 /// </remarks>
@@ -153,7 +151,7 @@ public class PrismNotificationController(
 
     private (string? userId, string? tenantId) ResolveUserAndTenant()
     {
-        var userId = userContext.IsAuthenticated ? userContext.Email : null;
+        var userId = userContext.IsAuthenticated ? userContext.Subject : null;
         var tenantId = userContext.CurrentTenant?.Hostname;
 
         return (userId, tenantId);

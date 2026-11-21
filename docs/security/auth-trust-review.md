@@ -75,14 +75,6 @@ No High finding is open.
 
 ### Medium
 
-**AUTH-09. Identity is keyed on email in the reference site.** A07. `ClaimsPrincipal.GetSubject()`
-returns a stable `{tid}:{oid}` (Entra) or `{issuer}|{sub}` key, but ownership, team rosters and
-push-notification routing in the reference site, and in any host that copies it, still key on the
-email. Microsoft's guidance is to key on `tid` plus `oid`, because user principal names and email
-addresses can be changed or reused.
-Fix: migrate ownership and routing to the subject, with a one-off data migration, and treat email
-as a contact attribute only.
-
 **AUTH-10. Biometric credential: a home-made authentication scheme.** A02/A07. The stored refresh
 token is bound to its credential, carries a key id and is encrypted under a key derived per
 credential; each tenant's tokens are signed with a key derived from the signing key; keys rotate
@@ -105,6 +97,16 @@ Fix: turn the requirement on for production hosts and protect the reference site
 example with Key Vault or a certificate).
 
 ### Low
+
+**AUTH-09 (residual). Rosters and demo records are matched by verified email.** A07. A signed-in
+member owns their service requests, and their registered devices and journey statuses, under
+`ClaimsPrincipal.GetSubject()` (a stable `{tid}:{oid}` or `{issuer}|{sub}`), not their email. What
+still uses the identity-provider-verified email is the reference site's caseworker roster and its
+demo systems of record (the membership tier and the savings record), because a roster written before
+anyone has signed in can only name people by address. The email counts only when the provider vouches
+for it (`GetEmailAssertion`), so a login name a person chose cannot match.
+Fix, for a host with a real roster: record the subject against the roster entry at first verified
+sign-in and match on that afterwards.
 
 **AUTH-02 (residual). The signing-key cache is still bespoke.** A04. Fetch attempts per authority
 are limited (one per 10 seconds for an unknown key id, one per 30 seconds otherwise, failures
@@ -240,12 +242,11 @@ Worth stating so it is not undone.
 
 1. P-04 and P-05: release approval and key-based deploys. They need repository settings and
    secrets rather than code.
-2. AUTH-09: migrate the reference site's ownership and routing from email to the member subject.
-3. AUTH-12: require configured Data Protection keys in production and protect the reference site's.
-4. AUTH-02 (residual) with AUTH-19: the long-lived `ConfigurationManager` and a server-side ticket
+2. AUTH-12: require configured Data Protection keys in production and protect the reference site's.
+3. AUTH-02 (residual) with AUTH-19: the long-lived `ConfigurationManager` and a server-side ticket
    store, which both delete bespoke code.
-5. AUTH-10: proof of possession, when the assurance level justifies it.
-6. Pipeline P-02: an authenticated DAST run.
+4. AUTH-10: proof of possession, when the assurance level justifies it.
+5. Pipeline P-02: an authenticated DAST run.
 
 Each change reaches `main` through a pull request; a breaking behaviour change (for example
 mandatory `Audience`) needs a `BREAKING CHANGE:` line in the commit.

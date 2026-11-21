@@ -39,11 +39,9 @@ public sealed class PublicServiceRequestPostSignInHandler(
             return;
         }
 
-        // The same rule that decides who the signed-in user is on later requests: a login name the
-        // person chose, or an email the provider has not verified, must not claim anyone's cases.
-        var (newUserId, verified) = new ClaimsPrincipal(newIdentity)
-            .GetEmailAssertion(!string.IsNullOrEmpty(userContext.CurrentTenant?.OidcAuthority));
-        if (!verified || string.IsNullOrWhiteSpace(newUserId))
+        // The same key that owns the member's requests on later requests: their stable subject.
+        var newUserId = new ClaimsPrincipal(newIdentity).GetSubject();
+        if (string.IsNullOrWhiteSpace(newUserId))
         {
             return;
         }

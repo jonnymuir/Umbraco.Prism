@@ -33,7 +33,7 @@ journeyStatus.Publish(memberEmail, tenantHostname, new PrismJourneyStatus(
 - **`Waiting`** starts the status on the member's phone, or updates it if one is showing for the
   same `Key`.
 - **`Done`** ends it. Its last status stays on screen for 15 minutes, then goes.
-- The member is identified as push notifications identify them, by email address and the tenant's
+- The member is identified as push notifications identify them, by their stable subject (not their email address) and the tenant's
   host name, and only their own registered device receives the status.
 
 `Publish` checks the status and throws `ArgumentException` if it is not valid: `Key` must be 1 to

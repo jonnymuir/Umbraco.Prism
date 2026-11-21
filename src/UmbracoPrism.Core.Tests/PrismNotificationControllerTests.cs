@@ -29,7 +29,7 @@ public class PrismNotificationControllerTests
         var userContext = new Mock<IPrismUserContext>();
         userContext.Setup(c => c.CurrentTenant).Returns(tenant);
         userContext.Setup(c => c.IsAuthenticated).Returns(authenticated && !string.IsNullOrEmpty(userEmail));
-        userContext.Setup(c => c.Email).Returns(userEmail);
+        userContext.Setup(c => c.Subject).Returns(userEmail);
 
         serviceMock ??= new Mock<IPrismNotificationService>();
 
