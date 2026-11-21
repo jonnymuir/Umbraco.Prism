@@ -323,7 +323,10 @@ public class BackchannelRewriteTests
         var environment = new Mock<Microsoft.Extensions.Hosting.IHostEnvironment>();
         environment.SetupGet(x => x.EnvironmentName).Returns("Production");
         services.AddSingleton(environment.Object);
-        services.AddPrismAuthentication(new ConfigurationBuilder().Build());
+        var configuration = new ConfigurationBuilder().Build();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddLogging();
+        services.AddPrismAuthentication(configuration);
         using var provider = services.BuildServiceProvider();
 
         var guard = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>().Single(h => h.GetType().Name == "PrismBackchannelGuard");

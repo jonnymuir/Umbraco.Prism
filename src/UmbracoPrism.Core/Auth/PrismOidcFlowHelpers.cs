@@ -1,4 +1,5 @@
 using System.Security.Authentication;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -12,6 +13,37 @@ namespace UmbracoPrism.Core.Auth;
 /// <summary>The generic-OIDC steps of the sign-in flow that depend on the provider's discovery document and signing keys.</summary>
 internal static partial class PrismOidcFlowHelpers
 {
+    /// <summary>The named HTTP client for the code exchange: a bounded timeout, and a handler the factory manages.</summary>
+    internal const string TokenHttpClientName = "prism-oidc-token";
+
+    /// <summary>The OAuth <c>error</c> and <c>error_description</c> from a token endpoint response, cut short.</summary>
+    internal static string DescribeTokenError(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return "(empty body)";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
+            string? Read(string name) =>
+                root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty(name, out var value)
+                && value.ValueKind == JsonValueKind.String
+                    ? value.GetString()
+                    : null;
+
+            var described = $"{Read("error")} {Read("error_description")}".Trim();
+            return described.Length == 0 ? "(no error field)" : described.Length > 300 ? described[..300] : described;
+        }
+        catch (JsonException)
+        {
+            return "(unparseable body)";
+        }
+    }
+
     /// <summary>
     /// The provider's endpoints from its validated discovery document, or null (logged) when the
     /// document cannot be read or does not belong to <paramref name="authority"/>.
