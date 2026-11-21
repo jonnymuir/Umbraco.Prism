@@ -44,7 +44,10 @@ public sealed class TwoTenantIsolationTests(TestSiteFactory factory)
 
     private Dictionary<string, int> Seed()
     {
-        using var db = factory.Services.GetRequiredService<IUmbracoDatabaseFactory>().CreateDatabase();
+        var databaseFactory = factory.Services.GetRequiredService<IUmbracoDatabaseFactory>();
+        WaitForPrismTables(databaseFactory);
+
+        using var db = databaseFactory.CreateDatabase();
         var ids = new Dictionary<string, int>();
         foreach (var realm in new[] { A, B })
         {
@@ -61,6 +64,26 @@ public sealed class TwoTenantIsolationTests(TestSiteFactory factory)
         }
 
         return ids;
+    }
+
+    // The host answers requests before Prism's package migration has created its tables.
+    private static void WaitForPrismTables(IUmbracoDatabaseFactory databaseFactory)
+    {
+        var deadline = DateTime.UtcNow.AddMinutes(2);
+        while (true)
+        {
+            try
+            {
+                using var db = databaseFactory.CreateDatabase();
+                db.ExecuteScalar<int>("SELECT COUNT(*) FROM prismTenants");
+                db.ExecuteScalar<int>("SELECT COUNT(*) FROM prismDeviceCredentials");
+                return;
+            }
+            catch (Exception) when (DateTime.UtcNow < deadline)
+            {
+                Thread.Sleep(500);
+            }
+        }
     }
 
     private HttpClient ClientFor(Realm realm) => factory.CreateClient(new()
