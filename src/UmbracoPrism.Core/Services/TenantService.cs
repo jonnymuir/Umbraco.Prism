@@ -85,9 +85,7 @@ public class TenantService : ITenantService
                 // the opaque forwarding token changed since the tenant row was seeded.
                 // Security: IsRepoOwnedLocalDemoTenant still gates OIDC configuration downstream —
                 // this fallback is for tenant *lookup* only, not for security validation.
-                if (tenantSchema is null &&
-                    PrismDemoTenants.IsAllowed &&
-                    normalizedDomain.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase))
+                if (tenantSchema is null && IsCodespacesDemoHost(normalizedDomain))
                 {
                     tenantSchema = db.FirstOrDefault<PrismTenantSchema>(
                         "SELECT * FROM PrismTenants WHERE Hostname LIKE @0",
@@ -161,7 +159,6 @@ public class TenantService : ITenantService
     private static string BuildTenantCacheKey(string domain) =>
         $"{TenantCacheKeyPrefix}{domain}";
 
-    /// <summary>The tenant with its stored branding: light, mobile and dark overrides, and their CSS.</summary>
     /// <summary>
     /// Resolves {{TOKEN_NAME}} placeholders in the identity fields (hostname is the lookup key and is
     /// never stored with tokens) and applies <see cref="PrismTenantValidator"/>: whatever wrote the
@@ -182,10 +179,7 @@ public class TenantService : ITenantService
             MobileAppLinks = PrismMobileAppLinks.FromConfigJson(tenantSchema.MobileAppConfig),
             OidcAuthority = _tokenResolver.Resolve(tenantSchema.OidcAuthority),
             OidcClientId = _tokenResolver.Resolve(tenantSchema.OidcClientId),
-            OidcClientSecretProvider = _tokenResolver.Resolve(tenantSchema.OidcClientSecretProvider)
-                ?? (!string.IsNullOrWhiteSpace(tenantSchema.OidcClientSecret)
-                    ? PrismSecretProviderNames.Inline
-                    : null),
+            OidcClientSecretProvider = ResolveSecretProvider(tenantSchema),
             OidcClientSecretReference = _tokenResolver.Resolve(tenantSchema.OidcClientSecretReference ?? tenantSchema.OidcClientSecret)
         };
 
@@ -202,6 +196,18 @@ public class TenantService : ITenantService
         return resolvedTenant;
     }
 
+    private string? ResolveSecretProvider(PrismTenantSchema schema)
+    {
+        var provider = _tokenResolver.Resolve(schema.OidcClientSecretProvider);
+        if (provider is not null) return provider;
+
+        return string.IsNullOrWhiteSpace(schema.OidcClientSecret) ? null : PrismSecretProviderNames.Inline;
+    }
+
+    private static bool IsCodespacesDemoHost(string host) =>
+        PrismDemoTenants.IsAllowed && host.EndsWith(".app.github.dev", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The tenant with its stored branding: light, mobile and dark overrides, and their CSS.</summary>
     private static PrismTenant WithBranding(PrismTenantSchema schema, PrismTenant tenant)
     {
         tenant.BrandingOverrides = ParseBrandingOverrides(schema.BrandingOverrides);

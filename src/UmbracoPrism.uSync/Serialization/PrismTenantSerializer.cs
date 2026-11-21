@@ -111,15 +111,7 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
             return SyncAttempt<PrismTenantSchema>.Fail(node.GetAlias(), default, ChangeType.Fail,
                 "Hostname resolved to empty — check token configuration", null);
 
-        schema.Name = info?.Element("Name")?.Value ?? string.Empty;
-        schema.AllowBiometricLogin = ParseBool(info?.Element("AllowBiometricLogin")?.Value, defaultValue: true);
-        schema.EntraTenantId = NullIfEmpty(identity?.Element("EntraTenantId")?.Value);
-        schema.EntraClientId = NullIfEmpty(identity?.Element("EntraClientId")?.Value);
-        schema.SecretKeyName = NullIfEmpty(identity?.Element("SecretKeyName")?.Value);
-        schema.OidcAuthority = NullIfEmpty(identity?.Element("OidcAuthority")?.Value);
-        schema.OidcClientId = NullIfEmpty(identity?.Element("OidcClientId")?.Value);
-        schema.OidcClientSecretProvider = NullIfEmpty(identity?.Element("OidcClientSecretProvider")?.Value);
-        schema.OidcClientSecretReference = NullIfEmpty(identity?.Element("OidcClientSecretReference")?.Value);
+        ReadInfoAndIdentity(schema, info, identity);
 
         var identityError = PrismTenantValidator.Validate(
             _tokenResolver.Resolve(schema.OidcAuthority),
@@ -135,6 +127,19 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
             schema.OidcClientSecret = existing.OidcClientSecret;
 
         return SyncAttempt<PrismTenantSchema>.Succeed(ItemAlias(schema), schema, ChangeType.Import, new List<uSyncChange>());
+    }
+
+    private static void ReadInfoAndIdentity(PrismTenantSchema schema, XElement? info, XElement? identity)
+    {
+        schema.Name = info?.Element("Name")?.Value ?? string.Empty;
+        schema.AllowBiometricLogin = ParseBool(info?.Element("AllowBiometricLogin")?.Value, defaultValue: true);
+        schema.EntraTenantId = NullIfEmpty(identity?.Element("EntraTenantId")?.Value);
+        schema.EntraClientId = NullIfEmpty(identity?.Element("EntraClientId")?.Value);
+        schema.SecretKeyName = NullIfEmpty(identity?.Element("SecretKeyName")?.Value);
+        schema.OidcAuthority = NullIfEmpty(identity?.Element("OidcAuthority")?.Value);
+        schema.OidcClientId = NullIfEmpty(identity?.Element("OidcClientId")?.Value);
+        schema.OidcClientSecretProvider = NullIfEmpty(identity?.Element("OidcClientSecretProvider")?.Value);
+        schema.OidcClientSecretReference = NullIfEmpty(identity?.Element("OidcClientSecretReference")?.Value);
     }
 
     /// <summary>The tenant's three sets of branding overrides, each stored as JSON and exported as its own element.</summary>
