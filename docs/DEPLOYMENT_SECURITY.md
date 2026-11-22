@@ -1,14 +1,14 @@
 # Deployment Security Guide
 
-This guide covers deployment boundaries, environment configuration, and pre-flight checks for Umbraco.Prism. All details below reflect the current security architecture verified in the latest review.
+This guide covers deployment boundaries, environment configuration, and pre-flight checks for Umbraco.Prism. This guide describes how Prism is designed to be deployed. It is not a guarantee of security, and you remain responsible for your deployment: see [Security responsibility and assurance](security/responsibility.md).
 
 ---
 
 ## Service Deployment Boundaries
 
-### ✅ UmbracoPrism.TestSite: Production-Safe
+### UmbracoPrism.TestSite: the reference host
 
-The TestSite is designed and tested for production use:
+The TestSite is the reference host for Prism. It also runs prismreference.com, but it is a demonstration, not a hardened template, so review its configuration before copying it:
 - **Authentication:** Stateless OIDC identity per request
 - **Tenant Isolation:** Properly enforced across all requests
 - **Dev-Only Code Paths:** None; no conditional logic that enables dangerous features in Development
@@ -30,9 +30,9 @@ This is a demo and development-only application. It **must never** be deployed t
 
 **Mitigation:** All unauthenticated admin endpoints return `404 Not Found` in non-Development mode. However, **do not rely on this for safety**: simply do not deploy MockBusinessApp.
 
-### ✅ Wayfinder: Production-Safe
+### Wayfinder
 
-Shared libraries are production-safe. The backchannel URL feature (described below) only activates if explicitly configured via environment variable.
+The backchannel URL feature (described below) only activates if explicitly configured via environment variable.
 
 ---
 

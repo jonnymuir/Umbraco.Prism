@@ -6,6 +6,10 @@ register: each item states what is true of the code now, and what to do about it
 to produce it is in [the review procedure](auth-trust-review-procedure.md), so the exercise can be
 repeated and the register updated.
 
+This is a self-review by Prism's author, assisted by AI tooling. It is not an independent audit
+or penetration test, and it is no assurance that Prism is secure. Responsibility for your
+deployment stays with you: see [Security responsibility and assurance](responsibility.md).
+
 Scope: `UmbracoPrism.Core` (OIDC, member cookie, tenant resolution, bearer validation, biometric
 and mobile sign-in, secrets, page access, admin APIs), the host wiring a consumer must supply
 (`UmbracoPrism.TestSite` as the reference), `UmbracoPrism.MockBusinessApp` as the downstream API,

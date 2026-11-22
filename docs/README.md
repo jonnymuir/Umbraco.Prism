@@ -21,6 +21,8 @@ installs.
   configuration and pre-flight checks.
 - **[Cloudflare maintenance pages](cloudflare-maintenance.md)**: branded error and maintenance
   pages at the edge when the site is down.
+- **[Security responsibility and assurance](security/responsibility.md)**: what Prism does not
+  promise, what you must verify and own, and a pre-production checklist. Read it first.
 - **[Authentication and trust review](security/auth-trust-review.md)**: the basis of trust, where
   Prism uses standard libraries and where it implements a standard itself, findings and CI
   coverage. Repeat it with the [review procedure](security/auth-trust-review-procedure.md).

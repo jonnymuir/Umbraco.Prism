@@ -2,6 +2,9 @@
 
 This guide walks you through adding Umbraco Prism to an existing Umbraco v17+ site (or bootstrapping it in a greenfield project). The process is designed to be minimal: install the package and Prism handles the rest — there is no service registration to write.
 
+> Prism is provided "as is" and you are responsible for the security of your deployment. Read
+> [Security responsibility and assurance](security/responsibility.md) before production use.
+
 ## 1. Install the NuGet Package
 
 In your Umbraco project:
