@@ -1,5 +1,11 @@
 # UmbracoPrism.uSync
 
+> **Security responsibility.** Prism is open source, MIT licensed and provided "as is", without
+> warranty. Authentication, multi-tenant isolation and authorisation are your responsibility as
+> the person deploying it. Do not rely on Prism's implementation: review the code, run your own
+> security testing, and have your own architecture and security teams assess it. Read
+> [Security responsibility and assurance](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/security/responsibility.md) before production use.
+
 [uSync](https://jumoo.co.uk/usync/) handlers for [Umbraco Prism](https://github.com/jonnymuir/Umbraco.Prism):
 move your tenants and page access policies between environments with the rest of your uSync
 files.

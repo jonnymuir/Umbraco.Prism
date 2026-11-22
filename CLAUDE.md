@@ -185,6 +185,14 @@ the size budgets. Code that predates them is baselined: `.policy/size-baseline.j
 complexity baseline in `.editorconfig`, and the `.editorconfig` logging baseline (files whose log
 calls predate `[LoggerMessage]`). All three may only shrink; new code meets the budgets.
 
+### Security claims
+
+Prism is open source and provided "as is"; the deployer owns the security of their system (see
+`docs/security/responsibility.md`). Never write that Prism is "secure", "safe", "compliant",
+"certified" or "production-safe" in docs, READMEs, code comments or commit messages. Describe
+what a control does and what it does not cover, and keep the responsibility notice in the README,
+SECURITY.md and the NuGet readmes.
+
 ### Documentation
 
 - `README.md` is the source; `MARKETPLACE.md` is generated from it (`npm run generate:marketplace`)

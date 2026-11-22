@@ -1,5 +1,12 @@
 # Security policy
 
+## Responsibility
+
+Prism is open source under the MIT licence and is provided "as is", without warranty. Securing a
+deployment is the responsibility of whoever deploys it. Prism has had no independent audit or
+penetration test, and nothing here is a promise that it is secure or fit for a purpose. See
+[Security responsibility and assurance](docs/security/responsibility.md).
+
 ## Reporting a vulnerability
 
 Please report vulnerabilities privately through
@@ -13,7 +20,7 @@ rather not be named.
 
 ## Supported versions
 
-Only the latest release receives security fixes.
+Only the latest release receives security fixes, on a best-effort basis with no service level.
 
 ## Scope
 

@@ -12,6 +12,12 @@ dotnet add package UmbracoPrism
 One Umbraco instance. Multiple branded portals, each with its own OIDC identity and runtime
 branding. Add a native mobile app with one click.
 
+> **Security responsibility.** Prism is open source, MIT licensed and provided "as is", without
+> warranty. Authentication, multi-tenant isolation and authorisation are your responsibility as
+> the person deploying it. Do not rely on Prism's implementation: review the code, run your own
+> security testing, and have your own architecture and security teams assess it. Read
+> [Security responsibility and assurance](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/security/responsibility.md) before production use.
+
 ---
 
 ## How it fits together
@@ -116,8 +122,8 @@ dotnet tool generates the same bundle as the backoffice's **Produce Mobile** but
   [Journey status](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/journey-status.md).
 - **Page access policies**: require sign-in for any page and limit it to named tenants, from
   **Settings → Advanced → Page access**.
-- **Secure-by-default secrets**: production tenants resolve confidential-client secrets through
-  Key Vault; nothing raw ever appears in a management API response. See
+- **Vault-backed secrets**: production tenants resolve confidential-client secrets through
+  Key Vault, and no raw secret is returned by a management API response. See
   [Secret Management](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/secret-management.md).
 
 ## Documentation
@@ -142,6 +148,9 @@ design docs.
 .NET 10 · Umbraco 17+ · Stateless OIDC (any compliant provider) · Azure Key Vault · Capacitor/TypeScript/Storybook for mobile.
 
 ## Contributing and security
+
+Prism is provided "as is" and you are responsible for the security of what you build with it. See
+[Security responsibility and assurance](https://github.com/jonnymuir/Umbraco.Prism/blob/main/docs/security/responsibility.md).
 
 See [CONTRIBUTING.md](https://github.com/jonnymuir/Umbraco.Prism/blob/main/CONTRIBUTING.md). To report a vulnerability, use
 [GitHub's private reporting](https://github.com/jonnymuir/Umbraco.Prism/security/advisories/new)
