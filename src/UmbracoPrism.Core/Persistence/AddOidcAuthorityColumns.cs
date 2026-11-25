@@ -25,9 +25,7 @@ public class AddOidcAuthorityColumns(IMigrationContext context) : AsyncMigration
         if (!ColumnExists("PrismTenants", "OidcClientId"))
             Create.Column("OidcClientId").OnTable("PrismTenants").AsString(255).Nullable().Do();
 
-        // OidcClientSecret: legacy inline secret column retained for migration compatibility.
-        // New generic OIDC flows should use the provider/reference columns added later in the
-        // migration plan so production tenants stay vault-backed by default.
+        // OidcClientSecret is created here and moved to the provider and reference columns by the next migration.
         if (!ColumnExists("PrismTenants", "OidcClientSecret"))
             Create.Column("OidcClientSecret").OnTable("PrismTenants").AsString(500).Nullable().Do();
 

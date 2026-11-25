@@ -84,7 +84,6 @@ public class TenantManagementController(
             SecretKeyName = newSecretKeyName,
             OidcAuthority = NormalizeOptionalString(tenant.OidcAuthority),
             OidcClientId = NormalizeOptionalString(tenant.OidcClientId),
-            OidcClientSecret = genericSecret.LegacyInlineSecret,
             OidcClientSecretProvider = genericSecret.Provider,
             OidcClientSecretReference = genericSecret.Reference
         };
@@ -109,8 +108,8 @@ public class TenantManagementController(
         if (existing == null) return NotFound();
 
         var oldHostname = existing.Hostname;
-        var existingProvider = NormalizeSecretProvider(existing);
-        var existingReference = NormalizeSecretReference(existing);
+        var existingProvider = existing.OidcClientSecretProvider;
+        var existingReference = existing.OidcClientSecretReference;
         var genericSecret = ResolveGenericSecretFields(
             updatedTenant.Hostname,
             updatedTenant.OidcAuthority,
@@ -141,7 +140,6 @@ public class TenantManagementController(
         existing.SecretKeyName = updatedSecretKeyName;
         existing.OidcAuthority = NormalizeOptionalString(updatedTenant.OidcAuthority);
         existing.OidcClientId = NormalizeOptionalString(updatedTenant.OidcClientId);
-        existing.OidcClientSecret = genericSecret.LegacyInlineSecret;
         existing.OidcClientSecretProvider = genericSecret.Provider;
         existing.OidcClientSecretReference = genericSecret.Reference;
         TenantRequestSettings.ApplyTo(existing, updatedTenant);
@@ -304,8 +302,8 @@ public class TenantManagementController(
 
     private static PrismTenantResponse ToTenantResponse(PrismTenantSchema tenant)
     {
-        var provider = NormalizeSecretProvider(tenant);
-        var reference = NormalizeSecretReference(tenant);
+        var provider = tenant.OidcClientSecretProvider;
+        var reference = tenant.OidcClientSecretReference;
 
         return new PrismTenantResponse
         {
@@ -329,7 +327,7 @@ public class TenantManagementController(
         };
     }
 
-    private static (string? Provider, string? Reference, string? LegacyInlineSecret) ResolveGenericSecretFields(
+    private static (string? Provider, string? Reference) ResolveGenericSecretFields(
         string? hostname,
         string? oidcAuthority,
         string? oidcClientId,
@@ -342,7 +340,7 @@ public class TenantManagementController(
     {
         if (string.IsNullOrWhiteSpace(oidcAuthority))
         {
-            return (null, null, null);
+            return (null, null);
         }
 
         var normalizedKeyVaultReference = NormalizeOptionalString(requestedKeyVaultReference);
@@ -353,28 +351,26 @@ public class TenantManagementController(
             if (string.Equals(normalizedProvider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase)
                 && TenantRequestRules.IsRepoOwnedLocalDemoTenant(hostname, oidcAuthority, oidcClientId))
             {
-                return (PrismSecretProviderNames.Inline, normalizedReference, normalizedReference);
+                return (PrismSecretProviderNames.Inline, normalizedReference);
             }
 
             if (string.Equals(normalizedProvider, PrismSecretProviderNames.AzureKeyVault, StringComparison.OrdinalIgnoreCase))
             {
-                return (PrismSecretProviderNames.AzureKeyVault, normalizedReference, null);
+                return (PrismSecretProviderNames.AzureKeyVault, normalizedReference);
             }
         }
 
         if (!string.IsNullOrWhiteSpace(normalizedKeyVaultReference))
         {
-            return (PrismSecretProviderNames.AzureKeyVault, normalizedKeyVaultReference, null);
+            return (PrismSecretProviderNames.AzureKeyVault, normalizedKeyVaultReference);
         }
 
         if (preserveExisting)
         {
-            var provider = NormalizeOptionalString(existingProvider);
-            var reference = NormalizeOptionalString(existingReference);
-            return (provider, reference, string.Equals(provider, PrismSecretProviderNames.Inline, StringComparison.OrdinalIgnoreCase) ? reference : null);
+            return (NormalizeOptionalString(existingProvider), NormalizeOptionalString(existingReference));
         }
 
-        return (null, null, null);
+        return (null, null);
     }
 
     /// <summary>Validates the parts of a tenant request that are checked before it is saved.</summary>
@@ -435,8 +431,8 @@ public class TenantManagementController(
             .Any(other => string.Equals(
                 ResolveVaultSecretName(
                     string.IsNullOrWhiteSpace(other.OidcAuthority) ? other.SecretKeyName : null,
-                    NormalizeSecretProvider(other),
-                    NormalizeSecretReference(other)),
+                    other.OidcClientSecretProvider,
+                    other.OidcClientSecretReference),
                 newVaultSecretName,
                 StringComparison.Ordinal));
 
@@ -464,22 +460,6 @@ public class TenantManagementController(
         }
 
         return null;
-    }
-
-    private static string? NormalizeSecretProvider(PrismTenantSchema tenant)
-    {
-        if (!string.IsNullOrWhiteSpace(tenant.OidcClientSecretProvider))
-        {
-            return tenant.OidcClientSecretProvider;
-        }
-
-        return string.IsNullOrWhiteSpace(tenant.OidcClientSecret) ? null : PrismSecretProviderNames.Inline;
-    }
-
-    private static string? NormalizeSecretReference(PrismTenantSchema tenant)
-    {
-        return NormalizeOptionalString(tenant.OidcClientSecretReference)
-            ?? NormalizeOptionalString(tenant.OidcClientSecret);
     }
 
     private static string? NormalizeOptionalString(string? value)

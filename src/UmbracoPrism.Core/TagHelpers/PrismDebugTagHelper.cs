@@ -69,8 +69,7 @@ public class PrismDebugTagHelper(
             var isPrismMobileRequest = PrismMobileRequestDetection.IsPrismMobileRequest(ViewContext.HttpContext);
             var mobileDetectionSource = PrismMobileRequestDetection.GetPrismMobileDetectionSource(ViewContext.HttpContext);
 
-            // SEC-PT2-004: externalized (not spliced inline), same rationale as every other
-            // formerly-inline asset in this repo — needs no CSP unsafe-inline/nonce exception.
+            // Externalized, not spliced inline, so it needs no CSP unsafe-inline/nonce exception.
             sb.Append("""
                 <link rel="stylesheet" href="/App_Plugins/UmbracoPrism/diagnostics/prism-debug.css" />
                 <script src="/App_Plugins/UmbracoPrism/diagnostics/prism-debug-copy.js"></script>

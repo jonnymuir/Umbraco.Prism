@@ -42,7 +42,6 @@ This model:
 - This path may use:
   - `OidcClientSecretProvider = "inline"`
   - `OidcClientSecretReference = "prism-dev-secret"`
-- Older seeded rows may still use the legacy `OidcClientSecret` column; `TenantService` maps that to the inline provider model at runtime
 
 ---
 

@@ -10,9 +10,8 @@ namespace UmbracoPrism.Core;
 /// <c>TenantService.BuildCssDeclarations</c>). Branding overrides are otherwise unvalidated free
 /// text, so a compromised or malicious backoffice admin account could otherwise corrupt the
 /// tenant's live stylesheet (e.g. a raw CSS comment breakout affecting rules that follow) —
-/// serving branding CSS as its own resource, rather than splicing it inline into a
-/// <c>&lt;style&gt;</c> tag on every page as it used to be, already closes off the more severe
-/// "escape into surrounding HTML/script" class of attack that motivated this originally, but the
+/// serving branding CSS as its own resource, not inline in a <c>&lt;style&gt;</c> tag, closes off
+/// the more severe "escape into surrounding HTML/script" class of attack, but the
 /// validation itself remains the single source of truth both callers must apply the same way.
 /// </summary>
 public static partial class PrismBrandingCssSafety

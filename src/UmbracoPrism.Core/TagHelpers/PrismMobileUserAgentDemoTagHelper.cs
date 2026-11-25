@@ -23,9 +23,7 @@ public static class PrismScreenshotMode
 /// prism-mobile-nav.js/mobile-shell), never spliced inline. Per-usage config (Marker/StorageKey/
 /// QueryParam/CookieKey) is passed via each script tag's own data-* attributes, read at runtime
 /// via document.currentScript — so the JS payload itself has no per-request variation and needs
-/// no CSP unsafe-inline/nonce exception (SEC-PT2-004 follow-up: this TagHelper used to emit
-/// literal &lt;style&gt;/&lt;script&gt; blocks directly, the last inline content of its kind in
-/// this repo).
+/// no CSP unsafe-inline/nonce exception.
 /// </summary>
 [HtmlTargetElement("prism-mobile-user-agent-demo")]
 public class PrismMobileUserAgentDemoTagHelper : TagHelper

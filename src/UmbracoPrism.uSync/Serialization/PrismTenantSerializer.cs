@@ -122,10 +122,6 @@ public class PrismTenantSerializer : SyncSerializerRoot<PrismTenantSchema>, ISyn
         foreach (var set in OverrideSets)
             set.Set(schema, ReadOverrides(node.Element(set.Element)));
 
-        // Preserve legacy inline secret — never exported, must survive a round-trip.
-        if (existing is not null)
-            schema.OidcClientSecret = existing.OidcClientSecret;
-
         return SyncAttempt<PrismTenantSchema>.Succeed(ItemAlias(schema), schema, ChangeType.Import, new List<uSyncChange>());
     }
 

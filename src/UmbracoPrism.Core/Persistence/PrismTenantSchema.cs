@@ -106,14 +106,6 @@ public class PrismTenantSchema
     public string? OidcClientId { get; set; }
 
     /// <summary>
-    /// Legacy inline OIDC client secret column retained for migration compatibility.
-    /// New runtime flows should prefer <see cref="OidcClientSecretProvider"/> and <see cref="OidcClientSecretReference"/>.
-    /// </summary>
-    [Column("OidcClientSecret")]
-    [NullSetting(NullSetting = NullSettings.Null)]
-    public string? OidcClientSecret { get; set; }
-
-    /// <summary>
     /// Gets or sets the provider used to resolve the generic OIDC client secret at runtime.
     /// Normal tenants should use <c>azure-key-vault</c>; the repo-owned localhost demo may use <c>inline</c>.
     /// </summary>
