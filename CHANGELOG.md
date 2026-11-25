@@ -2,6 +2,51 @@
 
 All notable changes to Umbraco Prism are documented here. This project follows [semantic versioning](https://semver.org/).
 
+## [v8.0.0] - 2026-11-25
+
+This release hardens authentication and multi-tenant sign-in. Read the breaking changes before upgrading, and read [Security responsibility and assurance](docs/security/responsibility.md): Prism is provided "as is" and securing your deployment is your responsibility.
+
+### Breaking changes
+
+- Member sessions are now kept on the server. The browser cookie is renamed `__Host-prism.sid` and holds only a session reference, so every member signs in again once after you upgrade. Anything that read the `PrismMemberCookie` cookie by name must read the new name. The `prismSessions` table is created by the package migration on startup.
+- Sessions end after 8 hours of inactivity or 7 days in total, not 14 days of activity. Set `Prism:Session:SlidingExpirationMinutes` and `Prism:Session:AbsoluteMaxLifetimeMinutes` to restore longer sessions.
+- Outside Development, Prism refuses to start unless Data Protection keys are persisted and protected. Configure `PersistKeysTo...` and `ProtectKeysWith...`, or set `Prism:DataProtection:RequireConfiguredKeys` to `false` to log a warning instead.
+- A business API tenant with an `OidcAuthority` must set `Audience` to the API's own audience. Tokens issued only to the tenant's web client are no longer accepted.
+- A tenant whose OIDC authority is plain http, on a private or loopback address, or whose Entra tenant id is not a single DNS label or GUID has sign-in disabled outside Development. Use https on a public host, or set `Prism__AllowInternalAuthorities=true` for a provider on an internal network.
+- The localhost and `*.app.github.dev` demo behaviours need Development or `Prism__AllowDemoTenants=true`.
+- Tenant tokens whose names contain `SECRET`, `PASSWORD`, `KEY`, `TOKEN` or similar no longer resolve. Rename them.
+- Biometric credentials last 14 days by default, not 30. Set `Prism:Biometric:TokenLifetimeDays` to keep a longer life.
+- Biometric credentials issued before per-tenant key derivation no longer work: tokens signed with the configured key, and `v2.` or unversioned encrypted refresh tokens, are refused. Members set up biometric sign-in again. `Prism:Biometric:AcceptLegacyTokens` is removed.
+- The `PrismTenants.OidcClientSecret` column is dropped on upgrade. A tenant that kept its secret only there needs it set again through `OidcClientSecretProvider` and `OidcClientSecretReference`.
+- `Prism:Firebase:CredentialJson` must be the service-account JSON itself, not a file path. A path disables push notifications and logs an error.
+- Notifications, registered devices and journey statuses belong to the member's stable subject (`IPrismUserContext.Subject`), not their email. Devices registered under an email register again on the app's next start, and a host that sends notifications for its own users must pass the subject as the user id.
+- `DELETE /api/prism/device/{deviceId}` is removed. Revoke a device from the tenant's Devices tab, or call the Management API at `/umbraco/management/api/v1/prism/tenants/{id}/devices/{deviceId}` as a backoffice user.
+
+### New features
+
+- Member sessions can be stored in the Umbraco database (the default, no setup) or in Redis or any `IDistributedCache` by setting `Prism:Session:Storage` to `DistributedCache`. A host can supply its own `IPrismSessionStorage`.
+- A deleted or expired stored session ends the member's sign-in at once.
+- Active sessions are re-confirmed with the identity provider every 15 minutes, so a member removed at the provider is signed out.
+- Generic OIDC tenants work with any compliant provider: endpoints come from the provider's discovery document, not Keycloak paths.
+- Backoffice administrators can list and revoke a tenant's biometric devices from the Devices tab.
+- `Prism:RejectUnknownHosts` answers a hostname that matches no tenant with 421.
+- Sign-in, registration, callback and mobile handover endpoints are rate limited (`Prism:RateLimiting:SignInRequestsPerMinute`).
+- Biometric refresh tokens are encrypted under per-tenant derived keys with a key id, so keys can rotate (`Prism:Biometric:PreviousEncryptionKeys`).
+- Adds a published [authentication and trust review](docs/security/auth-trust-review.md), a review procedure and a plain statement of [security responsibility](docs/security/responsibility.md).
+
+### Bug fixes and improvements
+
+- Page access now denies a protected page when its policy lookup fails, instead of serving it publicly.
+- `KEYCLOAK_BACKCHANNEL_URL` is honoured only in Development, and the package refuses to start elsewhere if it is set.
+- Failed Key Vault lookups are retried after 15 seconds instead of being cached for an hour.
+- Mobile sign-in codes can be redeemed only once, even under concurrent requests.
+- Unknown key ids and provider outages no longer cause an outbound key fetch on every request.
+- Bearer validation accepts asymmetric algorithms only, and failures are logged without echoing configuration.
+- The sign-in code exchange uses a bounded HTTP client and no longer puts the provider's response body in errors.
+- Removes console output that listed environment variables, authorities and logout diagnostics.
+
+---
+
 ## [v7.2.0] - 2026-11-15
 
 ### New features
