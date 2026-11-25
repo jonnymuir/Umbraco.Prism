@@ -87,8 +87,7 @@ non-Development host; the default lifetime is 14 days. What remains is the desig
 bearer token (see [proof-of-possession analysis](../proof-of-possession-analysis.md)); one master
 signing key and one master encryption key serve every tenant (derived keys separate tenants, they do
 not protect against the master leaking); the exchange mints the cookie without re-validating any
-token, so the account is only as fresh as the credential row; it works for Entra tenants only. Tokens
-signed before derivation validate until they expire unless `AcceptLegacyTokens` is turned off.
+token, so the account is only as fresh as the credential row; it works for Entra tenants only.
 Fix: a hardware-bound key with a signed challenge (the proof-of-possession design) when the assurance
 level justifies it.
 

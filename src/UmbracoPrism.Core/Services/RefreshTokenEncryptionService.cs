@@ -10,14 +10,11 @@ namespace UmbracoPrism.Core.Services;
 /// names the configured key that encrypted it so keys can be rotated, and the caller's associated
 /// data is authenticated but not stored. The AES key is not the configured key itself: it is derived
 /// from it with HKDF-SHA256 using the associated data (which names the tenant, user and device) as
-/// context, so every credential is encrypted under its own key. A <c>v2.</c> value, encrypted
-/// directly under the configured key, and an older unversioned <c>Base64([nonce][ciphertext][tag])</c>
-/// value (no associated data) still decrypt.
+/// context, so every credential is encrypted under its own key.
 /// </summary>
 public class RefreshTokenEncryptionService : IRefreshTokenEncryptionService
 {
     private const string VersionPrefix = "v3.";
-    private const string DirectKeyPrefix = "v2.";
     private const int NonceSize = 12;
     private const int TagSize = 16;
     private const int KeySize = 32; // 256 bits
@@ -73,24 +70,14 @@ public class RefreshTokenEncryptionService : IRefreshTokenEncryptionService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ciphertext);
 
-        var aad = Encoding.UTF8.GetBytes(associatedData ?? string.Empty);
-        if (ciphertext.StartsWith(VersionPrefix, StringComparison.Ordinal))
-        {
-            var (key, data) = RefreshTokenEnvelope.Split(ciphertext, VersionPrefix, _keysById);
-            return Open(data, [RefreshTokenEnvelope.DeriveKey(key, associatedData)], aad);
-        }
+        if (!ciphertext.StartsWith(VersionPrefix, StringComparison.Ordinal))
+            throw new CryptographicException("Prism: Encrypted refresh token has an unsupported format.");
 
-        if (ciphertext.StartsWith(DirectKeyPrefix, StringComparison.Ordinal))
-        {
-            var (key, data) = RefreshTokenEnvelope.Split(ciphertext, DirectKeyPrefix, _keysById);
-            return Open(data, [key], aad);
-        }
-
-        // Unversioned: encrypted under the key then configured, with no associated data.
-        return Open(Convert.FromBase64String(ciphertext), _keysById.Values, []);
+        var (key, data) = RefreshTokenEnvelope.Split(ciphertext, VersionPrefix, _keysById);
+        return Open(data, RefreshTokenEnvelope.DeriveKey(key, associatedData), Encoding.UTF8.GetBytes(associatedData ?? string.Empty));
     }
 
-    private static string Open(byte[] data, IEnumerable<byte[]> candidateKeys, byte[] associatedData)
+    private static string Open(byte[] data, byte[] key, byte[] associatedData)
     {
         if (data.Length < NonceSize + TagSize)
             throw new CryptographicException("Prism: Encrypted refresh token data is too short.");
@@ -100,22 +87,9 @@ public class RefreshTokenEncryptionService : IRefreshTokenEncryptionService
         var encrypted = data.AsSpan(NonceSize, data.Length - NonceSize - TagSize);
         var plaintext = new byte[encrypted.Length];
 
-        CryptographicException? last = null;
-        foreach (var key in candidateKeys)
-        {
-            try
-            {
-                using var aes = new AesGcm(key, TagSize);
-                aes.Decrypt(nonce, encrypted, tag, plaintext, associatedData);
-                return Encoding.UTF8.GetString(plaintext);
-            }
-            catch (CryptographicException ex)
-            {
-                last = ex;
-            }
-        }
-
-        throw last ?? new CryptographicException("Prism: Encrypted refresh token could not be decrypted.");
+        using var aes = new AesGcm(key, TagSize);
+        aes.Decrypt(nonce, encrypted, tag, plaintext, associatedData);
+        return Encoding.UTF8.GetString(plaintext);
     }
 
     /// <summary>An 8 character identifier for a key. It reveals nothing useful about the key.</summary>

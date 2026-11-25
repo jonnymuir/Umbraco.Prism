@@ -13,9 +13,7 @@ namespace UmbracoPrism.Core.Services;
 /// (bind from "Prism:Biometric" in appsettings.json or via environment/Key Vault injection) is not
 /// used to sign directly: each tenant's tokens are signed with a key derived from it with
 /// HKDF-SHA256, so a token cannot be replayed as another tenant's even by someone who can forge
-/// signatures for one tenant. A token signed directly with the configured key, issued before
-/// derivation existed, validates until it expires unless
-/// <see cref="PrismBiometricOptions.AcceptLegacyTokens"/> is off.
+/// signatures for one tenant. A token signed directly with the configured key is refused.
 /// </summary>
 public class BiometricTokenService : IBiometricTokenService
 {
@@ -28,7 +26,6 @@ public class BiometricTokenService : IBiometricTokenService
     private const string DerivationContext = "prism-biometric-signing|";
 
     private readonly byte[] _configuredKey;
-    private readonly bool _acceptLegacyTokens;
     private readonly JwtSecurityTokenHandler _tokenHandler;
 
     /// <summary>
@@ -46,7 +43,6 @@ public class BiometricTokenService : IBiometricTokenService
                 "Set 'Prism:Biometric:SigningKey' in configuration.");
 
         _configuredKey = Encoding.UTF8.GetBytes(key);
-        _acceptLegacyTokens = options.Value.AcceptLegacyTokens;
         _tokenHandler = new JwtSecurityTokenHandler();
     }
 
@@ -114,8 +110,7 @@ public class BiometricTokenService : IBiometricTokenService
     }
 
     /// <summary>
-    /// The keys a token may have been signed with: its tenant's derived key and, while legacy tokens are
-    /// accepted, the configured key. The tenant is read from the token before its signature is checked,
+    /// The keys a token may have been signed with: its tenant's derived key. The tenant is read from the token before its signature is checked,
     /// which only chooses a key to check against; a token signed under another tenant's key fails.
     /// </summary>
     private IEnumerable<SecurityKey> SigningKeysFor(SecurityToken securityToken)
@@ -124,11 +119,6 @@ public class BiometricTokenService : IBiometricTokenService
         if (!string.IsNullOrWhiteSpace(tenantId))
         {
             yield return DeriveKey(tenantId);
-        }
-
-        if (_acceptLegacyTokens)
-        {
-            yield return new SymmetricSecurityKey(_configuredKey);
         }
     }
 

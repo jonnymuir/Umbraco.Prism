@@ -220,14 +220,12 @@ public class BiometricTokenServiceTests
     }
 
     [Fact]
-    public void ALegacyTokenSignedWithTheConfiguredKey_ValidatesOnlyWhileLegacyTokensAreAccepted()
+    public void ATokenSignedDirectlyWithTheConfiguredKey_IsRefused()
     {
-        var legacy = SignedWith(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ValidKey)), "tenant-1");
+        var direct = SignedWith(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(ValidKey)), "tenant-1");
 
-        BuildService().ValidateToken(legacy).TenantId.Should().Be("tenant-1");
+        var act = () => BuildService().ValidateToken(direct);
 
-        var strict = new BiometricTokenService(Options.Create(new PrismBiometricOptions { SigningKey = ValidKey, AcceptLegacyTokens = false }));
-        var act = () => strict.ValidateToken(legacy);
         act.Should().Throw<SecurityTokenException>();
     }
 

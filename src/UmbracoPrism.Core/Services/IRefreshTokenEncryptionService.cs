@@ -24,8 +24,8 @@ public interface IRefreshTokenEncryptionService
     /// <summary>
     /// Decrypts a previously encrypted refresh token.
     /// </summary>
-    /// <param name="ciphertext">Ciphertext from <see cref="Encrypt"/>, or an older unversioned one.</param>
-    /// <param name="associatedData">The value given to <see cref="Encrypt"/>. Ignored for an older unversioned ciphertext, which had none.</param>
+    /// <param name="ciphertext">Ciphertext from <see cref="Encrypt"/>.</param>
+    /// <param name="associatedData">The value given to <see cref="Encrypt"/>.</param>
     /// <returns>The original plaintext refresh token.</returns>
     string Decrypt(string ciphertext, string? associatedData = null);
 }

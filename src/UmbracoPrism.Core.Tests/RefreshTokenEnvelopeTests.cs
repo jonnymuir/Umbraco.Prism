@@ -53,14 +53,6 @@ public class RefreshTokenEnvelopeTests
     }
 
     [Fact]
-    public void AnUnversionedCiphertext_FromBeforeTheEnvelope_StillDecrypts_WithAnyContext()
-    {
-        var legacy = LegacyEncrypt(KeyA, "old-refresh-token");
-
-        Create(KeyA).Decrypt(legacy, "tenant|user|device").Should().Be("old-refresh-token");
-    }
-
-    [Fact]
     public void AfterRotation_TokensUnderThePreviousKeyStillOpen_AndNewOnesUseTheNewKey()
     {
         var before = Create(KeyA).Encrypt("refresh-token", "ctx");
@@ -71,14 +63,6 @@ public class RefreshTokenEnvelopeTests
         var after = rotated.Encrypt("refresh-token", "ctx");
         after.Split('.')[1].Should().NotBe(before.Split('.')[1]);
         Create(KeyB).Decrypt(after, "ctx").Should().Be("refresh-token", "the new key alone is enough for new tokens");
-    }
-
-    [Fact]
-    public void AfterRotation_AnUnversionedCiphertextUnderThePreviousKeyStillOpens()
-    {
-        var legacy = LegacyEncrypt(KeyA, "old-refresh-token");
-
-        Create(KeyB, KeyA).Decrypt(legacy).Should().Be("old-refresh-token");
     }
 
     [Fact]
@@ -106,11 +90,23 @@ public class RefreshTokenEnvelopeTests
     }
 
     [Fact]
-    public void AV2Ciphertext_EncryptedDirectlyUnderTheConfiguredKey_StillDecrypts()
+    public void AV2Ciphertext_EncryptedDirectlyUnderTheConfiguredKey_IsRefused()
     {
         var direct = DirectKeyEncrypt(KeyA, "older-refresh-token", "tenant|user|device");
 
-        Create(KeyA).Decrypt(direct, "tenant|user|device").Should().Be("older-refresh-token");
+        var act = () => Create(KeyA).Decrypt(direct, "tenant|user|device");
+
+        act.Should().Throw<CryptographicException>();
+    }
+
+    [Fact]
+    public void AnUnversionedCiphertext_IsRefused()
+    {
+        var unversioned = LegacyEncrypt(KeyA, "old-refresh-token");
+
+        var act = () => Create(KeyA).Decrypt(unversioned);
+
+        act.Should().Throw<CryptographicException>();
     }
 
     [Fact]

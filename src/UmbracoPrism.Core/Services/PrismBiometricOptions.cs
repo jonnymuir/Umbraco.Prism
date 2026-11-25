@@ -26,14 +26,6 @@ public class PrismBiometricOptions
     public int TokenLifetimeDays { get; set; } = 14;
 
     /// <summary>
-    /// Whether a BiometricToken signed directly with <see cref="SigningKey"/>, as tokens were before each
-    /// tenant had its own derived key, still validates (default: true). Tokens issued now are signed with
-    /// the tenant's derived key. Set this to false once <see cref="TokenLifetimeDays"/> days have passed
-    /// since upgrading, when no such token can still be valid.
-    /// </summary>
-    public bool AcceptLegacyTokens { get; set; } = true;
-
-    /// <summary>
     /// Base64-encoded 32-byte AES-256 key used to encrypt Entra refresh tokens at rest.
     /// Generate with: <c>Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))</c>.
     /// In production, inject via environment variable or Azure Key Vault reference.

@@ -324,13 +324,6 @@ A biometric credential lasts 14 days by default (`Prism:Biometric:TokenLifetimeD
 credentials issued after it is set). A shorter life shortens how long a lost or stolen device is
 useful and means members set up biometric sign-in again sooner.
 
-### Upgrading from before derived keys
-
-Tokens signed directly with `SigningKey` still validate until they expire, and `v2.` encrypted refresh
-tokens still decrypt and are re-encrypted in the new form the next time they are used. Once the longest
-lifetime you have used has passed since upgrading, set `Prism:Biometric:AcceptLegacyTokens` to `false`
-so a token signed directly with the configured key is no longer accepted.
-
 ### Never Commit Keys to Source Control
 
 - User Secrets are excluded from `.gitignore` by default and are never committed.
