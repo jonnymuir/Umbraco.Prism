@@ -9,17 +9,11 @@ namespace UmbracoPrism.Core.Middleware;
 /// bootstrap shell appends <c>?prismMobile=1</c> only to its own initial Start URL — see
 /// <see cref="Services.MobileBundleService"/>).
 ///
-/// Formerly named <c>PrismBrandingMiddleware</c> and responsible for a great deal more: it used
-/// to buffer every HTML response and splice tenant branding CSS, mobile-shell CSS/JS, and
-/// biometric enroll/autologin scripts inline into the page (SEC-PT2-004 CSP follow-up). All of
-/// that content is now served as ordinary externally-referenced resources instead —
-/// <see cref="Controllers.PrismBrandingAssetsController"/> for the tenant-specific branding CSS,
-/// and plain static files under <c>wwwroot/mobile-shell/</c> for the rest — which a host
-/// references explicitly in its own layout (see docs/walkthroughs/building-a-mobile-app.md),
-/// the same way Prism's other front-end assets already work (e.g. <c>prism-mobile-nav.js</c>).
-/// Externally-referenced content needs no CSP inline-content exception regardless of how dynamic
-/// it is, and this middleware no longer needs to buffer/rewrite the response body at all — it
-/// only ever touches the request's cookies now, unconditionally and cheaply, on every request.
+/// It only touches the request's cookies, unconditionally and cheaply, on every request. Tenant
+/// branding CSS is served by <see cref="Controllers.PrismBrandingAssetsController"/> and the
+/// mobile shell's scripts are static files under <c>wwwroot/mobile-shell/</c>, which a host
+/// references in its own layout (see docs/walkthroughs/building-a-mobile-app.md). Externally
+/// referenced content needs no CSP inline-content exception.
 /// </summary>
 public class PrismMobileCookieMiddleware(RequestDelegate next)
 {

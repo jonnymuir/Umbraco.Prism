@@ -55,8 +55,7 @@ registers.
 ## Part 2 — Server-side configuration
 
 Set `Prism:Firebase:CredentialJson` to the full contents of the service-account JSON from step 6
-above, or a path to a file containing it. Prism treats a value starting with `{` as the JSON
-itself and anything else as a file path. Push notifications and
+above. It must be the JSON itself, not a path to a file. Push notifications and
 [journey status](journey-status.md) both send with this credential.
 
 On the reference app's VPS (a systemd `EnvironmentFile`, same convention as

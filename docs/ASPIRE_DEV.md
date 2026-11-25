@@ -119,7 +119,6 @@ Tenants with `EntraTenantId` set continue to use Entra ID authentication via Azu
 - **`OidcClientId`** (nullable string): OIDC client ID for generic providers.
 - **`OidcClientSecretProvider`** (nullable string): Canonical secret provider name. Prism currently supports `azure-key-vault` for normal tenants and `inline` only for the repo-owned localhost demo.
 - **`OidcClientSecretReference`** (nullable string): Provider-specific alias/reference. For Key Vault this is the secret name; for the localhost demo it is the repo-owned inline secret.
-- **`OidcClientSecret`** (legacy nullable string): Back-compat storage for older demo rows. `TenantService` maps it onto the new provider/reference model as `inline`.
 
 ### PrismOidcConfiguration Resolution Logic
 

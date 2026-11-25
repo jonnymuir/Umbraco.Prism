@@ -4,11 +4,8 @@ namespace UmbracoPrism.Core.Services;
 
 /// <summary>
 /// Builds the <c>:root{...}</c> CSS custom-property override block for a tenant's branding
-/// overrides. Extracted from <c>PrismBrandingMiddleware</c> (SEC-PT2-004 CSP follow-up): the
-/// overrides used to be spliced inline into every HTML response as a <c>&lt;style&gt;</c>
-/// element; they are now served as their own resource by
-/// <see cref="Controllers.PrismBrandingAssetsController"/>, so this logic needed to stand on
-/// its own rather than living as a private method on the middleware.
+/// overrides. They are served as their own resource by
+/// <see cref="Controllers.PrismBrandingAssetsController"/>, never spliced inline.
 /// </summary>
 public static class PrismBrandingCssBuilder
 {

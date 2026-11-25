@@ -140,7 +140,6 @@ public class DemoTenantSeeder(
         changed |= SetString(tenant.OidcClientId, OidcClientId, value => tenant.OidcClientId = value);
         changed |= SetString(tenant.OidcClientSecretProvider, PrismSecretProviderNames.Inline, value => tenant.OidcClientSecretProvider = value);
         changed |= SetString(tenant.OidcClientSecretReference, OidcClientSecret, value => tenant.OidcClientSecretReference = value);
-        changed |= SetString(tenant.OidcClientSecret, null, value => tenant.OidcClientSecret = value);
         changed |= SetString(tenant.EntraTenantId, null, value => tenant.EntraTenantId = value);
         changed |= SetString(tenant.EntraClientId, null, value => tenant.EntraClientId = value);
         changed |= SetString(tenant.SecretKeyName, null, value => tenant.SecretKeyName = value);

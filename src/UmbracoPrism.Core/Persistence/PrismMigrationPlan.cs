@@ -36,6 +36,7 @@ public class PrismMigrationPlan : PackageMigrationPlan
         .To<AddJourneyStatusColumns>("add-journey-status-columns")
         .To<CreatePrismJourneyStatusesTable>("add-journey-statuses")
         .To<AddDarkBrandingOverridesColumn>("add-dark-branding-overrides")
-        .To<CreatePrismSessionsTable>("add-sessions");
+        .To<CreatePrismSessionsTable>("add-sessions")
+        .To<DropLegacyInlineSecretColumn>("drop-legacy-inline-secret");
     }
 }

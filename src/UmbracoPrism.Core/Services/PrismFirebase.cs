@@ -8,8 +8,8 @@ namespace UmbracoPrism.Core.Services;
 
 /// <summary>
 /// The site's Firebase Cloud Messaging client, shared by push notifications and journey statuses.
-/// Credentials come from <c>Prism:Firebase:CredentialJson</c>: a JSON string (starting with
-/// <c>{</c>) or the path to a service-account JSON file. <see cref="Messaging"/> is null when they
+/// Credentials come from <c>Prism:Firebase:CredentialJson</c>: the service-account JSON
+/// itself (a string starting with <c>{</c>), not a file path. <see cref="Messaging"/> is null when they
 /// are missing or invalid, and the reason is logged once, at start-up.
 /// </summary>
 public sealed class PrismFirebase(IConfiguration configuration, ILogger<PrismFirebase> logger)
@@ -34,16 +34,21 @@ public sealed class PrismFirebase(IConfiguration configuration, ILogger<PrismFir
         // which branch here actually failed) made every real failure indistinguishable from a
         // genuinely-missing credential, with the one specific log line that would say why (the
         // exception this method's own catch block deliberately swallowed) never surfacing at all.
-        var isJson = credentialValue.TrimStart().StartsWith('{');
+        if (!credentialValue.TrimStart().StartsWith('{'))
+        {
+            logger.LogError(
+                "Prism:Firebase:CredentialJson must be the service-account JSON itself, not a file path — push notifications disabled.");
+            return null;
+        }
+
         logger.LogInformation(
-            "Firebase credential resolved: length={Length}, mode={Mode}, hasType={HasType}, " +
+            "Firebase credential resolved: length={Length}, hasType={HasType}, " +
             "hasProjectId={HasProjectId}, hasPrivateKey={HasPrivateKey}, hasClientEmail={HasClientEmail}.",
             credentialValue.Length,
-            isJson ? "json" : "file-path",
-            isJson && credentialValue.Contains("\"type\""),
-            isJson && credentialValue.Contains("\"project_id\""),
-            isJson && credentialValue.Contains("\"private_key\""),
-            isJson && credentialValue.Contains("\"client_email\""));
+            credentialValue.Contains("\"type\""),
+            credentialValue.Contains("\"project_id\""),
+            credentialValue.Contains("\"private_key\""),
+            credentialValue.Contains("\"client_email\""));
 
         try
         {
@@ -65,18 +70,7 @@ public sealed class PrismFirebase(IConfiguration configuration, ILogger<PrismFir
 
             if (app == null)
             {
-                GoogleCredential credential;
-
-                if (isJson)
-                {
-                    // JSON string (from Key Vault or appsettings dev override)
-                    credential = CredentialFactory.FromJson<ServiceAccountCredential>(credentialValue).ToGoogleCredential();
-                }
-                else
-                {
-                    // File path (legacy local dev scenario)
-                    credential = CredentialFactory.FromFile<ServiceAccountCredential>(credentialValue).ToGoogleCredential();
-                }
+                var credential = CredentialFactory.FromJson<ServiceAccountCredential>(credentialValue).ToGoogleCredential();
 
                 app = FirebaseApp.Create(
                     new AppOptions { Credential = credential },

@@ -180,7 +180,7 @@ public class TenantService : ITenantService
             OidcAuthority = _tokenResolver.Resolve(tenantSchema.OidcAuthority),
             OidcClientId = _tokenResolver.Resolve(tenantSchema.OidcClientId),
             OidcClientSecretProvider = ResolveSecretProvider(tenantSchema),
-            OidcClientSecretReference = _tokenResolver.Resolve(tenantSchema.OidcClientSecretReference ?? tenantSchema.OidcClientSecret)
+            OidcClientSecretReference = _tokenResolver.Resolve(tenantSchema.OidcClientSecretReference)
         };
 
         var identityError = PrismTenantValidator.Validate(resolvedTenant.OidcAuthority, resolvedTenant.EntraTenantId);
@@ -198,10 +198,7 @@ public class TenantService : ITenantService
 
     private string? ResolveSecretProvider(PrismTenantSchema schema)
     {
-        var provider = _tokenResolver.Resolve(schema.OidcClientSecretProvider);
-        if (provider is not null) return provider;
-
-        return string.IsNullOrWhiteSpace(schema.OidcClientSecret) ? null : PrismSecretProviderNames.Inline;
+        return _tokenResolver.Resolve(schema.OidcClientSecretProvider);
     }
 
     private static bool IsCodespacesDemoHost(string host) =>
